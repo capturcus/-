@@ -13,9 +13,9 @@ def main():
 
     text = args.input.read()
     tokens = lexer.lex(text)
-    db = morph_anal.load(args.sgjp)
+    db, preps = morph_anal.load(args.sgjp)
     morphs = morph_anal.analyze(tokens, db)
-    ast = parser.parse(morphs)
+    ast = parser.parse(morphs, preps)
 
     pretty.pretty(ast)
 

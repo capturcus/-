@@ -10,14 +10,24 @@ SGJP_PATH = os.path.join(os.path.dirname(__file__), "..", "sgjp.tab")
 
 
 @pytest.fixture(scope="session")
-def db():
+def loaded():
     return morph_anal.load(SGJP_PATH)
 
 
 @pytest.fixture(scope="session")
-def parse(db):
+def db(loaded):
+    return loaded[0]
+
+
+@pytest.fixture(scope="session")
+def preps(loaded):
+    return loaded[1]
+
+
+@pytest.fixture(scope="session")
+def parse(db, preps):
     def _parse(text):
-        return parser_mod.parse(morph_anal.analyze(lexer.lex(text), db))
+        return parser_mod.parse(morph_anal.analyze(lexer.lex(text), db), preps)
     return _parse
 
 
@@ -35,6 +45,20 @@ def test_lex_emits_indent_and_dedent_on_eof():
     assert lexer.Token.INDENT in kinds
     # DEDENT auto-flushed at EOF (otherwise parser can't close func body)
     assert kinds[-1] is lexer.Token.DEDENT
+
+
+def test_lex_emits_newline_after_each_content_line():
+    toks = lexer.lex("aby f:\n    x to 1\n")
+    # NEWLINE po `aby f:` i po `x to 1`
+    newlines = [t for t in toks if t[0] is lexer.Token.NEWLINE]
+    assert len(newlines) == 2
+
+
+def test_lex_no_newline_for_empty_or_comment_lines():
+    toks = lexer.lex("# komentarz\n\nx to 1\n")
+    # Tylko jedna NEWLINE — z linii zawierającej `x to 1`
+    newlines = [t for t in toks if t[0] is lexer.Token.NEWLINE]
+    assert len(newlines) == 1
 
 
 def test_lex_string_literal_preserves_internal_spaces():
@@ -401,6 +425,196 @@ def test_parse_break_standalone(parse):
     src = "aby f:\n    stop\n"
     ast = parse(src)
     assert isinstance(ast.body[0].body[0], parser_mod.Break)
+
+
+# ---------- Funkcje: deklaracja z parametrami ----------
+
+def test_parse_func_decl_no_params(parse):
+    ast = parse("aby działać:\n    x to 1\n")
+    fd = ast.body[0]
+    assert fd.name == ("działać",)
+    assert fd.params == []
+
+
+def test_parse_func_decl_with_param_no_prep(parse):
+    # `aby pisać coś:` — `coś` to acc bez przyimka
+    ast = parse("aby pisać coś:\n    x to 1\n")
+    fd = ast.body[0]
+    assert fd.name == ("pisać",)
+    assert len(fd.params) == 1
+    p = fd.params[0]
+    assert isinstance(p, parser_mod.Param)
+    assert p.prep is None
+    assert p.name == ("coś",)
+    assert p.case == frozenset({"acc"})
+
+
+def test_parse_func_decl_with_prep(parse):
+    # `aby czytać z klienta:` — `klient` (gen) z przyimkiem `z`
+    ast = parse("aby czytać z klienta:\n    x to 1\n")
+    fd = ast.body[0]
+    p = fd.params[0]
+    assert p.prep == ("z",)
+    assert p.name == ("klient",)
+    assert p.case == frozenset({"gen", "acc"})  # `klienta` to gen∨acc
+
+
+def test_parse_func_decl_locative_with_prep(parse):
+    # `aby nasłuchiwać na porcie:` — `port` (loc) z `na`
+    ast = parse("aby nasłuchiwać na porcie:\n    x to 1\n")
+    fd = ast.body[0]
+    p = fd.params[0]
+    assert p.prep == ("na",)
+    assert p.name == ("port",)
+    assert p.case == frozenset({"loc"})
+
+
+def test_parse_func_decl_multiple_params(parse):
+    # `aby wysłać coś do odbiorcy przez kanał od nadawcy:`
+    src = "aby wysłać coś do odbiorcy przez kanał od nadawcy:\n    x to 1\n"
+    ast = parse(src)
+    fd = ast.body[0]
+    assert fd.name == ("wysłać",)
+    assert len(fd.params) == 4
+    assert fd.params[0].prep is None and fd.params[0].name == ("coś",)
+    assert fd.params[1].prep == ("do",) and fd.params[1].name == ("odbiorca",)
+    assert fd.params[2].prep == ("przez",) and fd.params[2].name == ("kanał",)
+    assert fd.params[3].prep == ("od",) and fd.params[3].name == ("nadawca",)
+
+
+def test_parse_func_decl_preserves_surface(parse):
+    ast = parse("aby czytać z klienta:\n    x to 1\n")
+    p = ast.body[0].params[0]
+    assert p.surface == ("klienta",)
+
+
+# ---------- Funkcje: wywołanie ----------
+
+def test_parse_call_no_args(parse):
+    ast = parse("aby f:\n    siema\n")
+    call = ast.body[0].body[0]
+    assert isinstance(call, parser_mod.Call)
+    assert call.args == []
+
+
+def test_parse_call_with_string_arg(parse):
+    ast = parse('aby f:\n    pisz "witaj, świecie"\n')
+    call = ast.body[0].body[0]
+    assert isinstance(call, parser_mod.Call)
+    assert call.name == ("pisać",)
+    assert len(call.args) == 1
+    arg = call.args[0]
+    assert arg.prep is None
+    assert isinstance(arg.value, parser_mod.StrLit)
+    assert arg.value.value == "witaj, świecie"
+
+
+def test_parse_call_with_var_arg(parse):
+    ast = parse("aby f:\n    pisz tekstem\n")
+    call = ast.body[0].body[0]
+    assert isinstance(call, parser_mod.Call)
+    arg = call.args[0]
+    assert arg.prep is None
+    assert isinstance(arg.value, parser_mod.Var)
+    assert arg.value.name == ("tekst",)
+    assert arg.case == frozenset({"inst"})
+
+
+def test_parse_call_with_prep_arg(parse):
+    # `zapisz w mapie` — argument `w mapie` (prep `w`, loc)
+    ast = parse("aby f:\n    zapisz w mapie\n")
+    call = ast.body[0].body[0]
+    assert isinstance(call, parser_mod.Call)
+    assert len(call.args) == 1
+    arg = call.args[0]
+    assert arg.prep == ("w",)
+    assert isinstance(arg.value, parser_mod.Var)
+    assert arg.value.name == ("mapa",)
+    # `mapie` jest formą dat∨loc
+    assert arg.case == frozenset({"dat", "loc"})
+
+
+def test_parse_call_multiple_args(parse):
+    # `zaloguj annę tekstem` — dwa argumenty bez przyimków
+    ast = parse("aby f:\n    zaloguj annę tekstem\n")
+    call = ast.body[0].body[0]
+    assert call.name == ("zalogować",)
+    assert len(call.args) == 2
+    assert call.args[0].prep is None
+    assert call.args[1].prep is None
+
+
+def test_parse_call_mixed_prep_and_no_prep(parse):
+    src = "aby f:\n    zapisz_token w globalnej_mapie dla użytkownika\n"
+    ast = parse(src)
+    call = ast.body[0].body[0]
+    assert call.name == ("zapisać", "token")
+    assert len(call.args) == 2
+    assert call.args[0].prep == ("w",)
+    assert call.args[0].value.name == ("globalny", "mapa")
+    assert call.args[1].prep == ("dla",)
+    assert call.args[1].value.name == ("użytkownik",)
+
+
+def test_parse_call_does_not_consume_next_statement(parse):
+    # NEWLINE separuje wywołania — drugie nie jest argumentem pierwszego.
+    # Uważamy z jednoliterowymi nazwami (`a` to przyimek w sgjp).
+    src = (
+        "aby f:\n"
+        "    pisz wynik\n"
+        "    pisz tekst\n"
+    )
+    ast = parse(src)
+    body = ast.body[0].body
+    assert len(body) == 2
+    assert isinstance(body[0], parser_mod.Call)
+    assert isinstance(body[1], parser_mod.Call)
+    assert len(body[0].args) == 1
+    assert len(body[1].args) == 1
+
+
+def test_parse_dispatch_assignment_vs_call(parse):
+    # `liczba to 5` to assignment, `pisz 5` to call (rozróżnienie po peek+1)
+    ast = parse("aby f:\n    liczba to 5\n    pisz 5\n")
+    body = ast.body[0].body
+    assert isinstance(body[0], parser_mod.Assignment)
+    assert isinstance(body[1], parser_mod.Call)
+
+
+def test_parse_top_level_call(parse):
+    # Wywołanie poza definicją funkcji
+    ast = parse('pisz "hello"\n')
+    assert isinstance(ast.body[0], parser_mod.Call)
+
+
+# ---------- morph_anal: prepositions ----------
+
+def test_load_returns_preps_dict(loaded):
+    db, preps = loaded
+    assert isinstance(preps, dict)
+
+
+def test_preps_contains_basic_prepositions(preps):
+    # Zestaw przypadków dla typowych przyimków
+    assert "do" in preps and "gen" in preps["do"]
+    assert "z" in preps and "gen" in preps["z"] and "inst" in preps["z"]
+    assert "na" in preps and "acc" in preps["na"] and "loc" in preps["na"]
+    assert "w" in preps and "acc" in preps["w"] and "loc" in preps["w"]
+    assert "dla" in preps and "gen" in preps["dla"]
+
+
+def test_preps_aliases_vocalic_variants(preps):
+    # `ze` aliasuje do `z`, `we` do `w`, etc. — w `preps` mamy tylko bazowe
+    assert "z" in preps
+    # Nie ma osobnego klucza `ze` (został zaaliasowany pod `z`)
+    assert "ze" not in preps
+    assert "we" not in preps
+    assert "nade" not in preps
+
+
+def test_preps_excludes_archaic_qualifiers(preps):
+    # `gwoli` ma `przest.` w sgjp — powinien być wykluczony
+    assert "gwoli" not in preps
 
 
 def test_parse_nested_parens(parse):

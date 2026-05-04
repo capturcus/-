@@ -17,6 +17,27 @@ class FunctionDef:
 
 
 @dataclass
+class Param:
+    prep: tuple
+    name: tuple
+    case: str
+    surface: tuple
+
+
+@dataclass
+class Call:
+    name: tuple
+    args: list
+
+
+@dataclass
+class Arg:
+    prep: tuple
+    value: object
+    case: str
+
+
+@dataclass
 class Assignment:
     target: tuple
     value: object
@@ -69,12 +90,14 @@ class Break:
 
 
 class Parser:
-    def __init__(self, tokens):
+    def __init__(self, tokens, preps=None):
         self.tokens = tokens
         self.pos = 0
+        self.preps = preps or {}
 
-    def peek(self):
-        return self.tokens[self.pos] if self.pos < len(self.tokens) else None
+    def peek(self, offset=0):
+        i = self.pos + offset
+        return self.tokens[i] if i < len(self.tokens) else None
 
     def advance(self):
         t = self.peek()
@@ -87,33 +110,69 @@ class Parser:
             raise SyntaxError(f"Expected {kind}, got {t}")
         return t
 
+    def _skip_newlines(self):
+        while self.peek() and self.peek()[0] is lexer.Token.NEWLINE:
+            self.advance()
+
+    def _is_prep(self, token):
+        if token is None or token[0] is not lexer.Token.WORD:
+            return False
+        canon = canonical(token)
+        return len(canon) == 1 and canon[0] in self.preps
+
+    def _case_of(self, token):
+        _, value, analyses = token
+        last_case = None
+        for seg, anas in zip(value, analyses):
+            if not anas or len(seg) == 1:
+                last_case = None
+                continue
+            with_case = [a for a in anas if a[1] is not None]
+            if not with_case:
+                last_case = None
+                continue
+            chosen = next((a for a in with_case if a[2] == seg), with_case[0])
+            last_case = chosen[1]
+        return last_case
+
     def parse_module(self):
         body = []
+        self._skip_newlines()
         while self.peek() is not None:
             body.append(self.parse_stmt())
+            self._skip_newlines()
         return Module(body)
 
     def parse_stmt(self):
         t = self.peek()
-        if t[0] is lexer.Token.WORD and canonical(t) == ("aby",):
-            return self.parse_func_def()
-        if t[0] is lexer.Token.WORD and canonical(t) == ("jeśli",):
-            return self.parse_if()
-        if t[0] is lexer.Token.WORD and canonical(t) == ("dopóki",):
-            return self.parse_while()
-        if t[0] is lexer.Token.WORD and canonical(t) == ("stop",):
-            self.advance()
-            return Break()
+        if t[0] is lexer.Token.WORD:
+            canon = canonical(t)
+            if canon == ("aby",):
+                return self.parse_func_def()
+            if canon == ("jeśli",):
+                return self.parse_if()
+            if canon == ("dopóki",):
+                return self.parse_while()
+            if canon == ("stop",):
+                self.advance()
+                return Break()
+            nxt = self.peek(1)
+            if nxt and nxt[0] is lexer.Token.ASSIGN:
+                return self.parse_assignment()
+            return self.parse_call()
         return self.parse_assignment()
 
     def parse_if(self):
         self.expect(lexer.Token.WORD)  # jeśli
         cond = self.parse_expr()
         self.expect(lexer.Token.COLON)
+        self._skip_newlines()
         self.expect(lexer.Token.INDENT)
         then_body = []
+        self._skip_newlines()
         while self.peek()[0] is not lexer.Token.DEDENT:
             then_body.append(self.parse_stmt())
+            self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
         else_body = []
         t = self.peek()
@@ -124,9 +183,12 @@ class Parser:
                 else_body = [self.parse_if()]
             else:
                 self.expect(lexer.Token.COLON)
+                self._skip_newlines()
                 self.expect(lexer.Token.INDENT)
+                self._skip_newlines()
                 while self.peek()[0] is not lexer.Token.DEDENT:
                     else_body.append(self.parse_stmt())
+                    self._skip_newlines()
                 self.expect(lexer.Token.DEDENT)
         return If(cond=cond, then_body=then_body, else_body=else_body)
 
@@ -134,23 +196,66 @@ class Parser:
         self.expect(lexer.Token.WORD)  # dopóki
         cond = self.parse_expr()
         self.expect(lexer.Token.COLON)
+        self._skip_newlines()
         self.expect(lexer.Token.INDENT)
         body = []
+        self._skip_newlines()
         while self.peek()[0] is not lexer.Token.DEDENT:
             body.append(self.parse_stmt())
+            self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
         return While(cond=cond, body=body)
 
     def parse_func_def(self):
-        self.expect(lexer.Token.WORD)
+        self.expect(lexer.Token.WORD)  # aby
         name_tok = self.expect(lexer.Token.WORD)
+        params = []
+        while self.peek() and self.peek()[0] is not lexer.Token.COLON:
+            params.append(self.parse_param())
         self.expect(lexer.Token.COLON)
+        self._skip_newlines()
         self.expect(lexer.Token.INDENT)
         body = []
+        self._skip_newlines()
         while self.peek()[0] is not lexer.Token.DEDENT:
             body.append(self.parse_stmt())
+            self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
-        return FunctionDef(name=canonical(name_tok), params=[], body=body)
+        return FunctionDef(name=canonical(name_tok), params=params, body=body)
+
+    def parse_param(self):
+        prep = None
+        if self._is_prep(self.peek()):
+            prep = canonical(self.advance())
+        name_tok = self.expect(lexer.Token.WORD)
+        return Param(
+            prep=prep,
+            name=canonical(name_tok),
+            case=self._case_of(name_tok),
+            surface=name_tok[1],
+        )
+
+    def parse_call(self):
+        name_tok = self.expect(lexer.Token.WORD)
+        args = []
+        while self.peek() and self.peek()[0] not in (
+            lexer.Token.NEWLINE,
+            lexer.Token.DEDENT,
+            lexer.Token.COLON,
+        ):
+            args.append(self.parse_arg())
+        return Call(name=canonical(name_tok), args=args)
+
+    def parse_arg(self):
+        prep = None
+        if self._is_prep(self.peek()):
+            prep = canonical(self.advance())
+        case = None
+        nxt = self.peek()
+        if nxt and nxt[0] is lexer.Token.WORD:
+            case = self._case_of(nxt)
+        value = self.parse_expr()
+        return Arg(prep=prep, value=value, case=case)
 
     def parse_assignment(self):
         target_tok = self.expect(lexer.Token.WORD)
@@ -200,5 +305,5 @@ class Parser:
         raise SyntaxError(f"Unexpected token in expr: {t}")
 
 
-def parse(tokens):
-    return Parser(tokens).parse_module()
+def parse(tokens, preps=None):
+    return Parser(tokens, preps).parse_module()

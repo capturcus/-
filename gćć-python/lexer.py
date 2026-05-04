@@ -4,6 +4,7 @@ from enum import Enum, auto
 class Token(Enum):
     INDENT = auto()
     DEDENT = auto()
+    NEWLINE = auto()
     WORD = auto()
     NUMBER = auto()
     TEXT = auto()
@@ -28,6 +29,7 @@ def lex(text):
         indent_level = line_indents
         if line.strip().startswith("#"):
             continue
+        before = len(ret)
         for m in _TOKEN_RE.finditer(line.strip()):
             text_, number, binop, colon, paren, word = m.groups()
             if text_ is not None:
@@ -45,6 +47,8 @@ def lex(text):
                     ret.append((Token.ASSIGN, None))
                 else:
                     ret.append((Token.WORD, tuple(word.split("_"))))
+        if len(ret) > before:
+            ret.append((Token.NEWLINE, None))
     for _ in range(indent_level):
         ret.append((Token.DEDENT, None))
     return ret
