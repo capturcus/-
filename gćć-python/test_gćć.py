@@ -224,6 +224,20 @@ def test_parse_division(parse):
     assert isinstance(expr, parser_mod.BinOp) and expr.op == "/"
 
 
+def test_parse_modulo(parse):
+    ast = parse("aby f:\n    x to 19 % 6\n")
+    expr = ast.body[0].body[0].value
+    assert isinstance(expr, parser_mod.BinOp) and expr.op == "%"
+
+
+def test_parse_modulo_same_precedence_as_mul(parse):
+    # 1 + 19 % 6 -> BinOp(+, 1, BinOp(%, 19, 6))
+    ast = parse("aby f:\n    x to 1 + 19 % 6\n")
+    expr = ast.body[0].body[0].value
+    assert isinstance(expr, parser_mod.BinOp) and expr.op == "+"
+    assert isinstance(expr.right, parser_mod.BinOp) and expr.right.op == "%"
+
+
 def test_parse_comparison(parse):
     ast = parse("aby f:\n    x to a < b\n")
     expr = ast.body[0].body[0].value
@@ -323,6 +337,47 @@ def test_parse_while_with_if_inside(parse):
     assert isinstance(w, parser_mod.While)
     assert isinstance(w.body[0], parser_mod.If)
     assert isinstance(w.body[1], parser_mod.Assignment)
+
+
+def test_parse_else_if_chain(parse):
+    src = (
+        "aby f:\n"
+        "    jeśli x < 1:\n"
+        "        a to 1\n"
+        "    inaczej jeśli x < 2:\n"
+        "        a to 2\n"
+        "    inaczej jeśli x < 3:\n"
+        "        a to 3\n"
+        "    inaczej:\n"
+        "        a to 4\n"
+    )
+    ast = parse(src)
+    if1 = ast.body[0].body[0]
+    assert isinstance(if1, parser_mod.If)
+    # else_body zawiera pojedyncze If — kolejny szczebel łańcucha
+    assert len(if1.else_body) == 1
+    if2 = if1.else_body[0]
+    assert isinstance(if2, parser_mod.If)
+    if3 = if2.else_body[0]
+    assert isinstance(if3, parser_mod.If)
+    # Ostatnie ogniwo ma "płaskie" else_body (czyste statementy, nie If)
+    assert len(if3.else_body) == 1
+    assert isinstance(if3.else_body[0], parser_mod.Assignment)
+
+
+def test_parse_else_if_without_final_else(parse):
+    src = (
+        "aby f:\n"
+        "    jeśli x < 1:\n"
+        "        a to 1\n"
+        "    inaczej jeśli x < 2:\n"
+        "        a to 2\n"
+    )
+    ast = parse(src)
+    if1 = ast.body[0].body[0]
+    if2 = if1.else_body[0]
+    assert isinstance(if2, parser_mod.If)
+    assert if2.else_body == []
 
 
 def test_parse_break_inside_while(parse):

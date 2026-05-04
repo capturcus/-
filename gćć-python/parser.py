@@ -119,11 +119,15 @@ class Parser:
         t = self.peek()
         if t and t[0] is lexer.Token.WORD and canonical(t) == ("inaczej",):
             self.advance()
-            self.expect(lexer.Token.COLON)
-            self.expect(lexer.Token.INDENT)
-            while self.peek()[0] is not lexer.Token.DEDENT:
-                else_body.append(self.parse_stmt())
-            self.expect(lexer.Token.DEDENT)
+            t2 = self.peek()
+            if t2 and t2[0] is lexer.Token.WORD and canonical(t2) == ("jeśli",):
+                else_body = [self.parse_if()]
+            else:
+                self.expect(lexer.Token.COLON)
+                self.expect(lexer.Token.INDENT)
+                while self.peek()[0] is not lexer.Token.DEDENT:
+                    else_body.append(self.parse_stmt())
+                self.expect(lexer.Token.DEDENT)
         return If(cond=cond, then_body=then_body, else_body=else_body)
 
     def parse_while(self):
@@ -169,7 +173,7 @@ class Parser:
 
     def parse_term(self):
         left = self.parse_factor()
-        while self.peek() and self.peek()[0] is lexer.Token.BIN_OP and self.peek()[1] in ("*", "/"):
+        while self.peek() and self.peek()[0] is lexer.Token.BIN_OP and self.peek()[1] in ("*", "/", "%"):
             op = self.advance()[1]
             left = BinOp(op, left, self.parse_factor())
         return left
