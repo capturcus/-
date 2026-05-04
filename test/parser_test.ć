@@ -1,0 +1,41 @@
+aby działać:
+    liczba to 5
+
+aby nasrać_w_kiblu:
+    rzecz to inna_rzecz
+    zmienna to 78
+    tekst to "siemka"
+
+aby dodać_liczby:
+    wynik to 2 + 3
+
+aby odjąć_liczby:
+    wynik to 5 - 2
+
+aby skomplikowanie_zarządzić_liczby:
+    wynik to 2 + 3 * 5
+
+aby podzielić_liczby:
+    liczba to 19 / 6
+
+aby rozjebać_parser:
+    liczba to -5
+
+aby testować_porównanie:
+    wynik to 2 + 3 < 4 + 5
+
+aby testować_ify:
+    jeśli x > 3:
+        liczba to 1
+
+aby testować_ify_2:
+    jeśli x < 3:
+        liczba to 1
+    inaczej:
+        liczba to 2
+
+aby f:
+    dopóki a < 10:
+        jeśli a = 5:
+            x to 1
+        a to a + 1

@@ -2,18 +2,22 @@
 import argparse
 import sys
 
-import lexer
+import lexer, morph_anal, parser, pretty
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("input", nargs="?", type=argparse.FileType("r"), default=sys.stdin)
-    args = parser.parse_args()
+    argp = argparse.ArgumentParser()
+    argp.add_argument("input", nargs="?", type=argparse.FileType("r"), default=sys.stdin)
+    argp.add_argument("--sgjp", default="../sgjp.tab")
+    args = argp.parse_args()
 
     text = args.input.read()
     tokens = lexer.lex(text)
-    print(tokens)
+    db = morph_anal.load(args.sgjp)
+    morphs = morph_anal.analyze(tokens, db)
+    ast = parser.parse(morphs)
 
+    pretty.pretty(ast)
 
 if __name__ == "__main__":
     main()
