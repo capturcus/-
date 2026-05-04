@@ -1,0 +1,32 @@
+# Pisanie do otwartego deskryptora.
+aby pisać co do klienta:
+    bajty to zakoduj co jako "utf-8"
+    n to wywołaj_libc_write klientowi bajty
+    jeśli n równa się -1:
+        rzuć błąd_io "nie udało się zapisać"
+    zwróć n
+
+
+# Czytanie z otwartego deskryptora.
+aby czytaj z klienta:
+    bufor to alokuj_bajty 8192
+    n to wywołaj_libc_read z klienta do bufora 8192
+    jeśli n równa się -1:
+        rzuć błąd_io "nie udało się przeczytać"
+    zwróć dekoduj bufor jako "utf-8"
+
+
+# Nasłuchiwanie na porcie.
+aby nasłuchuj na porcie przez interfejs = "0.0.0.0":
+    sock to wywołaj_libc_socket
+    skonfiguruj_adres sock z interfejsem na porcie
+    wywołaj_libc_bind sock
+    wywołaj_libc_listen sock 128
+    zwróć Serwer sock
+
+
+# Wysyłanie wiadomości.
+aby wyślij co do odbiorcy przez kanał od nadawcy:
+    pakiet to opakuj co od nadawcy
+    przekaż pakiet kanałem do odbiorcy
+    zwróć sukces
