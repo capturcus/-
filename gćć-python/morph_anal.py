@@ -5,6 +5,7 @@ import lexer
 
 CASES = {"nom", "gen", "dat", "acc", "inst", "loc", "voc"}
 EXCLUDED_QUALIFIERS = ("daw.", "gwar.", "przest.")
+PARTICIPLE_POS = {"pact", "ppas"}
 
 
 def load(path):
@@ -12,6 +13,7 @@ def load(path):
     t0 = time.time()
     db = {}
     preps = {}
+    citation = {}
     with open(path, encoding="utf-8") as f:
         for line in f:
             parts = line.rstrip("\n").split("\t")
@@ -32,6 +34,19 @@ def load(path):
             db.setdefault(form, []).append((pos, case, lemma))
             if pos == "prep" and case and not any(q in qualifiers for q in EXCLUDED_QUALIFIERS):
                 preps.setdefault(lemma, set()).update(case)
+            if (
+                pos in PARTICIPLE_POS
+                and len(tag_parts) >= 4
+                and tag_parts[1] == "sg"
+                and "nom" in tag_parts[2].split(".")
+                and "m1" in tag_parts[3].split(".")
+                and tag_parts[-1] == "aff"
+            ):
+                citation[(pos, lemma)] = form
+    for anas in db.values():
+        for i, (pos, case, lemma) in enumerate(anas):
+            if pos in PARTICIPLE_POS:
+                anas[i] = (pos, case, citation.get((pos, lemma), lemma))
     print(f"Loaded {len(db)} forms in {time.time() - t0:.1f}s", file=sys.stderr)
     return db, preps
 

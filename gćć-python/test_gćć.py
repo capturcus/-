@@ -158,6 +158,20 @@ def test_canonical_does_not_lemmatize_single_letters(db):
     assert _canonical_of("a\n", db) == ("a",)
 
 
+def test_canonical_participle_active_keeps_form(db):
+    # `administrującego` (pact gen.sg) → forma cytacyjna `administrujący`, nie czasownik
+    assert _canonical_of("administrującego\n", db) == ("administrujący",)
+
+
+def test_canonical_participle_active_observing(db):
+    assert _canonical_of("obserwującego\n", db) == ("obserwujący",)
+
+
+def test_canonical_participle_passive(db):
+    # `zablokowany` (ppas) — sama forma cytacyjna
+    assert _canonical_of("zablokowany\n", db) == ("zablokowany",)
+
+
 def test_canonical_multi_segment_identifier(db):
     # zapisz_w_bazie -> zapisać + w + baza
     assert _canonical_of("zapisz_w_bazie\n", db) == ("zapisać", "w", "baza")
@@ -892,7 +906,7 @@ def test_parse_struct_def_basic(parse):
     assert all(isinstance(f, parser_mod.Field) for f in sd.fields)
     assert sd.fields[0].name == ("identyfikator",)
     assert sd.fields[0].type == ("tekst",)
-    assert sd.fields[3].name == ("czy", "zablokować")
+    assert sd.fields[3].name == ("czy", "zablokowany")
     assert sd.fields[3].type == ("przełącznik",)
     assert sd.fields[4].name == ("post",)
 
@@ -903,8 +917,7 @@ def test_parse_struct_name_camelcase_split(parse):
     ast = parse("definicja UżytkownikaAdministrującego:\n    x (Liczba)\n")
     sd = ast.body[0]
     assert isinstance(sd, parser_mod.StructDef)
-    assert len(sd.name) == 2
-    assert sd.name[0] == "użytkownik"
+    assert sd.name == ("użytkownik", "administrujący")
 
 
 def test_parse_struct_field_name_lemmatized(parse):
@@ -931,7 +944,7 @@ def test_parse_struct_then_function(parse):
 def test_parse_struct_field_underscore_name(parse):
     ast = parse("definicja Punktu:\n    czy_zablokowany (Przełącznik)\n")
     f = ast.body[0].fields[0]
-    assert f.name == ("czy", "zablokować")
+    assert f.name == ("czy", "zablokowany")
 
 
 def test_lex_camelcase_splits_into_lowercase_segments():
