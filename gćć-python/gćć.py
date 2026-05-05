@@ -2,7 +2,7 @@
 import argparse
 import sys
 
-import lexer, morph_anal, parser, pretty
+import lexer, morph_anal, parser, pretty, phrase_resolver
 
 
 def main():
@@ -16,6 +16,7 @@ def main():
     db, preps = morph_anal.load(args.sgjp)
     morphs = morph_anal.analyze(tokens, db)
     ast = parser.parse(morphs, preps)
+    ast_with_calls = phrase_resolver.resolve_module(ast)
 
     pretty.pretty(ast)
 
