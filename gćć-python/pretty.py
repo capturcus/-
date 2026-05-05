@@ -49,6 +49,8 @@ def _groups(node):
             groups.append(("params", node.params))
         groups.append(("body", node.body))
         return groups
+    if isinstance(node, parser.StructDef):
+        return [("fields", node.fields)]
     if isinstance(node, parser.If):
         groups = [("cond", [node.cond]), ("then", node.then_body)]
         if node.else_body:
@@ -67,6 +69,10 @@ def _label(node):
         if node.return_type:
             s += f" -> {'_'.join(node.return_type)}"
         return s
+    if isinstance(node, parser.StructDef):
+        return f"StructDef {'_'.join(node.name)}"
+    if isinstance(node, parser.Field):
+        return f"Field {'_'.join(node.name)} : {'_'.join(node.type)}"
     if isinstance(node, parser.Param):
         parts = ["Param"]
         if node.prep:

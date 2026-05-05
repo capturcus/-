@@ -2,7 +2,7 @@ aby działać:
     liczba to 5
 
 aby nasrać_w_kiblu:
-    rzecz to inna_rzecz
+    gówno to inne_gówno
     zmienna to 78
     tekst to "siemka"
 
@@ -85,3 +85,13 @@ aby przestać_obserwować użytkownika (Użytkownik) przez obserwującego (Użyt
 
 aby testować_logikę:
     wynik to wywołanie funkcji > 0
+
+definicja Sesji:
+    token (Tekst)
+    użytkownik (Użytkownik)
+    data_utworzenia (Data)
+    data_wygaśnięcia (Data)
+    adres_ip (AdresIP)
+
+aby zweryfikować sesję:
+    zweryfikuj token sesji

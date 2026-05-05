@@ -18,6 +18,20 @@ class Token(Enum):
 
 _TOKEN_RE = re.compile(r'"([^"]*)"|(\d+)|(->)|(<=|>=|!=|[=+\-*/%<>])|(:)|([()])|([^\s=+\-*/%:"()<>!]+)')
 
+_UPPER = "A-ZĄĆĘŁŃÓŚŹŻ"
+_CAMEL_RE = re.compile(rf'[{_UPPER}][^{_UPPER}]*|[^{_UPPER}]+')
+
+
+def _segments(word):
+    parts = []
+    for piece in word.split("_"):
+        if not piece:
+            continue
+        for sub in _CAMEL_RE.findall(piece):
+            if sub:
+                parts.append(sub.lower())
+    return tuple(parts)
+
 
 def lex(text):
     ret = []
@@ -49,7 +63,7 @@ def lex(text):
                 if word == "to":
                     ret.append((Token.ASSIGN, None))
                 else:
-                    ret.append((Token.WORD, tuple(word.split("_"))))
+                    ret.append((Token.WORD, _segments(word)))
         if len(ret) > before:
             ret.append((Token.NEWLINE, None))
     for _ in range(indent_level):

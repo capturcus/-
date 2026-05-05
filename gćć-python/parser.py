@@ -27,6 +27,18 @@ class Param:
 
 
 @dataclass
+class StructDef:
+    name: tuple
+    fields: list
+
+
+@dataclass
+class Field:
+    name: tuple
+    type: tuple
+
+
+@dataclass
 class Phrase:
     words: list
 
@@ -128,6 +140,7 @@ class Parser:
     def expect(self, kind):
         t = self.advance()
         if t is None or t[0] is not kind:
+            print(self.peek(-2), self.peek(-1), self.peek(-0))
             raise SyntaxError(f"Expected {kind}, got {t}")
         return t
 
@@ -177,6 +190,8 @@ class Parser:
             canon = canonical(t)
             if canon == ("aby",):
                 return self.parse_func_def()
+            if canon == ("definicja",):
+                return self.parse_struct_def()
             if canon == ("jeśli",):
                 return self.parse_if()
             if canon == ("dopóki",):
@@ -256,6 +271,27 @@ class Parser:
             self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
         return FunctionDef(name=canonical(name_tok), params=params, body=body, return_type=return_type)
+
+    def parse_struct_def(self):
+        self.expect(lexer.Token.WORD)  # definicja
+        name_tok = self.expect(lexer.Token.WORD)
+        self.expect(lexer.Token.COLON)
+        self._skip_newlines()
+        self.expect(lexer.Token.INDENT)
+        fields = []
+        self._skip_newlines()
+        while self.peek()[0] is not lexer.Token.DEDENT:
+            fields.append(self.parse_field())
+            self._skip_newlines()
+        self.expect(lexer.Token.DEDENT)
+        return StructDef(name=canonical(name_tok), fields=fields)
+
+    def parse_field(self):
+        name_tok = self.expect(lexer.Token.WORD)
+        self.expect(lexer.Token.LPAREN)
+        type_ = canonical(self.expect(lexer.Token.WORD))
+        self.expect(lexer.Token.RPAREN)
+        return Field(name=canonical(name_tok), type=type_)
 
     def parse_param(self):
         prep = None

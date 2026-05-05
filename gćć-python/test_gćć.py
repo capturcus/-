@@ -629,14 +629,14 @@ def test_parse_func_decl_param_with_type(parse):
     ast = parse("aby pisać coś (Tekst):\n    x to 1\n")
     fd = ast.body[0]
     assert len(fd.params) == 1
-    assert fd.params[0].type == ("Tekst",)
+    assert fd.params[0].type == ("tekst",)
     assert fd.params[0].name == ("coś",)
 
 
 def test_parse_func_decl_return_type(parse):
     ast = parse("aby f -> Wynik:\n    x to 1\n")
     fd = ast.body[0]
-    assert fd.return_type == ("Wynik",)
+    assert fd.return_type == ("wynik",)
     assert fd.params == []
 
 
@@ -656,10 +656,10 @@ def test_parse_func_decl_full_types(parse):
     assert len(fd.params) == 2
     assert fd.params[0].prep is None
     assert fd.params[0].name == ("użytkownik",)
-    assert fd.params[0].type == ("Użytkownik",)
+    assert fd.params[0].type == ("użytkownik",)
     assert fd.params[1].prep == ("przez",)
-    assert fd.params[1].type == ("Użytkownik",)
-    assert fd.return_type == ("Wynik",)
+    assert fd.params[1].type == ("użytkownik",)
+    assert fd.return_type == ("wynik",)
 
 
 def test_parse_func_decl_partial_types(parse):
@@ -668,7 +668,7 @@ def test_parse_func_decl_partial_types(parse):
     fd = ast.body[0]
     assert fd.return_type is None
     assert fd.params[0].prep == ("dla",)
-    assert fd.params[0].type == ("Użytkownik",)
+    assert fd.params[0].type == ("użytkownik",)
     assert fd.params[1].prep == ("z",)
     assert fd.params[1].type is None
 
@@ -677,9 +677,9 @@ def test_parse_func_decl_types_with_return(parse):
     src = "aby zbudować_kanał dla użytkownika (Użytkownik) z limitem (Liczba) -> Lista:\n    x to 1\n"
     ast = parse(src)
     fd = ast.body[0]
-    assert fd.params[0].type == ("Użytkownik",)
-    assert fd.params[1].type == ("Liczba",)
-    assert fd.return_type == ("Lista",)
+    assert fd.params[0].type == ("użytkownik",)
+    assert fd.params[1].type == ("liczba",)
+    assert fd.return_type == ("lista",)
 
 
 def test_lex_arrow_token():
@@ -870,6 +870,75 @@ def test_parse_nested_phrase_with_parens(parse):
     assert isinstance(inner, parser_mod.Phrase)
     assert inner.words[0].value == ("formatować",)
     assert len(inner.words) == 2
+
+
+# ---------- Struktury ----------
+
+def test_parse_struct_def_basic(parse):
+    # Słowo kluczowe `definicja` + nazwa typu w dopełniaczu (lematyzowana)
+    src = (
+        "definicja Użytkownika:\n"
+        "    identyfikator (Tekst)\n"
+        "    nazwa (Tekst)\n"
+        "    email (Tekst)\n"
+        "    czy_zablokowany (Przełącznik)\n"
+        "    posty (Liczba)\n"
+    )
+    ast = parse(src)
+    sd = ast.body[0]
+    assert isinstance(sd, parser_mod.StructDef)
+    assert sd.name == ("użytkownik",)
+    assert len(sd.fields) == 5
+    assert all(isinstance(f, parser_mod.Field) for f in sd.fields)
+    assert sd.fields[0].name == ("identyfikator",)
+    assert sd.fields[0].type == ("tekst",)
+    assert sd.fields[3].name == ("czy", "zablokować")
+    assert sd.fields[3].type == ("przełącznik",)
+    assert sd.fields[4].name == ("post",)
+
+
+def test_parse_struct_name_camelcase_split(parse):
+    # `UżytkownikaAdministrującego` → ("użytkownik", "administrować")
+    # CamelCase splituje przed lematyzacją; każdy segment jest lowercased i lematyzowany.
+    ast = parse("definicja UżytkownikaAdministrującego:\n    x (Liczba)\n")
+    sd = ast.body[0]
+    assert isinstance(sd, parser_mod.StructDef)
+    assert len(sd.name) == 2
+    assert sd.name[0] == "użytkownik"
+
+
+def test_parse_struct_field_name_lemmatized(parse):
+    ast = parse("definicja Punktu:\n    posty (Liczba)\n")
+    f = ast.body[0].fields[0]
+    assert f.name == ("post",)
+
+
+def test_parse_struct_then_function(parse):
+    src = (
+        "definicja Punktu:\n"
+        "    x (Liczba)\n"
+        "    y (Liczba)\n"
+        "\n"
+        "aby f:\n"
+        "    a to 1\n"
+    )
+    ast = parse(src)
+    assert isinstance(ast.body[0], parser_mod.StructDef)
+    assert ast.body[0].name == ("punkt",)
+    assert isinstance(ast.body[1], parser_mod.FunctionDef)
+
+
+def test_parse_struct_field_underscore_name(parse):
+    ast = parse("definicja Punktu:\n    czy_zablokowany (Przełącznik)\n")
+    f = ast.body[0].fields[0]
+    assert f.name == ("czy", "zablokować")
+
+
+def test_lex_camelcase_splits_into_lowercase_segments():
+    toks = lexer.lex("UżytkownikAdministrujący\n")
+    word_toks = [t for t in toks if t[0] is lexer.Token.WORD]
+    # CamelCase rozbity na segmenty, każdy lowercased
+    assert word_toks == [(lexer.Token.WORD, ("użytkownik", "administrujący"))]
 
 
 # ---------- morph_anal: prepositions ----------
