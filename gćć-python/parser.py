@@ -25,7 +25,7 @@ class Param:
 
 
 @dataclass
-class Call:
+class Phrase:
     name: tuple
     args: list
 
@@ -229,12 +229,12 @@ class Parser:
             surface=name_tok[1],
         )
 
-    def parse_call(self):
+    def parse_phrase(self):
         name_tok = self.expect(lexer.Token.WORD)
         args = []
         while self._is_arg_start(self.peek()):
             args.append(self.parse_simple_arg())
-        return Call(name=canonical(name_tok), args=args)
+        return Phrase(name=canonical(name_tok), args=args)
 
     def _is_arg_start(self, t):
         if t is None:
@@ -279,7 +279,7 @@ class Parser:
             self.expect(lexer.Token.RPAREN)
             return expr
         if t[0] is lexer.Token.WORD:
-            return Call(name=canonical(self.advance()), args=[])
+            return Phrase(name=canonical(self.advance()), args=[])
         raise SyntaxError(f"Unexpected token in arg value: {t}")
 
     def parse_assignment(self):
@@ -329,7 +329,7 @@ class Parser:
             self.expect(lexer.Token.RPAREN)
             return expr
         if t[0] is lexer.Token.WORD:
-            return self.parse_call()
+            return self.parse_phrase()
         raise SyntaxError(f"Unexpected token in expr: {t}")
 
 

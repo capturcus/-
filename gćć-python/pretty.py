@@ -72,8 +72,8 @@ def _label(node):
         if node.case:
             parts.append(f"({_format_case(node.case)})")
         return " ".join(parts)
-    if isinstance(node, parser.Call):
-        return f"Call {'_'.join(node.name)}"
+    if isinstance(node, parser.Phrase):
+        return f"Phrase {'_'.join(node.name)}"
     if isinstance(node, parser.Arg):
         parts = ["Arg"]
         if node.prep:
@@ -103,7 +103,7 @@ def _label(node):
 def _children(node):
     if isinstance(node, parser.Module):
         return node.body
-    if isinstance(node, parser.Call):
+    if isinstance(node, parser.Phrase):
         return node.args
     if isinstance(node, parser.Arg):
         return [node.value]
