@@ -13,9 +13,10 @@ class Token(Enum):
     ASSIGN = auto()
     LPAREN = auto()
     RPAREN = auto()
+    ARROW = auto()
 
 
-_TOKEN_RE = re.compile(r'"([^"]*)"|(\d+)|(<=|>=|!=|[=+\-*/%<>])|(:)|([()])|([^\s=+\-*/%:"()<>!]+)')
+_TOKEN_RE = re.compile(r'"([^"]*)"|(\d+)|(->)|(<=|>=|!=|[=+\-*/%<>])|(:)|([()])|([^\s=+\-*/%:"()<>!]+)')
 
 
 def lex(text):
@@ -31,11 +32,13 @@ def lex(text):
             continue
         before = len(ret)
         for m in _TOKEN_RE.finditer(line.strip()):
-            text_, number, binop, colon, paren, word = m.groups()
+            text_, number, arrow, binop, colon, paren, word = m.groups()
             if text_ is not None:
                 ret.append((Token.TEXT, text_))
             elif number is not None:
                 ret.append((Token.NUMBER, int(number)))
+            elif arrow is not None:
+                ret.append((Token.ARROW, None))
             elif binop is not None:
                 ret.append((Token.BIN_OP, binop))
             elif colon is not None:

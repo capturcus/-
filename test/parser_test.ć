@@ -73,3 +73,12 @@ aby reagować na zdarzenie:
         pisz "kliknięto"
     inaczej:
         pisz "ignoruję"
+
+aby przestać_obserwować użytkownika (Użytkownik) przez obserwującego (Użytkownik) -> Wynik:
+    jeśli zawiera użytkownik obserwującego:
+        zwróć Wynik fałsz "nie obserwujesz tego użytkownika"
+    usuń obserwującego z obserwujących_użytkownika
+    usuń użytkownika z obserwowanych_obserwującego
+    zaktualizuj użytkownika w bazie
+    zaktualizuj obserwującego w bazie
+    zwróć Wynik prawda nic

@@ -63,7 +63,10 @@ def _label(node):
     if isinstance(node, parser.Module):
         return "Module"
     if isinstance(node, parser.FunctionDef):
-        return f"FunctionDef {'_'.join(node.name)}"
+        s = f"FunctionDef {'_'.join(node.name)}"
+        if node.return_type:
+            s += f" -> {'_'.join(node.return_type)}"
+        return s
     if isinstance(node, parser.Param):
         parts = ["Param"]
         if node.prep:
@@ -71,6 +74,8 @@ def _label(node):
         parts.append("_".join(node.name))
         if node.case:
             parts.append(f"({_format_case(node.case)})")
+        if node.type:
+            parts.append(f": {'_'.join(node.type)}")
         return " ".join(parts)
     if isinstance(node, parser.Phrase):
         return "Phrase"

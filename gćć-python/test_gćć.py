@@ -522,6 +522,71 @@ def test_parse_func_decl_multiple_params(parse):
     assert fd.params[3].prep == ("od",) and fd.params[3].name == ("nadawca",)
 
 
+def test_parse_func_decl_param_with_type(parse):
+    ast = parse("aby pisać coś (Tekst):\n    x to 1\n")
+    fd = ast.body[0]
+    assert len(fd.params) == 1
+    assert fd.params[0].type == ("Tekst",)
+    assert fd.params[0].name == ("coś",)
+
+
+def test_parse_func_decl_return_type(parse):
+    ast = parse("aby f -> Wynik:\n    x to 1\n")
+    fd = ast.body[0]
+    assert fd.return_type == ("Wynik",)
+    assert fd.params == []
+
+
+def test_parse_func_decl_no_types(parse):
+    # Brak typów — type/return_type domyślnie None
+    ast = parse("aby przestać_obserwować użytkownika przez obserwującego:\n    x to 1\n")
+    fd = ast.body[0]
+    assert fd.return_type is None
+    assert all(p.type is None for p in fd.params)
+
+
+def test_parse_func_decl_full_types(parse):
+    src = "aby przestać_obserwować użytkownika (Użytkownik) przez obserwującego (Użytkownik) -> Wynik:\n    x to 1\n"
+    ast = parse(src)
+    fd = ast.body[0]
+    assert fd.name == ("przestać", "obserwować")
+    assert len(fd.params) == 2
+    assert fd.params[0].prep is None
+    assert fd.params[0].name == ("użytkownik",)
+    assert fd.params[0].type == ("Użytkownik",)
+    assert fd.params[1].prep == ("przez",)
+    assert fd.params[1].type == ("Użytkownik",)
+    assert fd.return_type == ("Wynik",)
+
+
+def test_parse_func_decl_partial_types(parse):
+    # Tylko niektóre parametry mają typ; brak return_type
+    ast = parse("aby zbudować_odkrywanie dla użytkownika (Użytkownik) z limitem:\n    x to 1\n")
+    fd = ast.body[0]
+    assert fd.return_type is None
+    assert fd.params[0].prep == ("dla",)
+    assert fd.params[0].type == ("Użytkownik",)
+    assert fd.params[1].prep == ("z",)
+    assert fd.params[1].type is None
+
+
+def test_parse_func_decl_types_with_return(parse):
+    src = "aby zbudować_kanał dla użytkownika (Użytkownik) z limitem (Liczba) -> Lista:\n    x to 1\n"
+    ast = parse(src)
+    fd = ast.body[0]
+    assert fd.params[0].type == ("Użytkownik",)
+    assert fd.params[1].type == ("Liczba",)
+    assert fd.return_type == ("Lista",)
+
+
+def test_lex_arrow_token():
+    toks = lexer.lex("a -> b\n")
+    kinds = [t[0] for t in toks]
+    assert lexer.Token.ARROW in kinds
+    # `->` nie powinno się rozpadać na `-` i `>`
+    assert not any(t[0] is lexer.Token.BIN_OP and t[1] == "-" for t in toks)
+
+
 def test_parse_func_decl_preserves_surface(parse):
     ast = parse("aby czytać z klienta:\n    x to 1\n")
     p = ast.body[0].params[0]

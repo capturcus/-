@@ -14,6 +14,7 @@ class FunctionDef:
     name: tuple
     params: list
     body: list
+    return_type: tuple = None
 
 
 @dataclass
@@ -22,6 +23,7 @@ class Param:
     name: tuple
     case: str
     surface: tuple
+    type: tuple = None
 
 
 @dataclass
@@ -211,8 +213,12 @@ class Parser:
         self.expect(lexer.Token.WORD)  # aby
         name_tok = self.expect(lexer.Token.WORD)
         params = []
-        while self.peek() and self.peek()[0] is not lexer.Token.COLON:
+        while self.peek() and self.peek()[0] not in (lexer.Token.COLON, lexer.Token.ARROW):
             params.append(self.parse_param())
+        return_type = None
+        if self.peek() and self.peek()[0] is lexer.Token.ARROW:
+            self.advance()
+            return_type = canonical(self.expect(lexer.Token.WORD))
         self.expect(lexer.Token.COLON)
         self._skip_newlines()
         self.expect(lexer.Token.INDENT)
@@ -222,18 +228,24 @@ class Parser:
             body.append(self.parse_stmt())
             self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
-        return FunctionDef(name=canonical(name_tok), params=params, body=body)
+        return FunctionDef(name=canonical(name_tok), params=params, body=body, return_type=return_type)
 
     def parse_param(self):
         prep = None
         if self._is_prep(self.peek()):
             prep = canonical(self.advance())
         name_tok = self.expect(lexer.Token.WORD)
+        type_ = None
+        if self.peek() and self.peek()[0] is lexer.Token.LPAREN:
+            self.advance()
+            type_ = canonical(self.expect(lexer.Token.WORD))
+            self.expect(lexer.Token.RPAREN)
         return Param(
             prep=prep,
             name=canonical(name_tok),
             case=self._case_of(name_tok),
             surface=name_tok[1],
+            type=type_,
         )
 
     def parse_phrase(self):
