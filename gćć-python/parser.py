@@ -26,12 +26,11 @@ class Param:
 
 @dataclass
 class Phrase:
-    name: tuple
-    args: list
+    words: list
 
 
 @dataclass
-class Arg:
+class Word:
     prep: tuple
     value: object
     case: str
@@ -230,13 +229,18 @@ class Parser:
         )
 
     def parse_phrase(self):
-        name_tok = self.expect(lexer.Token.WORD)
-        args = []
-        while self._is_arg_start(self.peek()):
-            args.append(self.parse_simple_arg())
-        return Phrase(name=canonical(name_tok), args=args)
+        head_tok = self.expect(lexer.Token.WORD)
+        head = Word(
+            prep=None,
+            value=canonical(head_tok),
+            case=self._case_of(head_tok),
+        )
+        words = [head]
+        while self._is_word_start(self.peek()):
+            words.append(self.parse_simple_word())
+        return Phrase(words=words)
 
-    def _is_arg_start(self, t):
+    def _is_word_start(self, t):
         if t is None:
             return False
         return t[0] in (
@@ -246,7 +250,7 @@ class Parser:
             lexer.Token.LPAREN,
         )
 
-    def parse_simple_arg(self):
+    def parse_simple_word(self):
         prep = None
         t = self.peek()
         if self._is_prep(t):
@@ -263,12 +267,12 @@ class Parser:
         if nxt and nxt[0] is lexer.Token.WORD:
             case = self._case_of(nxt)
         value = self.parse_simple_value()
-        return Arg(prep=prep, value=value, case=case)
+        return Word(prep=prep, value=value, case=case)
 
     def parse_simple_value(self):
         t = self.peek()
         if t is None:
-            raise SyntaxError("Unexpected end of input in arg")
+            raise SyntaxError("Unexpected end of input in word")
         if t[0] is lexer.Token.NUMBER:
             return IntLit(self.advance()[1])
         if t[0] is lexer.Token.TEXT:
@@ -279,8 +283,8 @@ class Parser:
             self.expect(lexer.Token.RPAREN)
             return expr
         if t[0] is lexer.Token.WORD:
-            return Phrase(name=canonical(self.advance()), args=[])
-        raise SyntaxError(f"Unexpected token in arg value: {t}")
+            return canonical(self.advance())
+        raise SyntaxError(f"Unexpected token in word value: {t}")
 
     def parse_assignment(self):
         target_tok = self.expect(lexer.Token.WORD)

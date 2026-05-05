@@ -189,12 +189,12 @@ def test_parse_assignment_string_literal(parse):
 
 
 def test_parse_assignment_var_with_canonical_name(parse):
-    # Single WORD bez argumentów to Phrase(args=[]) — nie ma osobnego Var
+    # Single WORD to Phrase z jednym Word w words — nie ma osobnego Var
     ast = parse("aby f:\n    x to inna_rzecz\n")
     a = ast.body[0].body[0]
     assert isinstance(a.value, parser_mod.Phrase)
-    assert a.value.name == ("inny", "rzecz")
-    assert a.value.args == []
+    assert len(a.value.words) == 1
+    assert a.value.words[0].value == ("inny", "rzecz")
 
 
 def test_parse_binop_precedence_mul_over_add(parse):
@@ -492,72 +492,68 @@ def test_parse_func_decl_preserves_surface(parse):
 
 # ---------- Funkcje: wywołanie ----------
 
-def test_parse_phrase_no_args(parse):
+def test_parse_phrase_only_head(parse):
     ast = parse("aby f:\n    siema\n")
     phrase = ast.body[0].body[0]
     assert isinstance(phrase, parser_mod.Phrase)
-    assert phrase.args == []
+    assert len(phrase.words) == 1
 
 
-def test_parse_phrase_with_string_arg(parse):
+def test_parse_phrase_with_string_word(parse):
     ast = parse('aby f:\n    pisz "witaj, świecie"\n')
     phrase = ast.body[0].body[0]
     assert isinstance(phrase, parser_mod.Phrase)
-    assert phrase.name == ("pisać",)
-    assert len(phrase.args) == 1
-    arg = phrase.args[0]
-    assert arg.prep is None
-    assert isinstance(arg.value, parser_mod.StrLit)
-    assert arg.value.value == "witaj, świecie"
+    assert phrase.words[0].value == ("pisać",)
+    assert len(phrase.words) == 2
+    word = phrase.words[1]
+    assert word.prep is None
+    assert isinstance(word.value, parser_mod.StrLit)
+    assert word.value.value == "witaj, świecie"
 
 
-def test_parse_phrase_with_var_arg(parse):
+def test_parse_phrase_with_var_word(parse):
     ast = parse("aby f:\n    pisz tekstem\n")
     phrase = ast.body[0].body[0]
     assert isinstance(phrase, parser_mod.Phrase)
-    arg = phrase.args[0]
-    assert arg.prep is None
-    assert isinstance(arg.value, parser_mod.Phrase)
-    assert arg.value.name == ("tekst",)
-    assert arg.value.args == []
-    assert arg.case == frozenset({"inst"})
+    word = phrase.words[1]
+    assert word.prep is None
+    assert word.value == ("tekst",)
+    assert word.case == frozenset({"inst"})
 
 
-def test_parse_phrase_with_prep_arg(parse):
+def test_parse_phrase_with_prep_word(parse):
     # `zapisz w mapie` — argument `w mapie` (prep `w`, loc)
     ast = parse("aby f:\n    zapisz w mapie\n")
     phrase = ast.body[0].body[0]
     assert isinstance(phrase, parser_mod.Phrase)
-    assert len(phrase.args) == 1
-    arg = phrase.args[0]
-    assert arg.prep == ("w",)
-    assert isinstance(arg.value, parser_mod.Phrase)
-    assert arg.value.name == ("mapa",)
-    assert arg.value.args == []
+    assert len(phrase.words) == 2
+    word = phrase.words[1]
+    assert word.prep == ("w",)
+    assert word.value == ("mapa",)
     # `mapie` jest formą dat∨loc
-    assert arg.case == frozenset({"dat", "loc"})
+    assert word.case == frozenset({"dat", "loc"})
 
 
-def test_parse_phrase_multiple_args(parse):
+def test_parse_phrase_multiple_words(parse):
     # `zaloguj annę tekstem` — dwa argumenty bez przyimków
     ast = parse("aby f:\n    zaloguj annę tekstem\n")
     phrase = ast.body[0].body[0]
-    assert phrase.name == ("zalogować",)
-    assert len(phrase.args) == 2
-    assert phrase.args[0].prep is None
-    assert phrase.args[1].prep is None
+    assert phrase.words[0].value == ("zalogować",)
+    assert len(phrase.words) == 3
+    assert phrase.words[1].prep is None
+    assert phrase.words[2].prep is None
 
 
 def test_parse_phrase_mixed_prep_and_no_prep(parse):
     src = "aby f:\n    zapisz_token w globalnej_mapie dla użytkownika\n"
     ast = parse(src)
     phrase = ast.body[0].body[0]
-    assert phrase.name == ("zapisać", "token")
-    assert len(phrase.args) == 2
-    assert phrase.args[0].prep == ("w",)
-    assert phrase.args[0].value.name == ("globalny", "mapa")
-    assert phrase.args[1].prep == ("dla",)
-    assert phrase.args[1].value.name == ("użytkownik",)
+    assert phrase.words[0].value == ("zapisać", "token")
+    assert len(phrase.words) == 3
+    assert phrase.words[1].prep == ("w",)
+    assert phrase.words[1].value == ("globalny", "mapa")
+    assert phrase.words[2].prep == ("dla",)
+    assert phrase.words[2].value == ("użytkownik",)
 
 
 def test_parse_phrase_does_not_consume_next_statement(parse):
@@ -573,8 +569,8 @@ def test_parse_phrase_does_not_consume_next_statement(parse):
     assert len(body) == 2
     assert isinstance(body[0], parser_mod.Phrase)
     assert isinstance(body[1], parser_mod.Phrase)
-    assert len(body[0].args) == 1
-    assert len(body[1].args) == 1
+    assert len(body[0].words) == 2
+    assert len(body[1].words) == 2
 
 
 def test_parse_dispatch_assignment_vs_phrase(parse):
@@ -600,16 +596,14 @@ def test_parse_phrase_in_assignment_rhs(parse):
     assert isinstance(a, parser_mod.Assignment)
     assert a.target == ("pakiet",)
     assert isinstance(a.value, parser_mod.Phrase)
-    assert a.value.name == ("opakować",)
-    assert len(a.value.args) == 2
+    assert a.value.words[0].value == ("opakować",)
+    assert len(a.value.words) == 3
     # arg1: coś (no prep)
-    assert a.value.args[0].prep is None
-    assert isinstance(a.value.args[0].value, parser_mod.Phrase)
-    assert a.value.args[0].value.name == ("coś",)
-    assert a.value.args[0].value.args == []
+    assert a.value.words[1].prep is None
+    assert a.value.words[1].value == ("coś",)
     # arg2: od klienta
-    assert a.value.args[1].prep == ("od",)
-    assert a.value.args[1].value.name == ("klient",)
+    assert a.value.words[2].prep == ("od",)
+    assert a.value.words[2].value == ("klient",)
 
 
 def test_parse_phrase_in_right_operand_of_binop(parse):
@@ -620,10 +614,10 @@ def test_parse_phrase_in_right_operand_of_binop(parse):
     assert expr.op == "+"
     assert isinstance(expr.left, parser_mod.IntLit) and expr.left.value == 2
     assert isinstance(expr.right, parser_mod.Phrase)
-    assert expr.right.name == ("odzyskać",)
-    assert len(expr.right.args) == 2
-    assert expr.right.args[0].prep is None
-    assert expr.right.args[1].prep == ("z",)
+    assert expr.right.words[0].value == ("odzyskać",)
+    assert len(expr.right.words) == 3
+    assert expr.right.words[1].prep is None
+    assert expr.right.words[2].prep == ("z",)
 
 
 def test_parse_phrase_in_left_operand_of_binop(parse):
@@ -633,45 +627,43 @@ def test_parse_phrase_in_left_operand_of_binop(parse):
     assert isinstance(expr, parser_mod.BinOp)
     assert expr.op == "+"
     assert isinstance(expr.left, parser_mod.Phrase)
-    assert expr.left.name == ("odzyskać",)
-    assert len(expr.left.args) == 2  # liczbe i z bazy — NIE 1 z gobble'd `+ 6`
+    assert expr.left.words[0].value == ("odzyskać",)
+    assert len(expr.left.words) == 3  # head + liczbe + z bazy — NIE 2 z gobble'd `+ 6`
     assert isinstance(expr.right, parser_mod.IntLit)
     assert expr.right.value == 6
 
 
-def test_parse_phrase_args_dont_eat_binop(parse):
+def test_parse_phrase_words_dont_eat_binop(parse):
     # Eksplicytnie: simple_value w argach NIE wchodzi w binarne operatory
     ast = parse("aby f:\n    x to f a + b\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.BinOp)
     assert expr.op == "+"
-    # Lewa strona to Phrase f z jednym argiem `a`
+    # Lewa strona to Phrase z dwoma słowami: head `f` i argument `a`
     assert isinstance(expr.left, parser_mod.Phrase)
-    assert len(expr.left.args) == 1
+    assert len(expr.left.words) == 2
 
 
 def test_parse_nested_phrase_requires_parens(parse):
-    # Bez nawiasów: `f g h` to Phrase(f, [Arg(g), Arg(h)]), NIE Phrase(f, [Arg(Phrase(g, [h]))])
+    # Bez nawiasów: `f g h` to flat Phrase z trzema słowami, NIE z zagnieżdżonym Phrase
     ast = parse("aby f:\n    pisz alfa beta\n")
     phrase = ast.body[0].body[0]
-    assert phrase.name == ("pisać",)
-    assert len(phrase.args) == 2
-    assert isinstance(phrase.args[0].value, parser_mod.Phrase)
-    assert phrase.args[0].value.args == []
-    assert isinstance(phrase.args[1].value, parser_mod.Phrase)
-    assert phrase.args[1].value.args == []
+    assert phrase.words[0].value == ("pisać",)
+    assert len(phrase.words) == 3
+    assert phrase.words[1].value == ("alfa",)
+    assert phrase.words[2].value == ("beta",)
 
 
 def test_parse_nested_phrase_with_parens(parse):
-    # Z nawiasami: `f (g h)` to Phrase(f, [Arg(Phrase(g, [h]))])
+    # Z nawiasami: `f (g h)` — drugi Word ma value=Phrase z dwoma słowami
     ast = parse("aby f:\n    pisz (formatuj liczbę)\n")
     phrase = ast.body[0].body[0]
-    assert phrase.name == ("pisać",)
-    assert len(phrase.args) == 1
-    inner = phrase.args[0].value
+    assert phrase.words[0].value == ("pisać",)
+    assert len(phrase.words) == 2
+    inner = phrase.words[1].value
     assert isinstance(inner, parser_mod.Phrase)
-    assert inner.name == ("formatować",)
-    assert len(inner.args) == 1
+    assert inner.words[0].value == ("formatować",)
+    assert len(inner.words) == 2
 
 
 # ---------- morph_anal: prepositions ----------
