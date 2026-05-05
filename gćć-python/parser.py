@@ -202,10 +202,11 @@ class Parser:
             if canon == ("zwrócić",):
                 self.advance()
                 return Return(value=self.parse_expr())
-            nxt = self.peek(1)
-            if nxt and nxt[0] is lexer.Token.ASSIGN:
-                return self.parse_assignment()
-        return self.parse_expr()
+        expr = self.parse_expr()
+        if self.peek() and self.peek()[0] is lexer.Token.ASSIGN:
+            self.advance()
+            return Assignment(target=expr, value=self.parse_expr())
+        return expr
 
     def parse_if(self):
         self.expect(lexer.Token.WORD)  # jeśli
@@ -370,11 +371,6 @@ class Parser:
         if t[0] is lexer.Token.WORD:
             return canonical(self.advance())
         raise SyntaxError(f"Unexpected token in word value: {t}")
-
-    def parse_assignment(self):
-        target_tok = self.expect(lexer.Token.WORD)
-        self.expect(lexer.Token.ASSIGN)
-        return Assignment(target=canonical(target_tok), value=self.parse_expr())
 
     def parse_expr(self):
         return self.parse_or()

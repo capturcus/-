@@ -95,3 +95,4 @@ definicja Sesji:
 
 aby zweryfikować sesję:
     zweryfikuj token sesji
+    token sesji to 5

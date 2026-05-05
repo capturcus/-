@@ -1,0 +1,159 @@
+# Instagram - backend w języku Ć
+
+# === Definicje typów danych ===
+
+definicja Użytkownika:
+    identyfikator (Tekst)
+    nazwa (Tekst)
+    email (Tekst)
+    hasło (Tekst)
+    czy_zablokowany (Przełącznik)
+    liczba_obserwujących (Liczba)
+
+
+definicja Sesji:
+    identyfikator (Tekst)
+    użytkownik (Użytkownik)
+    czy_aktywna (Przełącznik)
+
+
+definicja Postu:
+    identyfikator (Tekst)
+    autor (Użytkownik)
+    treść (Tekst)
+    liczba_polubień (Liczba)
+
+
+definicja Komentarza:
+    identyfikator (Tekst)
+    autor (Użytkownik)
+    post (Post)
+    treść (Tekst)
+
+
+definicja Obserwacji:
+    obserwujący (Użytkownik)
+    obserwowany (Użytkownik)
+
+
+# === Użytkownicy i logowanie ===
+
+aby zarejestrować z nazwą (Tekst) z emailem (Tekst) z hasłem (Tekst) -> Użytkownik:
+    jeśli istnieje użytkownik z emailem:
+        zwróć błąd "email zajęty"
+    nowy to stwórz_użytkownika z nazwą z emailem z hasłem
+    identyfikator nowego to wygeneruj_id
+    liczba_obserwujących nowego to 0
+    zapisz w bazie nowego
+    zwróć nowego
+
+
+aby zaloguj użytkownika (Użytkownik) z hasłem (Tekst) -> Sesja:
+    jeśli nie pasuje_hasło użytkownika do hasła:
+        zwróć błąd "złe hasło"
+    nowa to stwórz_sesję dla użytkownika
+    identyfikator nowej to wygeneruj_id
+    czy_aktywna nowej to prawda
+    zapisz w bazie nową
+    zwróć nową
+
+
+aby wyloguj sesję (Sesja):
+    czy_aktywna sesji to fałsz
+    zapisz w bazie sesję
+
+
+aby pasowało_hasło użytkownika (Użytkownik) do hasła (Tekst) -> Przełącznik:
+    zwróć hasło użytkownika = hasło
+
+
+aby istnieje_użytkownik z emailem (Tekst) -> Przełącznik:
+    znaleziony to znajdź_użytkownika z emailem
+    zwróć nie znaleziony = pusty
+
+
+# === Posty ===
+
+aby opublikuj_post z treścią (Tekst) w sesji (Sesja) -> Post:
+    jeśli nie czy_aktywna sesji:
+        zwróć błąd "brak aktywnej sesji"
+    nowy to stwórz_post z treścią dla użytkownika sesji
+    identyfikator nowego to wygeneruj_id
+    liczba_polubień nowego to 0
+    zapisz w bazie nowego
+    zwróć nowego
+
+
+aby polubić post (Post):
+    liczba_polubień postu to liczba_polubień postu + 1
+    zapisz w bazie post
+
+
+aby usuń_post post (Post) w sesji (Sesja):
+    jeśli nie czy_aktywna sesji:
+        zwróć błąd "brak sesji"
+    jeśli nie identyfikator autora postu = identyfikator użytkownika sesji:
+        zwróć błąd "nie wolno"
+    usuń z bazy post
+
+
+# === Komentarze ===
+
+aby skomentuj post (Post) z treścią (Tekst) w sesji (Sesja) -> Komentarz:
+    jeśli nie czy_aktywna sesji:
+        zwróć błąd "brak sesji"
+    nowy to stwórz_komentarz dla postu z treścią dla użytkownika sesji
+    identyfikator nowego to wygeneruj_id
+    zapisz w bazie nowego
+    zwróć nowego
+
+
+aby usuń_komentarz komentarz (Komentarz) w sesji (Sesja):
+    jeśli nie identyfikator autora komentarza = identyfikator użytkownika sesji:
+        zwróć błąd "nie wolno"
+    usuń z bazy komentarz
+
+
+# === Obserwacje ===
+
+aby zacząć_obserwować użytkownika (Użytkownik) przez obserwującego (Użytkownik):
+    jeśli już_obserwuje obserwujący użytkownika:
+        zwróć błąd "już obserwujesz"
+    jeśli identyfikator obserwującego = identyfikator użytkownika:
+        zwróć błąd "nie można obserwować siebie"
+    nowa to stwórz_obserwację dla obserwującego dla użytkownika
+    zapisz w bazie nową
+    liczba_obserwujących użytkownika to liczba_obserwujących użytkownika + 1
+
+
+aby przestań_obserwować użytkownika (Użytkownik) przez obserwującego (Użytkownik):
+    obserwacja to znajdź_obserwację obserwującego użytkownika
+    jeśli obserwacja = pusty:
+        zwróć błąd "nie obserwujesz"
+    usuń z bazy obserwację
+    liczba_obserwujących użytkownika to liczba_obserwujących użytkownika - 1
+
+
+aby już_obserwować obserwujący (Użytkownik) użytkownika (Użytkownik) -> Przełącznik:
+    obserwacja to znajdź_obserwację obserwującego użytkownika
+    zwróć nie obserwacja = pusty
+
+
+# === Listing postów ===
+
+aby pokaż_feed dla użytkownika (Użytkownik) z limitem (Liczba) -> Lista:
+    posty to pusta_lista
+    obserwowani to znajdź_obserwowanych użytkownika
+    licznik to 0
+    dopóki licznik < limit i nie obserwowani = pusty:
+        kolejny to weź_głowę obserwowanych
+        nowe to znajdź_posty kolejnego
+        posty to dodaj_wszystkie nowych do postów
+        obserwowani to ogon obserwowanych
+        licznik to licznik + 1
+    zwróć posty
+
+
+aby zablokuj użytkownika (Użytkownik):
+    czy_zablokowany użytkownika to prawda
+    zapisz w bazie użytkownika

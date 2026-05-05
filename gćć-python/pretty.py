@@ -95,7 +95,7 @@ def _label(node):
             parts.append(f"({_format_case(node.case)})")
         return " ".join(parts)
     if isinstance(node, parser.Assignment):
-        return f"Assignment ← {'.'.join(node.target)}"
+        return "Assignment"
     if isinstance(node, parser.IntLit):
         return f"IntLit {node.value}"
     if isinstance(node, parser.StrLit):
@@ -131,7 +131,7 @@ def _children(node):
             return []
         return [node.value]
     if isinstance(node, parser.Assignment):
-        return [node.value]
+        return [node.target, node.value]
     if isinstance(node, parser.BinOp):
         return [node.left, node.right]
     if isinstance(node, parser.UnaryOp):

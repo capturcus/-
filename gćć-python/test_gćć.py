@@ -192,7 +192,29 @@ def test_parse_function_def_with_assignment(parse):
     assert fd.name == ("działać",)
     a = fd.body[0]
     assert isinstance(a, parser_mod.Assignment)
-    assert a.target == ("liczba",)
+    assert isinstance(a.target, parser_mod.Phrase)
+    assert len(a.target.words) == 1
+    assert a.target.words[0].value == ("liczba",)
+    assert a.value == parser_mod.IntLit(5)
+
+
+def test_parse_assignment_target_is_phrase(parse):
+    # Pojedynczy identyfikator target jest opakowany w Phrase
+    ast = parse("aby f:\n    x to 5\n")
+    a = ast.body[0].body[0]
+    assert isinstance(a.target, parser_mod.Phrase)
+    assert len(a.target.words) == 1
+
+
+def test_parse_assignment_target_multiword_phrase(parse):
+    # `pole obiektu to 5` — target to Phrase z dwoma słowami
+    ast = parse("aby f:\n    pole obiektu to 5\n")
+    a = ast.body[0].body[0]
+    assert isinstance(a, parser_mod.Assignment)
+    assert isinstance(a.target, parser_mod.Phrase)
+    assert len(a.target.words) == 2
+    assert a.target.words[0].value == ("pole",)
+    assert a.target.words[1].value == ("obiekt",)
     assert a.value == parser_mod.IntLit(5)
 
 
@@ -305,7 +327,8 @@ def test_parse_equality_is_comparison_not_assignment(parse):
     ast = parse("aby f:\n    x to a = b\n")
     a = ast.body[0].body[0]
     assert isinstance(a, parser_mod.Assignment)  # x to ...
-    assert a.target == ("x",)
+    assert isinstance(a.target, parser_mod.Phrase)
+    assert a.target.words[0].value == ("x",)
     assert isinstance(a.value, parser_mod.BinOp) and a.value.op == "="
 
 
@@ -814,7 +837,8 @@ def test_parse_phrase_in_assignment_rhs(parse):
     ast = parse("aby f:\n    pakiet to opakuj coś od klienta\n")
     a = ast.body[0].body[0]
     assert isinstance(a, parser_mod.Assignment)
-    assert a.target == ("pakiet",)
+    assert isinstance(a.target, parser_mod.Phrase)
+    assert a.target.words[0].value == ("pakiet",)
     assert isinstance(a.value, parser_mod.Phrase)
     assert a.value.words[0].value == ("opakować",)
     assert len(a.value.words) == 3
