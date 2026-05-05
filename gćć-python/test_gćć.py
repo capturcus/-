@@ -584,6 +584,23 @@ def test_parse_return_with_phrase(parse):
     assert r.value.words[0].value == ("odzyskać",)
 
 
+def test_parse_return_without_value(parse):
+    src = (
+        "aby działać:\n"
+        "    i to 1\n"
+        "    dopóki i < 10:\n"
+        "        i to i + 1\n"
+        "        jeśli i = 5:\n"
+        "            zwróć\n"
+    )
+    ast = parse(src)
+    while_node = ast.body[0].body[1]
+    if_node = while_node.body[1]
+    r = if_node.then_body[0]
+    assert isinstance(r, parser_mod.Return)
+    assert r.value is None
+
+
 def test_parse_return_inside_if(parse):
     src = (
         "aby f:\n"

@@ -137,7 +137,7 @@ def _children(node):
     if isinstance(node, parser.UnaryOp):
         return [node.operand]
     if isinstance(node, parser.Return):
-        return [node.value]
+        return [] if node.value is None else [node.value]
     if isinstance(node, parser.Not):
         return [node.operand]
     if isinstance(node, (parser.And, parser.Or)):

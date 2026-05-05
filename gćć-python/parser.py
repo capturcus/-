@@ -99,7 +99,7 @@ class Break:
 
 @dataclass
 class Return:
-    value: object
+    value: object = None
 
 
 @dataclass
@@ -201,6 +201,9 @@ class Parser:
                 return Break()
             if canon == ("zwrócić",):
                 self.advance()
+                nxt = self.peek()
+                if nxt is None or nxt[0] in (lexer.Token.NEWLINE, lexer.Token.DEDENT):
+                    return Return(value=None)
                 return Return(value=self.parse_expr())
         expr = self.parse_expr()
         if self.peek() and self.peek()[0] is lexer.Token.ASSIGN:
