@@ -4,7 +4,7 @@ import parser
 def resolve_phrase(p):
     print(p)
     for w in p.words:
-        if not isinstance(w.value, tuple):
+        if not isinstance(w.value, parser.Identifier):
             resolve_expr(w.value)
 
 

@@ -189,12 +189,12 @@ def test_parse_function_def_with_assignment(parse):
     assert isinstance(ast, parser_mod.Module)
     fd = ast.body[0]
     assert isinstance(fd, parser_mod.FunctionDef)
-    assert fd.name == ("działać",)
+    assert fd.name.segments == ("działać",)
     a = fd.body[0]
     assert isinstance(a, parser_mod.Assignment)
     assert isinstance(a.target, parser_mod.Phrase)
     assert len(a.target.words) == 1
-    assert a.target.words[0].value == ("liczba",)
+    assert a.target.words[0].value.segments == ("liczba",)
     assert a.value == parser_mod.IntLit(5)
 
 
@@ -213,8 +213,8 @@ def test_parse_assignment_target_multiword_phrase(parse):
     assert isinstance(a, parser_mod.Assignment)
     assert isinstance(a.target, parser_mod.Phrase)
     assert len(a.target.words) == 2
-    assert a.target.words[0].value == ("pole",)
-    assert a.target.words[1].value == ("obiekt",)
+    assert a.target.words[0].value.segments == ("pole",)
+    assert a.target.words[1].value.segments == ("obiekt",)
     assert a.value == parser_mod.IntLit(5)
 
 
@@ -230,7 +230,7 @@ def test_parse_assignment_var_with_canonical_name(parse):
     a = ast.body[0].body[0]
     assert isinstance(a.value, parser_mod.Phrase)
     assert len(a.value.words) == 1
-    assert a.value.words[0].value == ("inny", "rzecz")
+    assert a.value.words[0].value.segments == ("inny", "rzecz")
 
 
 def test_parse_binop_precedence_mul_over_add(parse):
@@ -276,8 +276,8 @@ def test_parse_multiple_function_definitions(parse):
     ast = parse("aby f:\n    x to 1\n\naby g:\n    y to 2\n")
     assert len(ast.body) == 2
     # Pojedyncze litery nie są lematyzowane
-    assert ast.body[0].name == ("f",)
-    assert ast.body[1].name == ("g",)
+    assert ast.body[0].name.segments == ("f",)
+    assert ast.body[1].name.segments == ("g",)
 
 
 def test_parse_division(parse):
@@ -328,7 +328,7 @@ def test_parse_equality_is_comparison_not_assignment(parse):
     a = ast.body[0].body[0]
     assert isinstance(a, parser_mod.Assignment)  # x to ...
     assert isinstance(a.target, parser_mod.Phrase)
-    assert a.target.words[0].value == ("x",)
+    assert a.target.words[0].value.segments == ("x",)
     assert isinstance(a.value, parser_mod.BinOp) and a.value.op == "="
 
 
@@ -466,7 +466,7 @@ def test_parse_not_with_phrase(parse):
     assert isinstance(a, parser_mod.Assignment)
     assert isinstance(a.value, parser_mod.Not)
     assert isinstance(a.value.operand, parser_mod.Phrase)
-    assert a.value.operand.words[0].value == ("inny", "zmienna")
+    assert a.value.operand.words[0].value.segments == ("inny", "zmienna")
 
 
 def test_parse_not_lower_precedence_than_comparison(parse):
@@ -486,7 +486,7 @@ def test_parse_not_with_phrase_args(parse):
     inner = if_node.cond.operand
     assert isinstance(inner, parser_mod.Phrase)
     assert len(inner.words) == 3
-    assert inner.words[0].value == ("zawierać",)
+    assert inner.words[0].value.segments == ("zawierać",)
 
 
 def test_parse_and(parse):
@@ -497,7 +497,7 @@ def test_parse_and(parse):
     assert isinstance(cond, parser_mod.And)
     assert isinstance(cond.left, parser_mod.Phrase)
     assert len(cond.left.words) == 1  # `i` NIE jest wciągnięte do frazy
-    assert cond.left.words[0].value == ("warunek",)
+    assert cond.left.words[0].value.segments == ("warunek",)
     assert isinstance(cond.right, parser_mod.Not)
     assert isinstance(cond.right.operand, parser_mod.Phrase)
 
@@ -512,7 +512,7 @@ def test_parse_or(parse):
     assert len(cond.left.words) == 1
     assert isinstance(cond.right, parser_mod.Phrase)
     # `sprawdź pod rzeczami` — head + arg z przyimkiem
-    assert cond.right.words[0].value == ("sprawdzić",)
+    assert cond.right.words[0].value.segments == ("sprawdzić",)
     assert len(cond.right.words) == 2
     assert cond.right.words[1].prep == ("pod",)
 
@@ -547,7 +547,7 @@ def test_parse_not_consumes_whole_phrase_with_prep_args(parse):
     assert isinstance(phrase, parser_mod.Phrase)
     # head + funkcji + (z wieloma) + argumentami — frazy są płaskie
     assert len(phrase.words) == 4
-    assert phrase.words[0].value == ("wywołać",)
+    assert phrase.words[0].value.segments == ("wywołać",)
     assert phrase.words[2].prep == ("z",)
     assert phrase.words[3].prep is None
 
@@ -581,7 +581,7 @@ def test_parse_return_with_phrase(parse):
     r = ast.body[0].body[0]
     assert isinstance(r, parser_mod.Return)
     assert isinstance(r.value, parser_mod.Phrase)
-    assert r.value.words[0].value == ("odzyskać",)
+    assert r.value.words[0].value.segments == ("odzyskać",)
 
 
 def test_parse_return_without_value(parse):
@@ -629,7 +629,7 @@ def test_parse_break_standalone(parse):
 def test_parse_func_decl_no_params(parse):
     ast = parse("aby działać:\n    x to 1\n")
     fd = ast.body[0]
-    assert fd.name == ("działać",)
+    assert fd.name.segments == ("działać",)
     assert fd.params == []
 
 
@@ -637,12 +637,12 @@ def test_parse_func_decl_with_param_no_prep(parse):
     # `aby pisać coś:` — `coś` to acc bez przyimka
     ast = parse("aby pisać coś:\n    x to 1\n")
     fd = ast.body[0]
-    assert fd.name == ("pisać",)
+    assert fd.name.segments == ("pisać",)
     assert len(fd.params) == 1
     p = fd.params[0]
     assert isinstance(p, parser_mod.Param)
     assert p.prep is None
-    assert p.name == ("coś",)
+    assert p.name.segments == ("coś",)
     assert p.case == frozenset({"acc"})
 
 
@@ -652,7 +652,7 @@ def test_parse_func_decl_with_prep(parse):
     fd = ast.body[0]
     p = fd.params[0]
     assert p.prep == ("z",)
-    assert p.name == ("klient",)
+    assert p.name.segments == ("klient",)
     assert p.case == frozenset({"gen", "acc"})  # `klienta` to gen∨acc
 
 
@@ -662,7 +662,7 @@ def test_parse_func_decl_locative_with_prep(parse):
     fd = ast.body[0]
     p = fd.params[0]
     assert p.prep == ("na",)
-    assert p.name == ("port",)
+    assert p.name.segments == ("port",)
     assert p.case == frozenset({"loc"})
 
 
@@ -671,12 +671,12 @@ def test_parse_func_decl_multiple_params(parse):
     src = "aby wysłać coś do odbiorcy przez kanał od nadawcy:\n    x to 1\n"
     ast = parse(src)
     fd = ast.body[0]
-    assert fd.name == ("wysłać",)
+    assert fd.name.segments == ("wysłać",)
     assert len(fd.params) == 4
-    assert fd.params[0].prep is None and fd.params[0].name == ("coś",)
-    assert fd.params[1].prep == ("do",) and fd.params[1].name == ("odbiorca",)
-    assert fd.params[2].prep == ("przez",) and fd.params[2].name == ("kanał",)
-    assert fd.params[3].prep == ("od",) and fd.params[3].name == ("nadawca",)
+    assert fd.params[0].prep is None and fd.params[0].name.segments == ("coś",)
+    assert fd.params[1].prep == ("do",) and fd.params[1].name.segments == ("odbiorca",)
+    assert fd.params[2].prep == ("przez",) and fd.params[2].name.segments == ("kanał",)
+    assert fd.params[3].prep == ("od",) and fd.params[3].name.segments == ("nadawca",)
 
 
 def test_parse_func_decl_param_with_type(parse):
@@ -684,7 +684,7 @@ def test_parse_func_decl_param_with_type(parse):
     fd = ast.body[0]
     assert len(fd.params) == 1
     assert fd.params[0].type == ("tekst",)
-    assert fd.params[0].name == ("coś",)
+    assert fd.params[0].name.segments == ("coś",)
 
 
 def test_parse_func_decl_return_type(parse):
@@ -706,10 +706,10 @@ def test_parse_func_decl_full_types(parse):
     src = "aby przestać_obserwować użytkownika (Użytkownik) przez obserwującego (Użytkownik) -> Wynik:\n    x to 1\n"
     ast = parse(src)
     fd = ast.body[0]
-    assert fd.name == ("przestać", "obserwować")
+    assert fd.name.segments == ("przestać", "obserwować")
     assert len(fd.params) == 2
     assert fd.params[0].prep is None
-    assert fd.params[0].name == ("użytkownik",)
+    assert fd.params[0].name.segments == ("użytkownik",)
     assert fd.params[0].type == ("użytkownik",)
     assert fd.params[1].prep == ("przez",)
     assert fd.params[1].type == ("użytkownik",)
@@ -747,7 +747,7 @@ def test_lex_arrow_token():
 def test_parse_func_decl_preserves_surface(parse):
     ast = parse("aby czytać z klienta:\n    x to 1\n")
     p = ast.body[0].params[0]
-    assert p.surface == ("klienta",)
+    assert p.name.surface == ("klienta",)
 
 
 # ---------- Funkcje: wywołanie ----------
@@ -763,7 +763,7 @@ def test_parse_phrase_with_string_word(parse):
     ast = parse('aby f:\n    pisz "witaj, świecie"\n')
     phrase = ast.body[0].body[0]
     assert isinstance(phrase, parser_mod.Phrase)
-    assert phrase.words[0].value == ("pisać",)
+    assert phrase.words[0].value.segments == ("pisać",)
     assert len(phrase.words) == 2
     word = phrase.words[1]
     assert word.prep is None
@@ -777,7 +777,7 @@ def test_parse_phrase_with_var_word(parse):
     assert isinstance(phrase, parser_mod.Phrase)
     word = phrase.words[1]
     assert word.prep is None
-    assert word.value == ("tekst",)
+    assert word.value.segments == ("tekst",)
     assert word.case == frozenset({"inst"})
 
 
@@ -789,7 +789,7 @@ def test_parse_phrase_with_prep_word(parse):
     assert len(phrase.words) == 2
     word = phrase.words[1]
     assert word.prep == ("w",)
-    assert word.value == ("mapa",)
+    assert word.value.segments == ("mapa",)
     # `mapie` jest formą dat∨loc
     assert word.case == frozenset({"dat", "loc"})
 
@@ -798,7 +798,7 @@ def test_parse_phrase_multiple_words(parse):
     # `zaloguj annę tekstem` — dwa argumenty bez przyimków
     ast = parse("aby f:\n    zaloguj annę tekstem\n")
     phrase = ast.body[0].body[0]
-    assert phrase.words[0].value == ("zalogować",)
+    assert phrase.words[0].value.segments == ("zalogować",)
     assert len(phrase.words) == 3
     assert phrase.words[1].prep is None
     assert phrase.words[2].prep is None
@@ -808,12 +808,12 @@ def test_parse_phrase_mixed_prep_and_no_prep(parse):
     src = "aby f:\n    zapisz_token w globalnej_mapie dla użytkownika\n"
     ast = parse(src)
     phrase = ast.body[0].body[0]
-    assert phrase.words[0].value == ("zapisać", "token")
+    assert phrase.words[0].value.segments == ("zapisać", "token")
     assert len(phrase.words) == 3
     assert phrase.words[1].prep == ("w",)
-    assert phrase.words[1].value == ("globalny", "mapa")
+    assert phrase.words[1].value.segments == ("globalny", "mapa")
     assert phrase.words[2].prep == ("dla",)
-    assert phrase.words[2].value == ("użytkownik",)
+    assert phrase.words[2].value.segments == ("użytkownik",)
 
 
 def test_parse_phrase_does_not_consume_next_statement(parse):
@@ -855,16 +855,16 @@ def test_parse_phrase_in_assignment_rhs(parse):
     a = ast.body[0].body[0]
     assert isinstance(a, parser_mod.Assignment)
     assert isinstance(a.target, parser_mod.Phrase)
-    assert a.target.words[0].value == ("pakiet",)
+    assert a.target.words[0].value.segments == ("pakiet",)
     assert isinstance(a.value, parser_mod.Phrase)
-    assert a.value.words[0].value == ("opakować",)
+    assert a.value.words[0].value.segments == ("opakować",)
     assert len(a.value.words) == 3
     # arg1: coś (no prep)
     assert a.value.words[1].prep is None
-    assert a.value.words[1].value == ("coś",)
+    assert a.value.words[1].value.segments == ("coś",)
     # arg2: od klienta
     assert a.value.words[2].prep == ("od",)
-    assert a.value.words[2].value == ("klient",)
+    assert a.value.words[2].value.segments == ("klient",)
 
 
 def test_parse_phrase_in_right_operand_of_binop(parse):
@@ -875,7 +875,7 @@ def test_parse_phrase_in_right_operand_of_binop(parse):
     assert expr.op == "+"
     assert isinstance(expr.left, parser_mod.IntLit) and expr.left.value == 2
     assert isinstance(expr.right, parser_mod.Phrase)
-    assert expr.right.words[0].value == ("odzyskać",)
+    assert expr.right.words[0].value.segments == ("odzyskać",)
     assert len(expr.right.words) == 3
     assert expr.right.words[1].prep is None
     assert expr.right.words[2].prep == ("z",)
@@ -888,7 +888,7 @@ def test_parse_phrase_in_left_operand_of_binop(parse):
     assert isinstance(expr, parser_mod.BinOp)
     assert expr.op == "+"
     assert isinstance(expr.left, parser_mod.Phrase)
-    assert expr.left.words[0].value == ("odzyskać",)
+    assert expr.left.words[0].value.segments == ("odzyskać",)
     assert len(expr.left.words) == 3  # head + liczbe + z bazy — NIE 2 z gobble'd `+ 6`
     assert isinstance(expr.right, parser_mod.IntLit)
     assert expr.right.value == 6
@@ -909,21 +909,21 @@ def test_parse_nested_phrase_requires_parens(parse):
     # Bez nawiasów: `f g h` to flat Phrase z trzema słowami, NIE z zagnieżdżonym Phrase
     ast = parse("aby f:\n    pisz alfa beta\n")
     phrase = ast.body[0].body[0]
-    assert phrase.words[0].value == ("pisać",)
+    assert phrase.words[0].value.segments == ("pisać",)
     assert len(phrase.words) == 3
-    assert phrase.words[1].value == ("alfa",)
-    assert phrase.words[2].value == ("beta",)
+    assert phrase.words[1].value.segments == ("alfa",)
+    assert phrase.words[2].value.segments == ("beta",)
 
 
 def test_parse_nested_phrase_with_parens(parse):
     # Z nawiasami: `f (g h)` — drugi Word ma value=Phrase z dwoma słowami
     ast = parse("aby f:\n    pisz (formatuj liczbę)\n")
     phrase = ast.body[0].body[0]
-    assert phrase.words[0].value == ("pisać",)
+    assert phrase.words[0].value.segments == ("pisać",)
     assert len(phrase.words) == 2
     inner = phrase.words[1].value
     assert isinstance(inner, parser_mod.Phrase)
-    assert inner.words[0].value == ("formatować",)
+    assert inner.words[0].value.segments == ("formatować",)
     assert len(inner.words) == 2
 
 
@@ -945,11 +945,11 @@ def test_parse_struct_def_basic(parse):
     assert sd.name == ("użytkownik",)
     assert len(sd.fields) == 5
     assert all(isinstance(f, parser_mod.Field) for f in sd.fields)
-    assert sd.fields[0].name == ("identyfikator",)
+    assert sd.fields[0].name.segments == ("identyfikator",)
     assert sd.fields[0].type == ("tekst",)
-    assert sd.fields[3].name == ("czy", "zablokowany")
+    assert sd.fields[3].name.segments == ("czy", "zablokowany")
     assert sd.fields[3].type == ("przełącznik",)
-    assert sd.fields[4].name == ("post",)
+    assert sd.fields[4].name.segments == ("post",)
 
 
 def test_parse_struct_name_camelcase_split(parse):
@@ -964,7 +964,7 @@ def test_parse_struct_name_camelcase_split(parse):
 def test_parse_struct_field_name_lemmatized(parse):
     ast = parse("definicja Punktu:\n    posty (Liczba)\n")
     f = ast.body[0].fields[0]
-    assert f.name == ("post",)
+    assert f.name.segments == ("post",)
 
 
 def test_parse_struct_then_function(parse):
@@ -985,7 +985,7 @@ def test_parse_struct_then_function(parse):
 def test_parse_struct_field_underscore_name(parse):
     ast = parse("definicja Punktu:\n    czy_zablokowany (Przełącznik)\n")
     f = ast.body[0].fields[0]
-    assert f.name == ("czy", "zablokowany")
+    assert f.name.segments == ("czy", "zablokowany")
 
 
 def test_lex_camelcase_splits_into_lowercase_segments():

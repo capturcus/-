@@ -65,19 +65,19 @@ def _label(node):
     if isinstance(node, parser.Module):
         return "Module"
     if isinstance(node, parser.FunctionDef):
-        s = f"FunctionDef {'_'.join(node.name)}"
+        s = f"FunctionDef {'_'.join(node.name.segments)}"
         if node.return_type:
             s += f" -> {'_'.join(node.return_type)}"
         return s
     if isinstance(node, parser.StructDef):
         return f"StructDef {'_'.join(node.name)}"
     if isinstance(node, parser.Field):
-        return f"Field {'_'.join(node.name)} : {'_'.join(node.type)}"
+        return f"Field {'_'.join(node.name.segments)} : {'_'.join(node.type)}"
     if isinstance(node, parser.Param):
         parts = ["Param"]
         if node.prep:
             parts.append("_".join(node.prep))
-        parts.append("_".join(node.name))
+        parts.append("_".join(node.name.segments))
         if node.case:
             parts.append(f"({_format_case(node.case)})")
         if node.type:
@@ -89,8 +89,8 @@ def _label(node):
         parts = ["Word"]
         if node.prep:
             parts.append("_".join(node.prep))
-        if isinstance(node.value, tuple):
-            parts.append("_".join(node.value))
+        if isinstance(node.value, parser.Identifier):
+            parts.append("_".join(node.value.segments))
         if node.case:
             parts.append(f"({_format_case(node.case)})")
         return " ".join(parts)
@@ -127,7 +127,7 @@ def _children(node):
     if isinstance(node, parser.Phrase):
         return node.words
     if isinstance(node, parser.Word):
-        if isinstance(node.value, tuple):
+        if isinstance(node.value, parser.Identifier):
             return []
         return [node.value]
     if isinstance(node, parser.Assignment):

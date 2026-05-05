@@ -9,9 +9,15 @@ class Module:
     body: list
 
 
+@dataclass(frozen=True)
+class Identifier:
+    segments: tuple
+    surface: tuple
+
+
 @dataclass
 class FunctionDef:
-    name: tuple
+    name: Identifier
     params: list
     body: list
     return_type: tuple = None
@@ -20,9 +26,8 @@ class FunctionDef:
 @dataclass
 class Param:
     prep: tuple
-    name: tuple
+    name: Identifier
     case: str
-    surface: tuple
     type: tuple = None
 
 
@@ -34,7 +39,7 @@ class StructDef:
 
 @dataclass
 class Field:
-    name: tuple
+    name: Identifier
     type: tuple
 
 
@@ -161,6 +166,9 @@ class Parser:
             and canonical(token) in LOGICAL_OPS
         )
 
+    def _ident(self, tok):
+        return Identifier(segments=canonical(tok), surface=tok[1])
+
     def _case_of(self, token):
         _, value, analyses = token
         last_case = None
@@ -274,7 +282,7 @@ class Parser:
             body.append(self.parse_stmt())
             self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
-        return FunctionDef(name=canonical(name_tok), params=params, body=body, return_type=return_type)
+        return FunctionDef(name=self._ident(name_tok), params=params, body=body, return_type=return_type)
 
     def parse_struct_def(self):
         self.expect(lexer.Token.WORD)  # definicja
@@ -295,7 +303,7 @@ class Parser:
         self.expect(lexer.Token.LPAREN)
         type_ = canonical(self.expect(lexer.Token.WORD))
         self.expect(lexer.Token.RPAREN)
-        return Field(name=canonical(name_tok), type=type_)
+        return Field(name=self._ident(name_tok), type=type_)
 
     def parse_param(self):
         prep = None
@@ -309,9 +317,8 @@ class Parser:
             self.expect(lexer.Token.RPAREN)
         return Param(
             prep=prep,
-            name=canonical(name_tok),
+            name=self._ident(name_tok),
             case=self._case_of(name_tok),
-            surface=name_tok[1],
             type=type_,
         )
 
@@ -319,7 +326,7 @@ class Parser:
         head_tok = self.expect(lexer.Token.WORD)
         head = Word(
             prep=None,
-            value=canonical(head_tok),
+            value=self._ident(head_tok),
             case=self._case_of(head_tok),
         )
         words = [head]
@@ -372,7 +379,7 @@ class Parser:
             self.expect(lexer.Token.RPAREN)
             return expr
         if t[0] is lexer.Token.WORD:
-            return canonical(self.advance())
+            return self._ident(self.advance())
         raise SyntaxError(f"Unexpected token in word value: {t}")
 
     def parse_expr(self):
