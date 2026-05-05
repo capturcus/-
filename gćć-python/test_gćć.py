@@ -189,10 +189,12 @@ def test_parse_assignment_string_literal(parse):
 
 
 def test_parse_assignment_var_with_canonical_name(parse):
+    # Single WORD bez argumentów to Call(args=[]) — nie ma osobnego Var
     ast = parse("aby f:\n    x to inna_rzecz\n")
     a = ast.body[0].body[0]
-    assert isinstance(a.value, parser_mod.Var)
+    assert isinstance(a.value, parser_mod.Call)
     assert a.value.name == ("inny", "rzecz")
+    assert a.value.args == []
 
 
 def test_parse_binop_precedence_mul_over_add(parse):
@@ -515,8 +517,9 @@ def test_parse_call_with_var_arg(parse):
     assert isinstance(call, parser_mod.Call)
     arg = call.args[0]
     assert arg.prep is None
-    assert isinstance(arg.value, parser_mod.Var)
+    assert isinstance(arg.value, parser_mod.Call)
     assert arg.value.name == ("tekst",)
+    assert arg.value.args == []
     assert arg.case == frozenset({"inst"})
 
 
@@ -528,8 +531,9 @@ def test_parse_call_with_prep_arg(parse):
     assert len(call.args) == 1
     arg = call.args[0]
     assert arg.prep == ("w",)
-    assert isinstance(arg.value, parser_mod.Var)
+    assert isinstance(arg.value, parser_mod.Call)
     assert arg.value.name == ("mapa",)
+    assert arg.value.args == []
     # `mapie` jest formą dat∨loc
     assert arg.case == frozenset({"dat", "loc"})
 
@@ -585,6 +589,89 @@ def test_parse_top_level_call(parse):
     # Wywołanie poza definicją funkcji
     ast = parse('pisz "hello"\n')
     assert isinstance(ast.body[0], parser_mod.Call)
+
+
+# ---------- Call jako primary expression ----------
+
+def test_parse_call_in_assignment_rhs(parse):
+    # `pakiet to opakuj coś od klienta` — RHS to Call z dwoma argumentami
+    ast = parse("aby f:\n    pakiet to opakuj coś od klienta\n")
+    a = ast.body[0].body[0]
+    assert isinstance(a, parser_mod.Assignment)
+    assert a.target == ("pakiet",)
+    assert isinstance(a.value, parser_mod.Call)
+    assert a.value.name == ("opakować",)
+    assert len(a.value.args) == 2
+    # arg1: coś (no prep)
+    assert a.value.args[0].prep is None
+    assert isinstance(a.value.args[0].value, parser_mod.Call)
+    assert a.value.args[0].value.name == ("coś",)
+    assert a.value.args[0].value.args == []
+    # arg2: od klienta
+    assert a.value.args[1].prep == ("od",)
+    assert a.value.args[1].value.name == ("klient",)
+
+
+def test_parse_call_in_right_operand_of_binop(parse):
+    # `liczba to 2 + odzyskaj liczbe z bazy` — Call jest prawym operandem +
+    ast = parse("aby f:\n    liczba to 2 + odzyskaj liczbe z bazy\n")
+    expr = ast.body[0].body[0].value
+    assert isinstance(expr, parser_mod.BinOp)
+    assert expr.op == "+"
+    assert isinstance(expr.left, parser_mod.IntLit) and expr.left.value == 2
+    assert isinstance(expr.right, parser_mod.Call)
+    assert expr.right.name == ("odzyskać",)
+    assert len(expr.right.args) == 2
+    assert expr.right.args[0].prep is None
+    assert expr.right.args[1].prep == ("z",)
+
+
+def test_parse_call_in_left_operand_of_binop(parse):
+    # `wynik to odzyskaj liczbe z bazy + 6` — args calla NIE pożerają `+ 6`
+    ast = parse("aby f:\n    wynik to odzyskaj liczbe z bazy + 6\n")
+    expr = ast.body[0].body[0].value
+    assert isinstance(expr, parser_mod.BinOp)
+    assert expr.op == "+"
+    assert isinstance(expr.left, parser_mod.Call)
+    assert expr.left.name == ("odzyskać",)
+    assert len(expr.left.args) == 2  # liczbe i z bazy — NIE 1 z gobble'd `+ 6`
+    assert isinstance(expr.right, parser_mod.IntLit)
+    assert expr.right.value == 6
+
+
+def test_parse_call_args_dont_eat_binop(parse):
+    # Eksplicytnie: simple_value w argach NIE wchodzi w binarne operatory
+    ast = parse("aby f:\n    x to f a + b\n")
+    expr = ast.body[0].body[0].value
+    assert isinstance(expr, parser_mod.BinOp)
+    assert expr.op == "+"
+    # Lewa strona to Call f z jednym argiem `a`
+    assert isinstance(expr.left, parser_mod.Call)
+    assert len(expr.left.args) == 1
+
+
+def test_parse_nested_call_requires_parens(parse):
+    # Bez nawiasów: `f g h` to Call(f, [Arg(g), Arg(h)]), NIE Call(f, [Arg(Call(g, [h]))])
+    ast = parse("aby f:\n    pisz alfa beta\n")
+    call = ast.body[0].body[0]
+    assert call.name == ("pisać",)
+    assert len(call.args) == 2
+    assert isinstance(call.args[0].value, parser_mod.Call)
+    assert call.args[0].value.args == []
+    assert isinstance(call.args[1].value, parser_mod.Call)
+    assert call.args[1].value.args == []
+
+
+def test_parse_nested_call_with_parens(parse):
+    # Z nawiasami: `f (g h)` to Call(f, [Arg(Call(g, [h]))])
+    ast = parse("aby f:\n    pisz (formatuj liczbę)\n")
+    call = ast.body[0].body[0]
+    assert call.name == ("pisać",)
+    assert len(call.args) == 1
+    inner = call.args[0].value
+    assert isinstance(inner, parser_mod.Call)
+    assert inner.name == ("formatować",)
+    assert len(inner.args) == 1
 
 
 # ---------- morph_anal: prepositions ----------

@@ -87,8 +87,6 @@ def _label(node):
         return f"IntLit {node.value}"
     if isinstance(node, parser.StrLit):
         return f"StrLit {node.value!r}"
-    if isinstance(node, parser.Var):
-        return f"Var {'_'.join(node.name)}"
     if isinstance(node, parser.BinOp):
         return f"BinOp {node.op}"
     if isinstance(node, parser.UnaryOp):

@@ -39,3 +39,37 @@ aby f:
         jeśli a = 5:
             x to 1
         a to a + 1
+
+# Funkcje z parametrami
+
+aby pisać coś do klienta:
+    weryfikuj coś
+
+aby czytać z klienta:
+    bufor to alokuj_bufor
+
+aby nasłuchiwać na porcie:
+    sock to stwórz_gniazdo
+
+aby wysłać coś do odbiorcy przez kanał od nadawcy:
+    pakiet to opakuj coś od nadawcy
+    przekaż pakiet kanałem do odbiorcy
+
+aby zalogować użytkownika hasłem:
+    weryfikuj hasło
+    token to stwórz_token
+    zapisz_token w globalnej_mapie dla użytkownika
+
+# Wywołania funkcji
+
+pisz "witaj, świecie"
+
+anna to stwórz_użytkownika
+hasło to "dupa.8"
+zaloguj annę hasłem
+
+aby reagować na zdarzenie:
+    jeśli zdarzenie = "klik":
+        pisz "kliknięto"
+    inaczej:
+        pisz "ignoruję"

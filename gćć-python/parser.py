@@ -54,11 +54,6 @@ class StrLit:
 
 
 @dataclass
-class Var:
-    name: tuple
-
-
-@dataclass
 class BinOp:
     op: str
     left: object
@@ -159,8 +154,7 @@ class Parser:
             nxt = self.peek(1)
             if nxt and nxt[0] is lexer.Token.ASSIGN:
                 return self.parse_assignment()
-            return self.parse_call()
-        return self.parse_assignment()
+        return self.parse_expr()
 
     def parse_if(self):
         self.expect(lexer.Token.WORD)  # jeśli
@@ -238,24 +232,55 @@ class Parser:
     def parse_call(self):
         name_tok = self.expect(lexer.Token.WORD)
         args = []
-        while self.peek() and self.peek()[0] not in (
-            lexer.Token.NEWLINE,
-            lexer.Token.DEDENT,
-            lexer.Token.COLON,
-        ):
-            args.append(self.parse_arg())
+        while self._is_arg_start(self.peek()):
+            args.append(self.parse_simple_arg())
         return Call(name=canonical(name_tok), args=args)
 
-    def parse_arg(self):
+    def _is_arg_start(self, t):
+        if t is None:
+            return False
+        return t[0] in (
+            lexer.Token.NUMBER,
+            lexer.Token.TEXT,
+            lexer.Token.WORD,
+            lexer.Token.LPAREN,
+        )
+
+    def parse_simple_arg(self):
         prep = None
-        if self._is_prep(self.peek()):
-            prep = canonical(self.advance())
+        t = self.peek()
+        if self._is_prep(t):
+            nxt = self.peek(1)
+            if nxt and nxt[0] in (
+                lexer.Token.NUMBER,
+                lexer.Token.TEXT,
+                lexer.Token.WORD,
+                lexer.Token.LPAREN,
+            ):
+                prep = canonical(self.advance())
         case = None
         nxt = self.peek()
         if nxt and nxt[0] is lexer.Token.WORD:
             case = self._case_of(nxt)
-        value = self.parse_expr()
+        value = self.parse_simple_value()
         return Arg(prep=prep, value=value, case=case)
+
+    def parse_simple_value(self):
+        t = self.peek()
+        if t is None:
+            raise SyntaxError("Unexpected end of input in arg")
+        if t[0] is lexer.Token.NUMBER:
+            return IntLit(self.advance()[1])
+        if t[0] is lexer.Token.TEXT:
+            return StrLit(self.advance()[1])
+        if t[0] is lexer.Token.LPAREN:
+            self.advance()
+            expr = self.parse_expr()
+            self.expect(lexer.Token.RPAREN)
+            return expr
+        if t[0] is lexer.Token.WORD:
+            return Call(name=canonical(self.advance()), args=[])
+        raise SyntaxError(f"Unexpected token in arg value: {t}")
 
     def parse_assignment(self):
         target_tok = self.expect(lexer.Token.WORD)
@@ -288,20 +313,23 @@ class Parser:
         if t and t[0] is lexer.Token.BIN_OP and t[1] in ("+", "-"):
             op = self.advance()[1]
             return UnaryOp(op, self.parse_factor())
-        if t and t[0] is lexer.Token.LPAREN:
+        return self.parse_primary()
+
+    def parse_primary(self):
+        t = self.peek()
+        if t is None:
+            raise SyntaxError("Unexpected end of input in expr")
+        if t[0] is lexer.Token.NUMBER:
+            return IntLit(self.advance()[1])
+        if t[0] is lexer.Token.TEXT:
+            return StrLit(self.advance()[1])
+        if t[0] is lexer.Token.LPAREN:
             self.advance()
             expr = self.parse_expr()
             self.expect(lexer.Token.RPAREN)
             return expr
-        t = self.advance()
-        if t is None:
-            raise SyntaxError("Unexpected end of input in expr")
-        if t[0] is lexer.Token.NUMBER:
-            return IntLit(t[1])
-        if t[0] is lexer.Token.TEXT:
-            return StrLit(t[1])
         if t[0] is lexer.Token.WORD:
-            return Var(canonical(t))
+            return self.parse_call()
         raise SyntaxError(f"Unexpected token in expr: {t}")
 
 
