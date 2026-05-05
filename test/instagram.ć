@@ -7,14 +7,14 @@ definicja Użytkownika:
     nazwa (Tekst)
     email (Tekst)
     hasło (Tekst)
-    czy_zablokowany (Przełącznik)
+    flaga_blokady (Przełącznik)
     liczba_obserwujących (Liczba)
 
 
 definicja Sesji:
     identyfikator (Tekst)
     użytkownik (Użytkownik)
-    czy_aktywna (Przełącznik)
+    flaga_aktywności (Przełącznik)
 
 
 definicja Postu:
@@ -32,7 +32,7 @@ definicja Komentarza:
 
 
 definicja Obserwacji:
-    obserwujący (Użytkownik)
+    obserwator (Użytkownik)
     obserwowany (Użytkownik)
 
 
@@ -53,13 +53,13 @@ aby zaloguj użytkownika (Użytkownik) z hasłem (Tekst) -> Sesja:
         zwróć błąd "złe hasło"
     nowa to stwórz_sesję dla użytkownika
     identyfikator nowej to wygeneruj_id
-    czy_aktywna nowej to prawda
+    flaga_aktywności nowej to prawda
     zapisz w bazie nową
     zwróć nową
 
 
 aby wyloguj sesję (Sesja):
-    czy_aktywna sesji to fałsz
+    flaga_aktywności sesji to fałsz
     zapisz w bazie sesję
 
 
@@ -75,7 +75,7 @@ aby istnieje_użytkownik z emailem (Tekst) -> Przełącznik:
 # === Posty ===
 
 aby opublikuj_post z treścią (Tekst) w sesji (Sesja) -> Post:
-    jeśli nie czy_aktywna sesji:
+    jeśli nie flaga_aktywności sesji:
         zwróć błąd "brak aktywnej sesji"
     nowy to stwórz_post z treścią dla użytkownika sesji
     identyfikator nowego to wygeneruj_id
@@ -116,26 +116,26 @@ aby usuń_komentarz komentarz (Komentarz) w sesji (Sesja):
 
 # === Obserwacje ===
 
-aby zacząć_obserwować użytkownika (Użytkownik) przez obserwującego (Użytkownik):
-    jeśli już_obserwuje obserwujący użytkownika:
+aby zacząć_obserwować użytkownika (Użytkownik) przez obserwatora (Użytkownik):
+    jeśli już_obserwuje obserwatora użytkownika:
         zwróć błąd "już obserwujesz"
-    jeśli identyfikator obserwującego = identyfikator użytkownika:
+    jeśli identyfikator obserwatora = identyfikator użytkownika:
         zwróć błąd "nie można obserwować siebie"
-    nowa to stwórz_obserwację dla obserwującego dla użytkownika
+    nowa to stwórz_obserwację dla obserwatora dla użytkownika
     zapisz w bazie nową
     liczba_obserwujących użytkownika to liczba_obserwujących użytkownika + 1
 
 
-aby przestań_obserwować użytkownika (Użytkownik) przez obserwującego (Użytkownik):
-    obserwacja to znajdź_obserwację obserwującego użytkownika
+aby przestań_obserwować użytkownika (Użytkownik) przez obserwatora (Użytkownik):
+    obserwacja to znajdź_obserwację obserwatora użytkownika
     jeśli obserwacja = pusty:
         zwróć błąd "nie obserwujesz"
     usuń z bazy obserwację
     liczba_obserwujących użytkownika to liczba_obserwujących użytkownika - 1
 
 
-aby już_obserwować obserwujący (Użytkownik) użytkownika (Użytkownik) -> Przełącznik:
-    obserwacja to znajdź_obserwację obserwującego użytkownika
+aby już_obserwować obserwator (Użytkownik) użytkownika (Użytkownik) -> Przełącznik:
+    obserwacja to znajdź_obserwację obserwatora użytkownika
     zwróć nie obserwacja = pusty
 
 
@@ -155,5 +155,5 @@ aby pokaż_feed dla użytkownika (Użytkownik) z limitem (Liczba) -> Lista:
 
 
 aby zablokuj użytkownika (Użytkownik):
-    czy_zablokowany użytkownika to prawda
+    flaga_blokady użytkownika to prawda
     zapisz w bazie użytkownika

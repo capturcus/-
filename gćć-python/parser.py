@@ -13,11 +13,16 @@ class Module:
 class Identifier:
     segments: tuple
     surface: tuple
+    case: frozenset = None
+
+
+class IdentifierError(SyntaxError):
+    pass
 
 
 @dataclass
 class FunctionDef:
-    name: Identifier
+    name: tuple
     params: list
     body: list
     return_type: tuple = None
@@ -27,7 +32,7 @@ class FunctionDef:
 class Param:
     prep: tuple
     name: Identifier
-    case: str
+    case: frozenset
     type: tuple = None
 
 
@@ -167,22 +172,64 @@ class Parser:
         )
 
     def _ident(self, tok):
-        return Identifier(segments=canonical(tok), surface=tok[1])
+        segments = canonical(tok)
+        surface = tok[1]
+        case = self._validate_identifier_case(tok, segments, surface)
+        return Identifier(segments=segments, surface=surface, case=case)
 
-    def _case_of(self, token):
-        _, value, analyses = token
-        last_case = None
-        for seg, anas in zip(value, analyses):
-            if not anas or len(seg) == 1:
-                last_case = None
+    def _ident_head(self, tok):
+        return Identifier(segments=canonical(tok), surface=tok[1], case=None)
+
+    def _validate_identifier_case(self, tok, segments, surface):
+        _, _, analyses = tok
+        adj_per_seg = []
+        subst_per_seg = []
+        has_morph = False
+        for seg, anas in zip(surface, analyses):
+            if len(seg) == 1 or not anas:
+                adj_per_seg.append(None)
+                subst_per_seg.append(None)
                 continue
-            with_case = [a for a in anas if a[1] is not None]
-            if not with_case:
-                last_case = None
+            has_morph = True
+            adj_cases = frozenset()
+            subst_cases = frozenset()
+            for pos, case, _lemma in anas:
+                if not case:
+                    continue
+                if pos == "adj":
+                    adj_cases |= case
+                elif pos == "subst":
+                    subst_cases |= case
+            adj_per_seg.append(adj_cases)
+            subst_per_seg.append(subst_cases)
+        if not has_morph:
+            return None
+        noun_idx = next((i for i, s in enumerate(subst_per_seg) if s), None)
+        if noun_idx is None:
+            raise IdentifierError(self._ident_err(surface, "brak rzeczownika"))
+        cases = subst_per_seg[noun_idx]
+        for i in range(noun_idx):
+            adj = adj_per_seg[i]
+            if adj is None:
                 continue
-            chosen = next((a for a in with_case if a[2] == seg), with_case[0])
-            last_case = chosen[1]
-        return last_case
+            if not adj:
+                raise IdentifierError(self._ident_err(
+                    surface, f"segment '{surface[i]}' przed rzeczownikiem nie jest przymiotnikiem"
+                ))
+            cases &= adj
+        if not cases:
+            raise IdentifierError(self._ident_err(
+                surface, "przymiotniki i rzeczownik nie zgadzają się w przypadku"
+            ))
+        return cases
+
+    @staticmethod
+    def _ident_err(surface, reason):
+        return (
+            f"Niepoprawny identyfikator '{'_'.join(surface)}': {reason}. "
+            f"Oczekiwana forma: [przymiotnik...] rzeczownik [reszta], "
+            f"gdzie przymiotniki i rzeczownik zgadzają się w przypadku."
+        )
 
     def parse_module(self):
         body = []
@@ -282,7 +329,7 @@ class Parser:
             body.append(self.parse_stmt())
             self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
-        return FunctionDef(name=self._ident(name_tok), params=params, body=body, return_type=return_type)
+        return FunctionDef(name=canonical(name_tok), params=params, body=body, return_type=return_type)
 
     def parse_struct_def(self):
         self.expect(lexer.Token.WORD)  # definicja
@@ -315,20 +362,12 @@ class Parser:
             self.advance()
             type_ = canonical(self.expect(lexer.Token.WORD))
             self.expect(lexer.Token.RPAREN)
-        return Param(
-            prep=prep,
-            name=self._ident(name_tok),
-            case=self._case_of(name_tok),
-            type=type_,
-        )
+        name = self._ident(name_tok)
+        return Param(prep=prep, name=name, case=name.case, type=type_)
 
     def parse_phrase(self):
         head_tok = self.expect(lexer.Token.WORD)
-        head = Word(
-            prep=None,
-            value=self._ident(head_tok),
-            case=self._case_of(head_tok),
-        )
+        head = Word(prep=None, value=self._ident_head(head_tok), case=None)
         words = [head]
         while self._is_word_start(self.peek()):
             words.append(self.parse_simple_word())
@@ -358,11 +397,8 @@ class Parser:
                 lexer.Token.LPAREN,
             ):
                 prep = canonical(self.advance())
-        case = None
-        nxt = self.peek()
-        if nxt and nxt[0] is lexer.Token.WORD:
-            case = self._case_of(nxt)
         value = self.parse_simple_value()
+        case = value.case if isinstance(value, Identifier) else None
         return Word(prep=prep, value=value, case=case)
 
     def parse_simple_value(self):

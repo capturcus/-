@@ -189,7 +189,7 @@ def test_parse_function_def_with_assignment(parse):
     assert isinstance(ast, parser_mod.Module)
     fd = ast.body[0]
     assert isinstance(fd, parser_mod.FunctionDef)
-    assert fd.name.segments == ("działać",)
+    assert fd.name == ("działać",)
     a = fd.body[0]
     assert isinstance(a, parser_mod.Assignment)
     assert isinstance(a.target, parser_mod.Phrase)
@@ -276,8 +276,8 @@ def test_parse_multiple_function_definitions(parse):
     ast = parse("aby f:\n    x to 1\n\naby g:\n    y to 2\n")
     assert len(ast.body) == 2
     # Pojedyncze litery nie są lematyzowane
-    assert ast.body[0].name.segments == ("f",)
-    assert ast.body[1].name.segments == ("g",)
+    assert ast.body[0].name == ("f",)
+    assert ast.body[1].name == ("g",)
 
 
 def test_parse_division(parse):
@@ -538,9 +538,9 @@ def test_parse_nested_not_and_with_parens(parse):
 
 
 def test_parse_not_consumes_whole_phrase_with_prep_args(parse):
-    # `nie wywołanie funkcji z wieloma argumentami` —
+    # `nie wywołanie funkcji z nowymi argumentami` —
     # `nie` musi obejmować całą frazę z argumentami przyimkowymi
-    ast = parse("aby f:\n    wynik to nie wywołanie funkcji z wieloma argumentami\n")
+    ast = parse("aby f:\n    wynik to nie wywołanie funkcji z nowymi argumentami\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.Not)
     phrase = expr.operand
@@ -629,7 +629,7 @@ def test_parse_break_standalone(parse):
 def test_parse_func_decl_no_params(parse):
     ast = parse("aby działać:\n    x to 1\n")
     fd = ast.body[0]
-    assert fd.name.segments == ("działać",)
+    assert fd.name == ("działać",)
     assert fd.params == []
 
 
@@ -637,13 +637,13 @@ def test_parse_func_decl_with_param_no_prep(parse):
     # `aby pisać coś:` — `coś` to acc bez przyimka
     ast = parse("aby pisać coś:\n    x to 1\n")
     fd = ast.body[0]
-    assert fd.name.segments == ("pisać",)
+    assert fd.name == ("pisać",)
     assert len(fd.params) == 1
     p = fd.params[0]
     assert isinstance(p, parser_mod.Param)
     assert p.prep is None
     assert p.name.segments == ("coś",)
-    assert p.case == frozenset({"acc"})
+    assert p.case == frozenset({"nom", "gen", "acc"})
 
 
 def test_parse_func_decl_with_prep(parse):
@@ -663,7 +663,7 @@ def test_parse_func_decl_locative_with_prep(parse):
     p = fd.params[0]
     assert p.prep == ("na",)
     assert p.name.segments == ("port",)
-    assert p.case == frozenset({"loc"})
+    assert p.case == frozenset({"loc", "voc"})
 
 
 def test_parse_func_decl_multiple_params(parse):
@@ -671,7 +671,7 @@ def test_parse_func_decl_multiple_params(parse):
     src = "aby wysłać coś do odbiorcy przez kanał od nadawcy:\n    x to 1\n"
     ast = parse(src)
     fd = ast.body[0]
-    assert fd.name.segments == ("wysłać",)
+    assert fd.name == ("wysłać",)
     assert len(fd.params) == 4
     assert fd.params[0].prep is None and fd.params[0].name.segments == ("coś",)
     assert fd.params[1].prep == ("do",) and fd.params[1].name.segments == ("odbiorca",)
@@ -696,17 +696,17 @@ def test_parse_func_decl_return_type(parse):
 
 def test_parse_func_decl_no_types(parse):
     # Brak typów — type/return_type domyślnie None
-    ast = parse("aby przestać_obserwować użytkownika przez obserwującego:\n    x to 1\n")
+    ast = parse("aby przestać_obserwować użytkownika przez obserwatora:\n    x to 1\n")
     fd = ast.body[0]
     assert fd.return_type is None
     assert all(p.type is None for p in fd.params)
 
 
 def test_parse_func_decl_full_types(parse):
-    src = "aby przestać_obserwować użytkownika (Użytkownik) przez obserwującego (Użytkownik) -> Wynik:\n    x to 1\n"
+    src = "aby przestać_obserwować użytkownika (Użytkownik) przez obserwatora (Użytkownik) -> Wynik:\n    x to 1\n"
     ast = parse(src)
     fd = ast.body[0]
-    assert fd.name.segments == ("przestać", "obserwować")
+    assert fd.name == ("przestać", "obserwować")
     assert len(fd.params) == 2
     assert fd.params[0].prep is None
     assert fd.params[0].name.segments == ("użytkownik",)
@@ -936,7 +936,7 @@ def test_parse_struct_def_basic(parse):
         "    identyfikator (Tekst)\n"
         "    nazwa (Tekst)\n"
         "    email (Tekst)\n"
-        "    czy_zablokowany (Przełącznik)\n"
+        "    flaga_blokady (Przełącznik)\n"
         "    posty (Liczba)\n"
     )
     ast = parse(src)
@@ -947,7 +947,7 @@ def test_parse_struct_def_basic(parse):
     assert all(isinstance(f, parser_mod.Field) for f in sd.fields)
     assert sd.fields[0].name.segments == ("identyfikator",)
     assert sd.fields[0].type == ("tekst",)
-    assert sd.fields[3].name.segments == ("czy", "zablokowany")
+    assert sd.fields[3].name.segments == ("flaga", "blokada")
     assert sd.fields[3].type == ("przełącznik",)
     assert sd.fields[4].name.segments == ("post",)
 
@@ -983,9 +983,9 @@ def test_parse_struct_then_function(parse):
 
 
 def test_parse_struct_field_underscore_name(parse):
-    ast = parse("definicja Punktu:\n    czy_zablokowany (Przełącznik)\n")
+    ast = parse("definicja Punktu:\n    flaga_blokady (Przełącznik)\n")
     f = ast.body[0].fields[0]
-    assert f.name.segments == ("czy", "zablokowany")
+    assert f.name.segments == ("flaga", "blokada")
 
 
 def test_lex_camelcase_splits_into_lowercase_segments():

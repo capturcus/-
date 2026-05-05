@@ -65,7 +65,7 @@ def _label(node):
     if isinstance(node, parser.Module):
         return "Module"
     if isinstance(node, parser.FunctionDef):
-        s = f"FunctionDef {'_'.join(node.name.segments)}"
+        s = f"FunctionDef {'_'.join(node.name)}"
         if node.return_type:
             s += f" -> {'_'.join(node.return_type)}"
         return s
