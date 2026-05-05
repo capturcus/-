@@ -196,7 +196,7 @@ class Parser:
             for pos, case, _lemma in anas:
                 if not case:
                     continue
-                if pos == "adj":
+                if pos in ("adj", "pact", "ppas"):
                     adj_cases |= case
                 elif pos == "subst":
                     subst_cases |= case
@@ -204,30 +204,52 @@ class Parser:
             subst_per_seg.append(subst_cases)
         if not has_morph:
             return None
-        noun_idx = next((i for i, s in enumerate(subst_per_seg) if s), None)
-        if noun_idx is None:
-            raise IdentifierError(self._ident_err(surface, "brak rzeczownika"))
-        cases = subst_per_seg[noun_idx]
-        for i in range(noun_idx):
-            adj = adj_per_seg[i]
-            if adj is None:
+        cases = None  # None = "brak ograniczeń" (jeszcze nic nie weszło do prefiksu)
+        had_subst = False
+        prefix_len = 0
+        for i, (adj, sub) in enumerate(zip(adj_per_seg, subst_per_seg)):
+            if adj is None and sub is None:
+                # opaque (krótki/bez analiz) — passthrough, nie zmienia cases
+                prefix_len = i + 1
                 continue
-            if not adj:
-                raise IdentifierError(self._ident_err(
-                    surface, f"segment '{surface[i]}' przed rzeczownikiem nie jest przymiotnikiem"
-                ))
-            cases &= adj
-        if not cases:
+            options = []
+            if adj:
+                options.append(adj)
+            if sub and not had_subst:
+                options.append(("subst", sub))
+            # próbujemy każdą interpretację, preferując adj (pozwala kontynuować)
+            chosen = None
+            chosen_is_subst = False
+            for opt in options:
+                is_subst = isinstance(opt, tuple)
+                cand_cases = opt[1] if is_subst else opt
+                new_cases = cand_cases if cases is None else (cases & cand_cases)
+                if new_cases:
+                    chosen = new_cases
+                    chosen_is_subst = is_subst
+                    break
+            if chosen is None:
+                break
+            cases = chosen
+            prefix_len = i + 1
+            if chosen_is_subst:
+                had_subst = True
+                # subst kończy prefix — kolejne segmenty to "reszta"
+                break
+        if prefix_len == 0:
             raise IdentifierError(self._ident_err(
-                surface, "przymiotniki i rzeczownik nie zgadzają się w przypadku"
+                surface, f"pierwszy segment '{surface[0]}' nie jest ani przymiotnikiem ani rzeczownikiem"
             ))
+        if cases is None:
+            # cały prefix był opaque — atom z przypadkiem nieokreślonym
+            return None
         return cases
 
     @staticmethod
     def _ident_err(surface, reason):
         return (
             f"Niepoprawny identyfikator '{'_'.join(surface)}': {reason}. "
-            f"Oczekiwana forma: [przymiotnik...] rzeczownik [reszta], "
+            f"Oczekiwana forma: [przymiotnik...] [rzeczownik] [reszta], "
             f"gdzie przymiotniki i rzeczownik zgadzają się w przypadku."
         )
 

@@ -696,7 +696,7 @@ def test_parse_func_decl_return_type(parse):
 
 def test_parse_func_decl_no_types(parse):
     # Brak typów — type/return_type domyślnie None
-    ast = parse("aby przestać_obserwować użytkownika przez obserwatora:\n    x to 1\n")
+    ast = parse("aby przestać_obserwować użytkownika przez obserwującego:\n    x to 1\n")
     fd = ast.body[0]
     assert fd.return_type is None
     assert all(p.type is None for p in fd.params)
@@ -1031,3 +1031,110 @@ def test_parse_nested_parens(parse):
     expr = ast.body[0].body[0].value
     assert expr.op == "*"
     assert expr.left.op == "+" and expr.right.op == "+"
+
+
+# ---------- Walidacja formy identyfikatora ----------
+#
+# Reguła: prefix = [adj/pact/ppas]+ [subst]?, reszta = cokolwiek.
+# Przypadek identyfikatora = intersekcja przypadków segmentów prefiksu.
+
+def _ident_of(parse, surface):
+    # Zbuduj identyfikator przez parser, używając go jako parametru funkcji
+    ast = parse(f"aby f {surface}:\n    x to 1\n")
+    return ast.body[0].params[0].name
+
+
+# --- formy poprawne (przykłady użytkownika) ---
+
+def test_ident_valid_subst_only(parse):
+    # `autora` — sam rzeczownik
+    ident = _ident_of(parse, "autora")
+    assert ident.segments == ("autor",)
+    assert ident.case and "gen" in ident.case
+
+def test_ident_valid_subst_plus_rest(parse):
+    # `autora_książki` — subst + reszta (drugi subst)
+    ident = _ident_of(parse, "autora_książki")
+    assert ident.segments == ("autor", "książka")
+    assert ident.case  # niepusty
+
+def test_ident_valid_subst_with_prep_rest(parse):
+    # `uchwytu_do_pliku` — subst + reszta (prep + subst)
+    ident = _ident_of(parse, "uchwytu_do_pliku")
+    assert ident.segments == ("uchwyt", "do", "plik")
+    assert ident.case
+
+def test_ident_valid_adj_plus_subst(parse):
+    # `szanownego_autora` — adj + subst, zgodne w przypadku (gen/acc)
+    ident = _ident_of(parse, "szanownego_autora")
+    assert ident.segments == ("szanowny", "autor")
+    assert ident.case == frozenset({"gen", "acc"})
+
+def test_ident_valid_two_adj_plus_subst(parse):
+    # `pięknego_szanownego_autora` — case to intersekcja {gen,acc} ∩ {gen,acc} ∩ {gen,acc}
+    ident = _ident_of(parse, "pięknego_szanownego_autora")
+    assert len(ident.segments) == 3
+    assert ident.case == frozenset({"gen", "acc"})
+
+def test_ident_valid_adj_plus_subst_plus_rest(parse):
+    # `zielonego_drzewa_z_lasu` — adj + subst + reszta
+    ident = _ident_of(parse, "zielonego_drzewa_z_lasu")
+    assert len(ident.segments) == 4
+    assert ident.surface == ("zielonego", "drzewa", "z", "lasu")
+    assert "gen" in ident.case
+
+def test_ident_valid_subst_plus_short_rest(parse):
+    # `drzewa_z_lasu` — sam subst, reszta = `z_lasu`
+    ident = _ident_of(parse, "drzewa_z_lasu")
+    assert ident.segments == ("drzewo", "z", "las")
+    assert ident.case  # cases drzewa
+
+# --- nowe formy: sam imiesłów / przymiotnik ---
+
+def test_ident_valid_pact_alone(parse):
+    # `obserwujący` — sam imiesłów czynny (pact), bez rzeczownika
+    ident = _ident_of(parse, "obserwującego")
+    assert ident.segments == ("obserwujący",)
+    assert ident.case  # niepusty (gen lub acc m1.m2.m3, etc.)
+
+def test_ident_valid_ppas_alone(parse):
+    # `obserwowany` — sam imiesłów bierny (ppas)
+    ident = _ident_of(parse, "obserwowanego")
+    assert ident.segments == ("obserwowany",)
+    assert ident.case
+
+def test_ident_valid_ppas_plus_rest(parse):
+    # `obserwowany_przez_dziurkę` — ppas + reszta (prep + subst)
+    ident = _ident_of(parse, "obserwowanego_przez_dziurkę")
+    assert ident.segments == ("obserwowany", "przez", "dziurka")
+    assert ident.case
+
+def test_ident_valid_two_adj_plus_ppas_plus_rest(parse):
+    # `pięknego_mądrego_obserwowanego_przez_dziurkę` — adj+adj+ppas wszystkie w gen, potem reszta
+    ident = _ident_of(parse, "pięknego_mądrego_obserwowanego_przez_dziurkę")
+    assert len(ident.segments) == 5
+    assert ident.surface == ("pięknego", "mądrego", "obserwowanego", "przez", "dziurkę")
+    assert "gen" in ident.case  # intersekcja trzech adj-like obejmuje gen
+
+
+# --- formy niepoprawne ---
+
+def test_ident_invalid_qub_plus_adj(parse):
+    # `czy_zielony` — `czy` (qub) nie jest adj-like ani subst
+    with pytest.raises(parser_mod.IdentifierError, match="czy_zielony"):
+        _ident_of(parse, "czy_zielony")
+
+def test_ident_invalid_pcon_plus_subst(parse):
+    # `ruszając_kółkiem` — `ruszając` to pcon (imiesłów przysłówkowy), nie odmienny
+    with pytest.raises(parser_mod.IdentifierError, match="ruszając_kółkiem"):
+        _ident_of(parse, "ruszając_kółkiem")
+
+def test_ident_invalid_fin_plus_subst(parse):
+    # `jadę_samochodem` — `jadę` to forma osobowa czasownika (fin)
+    with pytest.raises(parser_mod.IdentifierError, match="jadę_samochodem"):
+        _ident_of(parse, "jadę_samochodem")
+
+def test_ident_invalid_error_mentions_expected_form(parse):
+    # Komunikat powinien zawierać wzór poprawnej formy
+    with pytest.raises(parser_mod.IdentifierError, match=r"\[przymiotnik\.\.\.\] \[rzeczownik\] \[reszta\]"):
+        _ident_of(parse, "czy_zielony")
