@@ -422,6 +422,44 @@ def test_parse_break_inside_while(parse):
     assert isinstance(if_node.then_body[0], parser_mod.Break)
 
 
+def test_parse_return_with_int(parse):
+    ast = parse("aby f:\n    zwróć 5\n")
+    r = ast.body[0].body[0]
+    assert isinstance(r, parser_mod.Return)
+    assert r.value == parser_mod.IntLit(5)
+
+
+def test_parse_return_with_expr(parse):
+    ast = parse("aby f:\n    zwróć 2 + 3\n")
+    r = ast.body[0].body[0]
+    assert isinstance(r, parser_mod.Return)
+    assert isinstance(r.value, parser_mod.BinOp) and r.value.op == "+"
+
+
+def test_parse_return_with_phrase(parse):
+    ast = parse("aby f:\n    zwróć odzyskaj liczbe z bazy\n")
+    r = ast.body[0].body[0]
+    assert isinstance(r, parser_mod.Return)
+    assert isinstance(r.value, parser_mod.Phrase)
+    assert r.value.words[0].value == ("odzyskać",)
+
+
+def test_parse_return_inside_if(parse):
+    src = (
+        "aby f:\n"
+        "    jeśli a < b:\n"
+        "        zwróć 1\n"
+        "    inaczej:\n"
+        "        zwróć 2\n"
+    )
+    ast = parse(src)
+    if_node = ast.body[0].body[0]
+    assert isinstance(if_node.then_body[0], parser_mod.Return)
+    assert isinstance(if_node.else_body[0], parser_mod.Return)
+    assert if_node.then_body[0].value == parser_mod.IntLit(1)
+    assert if_node.else_body[0].value == parser_mod.IntLit(2)
+
+
 def test_parse_break_standalone(parse):
     # Parser nie sprawdza, że stop musi być wewnątrz pętli — to robota semantyki.
     src = "aby f:\n    stop\n"

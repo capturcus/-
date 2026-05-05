@@ -99,6 +99,8 @@ def _label(node):
         return "While"
     if isinstance(node, parser.Break):
         return "Break"
+    if isinstance(node, parser.Return):
+        return "Return"
     return repr(node)
 
 
@@ -117,4 +119,6 @@ def _children(node):
         return [node.left, node.right]
     if isinstance(node, parser.UnaryOp):
         return [node.operand]
+    if isinstance(node, parser.Return):
+        return [node.value]
     return []

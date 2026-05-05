@@ -83,6 +83,11 @@ class Break:
     pass
 
 
+@dataclass
+class Return:
+    value: object
+
+
 class Parser:
     def __init__(self, tokens, preps=None):
         self.tokens = tokens
@@ -150,6 +155,9 @@ class Parser:
             if canon == ("stop",):
                 self.advance()
                 return Break()
+            if canon == ("zwrócić",):
+                self.advance()
+                return Return(value=self.parse_expr())
             nxt = self.peek(1)
             if nxt and nxt[0] is lexer.Token.ASSIGN:
                 return self.parse_assignment()
