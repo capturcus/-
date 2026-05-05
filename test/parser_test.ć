@@ -82,3 +82,6 @@ aby przestać_obserwować użytkownika (Użytkownik) przez obserwującego (Użyt
     zaktualizuj użytkownika w bazie
     zaktualizuj obserwującego w bazie
     zwróć Wynik prawda nic
+
+aby testować_logikę:
+    wynik to wywołanie funkcji > 0

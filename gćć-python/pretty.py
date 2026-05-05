@@ -106,6 +106,12 @@ def _label(node):
         return "Break"
     if isinstance(node, parser.Return):
         return "Return"
+    if isinstance(node, parser.Not):
+        return "Not"
+    if isinstance(node, parser.And):
+        return "And"
+    if isinstance(node, parser.Or):
+        return "Or"
     return repr(node)
 
 
@@ -126,4 +132,8 @@ def _children(node):
         return [node.operand]
     if isinstance(node, parser.Return):
         return [node.value]
+    if isinstance(node, parser.Not):
+        return [node.operand]
+    if isinstance(node, (parser.And, parser.Or)):
+        return [node.left, node.right]
     return []

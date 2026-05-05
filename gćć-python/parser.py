@@ -90,6 +90,26 @@ class Return:
     value: object
 
 
+@dataclass
+class Not:
+    operand: object
+
+
+@dataclass
+class And:
+    left: object
+    right: object
+
+
+@dataclass
+class Or:
+    left: object
+    right: object
+
+
+LOGICAL_OPS = {("nie",), ("i",), ("lub",)}
+
+
 class Parser:
     def __init__(self, tokens, preps=None):
         self.tokens = tokens
@@ -120,6 +140,13 @@ class Parser:
             return False
         canon = canonical(token)
         return len(canon) == 1 and canon[0] in self.preps
+
+    def _is_logical_op(self, token):
+        return (
+            token is not None
+            and token[0] is lexer.Token.WORD
+            and canonical(token) in LOGICAL_OPS
+        )
 
     def _case_of(self, token):
         _, value, analyses = token
@@ -263,6 +290,8 @@ class Parser:
     def _is_word_start(self, t):
         if t is None:
             return False
+        if self._is_logical_op(t):
+            return False
         return t[0] in (
             lexer.Token.NUMBER,
             lexer.Token.TEXT,
@@ -312,6 +341,29 @@ class Parser:
         return Assignment(target=canonical(target_tok), value=self.parse_expr())
 
     def parse_expr(self):
+        return self.parse_or()
+
+    def parse_or(self):
+        left = self.parse_and()
+        while self.peek() and self._is_logical_op(self.peek()) and canonical(self.peek()) == ("lub",):
+            self.advance()
+            left = Or(left, self.parse_and())
+        return left
+
+    def parse_and(self):
+        left = self.parse_not()
+        while self.peek() and self._is_logical_op(self.peek()) and canonical(self.peek()) == ("i",):
+            self.advance()
+            left = And(left, self.parse_not())
+        return left
+
+    def parse_not(self):
+        if self.peek() and self._is_logical_op(self.peek()) and canonical(self.peek()) == ("nie",):
+            self.advance()
+            return Not(self.parse_not())
+        return self.parse_cmp()
+
+    def parse_cmp(self):
         left = self.parse_arith()
         while self.peek() and self.peek()[0] is lexer.Token.BIN_OP and self.peek()[1] in ("<", ">", "<=", ">=", "!=", "="):
             op = self.advance()[1]

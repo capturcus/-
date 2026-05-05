@@ -422,6 +422,109 @@ def test_parse_break_inside_while(parse):
     assert isinstance(if_node.then_body[0], parser_mod.Break)
 
 
+def test_parse_not_with_phrase(parse):
+    # `zmienna to nie inna_zmienna` → Not(Phrase(inna_zmienna))
+    ast = parse("aby f:\n    zmienna to nie inna_zmienna\n")
+    a = ast.body[0].body[0]
+    assert isinstance(a, parser_mod.Assignment)
+    assert isinstance(a.value, parser_mod.Not)
+    assert isinstance(a.value.operand, parser_mod.Phrase)
+    assert a.value.operand.words[0].value == ("inny", "zmienna")
+
+
+def test_parse_not_lower_precedence_than_comparison(parse):
+    # `nie 2 > 3` → Not(BinOp(>, 2, 3))
+    ast = parse("aby f:\n    wynik to nie 2 > 3\n")
+    expr = ast.body[0].body[0].value
+    assert isinstance(expr, parser_mod.Not)
+    assert isinstance(expr.operand, parser_mod.BinOp) and expr.operand.op == ">"
+
+
+def test_parse_not_with_phrase_args(parse):
+    # `nie zawiera lista obiektu` → Not(Phrase(zawiera, lista, obiekt))
+    src = "aby f:\n    jeśli nie zawiera lista obiektu:\n        x to 1\n"
+    ast = parse(src)
+    if_node = ast.body[0].body[0]
+    assert isinstance(if_node.cond, parser_mod.Not)
+    inner = if_node.cond.operand
+    assert isinstance(inner, parser_mod.Phrase)
+    assert len(inner.words) == 3
+    assert inner.words[0].value == ("zawierać",)
+
+
+def test_parse_and(parse):
+    # `warunek i nie wywołanie funkcji` → And(Phrase(warunek), Not(Phrase(...)))
+    src = "aby f:\n    jeśli warunek i nie wywołanie funkcji:\n        x to 1\n"
+    ast = parse(src)
+    cond = ast.body[0].body[0].cond
+    assert isinstance(cond, parser_mod.And)
+    assert isinstance(cond.left, parser_mod.Phrase)
+    assert len(cond.left.words) == 1  # `i` NIE jest wciągnięte do frazy
+    assert cond.left.words[0].value == ("warunek",)
+    assert isinstance(cond.right, parser_mod.Not)
+    assert isinstance(cond.right.operand, parser_mod.Phrase)
+
+
+def test_parse_or(parse):
+    # `warunek lub sprawdź pod rzeczami` → Or(Phrase(warunek), Phrase(sprawdź, pod rzeczy))
+    src = "aby f:\n    jeśli warunek lub sprawdź pod rzeczami:\n        x to 1\n"
+    ast = parse(src)
+    cond = ast.body[0].body[0].cond
+    assert isinstance(cond, parser_mod.Or)
+    assert isinstance(cond.left, parser_mod.Phrase)
+    assert len(cond.left.words) == 1
+    assert isinstance(cond.right, parser_mod.Phrase)
+    # `sprawdź pod rzeczami` — head + arg z przyimkiem
+    assert cond.right.words[0].value == ("sprawdzić",)
+    assert len(cond.right.words) == 2
+    assert cond.right.words[1].prep == ("pod",)
+
+
+def test_parse_or_lower_precedence_than_and(parse):
+    # `a i b lub c` → Or(And(a, b), c)
+    ast = parse("aby f:\n    x to a i b lub c\n")
+    expr = ast.body[0].body[0].value
+    assert isinstance(expr, parser_mod.Or)
+    assert isinstance(expr.left, parser_mod.And)
+
+
+def test_parse_nested_not_and_with_parens(parse):
+    # `nie (nie a i nie b)` → Not(And(Not(a), Not(b)))
+    src = "aby f:\n    jeśli nie (nie zmienna_pierwsza i nie zmienna_druga):\n        x to 1\n"
+    ast = parse(src)
+    cond = ast.body[0].body[0].cond
+    assert isinstance(cond, parser_mod.Not)
+    inner = cond.operand
+    assert isinstance(inner, parser_mod.And)
+    assert isinstance(inner.left, parser_mod.Not)
+    assert isinstance(inner.right, parser_mod.Not)
+
+
+def test_parse_not_consumes_whole_phrase_with_prep_args(parse):
+    # `nie wywołanie funkcji z wieloma argumentami` —
+    # `nie` musi obejmować całą frazę z argumentami przyimkowymi
+    ast = parse("aby f:\n    wynik to nie wywołanie funkcji z wieloma argumentami\n")
+    expr = ast.body[0].body[0].value
+    assert isinstance(expr, parser_mod.Not)
+    phrase = expr.operand
+    assert isinstance(phrase, parser_mod.Phrase)
+    # head + funkcji + (z wieloma) + argumentami — frazy są płaskie
+    assert len(phrase.words) == 4
+    assert phrase.words[0].value == ("wywołać",)
+    assert phrase.words[2].prep == ("z",)
+    assert phrase.words[3].prep is None
+
+
+def test_parse_logical_ops_not_swallowed_by_phrase(parse):
+    # Eksplicytnie: `pisz alfa i beta` → And(Phrase(pisz alfa), Phrase(beta))
+    ast = parse("aby f:\n    pisz alfa i beta\n")
+    expr = ast.body[0].body[0]
+    assert isinstance(expr, parser_mod.And)
+    assert isinstance(expr.left, parser_mod.Phrase)
+    assert len(expr.left.words) == 2
+    assert isinstance(expr.right, parser_mod.Phrase)
+
+
 def test_parse_return_with_int(parse):
     ast = parse("aby f:\n    zwróć 5\n")
     r = ast.body[0].body[0]
