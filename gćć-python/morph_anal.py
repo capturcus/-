@@ -62,6 +62,9 @@ def analyze(tokens, db):
     return out
 
 
+_ADJ_LIKE_POS = {"adj", "pact", "ppas"}
+
+
 def canonical(token):
     _, value, analyses = token
     out = []
@@ -69,6 +72,10 @@ def canonical(token):
         if not anas or len(seg) == 1:
             out.append(seg)
             continue
-        chosen = next((a for a in anas if a[2] == seg), anas[0])
+        # Preferuj analizy adj-like (adj/pact/ppas) — dla form dwuznacznych jak
+        # `zielonego` (adj `zielony` vs substantywizowane subst `zielone`)
+        # wybieramy formę przymiotnikową rodzaju męskiego.
+        pool = [a for a in anas if a[0] in _ADJ_LIKE_POS] or anas
+        chosen = next((a for a in pool if a[2] == seg), pool[0])
         out.append(chosen[2])
     return tuple(out)

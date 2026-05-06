@@ -182,6 +182,13 @@ def test_canonical_inflected_noun_in_underscore_id(db):
     assert _canonical_of("inna_rzecz\n", db) == ("inny", "rzecz")
 
 
+def test_canonical_prefers_adj_over_substantivized_neuter(db):
+    # `zielonego` ma adj `zielony` ORAZ subst `zielone` (substantywizowany neutrum).
+    # Preferujemy adj — rodzaj męski, nie bezosobowe `zielone`.
+    assert _canonical_of("zielonego\n", db) == ("zielony",)
+    assert _canonical_of("pięknego\n", db) == ("piękny",)
+
+
 # ---------- Parser ----------
 
 def test_parse_function_def_with_assignment(parse):
@@ -466,7 +473,8 @@ def test_parse_not_with_phrase(parse):
     assert isinstance(a, parser_mod.Assignment)
     assert isinstance(a.value, parser_mod.Not)
     assert isinstance(a.value.operand, parser_mod.Phrase)
-    assert a.value.operand.words[0].value.segments == ("inny", "zmienna")
+    # `zmienna`: adj `zmienny` ORAZ subst `zmienna` — preferujemy adj
+    assert a.value.operand.words[0].value.segments == ("inny", "zmienny")
 
 
 def test_parse_not_lower_precedence_than_comparison(parse):
