@@ -1,4 +1,5 @@
 import parser
+import phrase_resolver
 
 
 _CASE_ORDER = ["nom", "gen", "dat", "acc", "inst", "loc", "voc"]
@@ -43,6 +44,12 @@ def _print_children(node, prefix):
 
 
 def _groups(node):
+    if isinstance(node, parser.Phrase) and getattr(node, "func_call", None) is not None:
+        return _groups(node.func_call)
+    if isinstance(node, phrase_resolver.FunctionCall):
+        if node.params:
+            return [("params", node.params)]
+        return None
     if isinstance(node, parser.FunctionDef):
         groups = []
         if node.params:
@@ -84,7 +91,13 @@ def _label(node):
             parts.append(f": {'_'.join(node.type)}")
         return " ".join(parts)
     if isinstance(node, parser.Phrase):
+        if getattr(node, "func_call", None) is not None:
+            return _label(node.func_call)
         return "Phrase"
+    if isinstance(node, phrase_resolver.FunctionCall):
+        return f"FunctionCall {'_'.join(node.name.segments)}"
+    if isinstance(node, phrase_resolver.GetterChain):
+        return "GetterChain"
     if isinstance(node, parser.Word):
         parts = ["Word"]
         if node.prep:
@@ -125,7 +138,13 @@ def _children(node):
     if isinstance(node, parser.Module):
         return node.body
     if isinstance(node, parser.Phrase):
+        if getattr(node, "func_call", None) is not None:
+            return _children(node.func_call)
         return node.words
+    if isinstance(node, phrase_resolver.FunctionCall):
+        return []
+    if isinstance(node, phrase_resolver.GetterChain):
+        return node.chain
     if isinstance(node, parser.Word):
         if isinstance(node.value, parser.Identifier):
             return []

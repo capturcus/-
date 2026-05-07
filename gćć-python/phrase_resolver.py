@@ -43,6 +43,8 @@ def resolve_phrase(p):
                         ret.params.pop()
                     gen_chain = [p.words[i-1], p.words[i]]
                     chain_started = True
+                else:
+                    ret.params.append(word)
         else:
             if chain_started:
                 # collapse chain
