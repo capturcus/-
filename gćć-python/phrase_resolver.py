@@ -12,8 +12,10 @@ class FunctionCall:
 class GetterChain:
     chain: list
 
-def is_a_field(word: parser.Identifier):
+def is_a_field(word):
     global fields
+    if not isinstance(word, parser.Identifier):
+        return False
     return word.segments in [x.name.segments for x in fields]
 
 def resolve_phrase(p):
@@ -25,29 +27,28 @@ def resolve_phrase(p):
     chain_started = False
     gen_chain = []
     for i in range(1, len(p.words)):
-        if not isinstance(p.words[i].value, parser.Identifier):
-            ret.params.append(p.words[i])
-            if chain_started:
-                # collapse chain
-                ret.params.append(GetterChain(chain=gen_chain))
-                chain_started = False
-            continue
         word = p.words[i]
-        if word.value.case is not None and "gen" in word.value.case and word.prep is None:
+        # Słowo wchodzi do chaina (rozpoczyna lub rozszerza), gdy ono samo jest
+        # w dopełniaczu bez przyimka ORAZ poprzednie słowo — które właśnie staje
+        # się ogniwem-fieldem — jest fieldem. Drugi warunek egzekwujemy na każdym
+        # przejściu: w `imię autora komentarza` zarówno `imię` (chain[0]), jak i
+        # `autor` (chain[1]) muszą być fieldami; tylko ostatni element to baza.
+        is_chain_link = (
+            isinstance(word.value, parser.Identifier)
+            and word.value.case is not None
+            and "gen" in word.value.case
+            and word.prep is None
+        )
+        if is_chain_link and is_a_field(p.words[i-1].value):
             if chain_started:
                 gen_chain.append(word)
-                continue
             else:
-                if is_a_field(p.words[i-1].value):
-                    if len(ret.params) > 0:
-                        ret.params.pop()
-                    gen_chain = [p.words[i-1], p.words[i]]
-                    chain_started = True
-                else:
-                    ret.params.append(word)
+                if ret.params:
+                    ret.params.pop()
+                gen_chain = [p.words[i-1], word]
+                chain_started = True
         else:
             if chain_started:
-                # collapse chain
                 ret.params.append(GetterChain(chain=gen_chain))
                 chain_started = False
             ret.params.append(word)
@@ -125,6 +126,7 @@ def resolve_func_def(fd):
 
 def resolve_module(m):
     global fields
+    fields = []
     for i in m.body:
         if isinstance(i, parser.StructDef):
             for f in i.fields:

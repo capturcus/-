@@ -90,7 +90,7 @@ aby polubić post (Post):
 
 
 aby usuń_post post (Post) w sesji (Sesja):
-    jeśli nie czy_aktywna sesji:
+    jeśli nie flaga_aktywności sesji:
         zwróć błąd "brak sesji"
     jeśli nie identyfikator autora postu = identyfikator użytkownika sesji:
         zwróć błąd "nie wolno"
@@ -100,7 +100,7 @@ aby usuń_post post (Post) w sesji (Sesja):
 # === Komentarze ===
 
 aby skomentuj post (Post) z treścią (Tekst) w sesji (Sesja) -> Komentarz:
-    jeśli nie czy_aktywna sesji:
+    jeśli nie flaga_aktywności sesji:
         zwróć błąd "brak sesji"
     nowy to stwórz_komentarz dla postu z treścią dla użytkownika sesji
     identyfikator nowego to wygeneruj_id

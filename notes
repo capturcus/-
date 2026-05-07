@@ -1,10 +1,19 @@
 do zrobienia:
 
 v struktury
-gramatyczne resolvowanie argumentów funkcji
-hindley milner
-listy
-Przełącznik
+
+składnia:
+metody
 konstruktor struktury
 pętla po elementach listy
+
+semantyka:
+gramatyczne resolvowanie argumentów funkcji
+hindley milner
+
+codegen:
+listy
+
+stdlib:
+Przełącznik
 konkatenacja stringów
