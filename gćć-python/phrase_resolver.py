@@ -53,8 +53,15 @@ def resolve_phrase(p):
             ret.params.append(word)
     if chain_started:
         ret.params.append(GetterChain(chain=gen_chain))
-    p.func_call = ret
-    print(ret)
+    if (
+        len(ret.params) == 1
+        and isinstance(ret.params[0], GetterChain)
+        and ret.params[0].chain[0] is p.words[0]
+    ):
+        p.func_call = ret.params[0]
+    else:
+        p.func_call = ret
+    print(p.func_call)
 
 
 
