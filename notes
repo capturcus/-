@@ -8,4 +8,3 @@ Przełącznik
 konstruktor struktury
 pętla po elementach listy
 konkatenacja stringów
-Jeśli chcesz spójniejszy wybór (np. „preferuj adj/pact/ppas zanim subst, gdy obie analizy istnieją"), to trzeba zmienić canonical — to jest osobna decyzja.
