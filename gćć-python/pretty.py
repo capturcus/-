@@ -58,6 +58,10 @@ def _groups(node):
         return groups
     if isinstance(node, parser.StructDef):
         return [("fields", node.fields)]
+    if isinstance(node, phrase_resolver.StructCreation):
+        if node.args:
+            return [("args", node.args)]
+        return None
     if isinstance(node, parser.If):
         groups = [("cond", [node.cond]), ("then", node.then_body)]
         if node.else_body:
@@ -98,6 +102,11 @@ def _label(node):
         return f"FunctionCall {'_'.join(node.name.segments)}"
     if isinstance(node, phrase_resolver.GetterChain):
         return "GetterChain"
+    if isinstance(node, phrase_resolver.StructCreation):
+        return f"StructCreation {'_'.join(node.type_name)}"
+    if isinstance(node, phrase_resolver.StructArg):
+        suffix = " (shorthand)" if node.value is None else ""
+        return f"StructArg {'_'.join(node.field_name)}{suffix}"
     if isinstance(node, parser.Identifier):
         return f"Reference {'_'.join(node.segments)}"
     if isinstance(node, parser.Word):
@@ -147,6 +156,10 @@ def _children(node):
         return []
     if isinstance(node, phrase_resolver.GetterChain):
         return node.chain
+    if isinstance(node, phrase_resolver.StructCreation):
+        return []
+    if isinstance(node, phrase_resolver.StructArg):
+        return [] if node.value is None else [node.value]
     if isinstance(node, parser.Identifier):
         return []
     if isinstance(node, parser.Word):
