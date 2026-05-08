@@ -133,7 +133,7 @@ def _first_phrase(ast):
 
 def _chain_segments(chain_or_phrase):
     if isinstance(chain_or_phrase, parser_mod.Phrase):
-        gc = chain_or_phrase.func_call
+        gc = chain_or_phrase.resolved_phrase
     else:
         gc = chain_or_phrase
     assert isinstance(gc, phrase_resolver.GetterChain), \
@@ -142,7 +142,7 @@ def _chain_segments(chain_or_phrase):
 
 
 def _is_call(phrase, name_segments, *, n_params=None):
-    fc = phrase.func_call
+    fc = phrase.resolved_phrase
     assert isinstance(fc, phrase_resolver.FunctionCall), \
         f"oczekiwano FunctionCall, było {type(fc).__name__}"
     assert fc.name.segments == name_segments, \
@@ -431,7 +431,7 @@ def test_three_chains_in_one_phrase(resolve):
 # ============================================================
 
 def test_chain_in_assignment_target(resolve):
-    # `imię autora komentarza to "Anna"` — LHS to Phrase, której func_call to GetterChain
+    # `imię autora komentarza to "Anna"` — LHS to Phrase, której resolved_phrase to GetterChain
     ast = resolve('aby f:\n    imię autora komentarza to "Anna"\n')
     a = _func_def(ast).body[0]
     assert isinstance(a, parser_mod.Assignment)
@@ -604,7 +604,7 @@ def test_head_word_field_with_extra_arg_does_not_collapse(resolve):
     ast = resolve('aby f:\n    nazwa użytkownika "x"\n')
     p = _first_phrase(ast)
     # Z powodu Buga A kolejność może być nieprawidłowa, ale całość nie zwija się do GetterChain.
-    fc = p.func_call
+    fc = p.resolved_phrase
     assert isinstance(fc, phrase_resolver.FunctionCall), \
         f"oczekiwano FunctionCall (jest dodatkowy arg), było {type(fc).__name__}"
     assert fc.name.segments == ("nazwa",)
@@ -678,7 +678,7 @@ def test_realistic_phrase_with_inner_chain_param(resolve):
     ast = resolve(src)
     a = _func_def(ast).body[0]
     assert isinstance(a, parser_mod.Assignment)
-    fc = a.value.func_call
+    fc = a.value.resolved_phrase
     assert isinstance(fc, phrase_resolver.FunctionCall)
     assert fc.name.segments == ("stworzyć", "post")
     # `z treścią` to zwykły arg z prep
@@ -807,7 +807,7 @@ def test_BUG_resolve_module_does_not_leak_fields_across_calls(_db, _preps):
     out = []
     _walk_phrases(ast2, out)
     p2 = out[0]
-    fc = p2.func_call
+    fc = p2.resolved_phrase
     assert isinstance(fc, phrase_resolver.FunctionCall)
     assert all(isinstance(par, parser_mod.Word) for par in fc.params), (
         f"bez structów `nazwa użytkownika` powinno być [Word, Word], jest "

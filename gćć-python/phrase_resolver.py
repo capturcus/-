@@ -3,63 +3,79 @@ from dataclasses import dataclass
 
 fields = []
 
+
 @dataclass
 class FunctionCall:
     name: parser.Identifier
     params: list
 
+
 @dataclass
 class GetterChain:
     chain: list
 
-def is_a_field(word):
-    global fields
-    if not isinstance(word, parser.Identifier):
-        return False
-    return word.segments in [x.name.segments for x in fields]
+
+class PhraseResolver:
+    def __init__(self, words, fields):
+        self.words = words
+        self.pos = 0
+        self.fields = {f.name.segments for f in fields}
+
+    def peek(self, offset=0):
+        i = self.pos + offset
+        return self.words[i] if i < len(self.words) else None
+
+    def advance(self):
+        w = self.peek()
+        self.pos += 1
+        return w
+
+    def _is_field(self, word):
+        if word is None or not isinstance(word.value, parser.Identifier):
+            return False
+        return word.value.segments in self.fields
+
+    def _is_gen_no_prep(self, word):
+        if word is None or not isinstance(word.value, parser.Identifier):
+            return False
+        if word.value.case is None or "gen" not in word.value.case:
+            return False
+        return word.prep is None
+
+    def _can_start_chain(self, head_word):
+        return self._is_field(head_word) and self._is_gen_no_prep(self.peek())
+
+    def parse_phrase(self):
+        head = self.advance()
+        chain = None
+        if self._can_start_chain(head):
+            chain = self.parse_getter_chain(head)
+            if self.peek() is None:
+                return chain
+        return self.parse_function_call(head, chain)
+
+    def parse_function_call(self, head, leading_chain):
+        params = [leading_chain] if leading_chain is not None else []
+        while self.peek() is not None:
+            params.append(self.parse_arg())
+        return FunctionCall(name=head.value, params=params)
+
+    def parse_arg(self):
+        word = self.advance()
+        if self._can_start_chain(word):
+            return self.parse_getter_chain(word)
+        return word
+
+    def parse_getter_chain(self, head_word):
+        chain = [head_word, self.advance()]
+        while self._is_gen_no_prep(self.peek()) and self._is_field(chain[-1]):
+            chain.append(self.advance())
+        return GetterChain(chain=chain)
+
 
 def resolve_phrase(p):
-    # todo: check first word grammar
-    ret = FunctionCall(name=p.words[0].value, params=[])
-    chain_started = False
-    gen_chain = []
-    for i in range(1, len(p.words)):
-        word = p.words[i]
-        # Słowo wchodzi do chaina (rozpoczyna lub rozszerza), gdy ono samo jest
-        # w dopełniaczu bez przyimka ORAZ poprzednie słowo — które właśnie staje
-        # się ogniwem-fieldem — jest fieldem. Drugi warunek egzekwujemy na każdym
-        # przejściu: w `imię autora komentarza` zarówno `imię` (chain[0]), jak i
-        # `autor` (chain[1]) muszą być fieldami; tylko ostatni element to baza.
-        is_chain_link = (
-            isinstance(word.value, parser.Identifier)
-            and word.value.case is not None
-            and "gen" in word.value.case
-            and word.prep is None
-        )
-        if is_chain_link and is_a_field(p.words[i-1].value):
-            if chain_started:
-                gen_chain.append(word)
-            else:
-                if ret.params:
-                    ret.params.pop()
-                gen_chain = [p.words[i-1], word]
-                chain_started = True
-        else:
-            if chain_started:
-                ret.params.append(GetterChain(chain=gen_chain))
-                chain_started = False
-            ret.params.append(word)
-    if chain_started:
-        ret.params.append(GetterChain(chain=gen_chain))
-    if (
-        len(ret.params) == 1
-        and isinstance(ret.params[0], GetterChain)
-        and ret.params[0].chain[0] is p.words[0]
-    ):
-        p.func_call = ret.params[0]
-    else:
-        p.func_call = ret
-    print(p.func_call)
+    global fields
+    p.resolved_phrase = PhraseResolver(p.words, fields).parse_phrase()
 
 
 def resolve_module(m):
