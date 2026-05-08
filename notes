@@ -3,9 +3,9 @@ do zrobienia:
 v struktury
 
 składnia:
-metody
 konstruktor struktury
 pętla po elementach listy
+extern zewnętrznie
 
 semantyka:
 gramatyczne resolvowanie argumentów funkcji
@@ -17,3 +17,10 @@ listy
 stdlib:
 Przełącznik
 konkatenacja stringów
+
+
+
+
+
+tryb przypuszczający - usunąłbyś_komentarz dla usera z identyfikatorem?
+które

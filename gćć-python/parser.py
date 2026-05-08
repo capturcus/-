@@ -7,6 +7,7 @@ from morph_anal import canonical
 @dataclass
 class Module:
     body: list
+    phrases: list
 
 
 @dataclass(frozen=True)
@@ -137,6 +138,7 @@ class Parser:
         self.tokens = tokens
         self.pos = 0
         self.preps = preps or {}
+        self.phrases = []
 
     def peek(self, offset=0):
         i = self.pos + offset
@@ -259,7 +261,7 @@ class Parser:
         while self.peek() is not None:
             body.append(self.parse_stmt())
             self._skip_newlines()
-        return Module(body)
+        return Module(body=body, phrases=self.phrases)
 
     def parse_stmt(self):
         t = self.peek()
@@ -393,7 +395,9 @@ class Parser:
         words = [head]
         while self._is_word_start(self.peek()):
             words.append(self.parse_simple_word())
-        return Phrase(words=words)
+        phrase = Phrase(words=words)
+        self.phrases.append(phrase)
+        return phrase
 
     def _is_word_start(self, t):
         if t is None:
