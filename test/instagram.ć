@@ -40,7 +40,7 @@ definicja Obserwacji:
 
 aby zarejestrować z nazwą (Tekst) z emailem (Tekst) z hasłem (Tekst) -> Użytkownik:
     jeśli istnieje użytkownik z emailem:
-        zwróć błąd "email zajęty"
+        zwróć stwórz_błąd "email zajęty"
     nowy to stwórz_użytkownika z nazwą z emailem z hasłem
     identyfikator nowego to wygeneruj_id
     liczba_obserwujących nowego to 0
@@ -50,7 +50,7 @@ aby zarejestrować z nazwą (Tekst) z emailem (Tekst) z hasłem (Tekst) -> Użyt
 
 aby zaloguj użytkownika (Użytkownik) z hasłem (Tekst) -> Sesja:
     jeśli nie pasuje_hasło użytkownika do hasła:
-        zwróć błąd "złe hasło"
+        zwróć stwórz_błąd "złe hasło"
     nowa to stwórz_sesję dla użytkownika
     identyfikator nowej to wygeneruj_id
     flaga_aktywności nowej to prawda
@@ -76,7 +76,7 @@ aby istnieje_użytkownik z emailem (Tekst) -> Przełącznik:
 
 aby opublikuj_post z treścią (Tekst) w sesji (Sesja) -> Post:
     jeśli nie flaga_aktywności sesji:
-        zwróć błąd "brak aktywnej sesji"
+        zwróć stwórz_błąd "brak aktywnej sesji"
     nowy to stwórz_post z treścią dla użytkownika sesji
     identyfikator nowego to wygeneruj_id
     liczba_polubień nowego to 0
@@ -91,9 +91,9 @@ aby polubić post (Post):
 
 aby usuń_post post (Post) w sesji (Sesja):
     jeśli nie flaga_aktywności sesji:
-        zwróć błąd "brak sesji"
+        zwróć stwórz_błąd "brak sesji"
     jeśli nie identyfikator autora postu = identyfikator użytkownika sesji:
-        zwróć błąd "nie wolno"
+        zwróć stwórz_błąd "nie wolno"
     usuń z bazy post
 
 
@@ -101,7 +101,7 @@ aby usuń_post post (Post) w sesji (Sesja):
 
 aby skomentuj post (Post) z treścią (Tekst) w sesji (Sesja) -> Komentarz:
     jeśli nie flaga_aktywności sesji:
-        zwróć błąd "brak sesji"
+        zwróć stwórz_błąd "brak sesji"
     nowy to stwórz_komentarz dla postu z treścią dla użytkownika sesji
     identyfikator nowego to wygeneruj_id
     zapisz w bazie nowego
@@ -110,7 +110,7 @@ aby skomentuj post (Post) z treścią (Tekst) w sesji (Sesja) -> Komentarz:
 
 aby usuń_komentarz komentarz (Komentarz) w sesji (Sesja):
     jeśli nie identyfikator autora komentarza = identyfikator użytkownika sesji:
-        zwróć błąd "nie wolno"
+        zwróć stwórz_błąd "nie wolno"
     usuń z bazy komentarz
 
 
@@ -118,9 +118,9 @@ aby usuń_komentarz komentarz (Komentarz) w sesji (Sesja):
 
 aby zacząć_obserwować użytkownika (Użytkownik) przez obserwatora (Użytkownik):
     jeśli już_obserwuje obserwatora użytkownika:
-        zwróć błąd "już obserwujesz"
+        zwróć stwórz_błąd "już obserwujesz"
     jeśli identyfikator obserwatora = identyfikator użytkownika:
-        zwróć błąd "nie można obserwować siebie"
+        zwróć stwórz_błąd "nie można obserwować siebie"
     nowa to stwórz_obserwację dla obserwatora dla użytkownika
     zapisz w bazie nową
     liczba_obserwujących użytkownika to liczba_obserwujących użytkownika + 1
@@ -129,7 +129,7 @@ aby zacząć_obserwować użytkownika (Użytkownik) przez obserwatora (Użytkown
 aby przestań_obserwować użytkownika (Użytkownik) przez obserwatora (Użytkownik):
     obserwacja to znajdź_obserwację obserwatora użytkownika
     jeśli obserwacja = pusty:
-        zwróć błąd "nie obserwujesz"
+        zwróć stwórz_błąd "nie obserwujesz"
     usuń z bazy obserwację
     liczba_obserwujących użytkownika to liczba_obserwujących użytkownika - 1
 
@@ -149,7 +149,7 @@ aby pokaż_feed dla użytkownika (Użytkownik) z limitem (Liczba) -> Lista:
         kolejny to weź_głowę obserwowanych
         nowe to znajdź_posty kolejnego
         posty to dodaj_wszystkie nowych do postów
-        obserwowani to ogon obserwowanych
+        obserwowani to weź_ogon obserwowanych
         licznik to licznik + 1
     zwróć posty
 
