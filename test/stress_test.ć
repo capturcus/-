@@ -1,0 +1,172 @@
+# Stress test języka Ć — pokrywa większość konstrukcji gramatyki.
+
+definicja Użytkownika:
+	identyfikator (Tekst)
+	imię (Tekst)
+	nazwisko (Tekst)
+	wiek (Liczba)
+	hasło (Tekst)
+
+definicja Postu:
+	identyfikator (Tekst)
+	autor (Użytkownik)
+	treść (Tekst)
+	liczba_polubień (Liczba)
+
+definicja Komentarza:
+	identyfikator (Tekst)
+	autor (Użytkownik)
+	post (Post)
+	treść (Tekst)
+	rodzic (Komentarz)
+
+definicja Sesji:
+	użytkownik (Użytkownik)
+	flaga_aktywności (Liczba)
+	licznik_błędów (Liczba)
+
+
+# Pomocnicza funkcja — `zwrócić` bez wartości oraz pojedyncze wywołania.
+aby zalogować_błąd komunikatem (Tekst):
+	zapisz komunikatem
+	zwrócić
+
+
+# Główna funkcja — stress test większości gramatyki.
+aby przetestować_język sesji (Sesja) z opcjami (Tekst) o identyfikatorze (Tekst) -> Użytkownik:
+	# === literały i proste przypisania ===
+	licznik to 0
+	tekst to "Hej, świecie"
+	cena to 99
+	flaga to 1
+
+	# === arytmetyka — wszystkie BinOp i UnaryOp ===
+	suma to 100 + 200
+	różnica to suma - 50
+	iloczyn to suma * 2
+	dzielenie to suma / 4
+	reszta to suma % 7
+	ujemna to -suma
+	dodatnia to +iloczyn
+	złożone to (suma + 1) * 2 - reszta / 3
+
+	# === porównania (parse_cmp) ===
+	jeśli suma > 100:
+		zapisz "duża"
+	jeśli suma >= 100:
+		zapisz "duża_lub_równa"
+	jeśli suma < 1000:
+		zapisz "mała"
+	jeśli suma <= 999:
+		zapisz "mała_lub_równa"
+	jeśli suma = 300:
+		zapisz "trzysta"
+	jeśli suma != 0:
+		zapisz "niezerowa"
+
+	# === logiczne i / lub / nie ===
+	jeśli flaga_aktywności sesji i nie wiek użytkownika sesji < 18:
+		zapisz "dorosły_aktywny"
+	jeśli flaga_aktywności sesji lub licznik_błędów sesji > 5:
+		zapisz "warto_sprawdzić"
+	jeśli nie flaga_aktywności sesji:
+		zalogować_błąd "sesja_nieaktywna"
+
+	# === if / inaczej jeśli / inaczej ===
+	jeśli wiek użytkownika sesji < 13:
+		zapisz "dziecko"
+	inaczej jeśli wiek użytkownika sesji < 18:
+		zapisz "nastolatek"
+	inaczej:
+		zapisz "dorosły"
+
+	# === pętla while + break ===
+	licznik to 0
+	dopóki licznik < 10:
+		licznik to licznik + 1
+		jeśli licznik = 5:
+			stop
+
+	# === bare references / variable refs ===
+	moja_sesja to sesja
+	moje_opcje to opcjami
+
+	# === getter chains różnych długości ===
+	moja_nazwa to imię użytkownika sesji
+	moje_id to identyfikator użytkownika sesji
+	moje_hasło to hasło użytkownika sesji
+	# 4-link chain (przez post.autor.imię w komentarzu — wymagałoby komentarza w scope)
+	# 5-link chain z rodzicem komentarza (rodzic field of Komentarz):
+	# imię autora rodzica rodzica komentarza — ten chain potrzebuje zmiennej `komentarz`
+	# z otoczenia, której tu nie ma; wyślemy ją przez parametr w innej funkcji.
+
+	# === function calls — różne kształty ===
+	zapisz "rozpoczynam"
+	wypisz tekstem
+	wypisz tekstem mocnym
+	zapisz w bazie nowego_posta
+	wypisz dla użytkownika sesji
+	zapisz_log o priorytecie wysokim
+
+	# === function call z chainem jako arg ===
+	wypisz imię autora postu
+	zapisz_pole nazwiskiem autora postu
+
+	# === function call w nawiasach ===
+	zapisz (imię autora postu)
+	wypisz tekstem (1 + 2)
+
+	# === sub-function call w środku frazy (czasownik w pozycji arga) ===
+	zapisz_w_bazie weź_użytkownika_z_bazy o identyfikatorze
+	wypisz tekstem złóż_komunikat z opcjami
+
+	# === struct creation — shorthand ===
+	użytkownik_kopia to nowy Użytkownik z identyfikatorem z imieniem z nazwiskiem
+
+	# === struct creation — explicit values (literal) ===
+	nowy_post to nowy Post z identyfikatorem "p1" z treścią "Hej" z liczbą_polubień 0
+
+	# === struct creation — chain jako wartość ===
+	post_z_autorem to nowy Post z autorem użytkownikiem sesji z treścią "Z chainem"
+
+	# === struct creation — sub-function call jako wartość ===
+	pobrany_post to nowy Post z autorem weź_użytkownika_z_bazy o identyfikatorze z treścią "X"
+
+	# === nested struct creation (zagnieżdżone struct) ===
+	nowy_komentarz to nowy Komentarz z autorem nowy Użytkownik z imieniem "Anna" z nazwiskiem "Nowak" z postem nowy Post z treścią "Pierwszy" z liczbą_polubień 0
+
+	# === propagacja na duplikacie pola (innermost wins) ===
+	test_propagacji to nowy Komentarz z autorem nowy Użytkownik z identyfikatorem 1 z identyfikatorem 2
+
+	# === function call ze struct_creation jako arg ===
+	zapisz_w_bazie nowy Post z autorem użytkownikiem sesji z treścią "log"
+	zapisz_w_bazie nowego_użytkownika z imieniem "Tymczasowy"
+
+	# === assignment do chaina (LHS) ===
+	liczba_polubień postu to liczba_polubień postu + 1
+	imię użytkownika sesji to "Nowe Imię"
+
+	# === chainy w binop, oba boki ===
+	jeśli liczba_polubień postu = liczba_polubień postu komentarza:
+		zapisz "te_same_polubienia"
+	jeśli identyfikator użytkownika sesji != identyfikator autora postu:
+		zapisz "inny_autor"
+
+	# === chain w unary minus ===
+	negatywne to -liczba_polubień postu
+
+	# === chain w cond if z prep arg na zewnątrz ===
+	jeśli flaga_aktywności sesji:
+		licznik to licznik + identyfikator użytkownika sesji
+
+	# === bardzo długa fraza — function call z wieloma rzeczami ===
+	zapisz_finalne nowy Post z autorem użytkownikiem sesji z treścią złóż_komunikat z opcjami o identyfikatorze z liczbą_polubień 42
+
+	# === pętla z chainami i strukturami w środku ===
+	licznik to 0
+	dopóki licznik < liczba_polubień postu:
+		licznik to licznik + 1
+		zapisz_iter nowy Komentarz z autorem użytkownikiem sesji z treścią "iter" z postem postu
+
+	# === zwrócić chain jako wartość (return type Użytkownik) ===
+	zwrócić użytkownik sesji

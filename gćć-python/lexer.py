@@ -52,15 +52,17 @@ def lex(text):
     ret = []
     indent_level = 0
     for line in text.split("\n"):
+        stripped = line.strip()
+        if stripped == "" or stripped.startswith("#"):
+            # Puste linie i pełnoliniowe komentarze nie wpływają na poziom wcięcia.
+            continue
         line_indents = _count_indent(line)
         indent_diff = line_indents - indent_level
         for _ in range(0, abs(indent_diff)):
             ret.append((Token.INDENT, None) if indent_diff > 0 else (Token.DEDENT, None))
         indent_level = line_indents
-        if line.strip().startswith("#"):
-            continue
         before = len(ret)
-        for m in _TOKEN_RE.finditer(line.strip()):
+        for m in _TOKEN_RE.finditer(stripped):
             text_, number, arrow, binop, colon, paren, word = m.groups()
             if text_ is not None:
                 ret.append((Token.TEXT, text_))
