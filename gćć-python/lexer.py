@@ -33,11 +33,26 @@ def _segments(word):
     return tuple(parts)
 
 
+def _count_indent(line):
+    n = 0
+    i = 0
+    while i < len(line):
+        if line[i] == "\t":
+            n += 1
+            i += 1
+        elif line[i:i + 4] == "    ":
+            n += 1
+            i += 4
+        else:
+            break
+    return n
+
+
 def lex(text):
     ret = []
     indent_level = 0
     for line in text.split("\n"):
-        line_indents = int((len(line) - len(line.lstrip()))/4)
+        line_indents = _count_indent(line)
         indent_diff = line_indents - indent_level
         for _ in range(0, abs(indent_diff)):
             ret.append((Token.INDENT, None) if indent_diff > 0 else (Token.DEDENT, None))

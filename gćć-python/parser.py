@@ -15,16 +15,7 @@ class Identifier:
     segments: tuple
     surface: tuple
     case: frozenset = None
-
-
-@dataclass(frozen=True)
-class HeadIdentifier:
-    """Niewalidowana głowa frazy. Zostanie:
-    - awansowana na FunctionIdentifier (gdy fraza okaże się FunctionCall),
-    - albo zostawiona jako head getter chaina (chain konsumuje .segments)."""
-    segments: tuple
-    surface: tuple
-    analyses: tuple  # tuple[tuple[MorphAnalysis, ...], ...]
+    analyses: tuple = ()  # tuple[tuple[MorphAnalysis, ...], ...]
 
 
 class IdentifierError(SyntaxError):
@@ -251,20 +242,15 @@ class Parser:
         )
 
     def _ident(self, tok):
-        segments = canonical(tok)
-        surface = tok[1]
-        case = self._validate_identifier_case(tok, segments, surface)
-        return Identifier(segments=segments, surface=surface, case=case)
-
-    def _ident_head(self, tok):
         _, surface, analyses = tok
-        return HeadIdentifier(
-            segments=canonical(tok),
-            surface=surface,
-            analyses=tuple(tuple(a) for a in analyses),
+        segments = canonical(tok)
+        analyses_t = tuple(tuple(a) for a in analyses)
+        case = self._validate_identifier_case(tok, segments, surface, analyses_t)
+        return Identifier(
+            segments=segments, surface=surface, case=case, analyses=analyses_t,
         )
 
-    def _validate_identifier_case(self, tok, segments, surface):
+    def _validate_identifier_case(self, tok, segments, surface, analyses_t):
         _, _, analyses = tok
         adj_per_seg = []
         subst_per_seg = []
@@ -321,8 +307,19 @@ class Parser:
                 # subst kończy prefix — kolejne segmenty to "reszta"
                 break
         if prefix_len == 0:
+            try:
+                _validate_function_name(surface, segments, analyses_t)
+                return None
+            except FunctionIdentifierError:
+                pass
+            if len(surface) == 1:
+                # Single-segment atom — akceptujemy jako referencję bez case'u
+                # (interj, qub, hapax, etc. — semantyczna walidacja na późniejszym etapie)
+                return None
             raise IdentifierError(self._ident_err(
-                surface, f"pierwszy segment '{surface[0]}' nie jest ani przymiotnikiem ani rzeczownikiem"
+                surface,
+                f"pierwszy segment '{surface[0]}' nie jest ani przymiotnikiem, "
+                f"ani rzeczownikiem, ani identyfikatorem funkcji",
             ))
         if cases is None:
             # cały prefix był opaque — atom z przypadkiem nieokreślonym
@@ -474,7 +471,8 @@ class Parser:
 
     def parse_phrase(self):
         head_tok = self.expect(lexer.Token.WORD)
-        head = Word(prep=None, value=self._ident_head(head_tok), case=None)
+        head_ident = self._ident(head_tok)
+        head = Word(prep=None, value=head_ident, case=head_ident.case)
         words = [head]
         while self._is_word_start(self.peek()):
             words.append(self.parse_simple_word())

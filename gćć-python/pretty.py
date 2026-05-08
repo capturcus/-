@@ -98,13 +98,13 @@ def _label(node):
         return f"FunctionCall {'_'.join(node.name.segments)}"
     if isinstance(node, phrase_resolver.GetterChain):
         return "GetterChain"
-    if isinstance(node, parser.HeadIdentifier):
+    if isinstance(node, parser.Identifier):
         return f"Reference {'_'.join(node.segments)}"
     if isinstance(node, parser.Word):
         parts = ["Word"]
         if node.prep:
             parts.append("_".join(node.prep))
-        if isinstance(node.value, (parser.Identifier, parser.HeadIdentifier)):
+        if isinstance(node.value, parser.Identifier):
             parts.append("_".join(node.value.segments))
         if node.case:
             parts.append(f"({_format_case(node.case)})")
@@ -147,10 +147,10 @@ def _children(node):
         return []
     if isinstance(node, phrase_resolver.GetterChain):
         return node.chain
-    if isinstance(node, parser.HeadIdentifier):
+    if isinstance(node, parser.Identifier):
         return []
     if isinstance(node, parser.Word):
-        if isinstance(node.value, (parser.Identifier, parser.HeadIdentifier)):
+        if isinstance(node.value, parser.Identifier):
             return []
         return [node.value]
     if isinstance(node, parser.Assignment):

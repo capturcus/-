@@ -1132,15 +1132,19 @@ def test_ident_invalid_qub_plus_adj(parse):
     with pytest.raises(parser_mod.IdentifierError, match="czy_zielony"):
         _ident_of(parse, "czy_zielony")
 
-def test_ident_invalid_pcon_plus_subst(parse):
-    # `ruszając_kółkiem` — `ruszając` to pcon (imiesłów przysłówkowy), nie odmienny
-    with pytest.raises(parser_mod.IdentifierError, match="ruszając_kółkiem"):
-        _ident_of(parse, "ruszając_kółkiem")
+def test_ident_pcon_plus_subst_is_valid_function_id(parse):
+    # `ruszając_kółkiem` — `ruszając` to pcon (imiesłów przysłówkowy = czasownik
+    # w sensie SGJP) — całość jest poprawnym identyfikatorem funkcji.
+    # `_validate_identifier_case` zwraca case=None (atom funkcji), nie raisuje.
+    ident = _ident_of(parse, "ruszając_kółkiem")
+    assert ident.segments == ("ruszać", "kółko")
+    assert ident.case is None
 
-def test_ident_invalid_fin_plus_subst(parse):
-    # `jadę_samochodem` — `jadę` to forma osobowa czasownika (fin)
-    with pytest.raises(parser_mod.IdentifierError, match="jadę_samochodem"):
-        _ident_of(parse, "jadę_samochodem")
+def test_ident_fin_plus_subst_is_valid_function_id(parse):
+    # `jadę_samochodem` — `jadę` to fin (forma osobowa czasownika) — valid function id.
+    ident = _ident_of(parse, "jadę_samochodem")
+    assert ident.segments == ("jechać", "samochód")
+    assert ident.case is None
 
 def test_ident_invalid_error_mentions_expected_form(parse):
     # Komunikat powinien zawierać wzór poprawnej formy

@@ -1,0 +1,6 @@
+definicja Użytkownika:
+	imię (Tekst)
+	wiek (Liczba)
+
+aby stworzyć_użytkownika o imieniu z identyfikatorem_wieku:
+	wynik to nowy Użytkownik z imieniem z wiekiem weź_wiek_z_bazy po identyfikatorze_wieku

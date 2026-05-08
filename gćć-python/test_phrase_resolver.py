@@ -839,12 +839,221 @@ def test_function_identifier_picks_first_verb_in_compound(resolve):
 def test_bare_non_verb_reference_is_not_function_call(resolve):
     # `wynik` to LHS przypisania — pojedyncze niewerbowe słowo.
     # Resolved_phrase nie jest FunctionCall (bo brak czasownika),
-    # tylko gołym HeadIdentifier.
+    # tylko gołym Identifier.
     ast = resolve("aby działać:\n    wynik to 42\n")
     a = _func_def(ast).body[0]
     assert isinstance(a, parser_mod.Assignment)
     target = a.target.resolved_phrase
-    assert isinstance(target, parser_mod.HeadIdentifier)
+    assert isinstance(target, parser_mod.Identifier)
     assert target.segments == ("wynik",)
+
+
+# ============================================================
+#  StructCreation
+# ============================================================
+
+def _is_struct_creation(node, type_name):
+    sc = node.resolved_phrase if isinstance(node, parser_mod.Phrase) else node
+    assert isinstance(sc, phrase_resolver.StructCreation), \
+        f"oczekiwano StructCreation, było {type(sc).__name__}"
+    assert sc.type_name == type_name, \
+        f"type_name {sc.type_name} != {type_name}"
+    return sc
+
+
+def test_struct_creation_top_level_in_assignment(resolve):
+    # `nowy Użytkownik z nazwą "Anna"` jako RHS
+    ast = resolve('aby działać:\n    wynik to nowy Użytkownik z nazwą "Anna"\n')
+    a = _func_def(ast).body[0]
+    assert isinstance(a, parser_mod.Assignment)
+    sc = _is_struct_creation(a.value, ("użytkownik",))
+    assert len(sc.args) == 1
+    arg = sc.args[0]
+    assert arg.field_name == ("nazwa",)
+    assert isinstance(arg.value, parser_mod.Word)
+    assert isinstance(arg.value.value, parser_mod.StrLit)
+    assert arg.value.value.value == "Anna"
+
+
+def test_struct_creation_shorthand_two_fields(resolve):
+    # `nowy Użytkownik z nazwą z identyfikatorem` — oba shorthandy (None value)
+    ast = resolve("aby działać:\n    nowy Użytkownik z nazwą z identyfikatorem\n")
+    p = _first_phrase(ast)
+    sc = _is_struct_creation(p, ("użytkownik",))
+    assert len(sc.args) == 2
+    assert sc.args[0].field_name == ("nazwa",) and sc.args[0].value is None
+    assert sc.args[1].field_name == ("identyfikator",) and sc.args[1].value is None
+
+
+def test_struct_creation_nested(resolve):
+    # `nowy Komentarz z autorem nowy Użytkownik z nazwą "P"`
+    ast = resolve(
+        'aby działać:\n'
+        '    wynik to nowy Komentarz z autorem nowy Użytkownik z nazwą "P"\n'
+    )
+    a = _func_def(ast).body[0]
+    sc = _is_struct_creation(a.value, ("komentarz",))
+    assert len(sc.args) == 1
+    autor_arg = sc.args[0]
+    assert autor_arg.field_name == ("autor",)
+    inner = autor_arg.value
+    assert isinstance(inner, phrase_resolver.StructCreation)
+    assert inner.type_name == ("użytkownik",)
+    assert len(inner.args) == 1
+    assert inner.args[0].field_name == ("nazwa",)
+    assert inner.args[0].value.value.value == "P"
+
+
+def test_struct_creation_as_function_call_arg(resolve):
+    # `zapisz nowego Komentarza z treścią "x"` — struct_creation w roli arga function_call
+    ast = resolve('aby działać:\n    zapisz nowego Komentarza z treścią "x"\n')
+    p = _first_phrase(ast)
+    fc = p.resolved_phrase
+    assert isinstance(fc, phrase_resolver.FunctionCall)
+    assert fc.name.segments == ("zapisać",)
+    assert len(fc.params) == 1
+    sc = fc.params[0]
+    assert isinstance(sc, phrase_resolver.StructCreation)
+    assert sc.type_name == ("komentarz",)
+    assert len(sc.args) == 1
+    assert sc.args[0].field_name == ("treść",)
+
+
+def test_struct_creation_with_function_call_value(resolve):
+    # `nowy Użytkownik z nazwą weź_nazwę_z_bazy o identyfikatorze` — sub-function-call jako wartość
+    ast = resolve(
+        'aby działać:\n'
+        '    nowy Użytkownik z nazwą weź_nazwę_z_bazy o identyfikatorze\n'
+    )
+    p = _first_phrase(ast)
+    sc = _is_struct_creation(p, ("użytkownik",))
+    assert len(sc.args) == 1
+    arg = sc.args[0]
+    assert arg.field_name == ("nazwa",)
+    inner_fc = arg.value
+    assert isinstance(inner_fc, phrase_resolver.FunctionCall)
+    assert inner_fc.name.segments == ("wziąć", "nazwa", "z", "baza")
+    assert len(inner_fc.params) == 1
+    param = inner_fc.params[0]
+    assert isinstance(param, parser_mod.Word)
+    assert param.prep == ("o",)
+    assert param.value.segments == ("identyfikator",)
+
+
+def test_struct_creation_duplicate_field_propagates_up(resolve):
+    # Innermost (Użytkownik) ma identyfikator; outer (Komentarz) też.
+    # Pierwsze "z identyfikatorem 1" → Użytkownik. Drugie "z identyfikatorem 2" →
+    # Użytkownik już ma → zamknij Użytkownik, propaguj do Komentarza.
+    ast = resolve(
+        'aby działać:\n'
+        '    wynik to nowy Komentarz z autorem nowy Użytkownik '
+        'z identyfikatorem 1 z identyfikatorem 2\n'
+    )
+    a = _func_def(ast).body[0]
+    sc = _is_struct_creation(a.value, ("komentarz",))
+    assert len(sc.args) == 2
+    autor_arg = sc.args[0]
+    assert autor_arg.field_name == ("autor",)
+    inner = autor_arg.value
+    assert isinstance(inner, phrase_resolver.StructCreation)
+    assert inner.type_name == ("użytkownik",)
+    assert len(inner.args) == 1
+    assert inner.args[0].field_name == ("identyfikator",)
+    assert inner.args[0].value.value.value == 1
+    outer_ident = sc.args[1]
+    assert outer_ident.field_name == ("identyfikator",)
+    assert outer_ident.value.value.value == 2
+
+
+def test_struct_creation_inner_fn_swallows_non_field_z_arg(resolve):
+    # `nowy Komentarz z autorem weź_z_bazy z bazy z treścią "x"`
+    # `weź_z_bazy` startuje sub-function-call (czasownik). Boundary przy `z X`:
+    # baza nie jest fieldem Komentarza → sub-call je pochłania.
+    # treść jest fieldem Komentarza → boundary, sub-call się kończy, struct_arg.
+    ast = resolve(
+        'aby działać:\n'
+        '    nowy Komentarz z autorem weź_z_bazy z bazy z treścią "x"\n'
+    )
+    p = _first_phrase(ast)
+    sc = _is_struct_creation(p, ("komentarz",))
+    assert len(sc.args) == 2
+    autor = sc.args[0]
+    assert autor.field_name == ("autor",)
+    inner_fc = autor.value
+    assert isinstance(inner_fc, phrase_resolver.FunctionCall)
+    assert inner_fc.name.segments == ("wziąć", "z", "baza")
+    assert len(inner_fc.params) == 1
+    assert inner_fc.params[0].prep == ("z",)
+    assert inner_fc.params[0].value.segments == ("baza",)
+    treść = sc.args[1]
+    assert treść.field_name == ("treść",)
+    assert isinstance(treść.value, parser_mod.Word)
+    assert treść.value.value.value == "x"
+
+
+def test_struct_creation_with_chain_value(resolve):
+    # `nowy Komentarz z autorem autora postu` — chain jako wartość pola
+    ast = resolve('aby działać:\n    nowy Komentarz z autorem autora postu\n')
+    p = _first_phrase(ast)
+    sc = _is_struct_creation(p, ("komentarz",))
+    assert len(sc.args) == 1
+    arg = sc.args[0]
+    assert arg.field_name == ("autor",)
+    chain = arg.value
+    assert isinstance(chain, phrase_resolver.GetterChain)
+    assert [w.value.segments for w in chain.chain] == [("autor",), ("post",)]
+
+
+def test_struct_creation_accusative_animate(resolve):
+    # `zapisz nowego Komentarza z treścią "x"` — biernik żywotnopodobny
+    ast = resolve('aby działać:\n    zapisz nowego Komentarza z treścią "x"\n')
+    p = _first_phrase(ast)
+    fc = p.resolved_phrase
+    assert isinstance(fc, phrase_resolver.FunctionCall)
+    sc = fc.params[0]
+    assert isinstance(sc, phrase_resolver.StructCreation)
+    assert sc.type_name == ("komentarz",)
+
+
+def test_struct_creation_accusative_inanimate(resolve):
+    # `zapisz nowy Komentarz z treścią "x"` — biernik nieżywotny (= mianownik)
+    ast = resolve('aby działać:\n    zapisz nowy Komentarz z treścią "x"\n')
+    p = _first_phrase(ast)
+    fc = p.resolved_phrase
+    assert isinstance(fc, phrase_resolver.FunctionCall)
+    sc = fc.params[0]
+    assert isinstance(sc, phrase_resolver.StructCreation)
+    assert sc.type_name == ("komentarz",)
+
+
+# ---------- Negatywne ----------
+
+def test_struct_creation_no_type_after_nowy(resolve):
+    # `nowy z imieniem "Piotr"` — `z imieniem` ma prep, nie jest type_word.
+    # Nie wchodzi w struct_creation, fall-through do function_call, `nowy` to adj
+    # bez czasownika → FunctionIdentifierError.
+    with pytest.raises(parser_mod.FunctionIdentifierError):
+        resolve('aby działać:\n    nowy z imieniem "Piotr"\n')
+
+
+def test_struct_creation_unknown_type(resolve):
+    # `Pies` nie jest typem w module — nie wchodzi w struct_creation,
+    # fall-through, `nowy` adj bez czasownika → FunctionIdentifierError.
+    with pytest.raises(parser_mod.FunctionIdentifierError):
+        resolve('aby działać:\n    nowy Pies z imieniem "Reks"\n')
+
+
+def test_struct_creation_field_not_of_struct(resolve):
+    # `z bazą` — baza nie jest fieldem Komentarza, struct_creation się kończy
+    # po `nowy Komentarz`, dalsze tokeny nie skonsumowane → ResolveError.
+    with pytest.raises(phrase_resolver.ResolveError):
+        resolve('aby działać:\n    nowy Komentarz z bazą "x"\n')
+
+
+def test_struct_creation_case_mismatch(resolve):
+    # `nowy Użytkownikowi` — adj nominatyw + subst datyw, brak overlapu cases.
+    # _starts_struct_creation False → fall-through → function_call → nowy nie verb.
+    with pytest.raises(parser_mod.FunctionIdentifierError):
+        resolve('aby działać:\n    nowy Użytkownikowi\n')
 
 
