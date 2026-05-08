@@ -10,7 +10,7 @@ class ResolveError(Exception):
 
 @dataclass
 class FunctionCall:
-    name: parser.Identifier
+    name: parser.FunctionIdentifier
     params: list
 
 
@@ -35,9 +35,12 @@ class PhraseResolver:
         return w
 
     def _is_field(self, word):
-        if word is None or not isinstance(word.value, parser.Identifier):
+        if word is None:
             return False
-        return word.value.segments in self.fields
+        val = word.value
+        if not isinstance(val, (parser.Identifier, parser.HeadIdentifier)):
+            return False
+        return val.segments in self.fields
 
     def _is_gen_no_prep(self, word):
         if word is None or not isinstance(word.value, parser.Identifier):
@@ -66,7 +69,15 @@ class PhraseResolver:
         params = []
         while self.peek() is not None:
             params.append(self.parse_arg())
-        return FunctionCall(name=head.value, params=params)
+        try:
+            name = parser.FunctionIdentifier.from_head(head.value)
+        except parser.FunctionIdentifierError:
+            if not params:
+                # Pojedyncze słowo bez czasownika — gołe odwołanie do
+                # zmiennej (np. LHS przypisania), nie wywołanie funkcji.
+                return head.value
+            raise
+        return FunctionCall(name=name, params=params)
 
     def parse_arg(self):
         word = self.advance()
@@ -95,7 +106,7 @@ def resolve_module(m):
             for f in i.fields:
                 fields.append(f)
         elif isinstance(i, parser.FunctionDef):
-            function_names.add(i.name)
+            function_names.add(i.name.segments)
     field_names = {f.name.segments for f in fields}
     overlap = field_names & function_names
     if overlap:

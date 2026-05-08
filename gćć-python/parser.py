@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 import lexer
-from morph_anal import canonical
+from morph_anal import canonical, VERB_POS, VerbForm
 
 
 @dataclass
@@ -17,13 +17,90 @@ class Identifier:
     case: frozenset = None
 
 
+@dataclass(frozen=True)
+class HeadIdentifier:
+    """Niewalidowana głowa frazy. Zostanie:
+    - awansowana na FunctionIdentifier (gdy fraza okaże się FunctionCall),
+    - albo zostawiona jako head getter chaina (chain konsumuje .segments)."""
+    segments: tuple
+    surface: tuple
+    analyses: tuple  # tuple[tuple[MorphAnalysis, ...], ...]
+
+
 class IdentifierError(SyntaxError):
     pass
 
 
+class FunctionIdentifierError(IdentifierError):
+    pass
+
+
+def _validate_function_name(surface, segments, analyses):
+    if not analyses:
+        raise FunctionIdentifierError(
+            f"identyfikator funkcji '{'_'.join(surface)}' "
+            f"nie ma danych morfologicznych"
+        )
+    for i, anas in enumerate(analyses):
+        seg = surface[i]
+        if not anas or len(seg) == 1:
+            continue
+        verb_anas = [a for a in anas if a.pos in VERB_POS]
+        if not verb_anas:
+            continue
+        chosen = next(
+            (a for a in verb_anas if a.lemma == segments[i]),
+            verb_anas[0],
+        )
+        return i, chosen.verb_form
+    raise FunctionIdentifierError(
+        f"nazwa funkcji '{'_'.join(surface)}' nie zawiera czasownika; "
+        f"wymagany jest co najmniej jeden segment czasownikowy "
+        f"(fin, impt, inf, imps, praet, pcon, winien, będzie, fut, cond)"
+    )
+
+
+@dataclass(frozen=True)
+class FunctionIdentifier:
+    segments: tuple
+    surface: tuple
+    verb_index: int
+    verb_form: VerbForm
+
+    @classmethod
+    def from_head(cls, head):
+        verb_index, verb_form = _validate_function_name(
+            head.surface, head.segments, head.analyses
+        )
+        return cls(
+            segments=head.segments,
+            surface=head.surface,
+            verb_index=verb_index,
+            verb_form=verb_form,
+        )
+
+    @classmethod
+    def from_token(cls, tok):
+        """Buduje FunctionIdentifier bezpośrednio z tokenu morfologicznego.
+        Używane przez parse_func_def — definicja funkcji jest jednoznaczna,
+        więc nie potrzeba etapu HeadIdentifier."""
+        _, surface, analyses = tok
+        segments = canonical(tok)
+        analyses_t = tuple(tuple(a) for a in analyses)
+        verb_index, verb_form = _validate_function_name(
+            surface, segments, analyses_t
+        )
+        return cls(
+            segments=segments,
+            surface=surface,
+            verb_index=verb_index,
+            verb_form=verb_form,
+        )
+
+
 @dataclass
 class FunctionDef:
-    name: tuple
+    name: "FunctionIdentifier"
     params: list
     body: list
     return_type: tuple = None
@@ -180,7 +257,12 @@ class Parser:
         return Identifier(segments=segments, surface=surface, case=case)
 
     def _ident_head(self, tok):
-        return Identifier(segments=canonical(tok), surface=tok[1], case=None)
+        _, surface, analyses = tok
+        return HeadIdentifier(
+            segments=canonical(tok),
+            surface=surface,
+            analyses=tuple(tuple(a) for a in analyses),
+        )
 
     def _validate_identifier_case(self, tok, segments, surface):
         _, _, analyses = tok
@@ -195,13 +277,13 @@ class Parser:
             has_morph = True
             adj_cases = frozenset()
             subst_cases = frozenset()
-            for pos, case, _lemma in anas:
-                if not case:
+            for ana in anas:
+                if not ana.case:
                     continue
-                if pos in ("adj", "pact", "ppas"):
-                    adj_cases |= case
-                elif pos == "subst":
-                    subst_cases |= case
+                if ana.pos in ("adj", "pact", "ppas"):
+                    adj_cases |= ana.case
+                elif ana.pos == "subst":
+                    subst_cases |= ana.case
             adj_per_seg.append(adj_cases)
             subst_per_seg.append(subst_cases)
         if not has_morph:
@@ -337,6 +419,7 @@ class Parser:
     def parse_func_def(self):
         self.expect(lexer.Token.WORD)  # aby
         name_tok = self.expect(lexer.Token.WORD)
+        name = FunctionIdentifier.from_token(name_tok)
         params = []
         while self.peek() and self.peek()[0] not in (lexer.Token.COLON, lexer.Token.ARROW):
             params.append(self.parse_param())
@@ -353,7 +436,7 @@ class Parser:
             body.append(self.parse_stmt())
             self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
-        return FunctionDef(name=canonical(name_tok), params=params, body=body, return_type=return_type)
+        return FunctionDef(name=name, params=params, body=body, return_type=return_type)
 
     def parse_struct_def(self):
         self.expect(lexer.Token.WORD)  # definicja

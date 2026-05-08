@@ -40,7 +40,7 @@ def test_lex_skips_comments():
 
 
 def test_lex_emits_indent_and_dedent_on_eof():
-    toks = lexer.lex("aby f:\n    x to 1\n")
+    toks = lexer.lex("aby działać:\n    x to 1\n")
     kinds = [t[0] for t in toks]
     assert lexer.Token.INDENT in kinds
     # DEDENT auto-flushed at EOF (otherwise parser can't close func body)
@@ -48,8 +48,8 @@ def test_lex_emits_indent_and_dedent_on_eof():
 
 
 def test_lex_emits_newline_after_each_content_line():
-    toks = lexer.lex("aby f:\n    x to 1\n")
-    # NEWLINE po `aby f:` i po `x to 1`
+    toks = lexer.lex("aby działać:\n    x to 1\n")
+    # NEWLINE po `aby działać:` i po `x to 1`
     newlines = [t for t in toks if t[0] is lexer.Token.NEWLINE]
     assert len(newlines) == 2
 
@@ -196,7 +196,7 @@ def test_parse_function_def_with_assignment(parse):
     assert isinstance(ast, parser_mod.Module)
     fd = ast.body[0]
     assert isinstance(fd, parser_mod.FunctionDef)
-    assert fd.name == ("działać",)
+    assert fd.name.segments == ("działać",)
     a = fd.body[0]
     assert isinstance(a, parser_mod.Assignment)
     assert isinstance(a.target, parser_mod.Phrase)
@@ -207,7 +207,7 @@ def test_parse_function_def_with_assignment(parse):
 
 def test_parse_assignment_target_is_phrase(parse):
     # Pojedynczy identyfikator target jest opakowany w Phrase
-    ast = parse("aby f:\n    x to 5\n")
+    ast = parse("aby działać:\n    x to 5\n")
     a = ast.body[0].body[0]
     assert isinstance(a.target, parser_mod.Phrase)
     assert len(a.target.words) == 1
@@ -215,7 +215,7 @@ def test_parse_assignment_target_is_phrase(parse):
 
 def test_parse_assignment_target_multiword_phrase(parse):
     # `pole obiektu to 5` — target to Phrase z dwoma słowami
-    ast = parse("aby f:\n    pole obiektu to 5\n")
+    ast = parse("aby działać:\n    pole obiektu to 5\n")
     a = ast.body[0].body[0]
     assert isinstance(a, parser_mod.Assignment)
     assert isinstance(a.target, parser_mod.Phrase)
@@ -226,14 +226,14 @@ def test_parse_assignment_target_multiword_phrase(parse):
 
 
 def test_parse_assignment_string_literal(parse):
-    ast = parse('aby f:\n    x to "siemka"\n')
+    ast = parse('aby działać:\n    x to "siemka"\n')
     a = ast.body[0].body[0]
     assert a.value == parser_mod.StrLit("siemka")
 
 
 def test_parse_assignment_var_with_canonical_name(parse):
     # Single WORD to Phrase z jednym Word w words — nie ma osobnego Var
-    ast = parse("aby f:\n    x to inna_rzecz\n")
+    ast = parse("aby działać:\n    x to inna_rzecz\n")
     a = ast.body[0].body[0]
     assert isinstance(a.value, parser_mod.Phrase)
     assert len(a.value.words) == 1
@@ -242,7 +242,7 @@ def test_parse_assignment_var_with_canonical_name(parse):
 
 def test_parse_binop_precedence_mul_over_add(parse):
     # 2 + 3 * 5 -> BinOp(+, 2, BinOp(*, 3, 5))
-    ast = parse("aby f:\n    x to 2 + 3 * 5\n")
+    ast = parse("aby działać:\n    x to 2 + 3 * 5\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.BinOp) and expr.op == "+"
     assert expr.left == parser_mod.IntLit(2)
@@ -253,7 +253,7 @@ def test_parse_binop_precedence_mul_over_add(parse):
 
 def test_parse_left_associativity_of_subtraction(parse):
     # 10 - 3 - 2 -> ((10 - 3) - 2), evaluates to 5
-    ast = parse("aby f:\n    x to 10 - 3 - 2\n")
+    ast = parse("aby działać:\n    x to 10 - 3 - 2\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.BinOp) and expr.op == "-"
     assert expr.right == parser_mod.IntLit(2)
@@ -264,7 +264,7 @@ def test_parse_left_associativity_of_subtraction(parse):
 
 def test_parse_parens_override_precedence(parse):
     # (2 + 3) * 4 -> BinOp(*, BinOp(+, 2, 3), 4)
-    ast = parse("aby f:\n    x to (2 + 3) * 4\n")
+    ast = parse("aby działać:\n    x to (2 + 3) * 4\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.BinOp) and expr.op == "*"
     assert isinstance(expr.left, parser_mod.BinOp) and expr.left.op == "+"
@@ -272,7 +272,7 @@ def test_parse_parens_override_precedence(parse):
 
 
 def test_parse_unary_minus(parse):
-    ast = parse("aby f:\n    x to -5\n")
+    ast = parse("aby działać:\n    x to -5\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.UnaryOp)
     assert expr.op == "-"
@@ -280,49 +280,49 @@ def test_parse_unary_minus(parse):
 
 
 def test_parse_multiple_function_definitions(parse):
-    ast = parse("aby f:\n    x to 1\n\naby g:\n    y to 2\n")
+    ast = parse("aby działać:\n    x to 1\n\naby testować:\n    y to 2\n")
     assert len(ast.body) == 2
     # Pojedyncze litery nie są lematyzowane
-    assert ast.body[0].name == ("f",)
-    assert ast.body[1].name == ("g",)
+    assert ast.body[0].name.segments == ("działać",)
+    assert ast.body[1].name.segments == ("testować",)
 
 
 def test_parse_division(parse):
-    ast = parse("aby f:\n    x to 19 / 6\n")
+    ast = parse("aby działać:\n    x to 19 / 6\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.BinOp) and expr.op == "/"
 
 
 def test_parse_modulo(parse):
-    ast = parse("aby f:\n    x to 19 % 6\n")
+    ast = parse("aby działać:\n    x to 19 % 6\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.BinOp) and expr.op == "%"
 
 
 def test_parse_modulo_same_precedence_as_mul(parse):
     # 1 + 19 % 6 -> BinOp(+, 1, BinOp(%, 19, 6))
-    ast = parse("aby f:\n    x to 1 + 19 % 6\n")
+    ast = parse("aby działać:\n    x to 1 + 19 % 6\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.BinOp) and expr.op == "+"
     assert isinstance(expr.right, parser_mod.BinOp) and expr.right.op == "%"
 
 
 def test_parse_comparison(parse):
-    ast = parse("aby f:\n    x to a < b\n")
+    ast = parse("aby działać:\n    x to a < b\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.BinOp) and expr.op == "<"
 
 
 @pytest.mark.parametrize("op", ["<", ">", "<=", ">=", "!=", "="])
 def test_parse_all_comparison_operators(parse, op):
-    ast = parse(f"aby f:\n    x to a {op} b\n")
+    ast = parse(f"aby działać:\n    x to a {op} b\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.BinOp) and expr.op == op
 
 
 def test_parse_comparison_lower_precedence_than_arith(parse):
     # 1 + 2 < 3 + 4 -> BinOp(<, BinOp(+, 1, 2), BinOp(+, 3, 4))
-    ast = parse("aby f:\n    x to 1 + 2 < 3 + 4\n")
+    ast = parse("aby działać:\n    x to 1 + 2 < 3 + 4\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.BinOp) and expr.op == "<"
     assert isinstance(expr.left, parser_mod.BinOp) and expr.left.op == "+"
@@ -331,7 +331,7 @@ def test_parse_comparison_lower_precedence_than_arith(parse):
 
 def test_parse_equality_is_comparison_not_assignment(parse):
     # `a = b` w wyrażeniu to porównanie; przypisanie jest tylko przez `to`.
-    ast = parse("aby f:\n    x to a = b\n")
+    ast = parse("aby działać:\n    x to a = b\n")
     a = ast.body[0].body[0]
     assert isinstance(a, parser_mod.Assignment)  # x to ...
     assert isinstance(a.target, parser_mod.Phrase)
@@ -340,7 +340,7 @@ def test_parse_equality_is_comparison_not_assignment(parse):
 
 
 def test_parse_if_no_else(parse):
-    src = "aby f:\n    jeśli a < b:\n        x to 1\n"
+    src = "aby działać:\n    jeśli a < b:\n        x to 1\n"
     ast = parse(src)
     if_node = ast.body[0].body[0]
     assert isinstance(if_node, parser_mod.If)
@@ -350,7 +350,7 @@ def test_parse_if_no_else(parse):
 
 
 def test_parse_if_else(parse):
-    src = "aby f:\n    jeśli a < b:\n        x to 1\n    inaczej:\n        x to 2\n"
+    src = "aby działać:\n    jeśli a < b:\n        x to 1\n    inaczej:\n        x to 2\n"
     ast = parse(src)
     if_node = ast.body[0].body[0]
     assert isinstance(if_node, parser_mod.If)
@@ -362,7 +362,7 @@ def test_parse_if_else(parse):
 
 def test_parse_if_with_equality_condition(parse):
     # `=` w condition to porównanie (nie przypisanie)
-    src = "aby f:\n    jeśli a = 5:\n        x to 1\n"
+    src = "aby działać:\n    jeśli a = 5:\n        x to 1\n"
     ast = parse(src)
     if_node = ast.body[0].body[0]
     assert isinstance(if_node.cond, parser_mod.BinOp) and if_node.cond.op == "="
@@ -370,7 +370,7 @@ def test_parse_if_with_equality_condition(parse):
 
 def test_parse_nested_if(parse):
     src = (
-        "aby f:\n"
+        "aby działać:\n"
         "    jeśli a < b:\n"
         "        jeśli c > d:\n"
         "            x to 1\n"
@@ -386,7 +386,7 @@ def test_parse_nested_if(parse):
 
 
 def test_parse_while(parse):
-    src = "aby f:\n    dopóki a < 10:\n        a to a + 1\n"
+    src = "aby działać:\n    dopóki a < 10:\n        a to a + 1\n"
     ast = parse(src)
     w = ast.body[0].body[0]
     assert isinstance(w, parser_mod.While)
@@ -396,7 +396,7 @@ def test_parse_while(parse):
 
 def test_parse_while_with_if_inside(parse):
     src = (
-        "aby f:\n"
+        "aby działać:\n"
         "    dopóki a < 10:\n"
         "        jeśli a = 5:\n"
         "            x to 1\n"
@@ -411,7 +411,7 @@ def test_parse_while_with_if_inside(parse):
 
 def test_parse_else_if_chain(parse):
     src = (
-        "aby f:\n"
+        "aby działać:\n"
         "    jeśli x < 1:\n"
         "        a to 1\n"
         "    inaczej jeśli x < 2:\n"
@@ -437,7 +437,7 @@ def test_parse_else_if_chain(parse):
 
 def test_parse_else_if_without_final_else(parse):
     src = (
-        "aby f:\n"
+        "aby działać:\n"
         "    jeśli x < 1:\n"
         "        a to 1\n"
         "    inaczej jeśli x < 2:\n"
@@ -452,7 +452,7 @@ def test_parse_else_if_without_final_else(parse):
 
 def test_parse_break_inside_while(parse):
     src = (
-        "aby f:\n"
+        "aby działać:\n"
         "    dopóki a < 10:\n"
         "        jeśli a = 5:\n"
         "            stop\n"
@@ -468,7 +468,7 @@ def test_parse_break_inside_while(parse):
 
 def test_parse_not_with_phrase(parse):
     # `zmienna to nie inna_zmienna` → Not(Phrase(inna_zmienna))
-    ast = parse("aby f:\n    zmienna to nie inna_zmienna\n")
+    ast = parse("aby działać:\n    zmienna to nie inna_zmienna\n")
     a = ast.body[0].body[0]
     assert isinstance(a, parser_mod.Assignment)
     assert isinstance(a.value, parser_mod.Not)
@@ -479,7 +479,7 @@ def test_parse_not_with_phrase(parse):
 
 def test_parse_not_lower_precedence_than_comparison(parse):
     # `nie 2 > 3` → Not(BinOp(>, 2, 3))
-    ast = parse("aby f:\n    wynik to nie 2 > 3\n")
+    ast = parse("aby działać:\n    wynik to nie 2 > 3\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.Not)
     assert isinstance(expr.operand, parser_mod.BinOp) and expr.operand.op == ">"
@@ -487,7 +487,7 @@ def test_parse_not_lower_precedence_than_comparison(parse):
 
 def test_parse_not_with_phrase_args(parse):
     # `nie zawiera lista obiektu` → Not(Phrase(zawiera, lista, obiekt))
-    src = "aby f:\n    jeśli nie zawiera lista obiektu:\n        x to 1\n"
+    src = "aby działać:\n    jeśli nie zawiera lista obiektu:\n        x to 1\n"
     ast = parse(src)
     if_node = ast.body[0].body[0]
     assert isinstance(if_node.cond, parser_mod.Not)
@@ -499,7 +499,7 @@ def test_parse_not_with_phrase_args(parse):
 
 def test_parse_and(parse):
     # `warunek i nie wywołanie funkcji` → And(Phrase(warunek), Not(Phrase(...)))
-    src = "aby f:\n    jeśli warunek i nie wywołanie funkcji:\n        x to 1\n"
+    src = "aby działać:\n    jeśli warunek i nie wywołanie funkcji:\n        x to 1\n"
     ast = parse(src)
     cond = ast.body[0].body[0].cond
     assert isinstance(cond, parser_mod.And)
@@ -512,7 +512,7 @@ def test_parse_and(parse):
 
 def test_parse_or(parse):
     # `warunek lub sprawdź pod rzeczami` → Or(Phrase(warunek), Phrase(sprawdź, pod rzeczy))
-    src = "aby f:\n    jeśli warunek lub sprawdź pod rzeczami:\n        x to 1\n"
+    src = "aby działać:\n    jeśli warunek lub sprawdź pod rzeczami:\n        x to 1\n"
     ast = parse(src)
     cond = ast.body[0].body[0].cond
     assert isinstance(cond, parser_mod.Or)
@@ -527,7 +527,7 @@ def test_parse_or(parse):
 
 def test_parse_or_lower_precedence_than_and(parse):
     # `a i b lub c` → Or(And(a, b), c)
-    ast = parse("aby f:\n    x to a i b lub c\n")
+    ast = parse("aby działać:\n    x to a i b lub c\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.Or)
     assert isinstance(expr.left, parser_mod.And)
@@ -535,7 +535,7 @@ def test_parse_or_lower_precedence_than_and(parse):
 
 def test_parse_nested_not_and_with_parens(parse):
     # `nie (nie a i nie b)` → Not(And(Not(a), Not(b)))
-    src = "aby f:\n    jeśli nie (nie zmienna_pierwsza i nie zmienna_druga):\n        x to 1\n"
+    src = "aby działać:\n    jeśli nie (nie zmienna_pierwsza i nie zmienna_druga):\n        x to 1\n"
     ast = parse(src)
     cond = ast.body[0].body[0].cond
     assert isinstance(cond, parser_mod.Not)
@@ -548,7 +548,7 @@ def test_parse_nested_not_and_with_parens(parse):
 def test_parse_not_consumes_whole_phrase_with_prep_args(parse):
     # `nie wywołanie funkcji z nowymi argumentami` —
     # `nie` musi obejmować całą frazę z argumentami przyimkowymi
-    ast = parse("aby f:\n    wynik to nie wywołanie funkcji z nowymi argumentami\n")
+    ast = parse("aby działać:\n    wynik to nie wywołanie funkcji z nowymi argumentami\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.Not)
     phrase = expr.operand
@@ -562,7 +562,7 @@ def test_parse_not_consumes_whole_phrase_with_prep_args(parse):
 
 def test_parse_logical_ops_not_swallowed_by_phrase(parse):
     # Eksplicytnie: `pisz alfa i beta` → And(Phrase(pisz alfa), Phrase(beta))
-    ast = parse("aby f:\n    pisz alfa i beta\n")
+    ast = parse("aby działać:\n    pisz alfa i beta\n")
     expr = ast.body[0].body[0]
     assert isinstance(expr, parser_mod.And)
     assert isinstance(expr.left, parser_mod.Phrase)
@@ -571,21 +571,21 @@ def test_parse_logical_ops_not_swallowed_by_phrase(parse):
 
 
 def test_parse_return_with_int(parse):
-    ast = parse("aby f:\n    zwróć 5\n")
+    ast = parse("aby działać:\n    zwróć 5\n")
     r = ast.body[0].body[0]
     assert isinstance(r, parser_mod.Return)
     assert r.value == parser_mod.IntLit(5)
 
 
 def test_parse_return_with_expr(parse):
-    ast = parse("aby f:\n    zwróć 2 + 3\n")
+    ast = parse("aby działać:\n    zwróć 2 + 3\n")
     r = ast.body[0].body[0]
     assert isinstance(r, parser_mod.Return)
     assert isinstance(r.value, parser_mod.BinOp) and r.value.op == "+"
 
 
 def test_parse_return_with_phrase(parse):
-    ast = parse("aby f:\n    zwróć odzyskaj liczbe z bazy\n")
+    ast = parse("aby działać:\n    zwróć odzyskaj liczbe z bazy\n")
     r = ast.body[0].body[0]
     assert isinstance(r, parser_mod.Return)
     assert isinstance(r.value, parser_mod.Phrase)
@@ -611,7 +611,7 @@ def test_parse_return_without_value(parse):
 
 def test_parse_return_inside_if(parse):
     src = (
-        "aby f:\n"
+        "aby działać:\n"
         "    jeśli a < b:\n"
         "        zwróć 1\n"
         "    inaczej:\n"
@@ -627,7 +627,7 @@ def test_parse_return_inside_if(parse):
 
 def test_parse_break_standalone(parse):
     # Parser nie sprawdza, że stop musi być wewnątrz pętli — to robota semantyki.
-    src = "aby f:\n    stop\n"
+    src = "aby działać:\n    stop\n"
     ast = parse(src)
     assert isinstance(ast.body[0].body[0], parser_mod.Break)
 
@@ -637,7 +637,7 @@ def test_parse_break_standalone(parse):
 def test_parse_func_decl_no_params(parse):
     ast = parse("aby działać:\n    x to 1\n")
     fd = ast.body[0]
-    assert fd.name == ("działać",)
+    assert fd.name.segments == ("działać",)
     assert fd.params == []
 
 
@@ -645,7 +645,7 @@ def test_parse_func_decl_with_param_no_prep(parse):
     # `aby pisać coś:` — `coś` to acc bez przyimka
     ast = parse("aby pisać coś:\n    x to 1\n")
     fd = ast.body[0]
-    assert fd.name == ("pisać",)
+    assert fd.name.segments == ("pisać",)
     assert len(fd.params) == 1
     p = fd.params[0]
     assert isinstance(p, parser_mod.Param)
@@ -679,7 +679,7 @@ def test_parse_func_decl_multiple_params(parse):
     src = "aby wysłać coś do odbiorcy przez kanał od nadawcy:\n    x to 1\n"
     ast = parse(src)
     fd = ast.body[0]
-    assert fd.name == ("wysłać",)
+    assert fd.name.segments == ("wysłać",)
     assert len(fd.params) == 4
     assert fd.params[0].prep is None and fd.params[0].name.segments == ("coś",)
     assert fd.params[1].prep == ("do",) and fd.params[1].name.segments == ("odbiorca",)
@@ -696,7 +696,7 @@ def test_parse_func_decl_param_with_type(parse):
 
 
 def test_parse_func_decl_return_type(parse):
-    ast = parse("aby f -> Wynik:\n    x to 1\n")
+    ast = parse("aby działać -> Wynik:\n    x to 1\n")
     fd = ast.body[0]
     assert fd.return_type == ("wynik",)
     assert fd.params == []
@@ -714,7 +714,7 @@ def test_parse_func_decl_full_types(parse):
     src = "aby przestać_obserwować użytkownika (Użytkownik) przez obserwatora (Użytkownik) -> Wynik:\n    x to 1\n"
     ast = parse(src)
     fd = ast.body[0]
-    assert fd.name == ("przestać", "obserwować")
+    assert fd.name.segments == ("przestać", "obserwować")
     assert len(fd.params) == 2
     assert fd.params[0].prep is None
     assert fd.params[0].name.segments == ("użytkownik",)
@@ -761,14 +761,14 @@ def test_parse_func_decl_preserves_surface(parse):
 # ---------- Funkcje: wywołanie ----------
 
 def test_parse_phrase_only_head(parse):
-    ast = parse("aby f:\n    siema\n")
+    ast = parse("aby działać:\n    siema\n")
     phrase = ast.body[0].body[0]
     assert isinstance(phrase, parser_mod.Phrase)
     assert len(phrase.words) == 1
 
 
 def test_parse_phrase_with_string_word(parse):
-    ast = parse('aby f:\n    pisz "witaj, świecie"\n')
+    ast = parse('aby działać:\n    pisz "witaj, świecie"\n')
     phrase = ast.body[0].body[0]
     assert isinstance(phrase, parser_mod.Phrase)
     assert phrase.words[0].value.segments == ("pisać",)
@@ -780,7 +780,7 @@ def test_parse_phrase_with_string_word(parse):
 
 
 def test_parse_phrase_with_var_word(parse):
-    ast = parse("aby f:\n    pisz tekstem\n")
+    ast = parse("aby działać:\n    pisz tekstem\n")
     phrase = ast.body[0].body[0]
     assert isinstance(phrase, parser_mod.Phrase)
     word = phrase.words[1]
@@ -791,7 +791,7 @@ def test_parse_phrase_with_var_word(parse):
 
 def test_parse_phrase_with_prep_word(parse):
     # `zapisz w mapie` — argument `w mapie` (prep `w`, loc)
-    ast = parse("aby f:\n    zapisz w mapie\n")
+    ast = parse("aby działać:\n    zapisz w mapie\n")
     phrase = ast.body[0].body[0]
     assert isinstance(phrase, parser_mod.Phrase)
     assert len(phrase.words) == 2
@@ -804,7 +804,7 @@ def test_parse_phrase_with_prep_word(parse):
 
 def test_parse_phrase_multiple_words(parse):
     # `zaloguj annę tekstem` — dwa argumenty bez przyimków
-    ast = parse("aby f:\n    zaloguj annę tekstem\n")
+    ast = parse("aby działać:\n    zaloguj annę tekstem\n")
     phrase = ast.body[0].body[0]
     assert phrase.words[0].value.segments == ("zalogować",)
     assert len(phrase.words) == 3
@@ -813,7 +813,7 @@ def test_parse_phrase_multiple_words(parse):
 
 
 def test_parse_phrase_mixed_prep_and_no_prep(parse):
-    src = "aby f:\n    zapisz_token w globalnej_mapie dla użytkownika\n"
+    src = "aby działać:\n    zapisz_token w globalnej_mapie dla użytkownika\n"
     ast = parse(src)
     phrase = ast.body[0].body[0]
     assert phrase.words[0].value.segments == ("zapisać", "token")
@@ -828,7 +828,7 @@ def test_parse_phrase_does_not_consume_next_statement(parse):
     # NEWLINE separuje wywołania — drugie nie jest argumentem pierwszego.
     # Uważamy z jednoliterowymi nazwami (`a` to przyimek w sgjp).
     src = (
-        "aby f:\n"
+        "aby działać:\n"
         "    pisz wynik\n"
         "    pisz tekst\n"
     )
@@ -843,7 +843,7 @@ def test_parse_phrase_does_not_consume_next_statement(parse):
 
 def test_parse_dispatch_assignment_vs_phrase(parse):
     # `liczba to 5` to assignment, `pisz 5` to phrase (rozróżnienie po peek+1)
-    ast = parse("aby f:\n    liczba to 5\n    pisz 5\n")
+    ast = parse("aby działać:\n    liczba to 5\n    pisz 5\n")
     body = ast.body[0].body
     assert isinstance(body[0], parser_mod.Assignment)
     assert isinstance(body[1], parser_mod.Phrase)
@@ -859,7 +859,7 @@ def test_parse_top_level_phrase(parse):
 
 def test_parse_phrase_in_assignment_rhs(parse):
     # `pakiet to opakuj coś od klienta` — RHS to Phrase z dwoma argumentami
-    ast = parse("aby f:\n    pakiet to opakuj coś od klienta\n")
+    ast = parse("aby działać:\n    pakiet to opakuj coś od klienta\n")
     a = ast.body[0].body[0]
     assert isinstance(a, parser_mod.Assignment)
     assert isinstance(a.target, parser_mod.Phrase)
@@ -877,7 +877,7 @@ def test_parse_phrase_in_assignment_rhs(parse):
 
 def test_parse_phrase_in_right_operand_of_binop(parse):
     # `liczba to 2 + odzyskaj liczbe z bazy` — Phrase jest prawym operandem +
-    ast = parse("aby f:\n    liczba to 2 + odzyskaj liczbe z bazy\n")
+    ast = parse("aby działać:\n    liczba to 2 + odzyskaj liczbe z bazy\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.BinOp)
     assert expr.op == "+"
@@ -891,7 +891,7 @@ def test_parse_phrase_in_right_operand_of_binop(parse):
 
 def test_parse_phrase_in_left_operand_of_binop(parse):
     # `wynik to odzyskaj liczbe z bazy + 6` — argumenty Phrase NIE pożerają `+ 6`
-    ast = parse("aby f:\n    wynik to odzyskaj liczbe z bazy + 6\n")
+    ast = parse("aby działać:\n    wynik to odzyskaj liczbe z bazy + 6\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.BinOp)
     assert expr.op == "+"
@@ -904,7 +904,7 @@ def test_parse_phrase_in_left_operand_of_binop(parse):
 
 def test_parse_phrase_words_dont_eat_binop(parse):
     # Eksplicytnie: simple_value w argach NIE wchodzi w binarne operatory
-    ast = parse("aby f:\n    x to f a + b\n")
+    ast = parse("aby działać:\n    x to f a + b\n")
     expr = ast.body[0].body[0].value
     assert isinstance(expr, parser_mod.BinOp)
     assert expr.op == "+"
@@ -915,7 +915,7 @@ def test_parse_phrase_words_dont_eat_binop(parse):
 
 def test_parse_nested_phrase_requires_parens(parse):
     # Bez nawiasów: `f g h` to flat Phrase z trzema słowami, NIE z zagnieżdżonym Phrase
-    ast = parse("aby f:\n    pisz alfa beta\n")
+    ast = parse("aby działać:\n    pisz alfa beta\n")
     phrase = ast.body[0].body[0]
     assert phrase.words[0].value.segments == ("pisać",)
     assert len(phrase.words) == 3
@@ -925,7 +925,7 @@ def test_parse_nested_phrase_requires_parens(parse):
 
 def test_parse_nested_phrase_with_parens(parse):
     # Z nawiasami: `f (g h)` — drugi Word ma value=Phrase z dwoma słowami
-    ast = parse("aby f:\n    pisz (formatuj liczbę)\n")
+    ast = parse("aby działać:\n    pisz (formatuj liczbę)\n")
     phrase = ast.body[0].body[0]
     assert phrase.words[0].value.segments == ("pisać",)
     assert len(phrase.words) == 2
@@ -981,7 +981,7 @@ def test_parse_struct_then_function(parse):
         "    x (Liczba)\n"
         "    y (Liczba)\n"
         "\n"
-        "aby f:\n"
+        "aby działać:\n"
         "    a to 1\n"
     )
     ast = parse(src)
@@ -1035,7 +1035,7 @@ def test_preps_excludes_archaic_qualifiers(preps):
 
 def test_parse_nested_parens(parse):
     # (1 + 2) * (3 + 4)
-    ast = parse("aby f:\n    x to (1 + 2) * (3 + 4)\n")
+    ast = parse("aby działać:\n    x to (1 + 2) * (3 + 4)\n")
     expr = ast.body[0].body[0].value
     assert expr.op == "*"
     assert expr.left.op == "+" and expr.right.op == "+"
@@ -1048,7 +1048,7 @@ def test_parse_nested_parens(parse):
 
 def _ident_of(parse, surface):
     # Zbuduj identyfikator przez parser, używając go jako parametru funkcji
-    ast = parse(f"aby f {surface}:\n    x to 1\n")
+    ast = parse(f"aby działać {surface}:\n    x to 1\n")
     return ast.body[0].params[0].name
 
 

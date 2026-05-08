@@ -34,7 +34,7 @@ aby testować_ify_2:
     inaczej:
         liczba to 2
 
-aby f:
+aby pracować:
     dopóki a < 10:
         jeśli a = 5:
             x to 1
@@ -84,7 +84,7 @@ aby przestać_obserwować użytkownika (Użytkownik) przez obserwującego (Użyt
     zwróć Wynik prawda nic
 
 aby testować_logikę:
-    wynik to wywołanie funkcji > 0
+    wynik to policzyć rzeczy > 0
 
 definicja Sesji:
     token (Tekst)
