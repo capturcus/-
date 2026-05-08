@@ -243,21 +243,12 @@ def test_bare_chain_length_five(resolve):
     ]
 
 
-def test_chain_stops_when_intermediate_would_not_be_a_field(resolve):
-    # `imię autora postu komentarza użytkownika` — `komentarz` nie jest fieldem
-    # żadnego structu. Chain nie może się rozszerzyć obejmując `użytkownika`,
-    # bo wtedy `komentarz` stałby się intermediate (a nie bazą), co wymaga
-    # bycia fieldem. Zatem chain kończy się na `komentarza` (jako bazie),
-    # a `użytkownika` zostaje osobnym, pozycyjnym argumentem.
-    ast = resolve("aby f:\n    imię autora postu komentarza użytkownika\n")
-    p = _first_phrase(ast)
-    fc = _is_call(p, ("imię",), n_params=2)
-    assert isinstance(fc.params[0], phrase_resolver.GetterChain)
-    assert _chain_segments(fc.params[0]) == [
-        ("imię",), ("autor",), ("post",), ("komentarz",),
-    ]
-    assert isinstance(fc.params[1], parser_mod.Word)
-    assert fc.params[1].value.segments == ("użytkownik",)
+def test_chain_stops_when_intermediate_would_not_be_a_field_is_error(resolve):
+    # `imię autora postu komentarza użytkownika` — head=imię (field), chain
+    # zatrzymuje się na `komentarza` (komentarz nie jest fieldem), `użytkownika`
+    # zostaje. Head musiałby pełnić rolę nazwy funkcji → ResolveError.
+    with pytest.raises(phrase_resolver.ResolveError):
+        resolve("aby f:\n    imię autora postu komentarza użytkownika\n")
 
 
 def test_chain_does_not_extend_past_non_field_base(resolve):
@@ -273,40 +264,20 @@ def test_chain_does_not_extend_past_non_field_base(resolve):
     assert fc.params[1].value.segments == ("komentarz",)
 
 
-def test_rejected_extension_can_seed_new_chain(resolve):
-    # `imię autora postu komentarza użytkownika sesji` —
-    # pierwszy chain kończy się na `komentarza` (bo `komentarz` nie jest fieldem).
-    # Ale dalej `użytkownik` jest fieldem (Sesji), więc startuje DRUGI chain
-    # `użytkownika sesji`.
-    ast = resolve("aby f:\n    imię autora postu komentarza użytkownika sesji\n")
-    p = _first_phrase(ast)
-    fc = _is_call(p, ("imię",), n_params=2)
-    assert isinstance(fc.params[0], phrase_resolver.GetterChain)
-    assert _chain_segments(fc.params[0]) == [
-        ("imię",), ("autor",), ("post",), ("komentarz",),
-    ]
-    assert isinstance(fc.params[1], phrase_resolver.GetterChain)
-    assert _chain_segments(fc.params[1]) == [("użytkownik",), ("sesja",)]
+def test_rejected_extension_with_field_head_is_error(resolve):
+    # `imię autora postu komentarza użytkownika sesji` — head=imię (field),
+    # pierwszy chain zatrzymuje się na komentarzu, użytkownika sesji pozostają.
+    # Head musiałby pełnić rolę nazwy funkcji → ResolveError.
+    with pytest.raises(phrase_resolver.ResolveError):
+        resolve("aby f:\n    imię autora postu komentarza użytkownika sesji\n")
 
 
-def test_chain_link_check_per_step_at_three_link_chain(resolve):
-    # Eksplicytnie: w 3-ogniwowym chainie `imię autora komentarza` sprawdzamy,
-    # że NIE TYLKO `imię` ale TAKŻE `autor` musi być fieldem dla rozszerzenia.
-    # `imię obserwatora obserwacji` — `obserwator` nie jest fieldem (jest tylko
-    # w tej testowej STRUCTS jako pole Obserwacji? Nie — w naszych STRUCTS go nie ma).
-    # Chain: i=1 obserwatora gen, is_a_field(imię)? Yes (Użytkownik.imię).
-    #   pop (empty), chain=[imię, obserwatora]. started.
-    # i=2 obserwacji gen, is_a_field(obserwator)? No. Reject. Close chain.
-    #   Append obserwacji.
-    # → FunctionCall(imię, [GetterChain([imię, obserwatora]), obserwacji_word])
-    # — chain[0] is words[0], ale len(params)==2 → nie zwija się do bare.
-    ast = resolve("aby f:\n    imię obserwatora obserwacji\n")
-    p = _first_phrase(ast)
-    fc = _is_call(p, ("imię",), n_params=2)
-    assert isinstance(fc.params[0], phrase_resolver.GetterChain)
-    assert _chain_segments(fc.params[0]) == [("imię",), ("obserwator",)]
-    assert isinstance(fc.params[1], parser_mod.Word)
-    assert fc.params[1].value.segments == ("obserwacja",)
+def test_chain_link_check_per_step_with_field_head_is_error(resolve):
+    # `imię obserwatora obserwacji` — head=imię (field), chain zatrzymuje się
+    # na obserwatorze (obserwator nie jest fieldem), obserwacja pozostaje.
+    # Head musiałby pełnić rolę nazwy funkcji → ResolveError.
+    with pytest.raises(phrase_resolver.ResolveError):
+        resolve("aby f:\n    imię obserwatora obserwacji\n")
 
 
 def test_bare_chain_collapse_predicate_uses_identity(resolve):
@@ -333,20 +304,11 @@ def test_chain_at_end_of_call(resolve):
     ]
 
 
-def test_chain_at_start_then_more_args(resolve):
-    # `imię autora komentarza po spacjach` — chain na początku, prep arg na końcu
-    ast = resolve("aby f:\n    imię autora komentarza po spacjach\n")
-    p = _first_phrase(ast)
-    # Head to `imię` → FunctionCall(imię, [chain, po_spacjach])
-    fc = _is_call(p, ("imię",), n_params=2)
-    assert isinstance(fc.params[0], phrase_resolver.GetterChain)
-    assert _chain_segments(fc.params[0]) == [
-        ("imię",), ("autor",), ("komentarz",),
-    ]
-    assert isinstance(fc.params[1], parser_mod.Word)
-    assert fc.params[1].prep == ("po",)
-    assert fc.params[1].value.segments == ("spacja",)
-
+def test_field_head_with_chain_and_more_args_is_error(resolve):
+    # `imię autora komentarza po spacjach` — head=imię (field), chain consumes 3 słów,
+    # `po spacjach` zostaje. Head musiałby pełnić rolę nazwy funkcji → ResolveError.
+    with pytest.raises(phrase_resolver.ResolveError):
+        resolve("aby f:\n    imię autora komentarza po spacjach\n")
 
 def test_chain_in_the_middle(resolve):
     # `pisz nazwa użytkownika tekstem` — chain między argumentami
@@ -599,15 +561,11 @@ def test_head_word_that_is_also_a_field(resolve):
     assert _chain_segments(p) == [("nazwa",), ("użytkownik",)]
 
 
-def test_head_word_field_with_extra_arg_does_not_collapse(resolve):
-    # `nazwa użytkownika \"x\"` — head jest fieldem, ale fraza ma dodatkowy arg → FunctionCall
-    ast = resolve('aby f:\n    nazwa użytkownika "x"\n')
-    p = _first_phrase(ast)
-    # Z powodu Buga A kolejność może być nieprawidłowa, ale całość nie zwija się do GetterChain.
-    fc = p.resolved_phrase
-    assert isinstance(fc, phrase_resolver.FunctionCall), \
-        f"oczekiwano FunctionCall (jest dodatkowy arg), było {type(fc).__name__}"
-    assert fc.name.segments == ("nazwa",)
+def test_field_head_with_extra_literal_arg_is_error(resolve):
+    # `nazwa użytkownika "x"` — head=nazwa (field), chain=[nazwa, użytkownik],
+    # `"x"` zostaje. Head musiałby pełnić rolę nazwy funkcji → ResolveError.
+    with pytest.raises(phrase_resolver.ResolveError):
+        resolve('aby f:\n    nazwa użytkownika "x"\n')
 
 
 # ============================================================

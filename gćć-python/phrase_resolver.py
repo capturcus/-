@@ -4,6 +4,10 @@ from dataclasses import dataclass
 fields = []
 
 
+class ResolveError(Exception):
+    pass
+
+
 @dataclass
 class FunctionCall:
     name: parser.Identifier
@@ -47,15 +51,19 @@ class PhraseResolver:
 
     def parse_phrase(self):
         head = self.advance()
-        chain = None
         if self._can_start_chain(head):
             chain = self.parse_getter_chain(head)
             if self.peek() is None:
                 return chain
-        return self.parse_function_call(head, chain)
+        if self._is_field(head) and self.peek() is not None:
+            raise ResolveError(
+                f"identyfikator '{'_'.join(head.value.surface)}' jest polem — "
+                f"nie może wystąpić w roli nazwy funkcji"
+            )
+        return self.parse_function_call(head)
 
-    def parse_function_call(self, head, leading_chain):
-        params = [leading_chain] if leading_chain is not None else []
+    def parse_function_call(self, head):
+        params = []
         while self.peek() is not None:
             params.append(self.parse_arg())
         return FunctionCall(name=head.value, params=params)
@@ -81,9 +89,19 @@ def resolve_phrase(p):
 def resolve_module(m):
     global fields
     fields = []
+    function_names = set()
     for i in m.body:
         if isinstance(i, parser.StructDef):
             for f in i.fields:
                 fields.append(f)
+        elif isinstance(i, parser.FunctionDef):
+            function_names.add(i.name)
+    field_names = {f.name.segments for f in fields}
+    overlap = field_names & function_names
+    if overlap:
+        names = ", ".join("_".join(n) for n in sorted(overlap))
+        raise ResolveError(
+            f"konflikt nazw: identyfikator nie może być jednocześnie polem i funkcją: {names}"
+        )
     for p in m.phrases:
         resolve_phrase(p)
