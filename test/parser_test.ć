@@ -1,3 +1,52 @@
+# Stuby funkcji wymagane przez signature-aware fn-call.
+# Uniwersalna sygnatura dla `pisać` i `zapisać_token` (w bodies wywołania
+# z różną arity): 3 sloty no-prep + slot per stand. przyimek.
+aby pisać b c d od e dla f do g w h na i przez j z k o l po m:
+    zwrócić
+
+aby weryfikować coś:
+    zwrócić
+
+aby alokować_bufor:
+    zwrócić
+
+aby stworzyć_gniazdo:
+    zwrócić
+
+aby stworzyć_token:
+    zwrócić
+
+aby stworzyć_użytkownika:
+    zwrócić
+
+aby opakować coś od nadawcy:
+    zwrócić
+
+aby przekazać pakiet kanałem do odbiorcy:
+    zwrócić
+
+aby zapisać_token w globalnej_mapie dla użytkownika:
+    zwrócić
+
+aby zalogować b c d od e dla f do g w h na i przez j z k o l po m:
+    zwrócić
+
+aby zawierać b c d od e dla f do g w h na i przez j z k o l po m:
+    zwrócić
+
+aby usunąć b c d od e dla f do g w h na i przez j z k o l po m:
+    zwrócić
+
+aby zaktualizować b c d od e dla f do g w h na i przez j z k o l po m:
+    zwrócić
+
+aby policzyć rzeczy:
+    zwrócić
+
+aby zweryfikować b c d:
+    zwrócić
+
+
 aby działać:
     liczba to 5
 
@@ -42,20 +91,20 @@ aby pracować:
 
 # Funkcje z parametrami
 
-aby pisać coś do klienta:
+aby pisać_coś_do_klienta coś do klienta:
     weryfikuj coś
 
-aby czytać z klienta:
+aby czytać_z_klienta z klienta:
     bufor to alokuj_bufor
 
-aby nasłuchiwać na porcie:
+aby nasłuchiwać_na_porcie na porcie:
     sock to stwórz_gniazdo
 
 aby wysłać coś do odbiorcy przez kanał od nadawcy:
     pakiet to opakuj coś od nadawcy
     przekaż pakiet kanałem do odbiorcy
 
-aby zalogować użytkownika hasłem:
+aby zalogować_użytkownika użytkownika hasłem:
     weryfikuj hasło
     token to stwórz_token
     zapisz_token w globalnej_mapie dla użytkownika
@@ -76,12 +125,12 @@ aby reagować na zdarzenie:
 
 aby przestać_obserwować użytkownika (Użytkownik) przez obserwującego (Użytkownik) -> Wynik:
     jeśli zawiera użytkownik obserwującego:
-        zwróć Wynik fałsz "nie obserwujesz tego użytkownika"
+        zwróć fałsz
     usuń obserwującego z obserwujących_użytkownika
     usuń użytkownika z obserwowanych_obserwującego
     zaktualizuj użytkownika w bazie
     zaktualizuj obserwującego w bazie
-    zwróć Wynik prawda nic
+    zwróć prawda
 
 aby testować_logikę:
     wynik to policzyć rzeczy > 0
@@ -93,6 +142,6 @@ definicja Sesji:
     data_wygaśnięcia (Data)
     adres_ip (AdresIP)
 
-aby zweryfikować sesję:
+aby zweryfikować_sesję:
     zweryfikuj token sesji
     token sesji to 5

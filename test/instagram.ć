@@ -1,5 +1,58 @@
 # Instagram - backend w języku Ć
 
+# === Stuby pomocniczych funkcji (signature-aware fn-call wymaga def) ===
+
+aby zapisać b c d od e dla f do g w h na i przez j z k o l po m:
+    zwrócić
+
+aby usunąć b c d od e dla f do g w h na i przez j z k o l po m:
+    zwrócić
+
+aby stworzyć_błąd b c d od e dla f do g w h na i przez j z k o l po m:
+    zwrócić
+
+aby stworzyć_użytkownika z nazwą (Tekst) z emailem (Tekst) z hasłem (Tekst):
+    zwrócić
+
+aby stworzyć_sesję dla użytkownika (Użytkownik):
+    zwrócić
+
+aby stworzyć_post z treścią (Tekst) dla użytkownika (Użytkownik):
+    zwrócić
+
+aby stworzyć_komentarz dla postu (Post) z treścią (Tekst) dla użytkownika (Użytkownik):
+    zwrócić
+
+aby stworzyć_obserwację dla obserwatora (Użytkownik) dla użytkownika (Użytkownik):
+    zwrócić
+
+aby wygenerować_id:
+    zwrócić
+
+# `znajdź` w wywołaniach kanonikalizuje się do "znajść" (archaiczna forma),
+# a nie "znaleźć" — definiujemy w tej samej formie powierzchniowej.
+aby znajdź_użytkownika z emailem (Tekst):
+    zwrócić
+
+aby znajdź_obserwację obserwatora (Użytkownik) użytkownika (Użytkownik):
+    zwrócić
+
+aby znajdź_obserwowanych użytkownika (Użytkownik):
+    zwrócić
+
+aby znajdź_posty kolejnego (Użytkownik):
+    zwrócić
+
+aby wziąć_głowę obserwowanych (Lista):
+    zwrócić
+
+aby wziąć_ogon obserwowanych (Lista):
+    zwrócić
+
+aby dodać_wszystkie nowych (Lista) do postów (Lista):
+    zwrócić
+
+
 # === Definicje typów danych ===
 
 definicja Użytkownika:
@@ -39,7 +92,7 @@ definicja Obserwacji:
 # === Użytkownicy i logowanie ===
 
 aby zarejestrować z nazwą (Tekst) z emailem (Tekst) z hasłem (Tekst) -> Użytkownik:
-    jeśli istnieje użytkownik z emailem:
+    jeśli istnieje_użytkownik z emailem:
         zwróć stwórz_błąd "email zajęty"
     nowy to stwórz_użytkownika z nazwą z emailem z hasłem
     identyfikator nowego to wygeneruj_id
@@ -134,7 +187,7 @@ aby przestań_obserwować użytkownika (Użytkownik) przez obserwatora (Użytkow
     liczba_obserwujących użytkownika to liczba_obserwujących użytkownika - 1
 
 
-aby już_obserwować obserwator (Użytkownik) użytkownika (Użytkownik) -> Przełącznik:
+aby już_obserwować obserwatora (Użytkownik) użytkownika (Użytkownik) -> Przełącznik:
     obserwacja to znajdź_obserwację obserwatora użytkownika
     zwróć nie obserwacja = pusty
 

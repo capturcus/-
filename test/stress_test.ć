@@ -26,6 +26,42 @@ definicja Sesji:
 	licznik_błędów (Liczba)
 
 
+# === Stuby funkcji wymagane przez signature-aware fn-call ===
+# Uniwersalna sygnatura: 3 sloty no-prep + 1 slot per stand. przyimek.
+# Nazwy parametrów to litery spoza listy preps SGJP (a/o/u/w/z byłyby zinterp.
+# jako prep).
+
+aby zapisać b c d od e dla f do g w h na i przez j z k o l po m:
+	zwrócić
+
+aby wypisać b c d od e dla f do g w h na i przez j z k o l po m:
+	zwrócić
+
+aby zapisać_w_bazie b c d od e dla f do g w h na i przez j z k o l po m:
+	zwrócić
+
+aby zapisać_log b c d od e dla f do g w h na i przez j z k o l po m:
+	zwrócić
+
+aby zapisać_pole b c d od e dla f do g w h na i przez j z k o l po m:
+	zwrócić
+
+aby zapisać_finalne b c d od e dla f do g w h na i przez j z k o l po m:
+	zwrócić
+
+aby zapisać_iter b c d od e dla f do g w h na i przez j z k o l po m:
+	zwrócić
+
+aby wziąć_użytkownika_z_bazy o identyfikatorze:
+	zwrócić
+
+# `złóż_komunikat` w wywołaniu kanonikalizuje się do ('złoże','komunikat'),
+# bo morph_anal.canonical preferuje POS subst nad verb. Definiujemy w tej samej
+# formie powierzchniowej.
+aby złóż_komunikat b c d od e dla f do g w h na i przez j z k o l po m:
+	zwrócić
+
+
 # Pomocnicza funkcja — `zwrócić` bez wartości oraz pojedyncze wywołania.
 aby zalogować_błąd komunikatem (Tekst):
 	zapisz komunikatem
@@ -124,22 +160,22 @@ aby przetestować_język sesji (Sesja) z opcjami (Tekst) o identyfikatorze (Teks
 	użytkownik_kopia to nowy Użytkownik z identyfikatorem z imieniem z nazwiskiem
 
 	# === struct creation — explicit values (literal) ===
-	nowy_post to nowy Post z identyfikatorem "p1" z treścią "Hej" z liczbą_polubień 0
+	nowy_post to nowy Post o identyfikatorze "p1" o treści "Hej" o liczbie_polubień 0
 
 	# === struct creation — chain jako wartość ===
-	post_z_autorem to nowy Post z autorem użytkownikiem sesji z treścią "Z chainem"
+	post_z_autorem to nowy Post o autorze użytkownikiem sesji o treści "Z chainem"
 
 	# === struct creation — sub-function call jako wartość ===
-	pobrany_post to nowy Post z autorem weź_użytkownika_z_bazy o identyfikatorze z treścią "X"
+	pobrany_post to nowy Post o autorze weź_użytkownika_z_bazy o identyfikatorze o treści "X"
 
 	# === nested struct creation (zagnieżdżone struct) ===
-	nowy_komentarz to nowy Komentarz z autorem nowy Użytkownik z imieniem "Anna" z nazwiskiem "Nowak" z postem nowy Post z treścią "Pierwszy" z liczbą_polubień 0
+	nowy_komentarz to nowy Komentarz o autorze nowy Użytkownik o imieniu "Anna" o nazwisku "Nowak" o poście nowy Post o treści "Pierwszy" o liczbie_polubień 0
 
 	# === propagacja na duplikacie pola (innermost wins) ===
-	test_propagacji to nowy Komentarz z autorem nowy Użytkownik z identyfikatorem 1 z identyfikatorem 2
+	test_propagacji to nowy Komentarz o autorze nowy Użytkownik o identyfikatorze 1 o identyfikatorze 2
 
 	# === function call ze struct_creation jako arg ===
-	zapisz_w_bazie nowy Post z autorem użytkownikiem sesji z treścią "log"
+	zapisz_w_bazie nowy Post o autorze użytkownikiem sesji o treści "log"
 	zapisz_w_bazie nowego_użytkownika z imieniem "Tymczasowy"
 
 	# === assignment do chaina (LHS) ===
@@ -160,13 +196,13 @@ aby przetestować_język sesji (Sesja) z opcjami (Tekst) o identyfikatorze (Teks
 		licznik to licznik + identyfikator użytkownika sesji
 
 	# === bardzo długa fraza — function call z wieloma rzeczami ===
-	zapisz_finalne nowy Post z autorem użytkownikiem sesji z treścią złóż_komunikat z opcjami o identyfikatorze z liczbą_polubień 42
+	zapisz_finalne nowy Post o autorze użytkownikiem sesji o treści złóż_komunikat z opcjami o identyfikatorze o liczbie_polubień 42
 
 	# === pętla z chainami i strukturami w środku ===
 	licznik to 0
 	dopóki licznik < liczba_polubień postu:
 		licznik to licznik + 1
-		zapisz_iter nowy Komentarz z autorem użytkownikiem sesji z treścią "iter" z postem postu
+		zapisz_iter nowy Komentarz o autorze użytkownikiem sesji o treści "iter" o poście postu
 
 	# === zwrócić chain jako wartość (return type Użytkownik) ===
 	zwrócić użytkownik sesji

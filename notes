@@ -4,15 +4,14 @@ składnia:
 pętla po elementach listy
 extern zewnętrznie / można
 struct creation: z autorem / o autorze
+liczby jako liczebniki
 
 semantyka:
 gramatyczne resolvowanie argumentów funkcji
 hindley milner
 
-codegen:
-listy
-
 stdlib:
+listy
 Przełącznik
 konkatenacja stringów
 

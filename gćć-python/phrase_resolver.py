@@ -52,12 +52,13 @@ def _adj_cases_from_analyses(analyses):
 
 
 class PhraseResolver:
-    def __init__(self, words, fields, fields_by_type, types):
+    def __init__(self, words, fields, fields_by_type, types, function_defs):
         self.words = words
         self.pos = 0
         self.field_names = {f.name.segments for f in fields}
         self.fields_by_type = fields_by_type
         self.types = types
+        self.function_defs = function_defs
         self.struct_stack = []
 
     def peek(self, offset=0):
@@ -122,7 +123,7 @@ class PhraseResolver:
         if not self.struct_stack:
             return False
         p = self.peek()
-        if not self._is_z_inst(p):
+        if not (self._is_z_inst(p) or self._is_o_loc(p)):
             return False
         return any(
             self._field_name_match(p.value, self.fields_by_type[ctx.type_name])
@@ -135,7 +136,7 @@ class PhraseResolver:
 
     def _struct_arg_field_for(self, ctx):
         p = self.peek()
-        if not self._is_z_inst(p):
+        if not (self._is_z_inst(p) or self._is_o_loc(p)):
             return None
         matched = self._field_name_match(
             p.value, self.fields_by_type[ctx.type_name]
@@ -151,6 +152,14 @@ class PhraseResolver:
         if not isinstance(p.value, parser.Identifier):
             return False
         return p.value.case is not None and "inst" in p.value.case
+
+    @staticmethod
+    def _is_o_loc(p):
+        if p is None or p.prep != ("o",):
+            return False
+        if not isinstance(p.value, parser.Identifier):
+            return False
+        return p.value.case is not None and "loc" in p.value.case
 
     @staticmethod
     def _field_name_match(identifier, field_set):
@@ -170,13 +179,6 @@ class PhraseResolver:
                 return combo
         return None
 
-    def _bare_head(self, head):
-        try:
-            name = parser.FunctionIdentifier.from_head(head.value)
-            return FunctionCall(name=name, params=[])
-        except parser.FunctionIdentifierError:
-            return head.value
-
     def parse_phrase(self):
         p = self.peek()
         if not isinstance(p.value, parser.Identifier):
@@ -193,21 +195,56 @@ class PhraseResolver:
                 f"identyfikator '{'_'.join(head.value.surface)}' jest polem — "
                 f"nie może wystąpić w roli nazwy funkcji"
             )
-        if self._at_phrase_end():
-            return self._bare_head(head)
+        # Zawsze przez parse_function_call — daje sygnaturze szansę wchłonąć
+        # kolejne tokeny zanim struct-arg boundary się odpali. Dla nie-czasownika
+        # przy phrase-end parse_function_call zwróci goły head.value (Identifier),
+        # dla czasownika z pustą resztą zwróci FunctionCall z params=[].
         return self.parse_function_call(head)
 
     def parse_function_call(self, head):
-        params = []
-        while not self._at_phrase_end():
-            params.append(self.parse_arg())
         try:
             name = parser.FunctionIdentifier.from_head(head.value)
         except parser.FunctionIdentifierError:
-            if not params:
+            if self._at_phrase_end():
                 return head.value
             raise
+        fdef = self.function_defs.get(name.segments)
+        if fdef is None:
+            raise ResolveError(
+                f"funkcja '{'_'.join(name.segments)}' nie jest zdefiniowana"
+            )
+        sig = tuple(fdef.params)
+        consumed = set()
+        params = []
+        while not self._at_phrase_end_for_fn(sig, consumed):
+            slot = self._find_param_slot(self.peek(), sig, consumed)
+            params.append(self.parse_arg())
+            if slot is not None:
+                consumed.add(slot)
         return FunctionCall(name=name, params=params)
+
+    def _at_phrase_end_for_fn(self, sig, consumed):
+        # Function-call kończy się, gdy nie ma już tokenów albo gdy żaden
+        # niezajęty slot sygnatury nie matchuje kolejnego tokenu po (prep, case).
+        # Struct-arg boundary nie jest tu już osobno sprawdzana — slot match
+        # rozstrzyga o priorytecie funkcji nad otaczającym struktem.
+        if self.peek() is None:
+            return True
+        return self._find_param_slot(self.peek(), sig, consumed) is None
+
+    @staticmethod
+    def _find_param_slot(token, sig, consumed):
+        tok_case = token.case
+        for i, param in enumerate(sig):
+            if i in consumed:
+                continue
+            if param.prep != token.prep:
+                continue
+            if param.case is None or tok_case is None:
+                return i
+            if param.case & tok_case:
+                return i
+        return None
 
     def parse_arg(self):
         word = self.advance()
@@ -232,14 +269,21 @@ class PhraseResolver:
         self.struct_stack.append(ctx)
         args = []
         while True:
+            p = self.peek()
             field_name = self._struct_arg_field_for(ctx)
             if field_name is None:
                 break
+            is_shorthand = self._is_z_inst(p)
             self.advance()
             ctx.assigned.add(field_name)
-            if self._at_phrase_end():
+            if is_shorthand:
                 args.append(StructArg(field_name=field_name, value=None))
             else:
+                if self._at_phrase_end():
+                    raise ResolveError(
+                        f"pole '{'_'.join(field_name)}' wprowadzone przez 'o' "
+                        f"wymaga wartości"
+                    )
                 args.append(StructArg(
                     field_name=field_name,
                     value=self.parse_phrase(),
@@ -248,9 +292,11 @@ class PhraseResolver:
         return StructCreation(type_name=type_name, args=args)
 
 
-def resolve_phrase(p, fields_by_type, types):
+def resolve_phrase(p, fields_by_type, types, function_defs):
     global fields
-    resolver = PhraseResolver(p.words, fields, fields_by_type, types)
+    resolver = PhraseResolver(
+        p.words, fields, fields_by_type, types, function_defs
+    )
     p.resolved_phrase = resolver.parse_phrase()
     if resolver.peek() is not None:
         raise ResolveError(
@@ -264,7 +310,7 @@ def resolve_module(m):
     fields = []
     fields_by_type = {}
     types = set()
-    function_names = set()
+    function_defs = {}
     for i in m.body:
         if isinstance(i, parser.StructDef):
             types.add(i.name)
@@ -273,8 +319,9 @@ def resolve_module(m):
                 fields.append(f)
                 fbt.add(f.name.segments)
         elif isinstance(i, parser.FunctionDef):
-            function_names.add(i.name.segments)
+            function_defs[i.name.segments] = i
     field_names = {f.name.segments for f in fields}
+    function_names = set(function_defs.keys())
     overlap = field_names & function_names
     if overlap:
         names = ", ".join("_".join(n) for n in sorted(overlap))
@@ -282,4 +329,4 @@ def resolve_module(m):
             f"konflikt nazw: identyfikator nie może być jednocześnie polem i funkcją: {names}"
         )
     for p in m.phrases:
-        resolve_phrase(p, fields_by_type, types)
+        resolve_phrase(p, fields_by_type, types, function_defs)

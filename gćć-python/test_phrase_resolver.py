@@ -57,13 +57,58 @@ STRUCTS = (
 )
 
 
+# Funkcje wymagane przez resolver (każde wywołanie musi mieć definicję).
+# `pisać` i `zapisać` mają „uniwersalne" sygnatury: 3 sloty no-prep + slot
+# dla każdego standardowego przyimka. Nazwy parametrów to pojedyncze litery
+# spoza listy preps SGJP (np. `a`, `o`, `u`, `w`, `z` byłyby zinterpretowane
+# jako prep, więc zaczynamy od `b`). Dla nich _validate_identifier_case zwraca
+# None, dzięki czemu dopasowanie po (prep, case) działa permisywnie.
+FUNCTIONS = (
+    "aby pracować:\n"
+    "    zwrócić\n"
+    "\n"
+    "aby pisać b c d od e dla f do g w h na i przez j z k o l po m:\n"
+    "    zwrócić\n"
+    "\n"
+    "aby zapisać b c d od e dla f do g w h na i przez j z k o l po m:\n"
+    "    zwrócić\n"
+    "\n"
+    "aby wziąć_z_bazy z bazy:\n"
+    "    zwrócić\n"
+    "\n"
+    "aby wziąć_nazwę_z_bazy o identyfikatorze:\n"
+    "    zwrócić\n"
+    "\n"
+    "aby wziąć_użytkownika_z_bazy o identyfikatorze:\n"
+    "    zwrócić\n"
+    "\n"
+    "aby stworzyć_post z treścią dla użytkownika:\n"
+    "    zwrócić\n"
+    "\n"
+    "aby polubić post (Post):\n"
+    "    zwrócić\n"
+    "\n"
+    "aby abdykować:\n"
+    "    zwrócić\n"
+    "\n"
+    "aby przestać_obserwować użytkownika:\n"
+    "    zwrócić\n"
+    "\n"
+)
+
+
 @pytest.fixture
 def resolve(_db, _preps):
     """Parsuje i resolwuje moduł. Każdy test dostaje świeży fields=[]."""
 
-    def _resolve(body, with_structs=True):
+    def _resolve(body, with_structs=True, with_functions=True):
         phrase_resolver.fields = []
-        text = (STRUCTS if with_structs else "") + body
+        text = ""
+        if with_structs:
+            text += STRUCTS
+        if with_functions:
+            text += FUNCTIONS
+        text += body
         ast = parser_mod.parse(morph_anal.analyze(lexer.lex(text), _db), _preps)
         phrase_resolver.resolve_module(ast)
         return ast
@@ -73,12 +118,15 @@ def resolve(_db, _preps):
 
 # ---------- helpers ----------
 
-def _func_def(ast, name=None):
+def _func_def(ast, name=("działać",)):
+    """Domyślnie zwraca FunctionDef o nazwie `działać` (typowy wrapper testu).
+    FUNCTIONS prelude wprowadza wiele FunctionDefów do modułu, więc nie można
+    polegać na 'pierwszym napotkanym' — bierzemy konkretny."""
     for node in ast.body:
         if isinstance(node, parser_mod.FunctionDef):
-            if name is None or node.name.segments == name:
+            if node.name.segments == name:
                 return node
-    raise AssertionError("nie znaleziono FunctionDef")
+    raise AssertionError(f"nie znaleziono FunctionDef o nazwie {name}")
 
 
 def _walk_phrases(node, out):
@@ -608,11 +656,14 @@ def test_chain_pops_correct_param_when_starting_after_other_args(resolve):
 
 def test_realistic_phrase_from_instagram_sample(resolve):
     # Wzorowane na: `liczba_polubień postu to liczba_polubień postu + 1`
+    # `with_functions=False` — chcemy, żeby `polubić` w module pochodził tylko
+    # z poniższego inline definition (FUNCTIONS prelude też definiuje polubić,
+    # co nadpisałoby ciało).
     src = (
         "aby polubić post (Post):\n"
         "    liczba_polubień postu to liczba_polubień postu + 1\n"
     )
-    ast = resolve(src)
+    ast = resolve(src, with_functions=False)
     a = _func_def(ast, name=("polubić",)).body[0]
     assert isinstance(a, parser_mod.Assignment)
     # LHS: bare GetterChain (chain[0] is words[0])
@@ -747,7 +798,14 @@ def test_BUG_resolve_module_does_not_leak_fields_across_calls(_db, _preps):
     assert len(fields_after_module_1) > 0  # załadowane z STRUCTS
 
     # Moduł 2 — bez structów. resolve_module powinien zacząć ze świeżą listą fields.
-    text2 = "aby testować:\n    pisz nazwa użytkownika\n"
+    # `pisać` wymaga definicji (signature-aware fn-call) — dorzucamy stub.
+    text2 = (
+        "aby pisać b c d:\n"
+        "    zwrócić\n"
+        "\n"
+        "aby testować:\n"
+        "    pisz nazwa użytkownika\n"
+    )
     ast2 = parser_mod.parse(morph_anal.analyze(lexer.lex(text2), _db), _preps)
     phrase_resolver.resolve_module(ast2)
 
@@ -862,8 +920,8 @@ def _is_struct_creation(node, type_name):
 
 
 def test_struct_creation_top_level_in_assignment(resolve):
-    # `nowy Użytkownik z nazwą "Anna"` jako RHS
-    ast = resolve('aby działać:\n    wynik to nowy Użytkownik z nazwą "Anna"\n')
+    # `nowy Użytkownik o nazwie "Anna"` jako RHS — explicit value przez `o + loc`.
+    ast = resolve('aby działać:\n    wynik to nowy Użytkownik o nazwie "Anna"\n')
     a = _func_def(ast).body[0]
     assert isinstance(a, parser_mod.Assignment)
     sc = _is_struct_creation(a.value, ("użytkownik",))
@@ -886,10 +944,11 @@ def test_struct_creation_shorthand_two_fields(resolve):
 
 
 def test_struct_creation_nested(resolve):
-    # `nowy Komentarz z autorem nowy Użytkownik z nazwą "P"`
+    # `nowy Komentarz o autorze nowy Użytkownik o nazwie "P"` — zagnieżdżony
+    # struct z explicit fields.
     ast = resolve(
         'aby działać:\n'
-        '    wynik to nowy Komentarz z autorem nowy Użytkownik z nazwą "P"\n'
+        '    wynik to nowy Komentarz o autorze nowy Użytkownik o nazwie "P"\n'
     )
     a = _func_def(ast).body[0]
     sc = _is_struct_creation(a.value, ("komentarz",))
@@ -905,8 +964,8 @@ def test_struct_creation_nested(resolve):
 
 
 def test_struct_creation_as_function_call_arg(resolve):
-    # `zapisz nowego Komentarza z treścią "x"` — struct_creation w roli arga function_call
-    ast = resolve('aby działać:\n    zapisz nowego Komentarza z treścią "x"\n')
+    # `zapisz nowego Komentarza o treści "x"` — struct_creation w roli arga function_call
+    ast = resolve('aby działać:\n    zapisz nowego Komentarza o treści "x"\n')
     p = _first_phrase(ast)
     fc = p.resolved_phrase
     assert isinstance(fc, phrase_resolver.FunctionCall)
@@ -920,10 +979,12 @@ def test_struct_creation_as_function_call_arg(resolve):
 
 
 def test_struct_creation_with_function_call_value(resolve):
-    # `nowy Użytkownik z nazwą weź_nazwę_z_bazy o identyfikatorze` — sub-function-call jako wartość
+    # `nowy Użytkownik o nazwie weź_nazwę_z_bazy o identyfikatorze` — sub-function-call
+    # jako wartość. `weź_nazwę_z_bazy` ma w sygnaturze `o identyfikatorze`, więc
+    # absorbuje token mimo, że `identyfikator` jest też polem `Użytkownik`.
     ast = resolve(
         'aby działać:\n'
-        '    nowy Użytkownik z nazwą weź_nazwę_z_bazy o identyfikatorze\n'
+        '    nowy Użytkownik o nazwie weź_nazwę_z_bazy o identyfikatorze\n'
     )
     p = _first_phrase(ast)
     sc = _is_struct_creation(p, ("użytkownik",))
@@ -942,12 +1003,12 @@ def test_struct_creation_with_function_call_value(resolve):
 
 def test_struct_creation_duplicate_field_propagates_up(resolve):
     # Innermost (Użytkownik) ma identyfikator; outer (Komentarz) też.
-    # Pierwsze "z identyfikatorem 1" → Użytkownik. Drugie "z identyfikatorem 2" →
+    # Pierwsze "o identyfikatorze 1" → Użytkownik. Drugie "o identyfikatorze 2" →
     # Użytkownik już ma → zamknij Użytkownik, propaguj do Komentarza.
     ast = resolve(
         'aby działać:\n'
-        '    wynik to nowy Komentarz z autorem nowy Użytkownik '
-        'z identyfikatorem 1 z identyfikatorem 2\n'
+        '    wynik to nowy Komentarz o autorze nowy Użytkownik '
+        'o identyfikatorze 1 o identyfikatorze 2\n'
     )
     a = _func_def(ast).body[0]
     sc = _is_struct_creation(a.value, ("komentarz",))
@@ -966,13 +1027,13 @@ def test_struct_creation_duplicate_field_propagates_up(resolve):
 
 
 def test_struct_creation_inner_fn_swallows_non_field_z_arg(resolve):
-    # `nowy Komentarz z autorem weź_z_bazy z bazy z treścią "x"`
-    # `weź_z_bazy` startuje sub-function-call (czasownik). Boundary przy `z X`:
-    # baza nie jest fieldem Komentarza → sub-call je pochłania.
-    # treść jest fieldem Komentarza → boundary, sub-call się kończy, struct_arg.
+    # `nowy Komentarz o autorze weź_z_bazy z bazy o treści "x"`
+    # `weź_z_bazy` ma w sygnaturze `z bazy` → absorbuje. `o treści` to pole
+    # `Komentarza` i nie pasuje do żadnego slotu `weź_z_bazy` → sub-call kończy się,
+    # token wpada do otaczającego struktu jako struct_arg.
     ast = resolve(
         'aby działać:\n'
-        '    nowy Komentarz z autorem weź_z_bazy z bazy z treścią "x"\n'
+        '    nowy Komentarz o autorze weź_z_bazy z bazy o treści "x"\n'
     )
     p = _first_phrase(ast)
     sc = _is_struct_creation(p, ("komentarz",))
@@ -992,8 +1053,8 @@ def test_struct_creation_inner_fn_swallows_non_field_z_arg(resolve):
 
 
 def test_struct_creation_with_chain_value(resolve):
-    # `nowy Komentarz z autorem autora postu` — chain jako wartość pola
-    ast = resolve('aby działać:\n    nowy Komentarz z autorem autora postu\n')
+    # `nowy Komentarz o autorze autora postu` — chain jako wartość pola
+    ast = resolve('aby działać:\n    nowy Komentarz o autorze autora postu\n')
     p = _first_phrase(ast)
     sc = _is_struct_creation(p, ("komentarz",))
     assert len(sc.args) == 1
@@ -1005,8 +1066,8 @@ def test_struct_creation_with_chain_value(resolve):
 
 
 def test_struct_creation_accusative_animate(resolve):
-    # `zapisz nowego Komentarza z treścią "x"` — biernik żywotnopodobny
-    ast = resolve('aby działać:\n    zapisz nowego Komentarza z treścią "x"\n')
+    # `zapisz nowego Komentarza o treści "x"` — biernik żywotnopodobny
+    ast = resolve('aby działać:\n    zapisz nowego Komentarza o treści "x"\n')
     p = _first_phrase(ast)
     fc = p.resolved_phrase
     assert isinstance(fc, phrase_resolver.FunctionCall)
@@ -1016,8 +1077,8 @@ def test_struct_creation_accusative_animate(resolve):
 
 
 def test_struct_creation_accusative_inanimate(resolve):
-    # `zapisz nowy Komentarz z treścią "x"` — biernik nieżywotny (= mianownik)
-    ast = resolve('aby działać:\n    zapisz nowy Komentarz z treścią "x"\n')
+    # `zapisz nowy Komentarz o treści "x"` — biernik nieżywotny (= mianownik)
+    ast = resolve('aby działać:\n    zapisz nowy Komentarz o treści "x"\n')
     p = _first_phrase(ast)
     fc = p.resolved_phrase
     assert isinstance(fc, phrase_resolver.FunctionCall)
@@ -1029,25 +1090,25 @@ def test_struct_creation_accusative_inanimate(resolve):
 # ---------- Negatywne ----------
 
 def test_struct_creation_no_type_after_nowy(resolve):
-    # `nowy z imieniem "Piotr"` — `z imieniem` ma prep, nie jest type_word.
+    # `nowy o imieniu "Piotr"` — `o imieniu` ma prep, nie jest type_word.
     # Nie wchodzi w struct_creation, fall-through do function_call, `nowy` to adj
     # bez czasownika → FunctionIdentifierError.
     with pytest.raises(parser_mod.FunctionIdentifierError):
-        resolve('aby działać:\n    nowy z imieniem "Piotr"\n')
+        resolve('aby działać:\n    nowy o imieniu "Piotr"\n')
 
 
 def test_struct_creation_unknown_type(resolve):
     # `Pies` nie jest typem w module — nie wchodzi w struct_creation,
     # fall-through, `nowy` adj bez czasownika → FunctionIdentifierError.
     with pytest.raises(parser_mod.FunctionIdentifierError):
-        resolve('aby działać:\n    nowy Pies z imieniem "Reks"\n')
+        resolve('aby działać:\n    nowy Pies o imieniu "Reks"\n')
 
 
 def test_struct_creation_field_not_of_struct(resolve):
-    # `z bazą` — baza nie jest fieldem Komentarza, struct_creation się kończy
+    # `o bazie` — baza nie jest fieldem Komentarza, struct_creation się kończy
     # po `nowy Komentarz`, dalsze tokeny nie skonsumowane → ResolveError.
     with pytest.raises(phrase_resolver.ResolveError):
-        resolve('aby działać:\n    nowy Komentarz z bazą "x"\n')
+        resolve('aby działać:\n    nowy Komentarz o bazie "x"\n')
 
 
 def test_struct_creation_case_mismatch(resolve):
@@ -1055,5 +1116,82 @@ def test_struct_creation_case_mismatch(resolve):
     # _starts_struct_creation False → fall-through → function_call → nowy nie verb.
     with pytest.raises(parser_mod.FunctionIdentifierError):
         resolve('aby działać:\n    nowy Użytkownikowi\n')
+
+
+# ---------- Nowe testy: o + loc, signature-aware function call ----------
+
+def test_struct_creation_explicit_without_value_raises(resolve):
+    # `o imieniu` to explicit struct arg — wymaga wartości po nim. Brak → ResolveError.
+    with pytest.raises(phrase_resolver.ResolveError):
+        resolve('aby działać:\n    nowy Użytkownik o imieniu\n')
+
+
+def test_struct_creation_mixed_explicit_and_shorthand(resolve):
+    # `o imieniu "M"` to explicit, `z identyfikatorem` to shorthand — w jednym strukcie.
+    ast = resolve('aby działać:\n    nowy Użytkownik o imieniu "M" z identyfikatorem\n')
+    p = _first_phrase(ast)
+    sc = _is_struct_creation(p, ("użytkownik",))
+    assert len(sc.args) == 2
+    assert sc.args[0].field_name == ("imię",)
+    assert isinstance(sc.args[0].value, parser_mod.Word)
+    assert isinstance(sc.args[0].value.value, parser_mod.StrLit)
+    assert sc.args[0].value.value.value == "M"
+    assert sc.args[1].field_name == ("identyfikator",)
+    assert sc.args[1].value is None  # shorthand
+
+
+def test_function_call_signature_absorbs_o_loc_field(resolve):
+    # Funkcja `weź_nazwę_z_bazy` ma w sygnaturze `o identyfikatorze`. Choć
+    # `identyfikator` jest też polem `Użytkownik`, fn ma priorytet — absorbuje.
+    ast = resolve(
+        'aby działać:\n'
+        '    nowy Użytkownik o nazwie weź_nazwę_z_bazy o identyfikatorze\n'
+    )
+    p = _first_phrase(ast)
+    sc = _is_struct_creation(p, ("użytkownik",))
+    assert len(sc.args) == 1
+    arg = sc.args[0]
+    assert arg.field_name == ("nazwa",)
+    inner_fc = arg.value
+    assert isinstance(inner_fc, phrase_resolver.FunctionCall)
+    assert inner_fc.name.segments == ("wziąć", "nazwa", "z", "baza")
+    assert len(inner_fc.params) == 1
+    assert inner_fc.params[0].prep == ("o",)
+    assert inner_fc.params[0].value.segments == ("identyfikator",)
+
+
+def test_function_call_signature_does_not_absorb_mismatched_prep(resolve):
+    # Lokalna fn `przefiltrować` ma w sygnaturze `dla identyfikatora` (prep=dla).
+    # Wywołanie podaje `o identyfikatorze` (prep=o) — brak matchu po prep →
+    # fn kończy z 0 paramów, a `o identyfikatorze` wpada do otaczającego struktu
+    # jako explicit (`x` to wartość pola `identyfikator`).
+    src = (
+        "aby przefiltrować dla identyfikatora:\n"
+        "    zwrócić\n"
+        "\n"
+        "aby działać:\n"
+        '    nowy Użytkownik o nazwie przefiltruj o identyfikatorze "x"\n'
+    )
+    ast = resolve(src, with_functions=False)
+    p = _first_phrase(ast)
+    sc = _is_struct_creation(p, ("użytkownik",))
+    assert len(sc.args) == 2
+    # 1) o nazwie: value to FunctionCall(przefiltrować, [])
+    assert sc.args[0].field_name == ("nazwa",)
+    inner_fc = sc.args[0].value
+    assert isinstance(inner_fc, phrase_resolver.FunctionCall)
+    assert inner_fc.name.segments == ("przefiltrować",)
+    assert len(inner_fc.params) == 0
+    # 2) o identyfikatorze "x": explicit struct arg
+    assert sc.args[1].field_name == ("identyfikator",)
+    assert isinstance(sc.args[1].value, parser_mod.Word)
+    assert isinstance(sc.args[1].value.value, parser_mod.StrLit)
+    assert sc.args[1].value.value.value == "x"
+
+
+def test_unknown_function_raises(resolve):
+    # `wziąć_z_chmurki` nie jest zdefiniowana → ResolveError.
+    with pytest.raises(phrase_resolver.ResolveError):
+        resolve('aby działać:\n    wziąć_z_chmurki o identyfikatorze\n')
 
 
