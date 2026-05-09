@@ -58,19 +58,13 @@ STRUCTS = (
 
 
 # Funkcje wymagane przez resolver (każde wywołanie musi mieć definicję).
-# `pisać` i `zapisać` mają „uniwersalne" sygnatury: 3 sloty no-prep + slot
-# dla każdego standardowego przyimka. Nazwy parametrów to pojedyncze litery
-# spoza listy preps SGJP (np. `a`, `o`, `u`, `w`, `z` byłyby zinterpretowane
-# jako prep, więc zaczynamy od `b`). Dla nich _validate_identifier_case zwraca
-# None, dzięki czemu dopasowanie po (prep, case) działa permisywnie.
+# `pisać`/`zapisać` MUSZĄ mieć dokładnie tyle paramów, ile dany test podaje
+# w call site (signature-aware fn-call walidates arity). Universal sig się
+# nie sprawdza — zamiast tego każdy test wstawia inline def przez `_pisać_sig`
+# / `_zapisać_sig` pasującą do swojego wywołania. FUNCTIONS prelude trzyma
+# tylko fns o stałej arity, używane spójnie w testach.
 FUNCTIONS = (
     "aby pracować:\n"
-    "    zwrócić\n"
-    "\n"
-    "aby pisać b c d od e dla f do g w h na i przez j z k o l po m:\n"
-    "    zwrócić\n"
-    "\n"
-    "aby zapisać b c d od e dla f do g w h na i przez j z k o l po m:\n"
     "    zwrócić\n"
     "\n"
     "aby wziąć_z_bazy z bazy:\n"
@@ -95,6 +89,17 @@ FUNCTIONS = (
     "    zwrócić\n"
     "\n"
 )
+
+
+def _pisać_sig(*params):
+    """Inline def `aby pisać <params>:` — testy używają per-arity."""
+    suffix = " " + " ".join(params) if params else ""
+    return f"aby pisać{suffix}:\n    zwrócić\n\n"
+
+
+def _zapisać_sig(*params):
+    suffix = " " + " ".join(params) if params else ""
+    return f"aby zapisać{suffix}:\n    zwrócić\n\n"
 
 
 @pytest.fixture
@@ -215,7 +220,7 @@ def test_single_word_phrase_is_empty_call(resolve):
 
 def test_call_with_one_non_gen_arg(resolve):
     # `pisz tekstem` — tekstem ma case={inst}, brak chaina
-    ast = resolve("aby działać:\n    pisz tekstem\n")
+    ast = resolve(_pisać_sig("b") + "aby działać:\n    pisz tekstem\n")
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=1)
     assert isinstance(fc.params[0], parser_mod.Word)
@@ -223,17 +228,18 @@ def test_call_with_one_non_gen_arg(resolve):
 
 
 def test_call_with_prep_args(resolve):
-    # `zapisz w bazie nowego` — `nowy` to nie field; oba argi to plain Wordy.
-    # Params są w slot-order def `zapisać b c d od e dla f do g w h ...`:
-    # slot 0 (b, no-prep) ← `nowego`, slot 6 (w h) ← `w bazie`.
-    ast = resolve("aby działać:\n    zapisz w bazie nowego\n")
+    # `zapisz w bazie nowego` — `nowy` to nie field; sig: `aby zapisać x w y:`
+    # → slot 0 (no-prep) ← `nowego`, slot 1 (w) ← `w bazie`.
+    ast = resolve(
+        _zapisać_sig("b", "w", "c") + "aby działać:\n    zapisz w bazie nowego\n"
+    )
     p = _first_phrase(ast)
     fc = _is_call(p, ("zapisać",), n_params=2)
     # Slot 0: no-prep, `nowego`.
     assert isinstance(fc.params[0], parser_mod.Word)
     assert fc.params[0].prep is None
     assert fc.params[0].value.segments == ("nowy",)
-    # Slot 6: prep=w, `bazie`.
+    # Slot 1: prep=w, `bazie`.
     assert isinstance(fc.params[1], parser_mod.Word)
     assert fc.params[1].prep == ("w",)
     assert fc.params[1].value.segments == ("baza",)
@@ -241,7 +247,7 @@ def test_call_with_prep_args(resolve):
 
 def test_genitive_arg_when_prev_word_is_not_a_field(resolve):
     # `pisz autora` — `pisz` (head) nie jest fieldem → autora staje się zwykłym argumentem
-    ast = resolve("aby działać:\n    pisz autora\n")
+    ast = resolve(_pisać_sig("b") + "aby działać:\n    pisz autora\n")
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=1)
     assert isinstance(fc.params[0], parser_mod.Word)
@@ -250,7 +256,9 @@ def test_genitive_arg_when_prev_word_is_not_a_field(resolve):
 
 def test_genitive_with_preposition_does_not_start_chain(resolve):
     # `pisz nazwa od użytkownika` — `od użytkownika` ma prep, więc nie startuje chaina
-    ast = resolve("aby działać:\n    pisz nazwa od użytkownika\n")
+    ast = resolve(
+        _pisać_sig("b", "od", "c") + "aby działać:\n    pisz nazwa od użytkownika\n"
+    )
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=2)
     assert all(isinstance(par, parser_mod.Word) for par in fc.params)
@@ -308,7 +316,9 @@ def test_chain_does_not_extend_past_non_field_base(resolve):
     # `pisz autora obiektu komentarza` — chain startuje przy `autora`/`obiektu`
     # (`autor` jest fieldem), ale `obiekt` nie jest fieldem, więc rozszerzenie
     # o `komentarza` jest odrzucone — `komentarza` ląduje jako osobny arg.
-    ast = resolve("aby działać:\n    pisz autora obiektu komentarza\n")
+    ast = resolve(
+        _pisać_sig("b", "c") + "aby działać:\n    pisz autora obiektu komentarza\n"
+    )
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=2)
     assert isinstance(fc.params[0], phrase_resolver.GetterChain)
@@ -336,7 +346,7 @@ def test_chain_link_check_per_step_with_field_head_is_error(resolve):
 def test_bare_chain_collapse_predicate_uses_identity(resolve):
     # Zwijanie do GetterChain uruchamia się tylko gdy chain[0] is words[0].
     # `pisz nazwa użytkownika` — chain[0] to nazwa (words[1]), NIE pisz (words[0])
-    ast = resolve("aby działać:\n    pisz nazwa użytkownika\n")
+    ast = resolve(_pisać_sig("b") + "aby działać:\n    pisz nazwa użytkownika\n")
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=1)
     assert isinstance(fc.params[0], phrase_resolver.GetterChain)
@@ -349,7 +359,7 @@ def test_bare_chain_collapse_predicate_uses_identity(resolve):
 
 def test_chain_at_end_of_call(resolve):
     # `pisz imię autora komentarza` → FunctionCall(pisz, [chain])
-    ast = resolve("aby działać:\n    pisz imię autora komentarza\n")
+    ast = resolve(_pisać_sig("b") + "aby działać:\n    pisz imię autora komentarza\n")
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=1)
     assert _chain_segments(fc.params[0]) == [
@@ -365,7 +375,9 @@ def test_field_head_with_chain_and_more_args_is_error(resolve):
 
 def test_chain_in_the_middle(resolve):
     # `pisz nazwa użytkownika tekstem` — chain między argumentami
-    ast = resolve("aby działać:\n    pisz nazwa użytkownika tekstem\n")
+    ast = resolve(
+        _pisać_sig("b", "c") + "aby działać:\n    pisz nazwa użytkownika tekstem\n"
+    )
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=2)
     assert isinstance(fc.params[0], phrase_resolver.GetterChain)
@@ -376,7 +388,9 @@ def test_chain_in_the_middle(resolve):
 
 def test_arg_then_chain_at_end(resolve):
     # `pisz tekstem nazwa użytkownika` — najpierw arg, potem chain
-    ast = resolve("aby działać:\n    pisz tekstem nazwa użytkownika\n")
+    ast = resolve(
+        _pisać_sig("b", "c") + "aby działać:\n    pisz tekstem nazwa użytkownika\n"
+    )
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=2)
     assert isinstance(fc.params[0], parser_mod.Word)
@@ -387,7 +401,9 @@ def test_arg_then_chain_at_end(resolve):
 
 def test_chain_followed_by_prep_arg(resolve):
     # `pisz nazwa użytkownika z bazy` — chain kończy się gdy następne słowo ma prep
-    ast = resolve("aby działać:\n    pisz nazwa użytkownika z bazy\n")
+    ast = resolve(
+        _pisać_sig("b", "z", "c") + "aby działać:\n    pisz nazwa użytkownika z bazy\n"
+    )
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=2)
     assert isinstance(fc.params[0], phrase_resolver.GetterChain)
@@ -402,7 +418,10 @@ def test_chain_followed_by_prep_arg(resolve):
 
 def test_two_chains_back_to_back(resolve):
     # `pisz imię autora komentarza nazwa użytkownika` — dwa łańcuchy stykające się
-    ast = resolve("aby działać:\n    pisz imię autora komentarza nazwa użytkownika\n")
+    ast = resolve(
+        _pisać_sig("b", "c")
+        + "aby działać:\n    pisz imię autora komentarza nazwa użytkownika\n"
+    )
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=2)
     assert _chain_segments(fc.params[0]) == [
@@ -413,7 +432,10 @@ def test_two_chains_back_to_back(resolve):
 
 def test_two_chains_with_arg_between(resolve):
     # `pisz nazwa użytkownika tekstem imię autora komentarza`
-    ast = resolve("aby działać:\n    pisz nazwa użytkownika tekstem imię autora komentarza\n")
+    ast = resolve(
+        _pisać_sig("b", "c", "d")
+        + "aby działać:\n    pisz nazwa użytkownika tekstem imię autora komentarza\n"
+    )
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=3)
     assert _chain_segments(fc.params[0]) == [("nazwa",), ("użytkownik",)]
@@ -427,8 +449,9 @@ def test_two_chains_with_arg_between(resolve):
 def test_three_chains_in_one_phrase(resolve):
     # `pisz nazwa użytkownika imię autora komentarza identyfikator postu`
     ast = resolve(
-        "aby działać:\n"
-        "    pisz nazwa użytkownika imię autora komentarza identyfikator postu\n"
+        _pisać_sig("b", "c", "d")
+        + "aby działać:\n"
+        + "    pisz nazwa użytkownika imię autora komentarza identyfikator postu\n"
     )
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=3)
@@ -579,7 +602,9 @@ def test_chain_inside_unary_minus(resolve):
 
 def test_chain_inside_parens(resolve):
     # `pisz (imię autora komentarza)` — wewnętrzna fraza zwija się do GetterChain
-    ast = resolve("aby działać:\n    pisz (imię autora komentarza)\n")
+    ast = resolve(
+        _pisać_sig("b") + "aby działać:\n    pisz (imię autora komentarza)\n"
+    )
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=1)
     inner_word = fc.params[0]
@@ -592,7 +617,10 @@ def test_chain_inside_parens(resolve):
 
 def test_chain_in_outer_phrase_arg_position_with_inner_resolved_chain(resolve):
     # `pisz tekstem (nazwa użytkownika)` — wewnętrzna fraza GetterChain, zewnętrzna FunctionCall
-    ast = resolve("aby działać:\n    pisz tekstem (nazwa użytkownika)\n")
+    ast = resolve(
+        _pisać_sig("b", "c")
+        + "aby działać:\n    pisz tekstem (nazwa użytkownika)\n"
+    )
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=2)
     assert isinstance(fc.params[0], parser_mod.Word)
@@ -629,7 +657,9 @@ def test_prep_identifier_can_be_field_check_target(resolve):
     # `pisz dla użytkownika sesji` — words[1]=dla użytkownika (prep), words[2]=sesji (gen)
     # is_a_field(użytkownik) → True → chain=[dla użytkownika, sesji]
     # Chain[0] ma prep="dla". Cały chain jest jednym argumentem fukcji `pisz`.
-    ast = resolve("aby działać:\n    pisz dla użytkownika sesji\n")
+    ast = resolve(
+        _pisać_sig("dla", "b") + "aby działać:\n    pisz dla użytkownika sesji\n"
+    )
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=1)
     chain = fc.params[0]
@@ -646,7 +676,10 @@ def test_prep_identifier_can_be_field_check_target(resolve):
 def test_chain_pops_correct_param_when_starting_after_other_args(resolve):
     # `pisz tekstem mocnym nazwa użytkownika`
     # Resolver ma popnąć tylko `nazwa` z params, NIE wcześniejszych argów.
-    ast = resolve("aby działać:\n    pisz tekstem mocnym nazwa użytkownika\n")
+    ast = resolve(
+        _pisać_sig("b", "c", "d")
+        + "aby działać:\n    pisz tekstem mocnym nazwa użytkownika\n"
+    )
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=3)
     assert isinstance(fc.params[0], parser_mod.Word) and fc.params[0].value.segments == ("tekst",)
@@ -720,7 +753,10 @@ def test_BUG_chain_followed_by_string_literal_keeps_source_order(resolve):
             ret.params.append(GetterChain(...))   # ← dopiero potem chain
     Powinno być odwrotnie: najpierw zwinąć chain, potem dopisać literał.
     """
-    ast = resolve('aby działać:\n    pisz nazwa użytkownika "etykieta"\n')
+    ast = resolve(
+        _pisać_sig("b", "c")
+        + 'aby działać:\n    pisz nazwa użytkownika "etykieta"\n'
+    )
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=2)
     assert isinstance(fc.params[0], phrase_resolver.GetterChain), (
@@ -733,7 +769,9 @@ def test_BUG_chain_followed_by_string_literal_keeps_source_order(resolve):
 
 def test_BUG_chain_followed_by_int_literal_keeps_source_order(resolve):
     """Wariant Buga #1 z literałem liczbowym."""
-    ast = resolve("aby działać:\n    pisz nazwa użytkownika 42\n")
+    ast = resolve(
+        _pisać_sig("b", "c") + "aby działać:\n    pisz nazwa użytkownika 42\n"
+    )
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=2)
     assert isinstance(fc.params[0], phrase_resolver.GetterChain), (
@@ -744,7 +782,9 @@ def test_BUG_chain_followed_by_int_literal_keeps_source_order(resolve):
 
 def test_BUG_chain_followed_by_paren_phrase_keeps_source_order(resolve):
     """Wariant Buga #1 z subfrazą w nawiasach."""
-    ast = resolve("aby działać:\n    pisz nazwa użytkownika (1 + 2)\n")
+    ast = resolve(
+        _pisać_sig("b", "c") + "aby działać:\n    pisz nazwa użytkownika (1 + 2)\n"
+    )
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=2)
     assert isinstance(fc.params[0], phrase_resolver.GetterChain), (
@@ -760,7 +800,7 @@ def test_BUG_is_a_field_crashes_on_string_literal_predecessor(resolve):
     Dla StrLit (czy IntLit) brak atrybutu .segments → AttributeError.
     """
     # Sama próba resolvowania powinna nie crashować.
-    ast = resolve('aby działać:\n    pisz "x" autora\n')
+    ast = resolve(_pisać_sig("b", "c") + 'aby działać:\n    pisz "x" autora\n')
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=2)
     # `autora` powinno być zwykłym argumentem (StrLit nie jest fieldem)
@@ -770,7 +810,7 @@ def test_BUG_is_a_field_crashes_on_string_literal_predecessor(resolve):
 
 def test_BUG_is_a_field_crashes_on_int_literal_predecessor(resolve):
     """Wariant Buga #2 — IntLit zamiast StrLit."""
-    ast = resolve("aby działać:\n    pisz 42 autora\n")
+    ast = resolve(_pisać_sig("b", "c") + "aby działać:\n    pisz 42 autora\n")
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=2)
     assert isinstance(fc.params[1], parser_mod.Word)
@@ -779,7 +819,7 @@ def test_BUG_is_a_field_crashes_on_int_literal_predecessor(resolve):
 
 def test_BUG_is_a_field_crashes_on_paren_phrase_predecessor(resolve):
     """Wariant Buga #2 — sub-Phrase w nawiasach."""
-    ast = resolve("aby działać:\n    pisz (1 + 2) autora\n")
+    ast = resolve(_pisać_sig("b", "c") + "aby działać:\n    pisz (1 + 2) autora\n")
     p = _first_phrase(ast)
     fc = _is_call(p, ("pisać",), n_params=2)
     assert isinstance(fc.params[1], parser_mod.Word)
@@ -804,8 +844,10 @@ def test_BUG_resolve_module_does_not_leak_fields_across_calls(_db, _preps):
 
     # Moduł 2 — bez structów. resolve_module powinien zacząć ze świeżą listą fields.
     # `pisać` wymaga definicji (signature-aware fn-call) — dorzucamy stub.
+    # W module 2 brak structów → "nazwa" nie jest fieldem → chain się nie tworzy.
+    # Call `pisz nazwa użytkownika` ma więc 2 osobne argi (Word, Word).
     text2 = (
-        "aby pisać b c d:\n"
+        "aby pisać b c:\n"
         "    zwrócić\n"
         "\n"
         "aby testować:\n"
@@ -857,7 +899,7 @@ def test_func_call_opaque_name_rejected(resolve):
 
 def test_function_identifier_carries_verb_form(resolve):
     # `pisz` to impt:sg:sec:imperf
-    ast = resolve("aby działać:\n    pisz\n")
+    ast = resolve(_pisać_sig() + "aby działać:\n    pisz\n")
     fc = _first_phrase(ast).resolved_phrase
     assert isinstance(fc, phrase_resolver.FunctionCall)
     assert isinstance(fc.name, parser_mod.FunctionIdentifier)
@@ -970,7 +1012,10 @@ def test_struct_creation_nested(resolve):
 
 def test_struct_creation_as_function_call_arg(resolve):
     # `zapisz nowego Komentarza o treści "x"` — struct_creation w roli arga function_call
-    ast = resolve('aby działać:\n    zapisz nowego Komentarza o treści "x"\n')
+    ast = resolve(
+        _zapisać_sig("b")
+        + 'aby działać:\n    zapisz nowego Komentarza o treści "x"\n'
+    )
     p = _first_phrase(ast)
     fc = p.resolved_phrase
     assert isinstance(fc, phrase_resolver.FunctionCall)
@@ -1072,7 +1117,10 @@ def test_struct_creation_with_chain_value(resolve):
 
 def test_struct_creation_accusative_animate(resolve):
     # `zapisz nowego Komentarza o treści "x"` — biernik żywotnopodobny
-    ast = resolve('aby działać:\n    zapisz nowego Komentarza o treści "x"\n')
+    ast = resolve(
+        _zapisać_sig("b")
+        + 'aby działać:\n    zapisz nowego Komentarza o treści "x"\n'
+    )
     p = _first_phrase(ast)
     fc = p.resolved_phrase
     assert isinstance(fc, phrase_resolver.FunctionCall)
@@ -1083,7 +1131,10 @@ def test_struct_creation_accusative_animate(resolve):
 
 def test_struct_creation_accusative_inanimate(resolve):
     # `zapisz nowy Komentarz o treści "x"` — biernik nieżywotny (= mianownik)
-    ast = resolve('aby działać:\n    zapisz nowy Komentarz o treści "x"\n')
+    ast = resolve(
+        _zapisać_sig("b")
+        + 'aby działać:\n    zapisz nowy Komentarz o treści "x"\n'
+    )
     p = _first_phrase(ast)
     fc = p.resolved_phrase
     assert isinstance(fc, phrase_resolver.FunctionCall)
@@ -1167,9 +1218,9 @@ def test_function_call_signature_absorbs_o_loc_field(resolve):
 
 def test_function_call_signature_does_not_absorb_mismatched_prep(resolve):
     # Lokalna fn `przefiltrować` ma w sygnaturze `dla identyfikatora` (prep=dla).
-    # Wywołanie podaje `o identyfikatorze` (prep=o) — brak matchu po prep →
-    # fn kończy z 0 paramów, a `o identyfikatorze` wpada do otaczającego struktu
-    # jako explicit (`x` to wartość pola `identyfikator`).
+    # Wywołanie chce dać jej `o identyfikatorze` (prep=o) — brak matchu po prep,
+    # i case'y też się nie zgadzają (loc vs gen). Pozycyjny fallback nie pomoże,
+    # bo argument nie pasuje do żadnego wolnego slotu. Strict validation: error.
     src = (
         "aby przefiltrować dla identyfikatora:\n"
         "    zwrócić\n"
@@ -1177,21 +1228,8 @@ def test_function_call_signature_does_not_absorb_mismatched_prep(resolve):
         "aby działać:\n"
         '    nowy Użytkownik o nazwie przefiltruj o identyfikatorze "x"\n'
     )
-    ast = resolve(src, with_functions=False)
-    p = _first_phrase(ast)
-    sc = _is_struct_creation(p, ("użytkownik",))
-    assert len(sc.args) == 2
-    # 1) o nazwie: value to FunctionCall(przefiltrować, [])
-    assert sc.args[0].field_name == ("nazwa",)
-    inner_fc = sc.args[0].value
-    assert isinstance(inner_fc, phrase_resolver.FunctionCall)
-    assert inner_fc.name.segments == ("przefiltrować",)
-    assert len(inner_fc.params) == 0
-    # 2) o identyfikatorze "x": explicit struct arg
-    assert sc.args[1].field_name == ("identyfikator",)
-    assert isinstance(sc.args[1].value, parser_mod.Word)
-    assert isinstance(sc.args[1].value.value, parser_mod.StrLit)
-    assert sc.args[1].value.value.value == "x"
+    with pytest.raises(phrase_resolver.ResolveError):
+        resolve(src, with_functions=False)
 
 
 def test_unknown_function_raises(resolve):

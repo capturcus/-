@@ -2,7 +2,7 @@ definicja Użytkownika:
 	imię (Tekst)
 	wiek (Liczba)
 
-aby zapisać b c d od e dla f do g w h na i przez j z k o l po m:
+aby zapisać w bazie nowego:
 	zwrócić
 
 aby wziąć_wiek_z_bazy po identyfikatorze_wieku:

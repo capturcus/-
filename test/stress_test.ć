@@ -26,30 +26,34 @@ definicja Sesji:
 	licznik_błędów (Liczba)
 
 
-# === Stuby funkcji wymagane przez signature-aware fn-call ===
-# Uniwersalna sygnatura: 3 sloty no-prep + 1 slot per stand. przyimek.
-# Nazwy parametrów to litery spoza listy preps SGJP (a/o/u/w/z byłyby zinterp.
-# jako prep).
+# === Stuby funkcji wymagane przez signature-aware fn-call (strict arity) ===
+# Każda funkcja ma jedną dokładną sygnaturę dopasowaną do call site.
 
-aby zapisać b c d od e dla f do g w h na i przez j z k o l po m:
+aby zapisać x:
 	zwrócić
 
-aby wypisać b c d od e dla f do g w h na i przez j z k o l po m:
+aby zapisać_w_bazie x:
 	zwrócić
 
-aby zapisać_w_bazie b c d od e dla f do g w h na i przez j z k o l po m:
+aby zapisać_log o priorytecie x:
 	zwrócić
 
-aby zapisać_log b c d od e dla f do g w h na i przez j z k o l po m:
+aby zapisać_pole x:
 	zwrócić
 
-aby zapisać_pole b c d od e dla f do g w h na i przez j z k o l po m:
+aby zapisać_finalne x:
 	zwrócić
 
-aby zapisać_finalne b c d od e dla f do g w h na i przez j z k o l po m:
+aby zapisać_iter x:
 	zwrócić
 
-aby zapisać_iter b c d od e dla f do g w h na i przez j z k o l po m:
+aby wypisać_jeden x:
+	zwrócić
+
+aby wypisać_dla dla x:
+	zwrócić
+
+aby wypisać_dwa x y:
 	zwrócić
 
 aby wziąć_użytkownika_z_bazy o identyfikatorze:
@@ -58,11 +62,11 @@ aby wziąć_użytkownika_z_bazy o identyfikatorze:
 # `złóż_komunikat` w wywołaniu kanonikalizuje się do ('złoże','komunikat'),
 # bo morph_anal.canonical preferuje POS subst nad verb. Definiujemy w tej samej
 # formie powierzchniowej.
-aby złóż_komunikat b c d od e dla f do g w h na i przez j z k o l po m:
+aby złóż_komunikat z opcjami:
 	zwrócić
 
 
-# Pomocnicza funkcja — `zwrócić` bez wartości oraz pojedyncze wywołania.
+# Pomocnicza funkcja — pojedyncze wywołania.
 aby zalogować_błąd komunikatem (Tekst):
 	zapisz komunikatem
 	zwrócić
@@ -131,30 +135,26 @@ aby przetestować_język sesji (Sesja) z opcjami (Tekst) o identyfikatorze (Teks
 	moja_nazwa to imię użytkownika sesji
 	moje_id to identyfikator użytkownika sesji
 	moje_hasło to hasło użytkownika sesji
-	# 4-link chain (przez post.autor.imię w komentarzu — wymagałoby komentarza w scope)
-	# 5-link chain z rodzicem komentarza (rodzic field of Komentarz):
-	# imię autora rodzica rodzica komentarza — ten chain potrzebuje zmiennej `komentarz`
-	# z otoczenia, której tu nie ma; wyślemy ją przez parametr w innej funkcji.
 
-	# === function calls — różne kształty ===
+	# === function calls — różne kształty (wywołania per arity) ===
 	zapisz "rozpoczynam"
-	wypisz tekstem
-	wypisz tekstem mocnym
-	zapisz w bazie nowego_posta
-	wypisz dla użytkownika sesji
+	wypisz_jeden tekstem
+	wypisz_dwa tekstem mocnym
+	zapisz_w_bazie nowego_posta
+	wypisz_dla dla użytkownika sesji
 	zapisz_log o priorytecie wysokim
 
 	# === function call z chainem jako arg ===
-	wypisz imię autora postu
+	wypisz_jeden imię autora postu
 	zapisz_pole nazwiskiem autora postu
 
 	# === function call w nawiasach ===
 	zapisz (imię autora postu)
-	wypisz tekstem (1 + 2)
+	wypisz_dwa tekstem (1 + 2)
 
 	# === sub-function call w środku frazy (czasownik w pozycji arga) ===
 	zapisz_w_bazie weź_użytkownika_z_bazy o identyfikatorze
-	wypisz tekstem złóż_komunikat z opcjami
+	wypisz_dwa tekstem złóż_komunikat z opcjami
 
 	# === struct creation — shorthand ===
 	użytkownik_kopia to nowy Użytkownik z identyfikatorem z imieniem z nazwiskiem
@@ -176,7 +176,6 @@ aby przetestować_język sesji (Sesja) z opcjami (Tekst) o identyfikatorze (Teks
 
 	# === function call ze struct_creation jako arg ===
 	zapisz_w_bazie nowy Post o autorze użytkownikiem sesji o treści "log"
-	zapisz_w_bazie nowego_użytkownika z imieniem "Tymczasowy"
 
 	# === assignment do chaina (LHS) ===
 	liczba_polubień postu to liczba_polubień postu + 1
@@ -196,7 +195,7 @@ aby przetestować_język sesji (Sesja) z opcjami (Tekst) o identyfikatorze (Teks
 		licznik to licznik + identyfikator użytkownika sesji
 
 	# === bardzo długa fraza — function call z wieloma rzeczami ===
-	zapisz_finalne nowy Post o autorze użytkownikiem sesji o treści złóż_komunikat z opcjami o identyfikatorze o liczbie_polubień 42
+	zapisz_finalne nowy Post o autorze użytkownikiem sesji o treści złóż_komunikat z opcjami o liczbie_polubień 42
 
 	# === pętla z chainami i strukturami w środku ===
 	licznik to 0

@@ -1,7 +1,7 @@
 # Stuby funkcji wymagane przez signature-aware fn-call.
 # Uniwersalna sygnatura dla `pisać` i `zapisać_token` (w bodies wywołania
 # z różną arity): 3 sloty no-prep + slot per stand. przyimek.
-aby pisać b c d od e dla f do g w h na i przez j z k o l po m:
+aby pisać x:
     zwrócić
 
 aby weryfikować coś:
@@ -28,22 +28,22 @@ aby przekazać pakiet kanałem do odbiorcy:
 aby zapisać_token w globalnej_mapie dla użytkownika:
     zwrócić
 
-aby zalogować b c d od e dla f do g w h na i przez j z k o l po m:
+aby zalogować x hasłem:
     zwrócić
 
-aby zawierać b c d od e dla f do g w h na i przez j z k o l po m:
+aby zawierać x:
     zwrócić
 
-aby usunąć b c d od e dla f do g w h na i przez j z k o l po m:
+aby usunąć x z y:
     zwrócić
 
-aby zaktualizować b c d od e dla f do g w h na i przez j z k o l po m:
+aby zaktualizować x w bazie:
     zwrócić
 
 aby policzyć rzeczy:
     zwrócić
 
-aby zweryfikować b c d:
+aby zweryfikować x:
     zwrócić
 
 

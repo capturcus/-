@@ -2,13 +2,13 @@
 
 # === Stuby pomocniczych funkcji (signature-aware fn-call wymaga def) ===
 
-aby zapisać b c d od e dla f do g w h na i przez j z k o l po m:
+aby zapisać w bazie x:
     zwrócić
 
-aby usunąć b c d od e dla f do g w h na i przez j z k o l po m:
+aby usunąć z bazy x:
     zwrócić
 
-aby stworzyć_błąd b c d od e dla f do g w h na i przez j z k o l po m:
+aby stworzyć_błąd komunikatem:
     zwrócić
 
 aby stworzyć_użytkownika z nazwą (Tekst) z emailem (Tekst) z hasłem (Tekst):
@@ -34,7 +34,7 @@ aby wygenerować_id:
 aby znajdź_użytkownika z emailem (Tekst):
     zwrócić
 
-aby znajdź_obserwację obserwatora (Użytkownik) użytkownika (Użytkownik):
+aby znajdź_obserwację obserwatora (Użytkownik) przez użytkownika (Użytkownik):
     zwrócić
 
 aby znajdź_obserwowanych użytkownika (Użytkownik):
@@ -170,7 +170,7 @@ aby usuń_komentarz komentarz (Komentarz) w sesji (Sesja):
 # === Obserwacje ===
 
 aby zacząć_obserwować użytkownika (Użytkownik) przez obserwatora (Użytkownik):
-    jeśli już_obserwuje obserwatora użytkownika:
+    jeśli już_obserwuje obserwatora przez użytkownika:
         zwróć stwórz_błąd "już obserwujesz"
     jeśli identyfikator obserwatora = identyfikator użytkownika:
         zwróć stwórz_błąd "nie można obserwować siebie"
@@ -180,15 +180,15 @@ aby zacząć_obserwować użytkownika (Użytkownik) przez obserwatora (Użytkown
 
 
 aby przestań_obserwować użytkownika (Użytkownik) przez obserwatora (Użytkownik):
-    obserwacja to znajdź_obserwację obserwatora użytkownika
+    obserwacja to znajdź_obserwację obserwatora przez użytkownika
     jeśli obserwacja = pusty:
         zwróć stwórz_błąd "nie obserwujesz"
     usuń z bazy obserwację
     liczba_obserwujących użytkownika to liczba_obserwujących użytkownika - 1
 
 
-aby już_obserwować obserwatora (Użytkownik) użytkownika (Użytkownik) -> Przełącznik:
-    obserwacja to znajdź_obserwację obserwatora użytkownika
+aby już_obserwować obserwatora (Użytkownik) przez użytkownika (Użytkownik) -> Przełącznik:
+    obserwacja to znajdź_obserwację obserwatora przez użytkownika
     zwróć nie obserwacja = pusty
 
 

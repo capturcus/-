@@ -219,42 +219,106 @@ class PhraseResolver:
                 f"funkcja '{'_'.join(name.segments)}' nie jest zdefiniowana"
             )
         sig = tuple(fdef.params)
-        consumed = set()
-        slot_to_arg = {}
-        while not self._at_phrase_end_for_fn(sig, consumed):
-            slot = self._find_param_slot(self.peek(), sig, consumed)
-            arg = self.parse_arg()
-            # _at_phrase_end_for_fn gwarantuje slot != None gdy pętla się wykonuje.
-            slot_to_arg[slot] = arg
-            consumed.add(slot)
-        # Params w slot-order (kolejności definicji funkcji), nie w call-site order.
-        # Dzięki temu params[i] zawsze odpowiada i-temu parametrowi z definicji,
-        # niezależnie od kolejności w jakiej caller je podał.
-        params = [slot_to_arg[i] for i in sorted(slot_to_arg)]
+        n_slots = len(sig)
+        # Wczytujemy DOKŁADNIE tyle argumentów, ile sygnatura wymaga. Każde
+        # parse_arg zwraca jeden arg (Word/Chain/FunctionCall/StructCreation),
+        # nawet gdy wewnętrznie konsumuje wiele tokenów (np. sub-fn-call).
+        arg_meta = []  # (prep, case, arg_node) dla matchingu po Polish grammar
+        for _ in range(n_slots):
+            if self.peek() is None:
+                raise ResolveError(
+                    f"funkcja '{'_'.join(name.segments)}' wymaga "
+                    f"{n_slots} argumentów, otrzymała {len(arg_meta)}"
+                )
+            peek = self.peek()
+            arg_meta.append((peek.prep, self._broader_case(peek), self.parse_arg()))
+        slot_to_arg = self._match_args_to_slots(arg_meta, sig, name)
+        params = [slot_to_arg[i] for i in range(n_slots)]
         return FunctionCall(name=name, params=params)
 
-    def _at_phrase_end_for_fn(self, sig, consumed):
-        # Function-call kończy się, gdy nie ma już tokenów albo gdy żaden
-        # niezajęty slot sygnatury nie matchuje kolejnego tokenu po (prep, case).
-        # Struct-arg boundary nie jest tu już osobno sprawdzana — slot match
-        # rozstrzyga o priorytecie funkcji nad otaczającym struktem.
-        if self.peek() is None:
-            return True
-        return self._find_param_slot(self.peek(), sig, consumed) is None
+    @staticmethod
+    def _broader_case(word):
+        """Case dla matchingu — szerszy niż `word.case`.
+
+        Dwa przypadki:
+        1) Identifier jest poprawną nazwą funkcji (ma segment czasownikowy)
+           ⇒ traktujemy case jako None. Case z takiego identifier (np.
+           „też_stwórz_wartość" → adj „też") to artefakt morfologiczny, nie
+           gramatyczny przypadek wartości zwracanej przez wywołanie.
+        2) Single-seg Identifier z homonimem adj+subst (np. „samochodowi"
+           = subst dat ALBO adj nom:pl) ⇒ unia case'ów; parser zwraca tylko
+           jedno z adj-preference, ale gramatycznie obie interpretacje są
+           dopuszczalne dopóki slot funkcji nie rozstrzygnie.
+        """
+        if not isinstance(word.value, parser.Identifier):
+            return word.case
+        ident = word.value
+        try:
+            parser.FunctionIdentifier.from_head(ident)
+            return None
+        except parser.FunctionIdentifierError:
+            pass
+        if not ident.analyses or len(ident.surface) != 1:
+            return ident.case
+        anas = ident.analyses[0]
+        union = frozenset()
+        for ana in anas:
+            if ana.case and ana.pos in ("subst", "adj", "pact", "ppas"):
+                union |= ana.case
+        return union if union else ident.case
+
+    def _match_args_to_slots(self, arg_meta, sig, name):
+        """Dopasowuje argumenty do slotów sygnatury.
+
+        Algorytm dwufazowy:
+          1) Iteracyjnie przypisujemy argumenty mające JEDEN niezajęty slot
+             zgodny po (prep, case) — to disambiguacja przez polską gramatykę.
+          2) Pozostałe argumenty (niejednoznaczne, np. sub-fn-call bez case'u)
+             trafiają pozycyjnie do wolnych slotów w def-order.
+        Każdy zaakceptowany przypisanie wymaga, by slot był w candidates argumentu.
+        """
+        n_slots = len(sig)
+        candidates = [
+            {si for si, p in enumerate(sig) if self._slot_matches(prep, case, p)}
+            for prep, case, _ in arg_meta
+        ]
+        assigned = {}  # arg_idx → slot_idx
+        used = set()
+        while True:
+            progress = False
+            for ai in range(n_slots):
+                if ai in assigned:
+                    continue
+                cands = candidates[ai] - used
+                if len(cands) == 1:
+                    slot = next(iter(cands))
+                    assigned[ai] = slot
+                    used.add(slot)
+                    progress = True
+            if not progress:
+                break
+        remaining_args = [ai for ai in range(n_slots) if ai not in assigned]
+        free_slots = sorted(set(range(n_slots)) - used)
+        for ai, si in zip(remaining_args, free_slots):
+            if si not in candidates[ai]:
+                raise ResolveError(
+                    f"argument funkcji '{'_'.join(name.segments)}' "
+                    f"nie pasuje do żadnego wolnego parametru w trybie pozycyjnym"
+                )
+            assigned[ai] = si
+            used.add(si)
+        return {assigned[ai]: arg_meta[ai][2] for ai in range(n_slots)}
 
     @staticmethod
-    def _find_param_slot(token, sig, consumed):
-        tok_case = token.case
-        for i, param in enumerate(sig):
-            if i in consumed:
-                continue
-            if param.prep != token.prep:
-                continue
-            if param.case is None or tok_case is None:
-                return i
-            if param.case & tok_case:
-                return i
-        return None
+    def _slot_matches(tok_prep, tok_case, param):
+        if param.prep != tok_prep:
+            return False
+        # Brak case'u po jednej ze stron (np. sub-fn-call ma case=None,
+        # single-letter param też) — traktujemy jako kompatybilne, ostateczne
+        # rozstrzygnięcie zostawiamy pozycyjnemu fallbackowi w matcherze.
+        if param.case is None or tok_case is None:
+            return True
+        return bool(param.case & tok_case)
 
     def parse_arg(self):
         word = self.advance()
