@@ -1,9 +1,9 @@
 do zrobienia:
 
 składnia:
-konstruktor struktury
 pętla po elementach listy
-extern zewnętrznie
+extern zewnętrznie / można
+struct creation: z autorem / o autorze
 
 semantyka:
 gramatyczne resolvowanie argumentów funkcji
@@ -22,3 +22,4 @@ konkatenacja stringów
 
 tryb przypuszczający - usunąłbyś_komentarz dla usera z identyfikatorem?
 które
+kiedy
