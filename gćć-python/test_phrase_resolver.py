@@ -223,15 +223,20 @@ def test_call_with_one_non_gen_arg(resolve):
 
 
 def test_call_with_prep_args(resolve):
-    # `zapisz w bazie nowego` — prep=w, prep=None ale `nowy` to nie field
-    # field-check robi się dla poprzedniego słowa, nie chaina, tutaj nie ma popredniego field
+    # `zapisz w bazie nowego` — `nowy` to nie field; oba argi to plain Wordy.
+    # Params są w slot-order def `zapisać b c d od e dla f do g w h ...`:
+    # slot 0 (b, no-prep) ← `nowego`, slot 6 (w h) ← `w bazie`.
     ast = resolve("aby działać:\n    zapisz w bazie nowego\n")
     p = _first_phrase(ast)
     fc = _is_call(p, ("zapisać",), n_params=2)
-    assert fc.params[0].prep == ("w",)
-    # `nowego` ma gen, ale poprzednie słowo (`baza`) nie jest fieldem → arg pozycyjny
+    # Slot 0: no-prep, `nowego`.
+    assert isinstance(fc.params[0], parser_mod.Word)
+    assert fc.params[0].prep is None
+    assert fc.params[0].value.segments == ("nowy",)
+    # Slot 6: prep=w, `bazie`.
     assert isinstance(fc.params[1], parser_mod.Word)
-    assert fc.params[1].value.segments == ("nowy",)
+    assert fc.params[1].prep == ("w",)
+    assert fc.params[1].value.segments == ("baza",)
 
 
 def test_genitive_arg_when_prev_word_is_not_a_field(resolve):

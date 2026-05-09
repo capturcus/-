@@ -102,15 +102,20 @@ class PhraseResolver:
         return self._cases_overlap(word, nxt)
 
     def _starts_sub_function_call(self, word):
-        if word.prep is not None:
-            return False
+        # Prep dozwolony — przyimek opisuje slot w otaczającej funkcji,
+        # a nie zmienia faktu, że head jest nazwą funkcji. Dzięki temu
+        # `f z g z x` parsuje się jako f(g(x)), gdzie outer slot `z` jest
+        # wypełniony rezultatem zagnieżdżonego wywołania.
+        # Wymagamy, żeby funkcja była zdefiniowana — inaczej rzeczowniki
+        # z homonimicznymi formami fin (np. „nazwą" = inst rzeczownika ALBO
+        # 1.os.l.poj. „nazwać") byłyby błędnie traktowane jako wywołania.
         if not isinstance(word.value, parser.Identifier):
             return False
         try:
-            parser.FunctionIdentifier.from_head(word.value)
-            return True
+            name = parser.FunctionIdentifier.from_head(word.value)
         except parser.FunctionIdentifierError:
             return False
+        return name.segments in self.function_defs
 
     def _cases_overlap(self, nowy_word, type_word):
         nowy_cases = _adj_cases_from_analyses(nowy_word.value.analyses)
@@ -215,12 +220,17 @@ class PhraseResolver:
             )
         sig = tuple(fdef.params)
         consumed = set()
-        params = []
+        slot_to_arg = {}
         while not self._at_phrase_end_for_fn(sig, consumed):
             slot = self._find_param_slot(self.peek(), sig, consumed)
-            params.append(self.parse_arg())
-            if slot is not None:
-                consumed.add(slot)
+            arg = self.parse_arg()
+            # _at_phrase_end_for_fn gwarantuje slot != None gdy pętla się wykonuje.
+            slot_to_arg[slot] = arg
+            consumed.add(slot)
+        # Params w slot-order (kolejności definicji funkcji), nie w call-site order.
+        # Dzięki temu params[i] zawsze odpowiada i-temu parametrowi z definicji,
+        # niezależnie od kolejności w jakiej caller je podał.
+        params = [slot_to_arg[i] for i in sorted(slot_to_arg)]
         return FunctionCall(name=name, params=params)
 
     def _at_phrase_end_for_fn(self, sig, consumed):
