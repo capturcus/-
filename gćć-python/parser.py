@@ -252,6 +252,20 @@ class Parser:
 
     def _validate_identifier_case(self, tok, segments, surface, analyses_t):
         _, _, analyses = tok
+        # Jeśli któryś segment ma POS czasownikową ALE nie ma żadnej rzeczownikowej
+        # (subst/adj/pact/ppas), identyfikator MUSI być wyrażeniem czasownikowym
+        # (nazwą funkcji) — czasownik nie ma gramatycznego przypadka, więc
+        # case=None. Sam fakt obecności fin/impt/itp. nie wystarczy: wiele form
+        # rzeczowników (np. „nazwie", „post") ma homonimy fin/impt z bardzo
+        # rzadkich czasowników i NIE są to wyrażenia czasownikowe w typowym użyciu.
+        from morph_anal import VERB_POS
+        _NOUN_LIKE = {"subst", "adj", "pact", "ppas"}
+        for seg, anas in zip(surface, analyses):
+            if not anas or len(seg) == 1:
+                continue
+            poses = {a.pos for a in anas}
+            if poses & VERB_POS and not (poses & _NOUN_LIKE):
+                return None
         adj_per_seg = []
         subst_per_seg = []
         has_morph = False
@@ -277,44 +291,49 @@ class Parser:
         cases = None  # None = "brak ograniczeń" (jeszcze nic nie weszło do prefiksu)
         had_subst = False
         prefix_len = 0
+        n_segs = len(adj_per_seg)
         for i, (adj, sub) in enumerate(zip(adj_per_seg, subst_per_seg)):
             if adj is None and sub is None:
                 # opaque (krótki/bez analiz) — passthrough, nie zmienia cases
                 prefix_len = i + 1
                 continue
-            options = []
-            if adj:
-                options.append(adj)
-            if sub and not had_subst:
-                options.append(("subst", sub))
-            # próbujemy każdą interpretację, preferując adj (pozwala kontynuować)
-            chosen = None
-            chosen_is_subst = False
-            for opt in options:
-                is_subst = isinstance(opt, tuple)
-                cand_cases = opt[1] if is_subst else opt
-                new_cases = cand_cases if cases is None else (cases & cand_cases)
-                if new_cases:
-                    chosen = new_cases
-                    chosen_is_subst = is_subst
-                    break
-            if chosen is None:
+            if had_subst:
+                # Po napotkaniu subst pozostałe segmenty to "reszta" (np.
+                # rzeczownik w dopełniaczu) — zwężają jedynie przez adj.
+                seg_cases = adj
+            elif n_segs == 1:
+                # Single-segment identyfikator: gramatycznie wszystkie odczyty
+                # noun-like (subst + adj/pact/ppas) są dopuszczalne — bierzemy
+                # ich unię. Kontekst (slot, otoczenie) potem rozstrzyga.
+                seg_cases = adj | sub
+            elif adj:
+                # Multi-seg, segment z adj-reading: kontynuujemy prefix
+                # przymiotnikowy. Subst-reading zostawiamy potencjalnie na
+                # ostatni segment (głowa rzeczownikowa).
+                seg_cases = adj
+            else:
+                # Multi-seg, segment bez adj-reading: musi być subst (głowa).
+                seg_cases = sub
+            if not seg_cases:
                 break
-            cases = chosen
+            new_cases = seg_cases if cases is None else (cases & seg_cases)
+            if not new_cases:
+                break
+            cases = new_cases
             prefix_len = i + 1
-            if chosen_is_subst:
+            # Czy ten segment był „głową rzeczownikową"? — jeśli tak, prefix
+            # zamykamy. Dla single-seg z unią: subst-reading istniało → tak.
+            # Dla multi-seg: tylko gdy NIE wybraliśmy adj (czyli sub-only).
+            chose_subst_head = (
+                sub and (n_segs == 1 or not adj)
+            )
+            if chose_subst_head:
                 had_subst = True
-                # subst kończy prefix — kolejne segmenty to "reszta"
                 break
         if prefix_len == 0:
-            try:
-                _validate_function_name(surface, segments, analyses_t)
-                return None
-            except FunctionIdentifierError:
-                pass
             if len(surface) == 1:
-                # Single-segment atom — akceptujemy jako referencję bez case'u
-                # (interj, qub, hapax, etc. — semantyczna walidacja na późniejszym etapie)
+                # Single-segment atom bez identyfikowalnej formy nominalnej
+                # (interj, qub, hapax, etc.) — referencja bez case'u.
                 return None
             raise IdentifierError(self._ident_err(
                 surface,

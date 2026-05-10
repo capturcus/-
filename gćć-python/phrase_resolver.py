@@ -231,41 +231,10 @@ class PhraseResolver:
                     f"{n_slots} argumentów, otrzymała {len(arg_meta)}"
                 )
             peek = self.peek()
-            arg_meta.append((peek.prep, self._broader_case(peek), self.parse_arg()))
+            arg_meta.append((peek.prep, peek.case, self.parse_arg()))
         slot_to_arg = self._match_args_to_slots(arg_meta, sig, name)
         params = [slot_to_arg[i] for i in range(n_slots)]
         return FunctionCall(name=name, params=params)
-
-    @staticmethod
-    def _broader_case(word):
-        """Case dla matchingu — szerszy niż `word.case`.
-
-        Dwa przypadki:
-        1) Identifier jest poprawną nazwą funkcji (ma segment czasownikowy)
-           ⇒ traktujemy case jako None. Case z takiego identifier (np.
-           „też_stwórz_wartość" → adj „też") to artefakt morfologiczny, nie
-           gramatyczny przypadek wartości zwracanej przez wywołanie.
-        2) Single-seg Identifier z homonimem adj+subst (np. „samochodowi"
-           = subst dat ALBO adj nom:pl) ⇒ unia case'ów; parser zwraca tylko
-           jedno z adj-preference, ale gramatycznie obie interpretacje są
-           dopuszczalne dopóki slot funkcji nie rozstrzygnie.
-        """
-        if not isinstance(word.value, parser.Identifier):
-            return word.case
-        ident = word.value
-        try:
-            parser.FunctionIdentifier.from_head(ident)
-            return None
-        except parser.FunctionIdentifierError:
-            pass
-        if not ident.analyses or len(ident.surface) != 1:
-            return ident.case
-        anas = ident.analyses[0]
-        union = frozenset()
-        for ana in anas:
-            if ana.case and ana.pos in ("subst", "adj", "pact", "ppas"):
-                union |= ana.case
-        return union if union else ident.case
 
     def _match_args_to_slots(self, arg_meta, sig, name):
         """Dopasowuje argumenty do slotów sygnatury.
