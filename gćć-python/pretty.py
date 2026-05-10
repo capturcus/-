@@ -68,6 +68,12 @@ def _groups(node):
         return groups
     if isinstance(node, ast.While):
         return [("cond", [node.cond]), ("body", node.body)]
+    if isinstance(node, ast.For):
+        return [
+            ("var", [node.var]),
+            ("collection", [node.collection]),
+            ("body", node.body),
+        ]
     return None
 
 
@@ -133,6 +139,8 @@ def _label(node):
         return "If"
     if isinstance(node, ast.While):
         return "While"
+    if isinstance(node, ast.For):
+        return "For"
     if isinstance(node, ast.Break):
         return "Break"
     if isinstance(node, ast.Return):

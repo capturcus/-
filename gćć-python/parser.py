@@ -1,18 +1,46 @@
 """Parser strukturalny (Pass 1).
 
 Rozpoznaje top-level konstrukcje: definicje funkcji/struktur, struktury sterujące
-(if/while/break/return), assignment. Wszystko, co nie jest słowem kluczowym
+(if/while/for/break/return), assignment. Wszystko, co nie jest słowem kluczowym
 strukturalnym, trafia do `Phrase` jako surowy strumień tokenów.
 
-Treść `Phrase` (matematyka, function calls, getter chains, struct creation)
-jest parsowana w drugim przebiegu przez `expression.resolve_module`.
+Treść `Phrase` (matematyka, function calls, getter chains, struct creation,
+subscript) jest parsowana w drugim przebiegu przez `expression.resolve_module`.
+
+Gramatyka Pass 1:
+
+  module     := stmt*
+  stmt       := func_def | struct_def
+              | if_stmt | while_stmt | for_stmt
+              | "stop" | "zwrócić" [phrase]
+              | assignment | expr_stmt
+  func_def   := "aby" function_name param* ["->" type] ":" INDENT stmt+ DEDENT
+  struct_def := "definicja" type_name ":" INDENT field+ DEDENT
+  field      := identifier "(" type ")"
+  param      := [prep] identifier ["(" type ")"]
+  if_stmt    := "jeśli" phrase ":" INDENT stmt+ DEDENT
+                [ "inaczej" ( if_stmt | ":" INDENT stmt+ DEDENT ) ]
+  while_stmt := "dopóki" phrase ":" INDENT stmt+ DEDENT
+  for_stmt   := "dla" identifier "w" phrase ":" INDENT stmt+ DEDENT
+  assignment := phrase "to" phrase
+  expr_stmt  := phrase
+
+`identifier` w param/field/for_stmt to WORD przepuszczony przez
+`make_identifier` — wymaga formy `[adj]+ [subst] [reszta]` (multi-seg bez
+valid noun-prefiksu rzuca `IdentifierError`). Single-seg verb-only nazwy są
+tolerowane (variants=()), ale referowanie ich w body nie ma sensu — to ta
+sama semantyka co istniejące params/fields.
+
+`dla` jest STRUKTURALNYM keyword'em TYLKO na pierwszej pozycji statementu;
+wewnątrz `phrase` (np. argumenty fcall: `weź dla użytkownika`) `dla`
+pozostaje zwykłym przyimkiem rozpoznawanym przez `expression.py`.
 """
 
 import lexer
 from morph_anal import canonical
 from ast_nodes import (
     Module, FunctionIdentifier, FunctionDef, Param, StructDef, Field,
-    Phrase, Assignment, If, While, Break, Return,
+    Phrase, Assignment, If, While, For, Break, Return,
 )
 from identifier import make_identifier, is_prep
 
@@ -99,6 +127,8 @@ class Parser:
                 return self.parse_if()
             if canon == ("dopóki",):
                 return self.parse_while()
+            if canon == ("dla",):
+                return self.parse_for()
             if canon == ("stop",):
                 self.advance()
                 return Break()
@@ -157,6 +187,28 @@ class Parser:
             self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
         return While(cond=cond, body=body)
+
+    def parse_for(self):
+        self.expect(lexer.Token.WORD)  # dla
+        var_tok = self.expect(lexer.Token.WORD)
+        var = make_identifier(var_tok)
+        w_tok = self.expect(lexer.Token.WORD)
+        if canonical(w_tok) != ("w",):
+            raise SyntaxError(
+                f"w pętli `dla X w Y:` oczekiwano 'w' po zmiennej, "
+                f"otrzymano {w_tok}"
+            )
+        collection = self.collect_phrase()
+        self.expect(lexer.Token.COLON)
+        self._skip_newlines()
+        self.expect(lexer.Token.INDENT)
+        body = []
+        self._skip_newlines()
+        while self.peek()[0] is not lexer.Token.DEDENT:
+            body.append(self.parse_stmt())
+            self._skip_newlines()
+        self.expect(lexer.Token.DEDENT)
+        return For(var=var, collection=collection, body=body)
 
     def parse_func_def(self):
         self.expect(lexer.Token.WORD)  # aby

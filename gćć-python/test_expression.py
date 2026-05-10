@@ -648,6 +648,254 @@ def test_subscript_missing_right_operand(parse):
         parse(_wrap("lista pod"))
 
 
+# ---------- For (foreach) ----------
+
+def test_for_basic(parse):
+    """`dla użytkownika w lista:` — podstawowa pętla."""
+    src = (
+        "aby działać:\n"
+        "    dla użytkownika w lista:\n"
+        "        wynik to użytkownik\n"
+    )
+    m = parse(src)
+    for_node = m.body[0].body[0]
+    assert isinstance(for_node, ast.For)
+    assert isinstance(for_node.var, ast.Identifier)
+    assert for_node.var.segments == ("użytkownik",)
+    # collection: Phrase z resolved=Identifier(lista)
+    assert for_node.collection.resolved.segments == ("lista",)
+    assert len(for_node.body) == 1
+
+
+def test_for_var_multiseg_adj_subst(parse):
+    """Var w foreach traktowany jak każdy identyfikator: adj+subst.
+    `wielkiego_użytkownika` (gen sg masc) → segments ('wielki', 'użytkownik')."""
+    src = (
+        "aby działać:\n"
+        "    dla wielkiego_użytkownika w lista:\n"
+        "        stop\n"
+    )
+    m = parse(src)
+    for_node = m.body[0].body[0]
+    assert isinstance(for_node, ast.For)
+    assert for_node.var.segments == ("wielki", "użytkownik")
+
+
+def test_for_body_with_stop(parse):
+    """Body może zawierać `stop` (break)."""
+    src = (
+        "aby działać:\n"
+        "    dla x w lista:\n"
+        "        stop\n"
+    )
+    m = parse(src)
+    for_node = m.body[0].body[0]
+    assert isinstance(for_node, ast.For)
+    assert len(for_node.body) == 1
+    assert isinstance(for_node.body[0], ast.Break)
+
+
+def test_for_nested(parse):
+    """Zagnieżdżone foreach."""
+    src = (
+        "aby wypisać x:\n    zwrócić\n"
+        "aby działać:\n"
+        "    dla x w listy:\n"
+        "        dla y w x:\n"
+        "            wypisz y\n"
+    )
+    m = parse(src)
+    outer = m.body[1].body[0]
+    assert isinstance(outer, ast.For)
+    assert outer.var.segments == ("x",)
+    inner = outer.body[0]
+    assert isinstance(inner, ast.For)
+    assert inner.var.segments == ("y",)
+    # Inner collection refers to outer var
+    assert inner.collection.resolved.segments == ("x",)
+
+
+def test_for_collection_is_subscript(parse):
+    """Złożona kolekcja: subscript `lista pod jeden`."""
+    src = (
+        "aby działać:\n"
+        "    dla x w lista pod jeden:\n"
+        "        stop\n"
+    )
+    m = parse(src)
+    for_node = m.body[0].body[0]
+    assert isinstance(for_node, ast.For)
+    coll = for_node.collection.resolved
+    assert isinstance(coll, ast.Subscript)
+    assert coll.target.segments == ("lista",)
+    assert coll.index == ast.IntLit(1)
+
+
+def test_for_collection_is_function_call(parse):
+    """Złożona kolekcja: function call."""
+    src = (
+        "aby weź_listę dla nazwy:\n    zwrócić\n"
+        "aby działać:\n"
+        "    dla element w weź_listę dla nazwy:\n"
+        "        stop\n"
+    )
+    m = parse(src)
+    for_node = m.body[1].body[0]
+    assert isinstance(for_node, ast.For)
+    coll = for_node.collection.resolved
+    assert isinstance(coll, ast.FunctionCall)
+    assert coll.name.segments == ("wziąć", "lista")
+    assert len(coll.params) == 1
+
+
+def test_for_collection_is_getter_chain(parse):
+    """Złożona kolekcja: getter chain `lista_postów autora`."""
+    src = (
+        "definicja Autora:\n    lista_postów (Tekst)\n"
+        "aby działać:\n"
+        "    dla post w lista_postów autora:\n"
+        "        stop\n"
+    )
+    m = parse(src)
+    for_node = m.body[1].body[0]
+    assert isinstance(for_node, ast.For)
+    coll = for_node.collection.resolved
+    assert isinstance(coll, ast.GetterChain)
+    assert len(coll.chain) == 2
+
+
+def test_for_collection_composite_subscript_on_fcall(parse):
+    """Bardzo złożone: subscript po fcall (`weź_listę dla nazwy pod jeden`)."""
+    src = (
+        "aby weź_listę dla nazwy:\n    zwrócić\n"
+        "aby działać:\n"
+        "    dla x w weź_listę dla nazwy pod jeden:\n"
+        "        stop\n"
+    )
+    m = parse(src)
+    for_node = m.body[1].body[0]
+    coll = for_node.collection.resolved
+    assert isinstance(coll, ast.Subscript)
+    assert isinstance(coll.target, ast.FunctionCall)
+    assert coll.index == ast.IntLit(1)
+
+
+def test_for_collection_chain_with_subscript_index(parse):
+    """Subscript z chainem jako indeksem w kolekcji."""
+    src = (
+        "definicja Wpisu:\n    numer (Liczba)\n"
+        "aby działać:\n"
+        "    dla x w lista pod numerem autora:\n"
+        "        stop\n"
+    )
+    m = parse(src)
+    for_node = m.body[1].body[0]
+    coll = for_node.collection.resolved
+    assert isinstance(coll, ast.Subscript)
+    assert coll.target.segments == ("lista",)
+    assert isinstance(coll.index, ast.GetterChain)
+
+
+def test_for_collection_with_arith(parse):
+    """Kolekcja z arytmetyką: `lista pod (indeksem plus jeden)`."""
+    src = (
+        "aby działać:\n"
+        "    dla x w lista pod (indeksem plus jeden):\n"
+        "        stop\n"
+    )
+    m = parse(src)
+    for_node = m.body[0].body[0]
+    coll = for_node.collection.resolved
+    assert isinstance(coll, ast.Subscript)
+    assert isinstance(coll.index, ast.BinOp) and coll.index.op == "+"
+
+
+def test_for_dla_as_prep_in_fcall_unchanged(parse):
+    """`dla` jako prep w argumencie fcall (NIE jako start statementu) pozostaje
+    przyimkiem. RHS przypisania `wynik to weź_wiek dla użytkownika` parsuje się
+    jako FunctionCall(weź_wiek, [Word(dla, użytkownik)]) — bez foreach."""
+    src = (
+        "aby weź_wiek dla użytkownika:\n    zwrócić\n"
+        "aby działać:\n"
+        "    wynik to weź_wiek dla użytkownika\n"
+    )
+    m = parse(src)
+    asn = m.body[1].body[0]
+    assert isinstance(asn, ast.Assignment)
+    rhs = asn.value.resolved
+    assert isinstance(rhs, ast.FunctionCall)
+    assert rhs.params[0].prep == ("dla",)
+
+
+def test_for_dla_as_prep_in_collection(parse):
+    """`dla` jako prep wewnątrz wyrażenia kolekcji (po `w`) — działa
+    normalnie jako prep, bo to wewnątrz phrase."""
+    src = (
+        "aby weź_listę dla nazwy:\n    zwrócić\n"
+        "aby działać:\n"
+        "    dla x w weź_listę dla nazwy:\n"
+        "        stop\n"
+    )
+    m = parse(src)
+    for_node = m.body[1].body[0]
+    coll = for_node.collection.resolved
+    assert isinstance(coll, ast.FunctionCall)
+    assert coll.params[0].prep == ("dla",)
+
+
+def test_for_missing_w_raises(parse):
+    """`dla X` bez `w` → SyntaxError."""
+    src = (
+        "aby działać:\n"
+        "    dla x z lista:\n"
+        "        stop\n"
+    )
+    with pytest.raises(SyntaxError):
+        parse(src)
+
+
+def test_for_missing_colon_raises(parse):
+    """`dla X w Y` bez `:` → SyntaxError."""
+    src = (
+        "aby działać:\n"
+        "    dla x w lista\n"
+        "        stop\n"
+    )
+    with pytest.raises(SyntaxError):
+        parse(src)
+
+
+def test_for_var_referenced_in_body_by_segments(parse):
+    """Zmienna zadeklarowana w gen (`użytkownika` po `dla`) jest tym samym
+    identyfikatorem co `użytkownik` (nom) w body — match po segments."""
+    src = (
+        "aby działać:\n"
+        "    dla użytkownika w lista:\n"
+        "        nazwa to użytkownik\n"
+    )
+    m = parse(src)
+    for_node = m.body[0].body[0]
+    # Var: declared as 'użytkownika' (gen sg) → segments=("użytkownik",)
+    assert for_node.var.segments == ("użytkownik",)
+    # Body reference: 'użytkownik' (nom sg) → segments=("użytkownik",)
+    body_ref = for_node.body[0].value.resolved
+    assert isinstance(body_ref, ast.Identifier)
+    assert body_ref.segments == for_node.var.segments
+
+
+def test_for_collection_with_logical_op(parse):
+    """Kolekcja z logical op (jak każda phrase) — `lista_a lub lista_b`."""
+    src = (
+        "aby działać:\n"
+        "    dla x w lista_a lub lista_b:\n"
+        "        stop\n"
+    )
+    m = parse(src)
+    for_node = m.body[0].body[0]
+    coll = for_node.collection.resolved
+    assert isinstance(coll, ast.Or)
+
+
 def test_struct_arg_field_name_disambiguated_by_case(parse):
     """Identyfikator pola identyczny w obu kontekstach — sprawdzamy że
     `o trybie` (loc) i `o aspekcie` (loc) trafiają w różne pola, każde
