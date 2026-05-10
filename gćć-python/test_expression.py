@@ -461,6 +461,193 @@ def test_struct_creation_no_match_leaves_tokens(parse):
         parse(src)
 
 
+# ---------- Subscript ----------
+
+def test_subscript_atom_int_index(parse):
+    """`lista pod jeden` → Subscript(Identifier(lista), IntLit(1))."""
+    expr = _value_of_first_assignment(parse(_wrap("lista pod jeden")))
+    assert isinstance(expr, ast.Subscript)
+    assert isinstance(expr.target, ast.Identifier)
+    assert expr.target.segments == ("lista",)
+    assert expr.index == ast.IntLit(1)
+
+
+def test_subscript_atom_ident_index(parse):
+    """`lista pod indeksem` → Subscript(Identifier, Identifier)."""
+    expr = _value_of_first_assignment(parse(_wrap("lista pod indeksem")))
+    assert isinstance(expr, ast.Subscript)
+    assert isinstance(expr.target, ast.Identifier)
+    assert expr.target.segments == ("lista",)
+    assert isinstance(expr.index, ast.Identifier)
+    assert expr.index.segments == ("indeks",)
+
+
+def test_subscript_left_associative(parse):
+    """`lista pod jeden pod dwa` → Subscript(Subscript(lista, 1), 2).
+    Iteracja jak w arith — kolejne `pod` rozszerzają tylko lewy operand."""
+    expr = _value_of_first_assignment(parse(_wrap("lista pod jeden pod dwa")))
+    assert isinstance(expr, ast.Subscript)
+    assert expr.index == ast.IntLit(2)
+    assert isinstance(expr.target, ast.Subscript)
+    assert expr.target.index == ast.IntLit(1)
+    assert isinstance(expr.target.target, ast.Identifier)
+    assert expr.target.target.segments == ("lista",)
+
+
+def test_subscript_lower_precedence_than_arith(parse):
+    """`lista pod indeksem plus jeden` → BinOp(+, Subscript(...), 1).
+    Subscript w `factor`, plus w `arith`."""
+    expr = _value_of_first_assignment(parse(_wrap("lista pod indeksem plus jeden")))
+    assert isinstance(expr, ast.BinOp) and expr.op == "+"
+    assert isinstance(expr.left, ast.Subscript)
+    assert expr.right == ast.IntLit(1)
+
+
+def test_subscript_inside_arith_via_parens(parse):
+    """`lista pod (indeksem plus jeden)` → Subscript(lista, BinOp(+, indeksem, 1))."""
+    expr = _value_of_first_assignment(parse(_wrap("lista pod (indeksem plus jeden)")))
+    assert isinstance(expr, ast.Subscript)
+    assert isinstance(expr.index, ast.BinOp) and expr.index.op == "+"
+
+
+def test_subscript_lower_precedence_than_not(parse):
+    """`nie lista pod indeksem` → Not(Subscript(...))."""
+    expr = _value_of_first_assignment(parse(_wrap("nie lista pod indeksem")))
+    assert isinstance(expr, ast.Not)
+    assert isinstance(expr.operand, ast.Subscript)
+
+
+def test_subscript_on_fcall_result(parse):
+    """`weź dla numeru pod indeksem` (1-arg fcall) → Subscript(FCall, indeksem).
+    Subscript wisi na WYNIKU fcall, nie na argumencie — bo argumenty
+    fcall używają `primary`, nie `subscript`."""
+    src = (
+        "aby weź dla numeru:\n    zwrócić\n"
+        "aby działać:\n    wynik to weź dla numeru pod indeksem\n"
+    )
+    m = parse(src)
+    expr = m.body[1].body[0].value.resolved
+    assert isinstance(expr, ast.Subscript)
+    assert isinstance(expr.target, ast.FunctionCall)
+    assert expr.target.name.segments == ("wziąć",)
+    assert isinstance(expr.index, ast.Identifier)
+    assert expr.index.segments == ("indeks",)
+
+
+def test_subscript_inside_fcall_arg_via_parens(parse):
+    """`weź dla (numeru pod indeksem)` → FCall(weź, [Subscript(numer, indeks)])."""
+    src = (
+        "aby weź dla numeru:\n    zwrócić\n"
+        "aby działać:\n    wynik to weź dla (numeru pod indeksem)\n"
+    )
+    m = parse(src)
+    expr = m.body[1].body[0].value.resolved
+    assert isinstance(expr, ast.FunctionCall)
+    assert expr.name.segments == ("wziąć",)
+    assert len(expr.params) == 1
+    assert isinstance(expr.params[0].value, ast.Subscript)
+
+
+def test_subscript_chain_as_index(parse):
+    """`lista pod numerem autora` (numer = field) →
+    Subscript(lista, GetterChain(numer, autor)).
+    Prawy operand `pod` to primary, więc chain wewnątrz indeksu działa."""
+    src = (
+        "definicja Wpisu:\n    numer (Liczba)\n"
+        "aby działać:\n    wynik to lista pod numerem autora\n"
+    )
+    m = parse(src)
+    expr = m.body[1].body[0].value.resolved
+    assert isinstance(expr, ast.Subscript)
+    assert isinstance(expr.target, ast.Identifier)
+    assert expr.target.segments == ("lista",)
+    assert isinstance(expr.index, ast.GetterChain)
+    assert len(expr.index.chain) == 2
+    assert expr.index.chain[0].segments == ("numer",)
+    assert expr.index.chain[1].segments == ("autor",)
+
+
+def test_subscript_as_assignment_target(parse):
+    """`lista pod indeksem to jeden` — LHS przypisania to Subscript."""
+    src = "aby działać:\n    lista pod indeksem to jeden\n"
+    m = parse(src)
+    asn = m.body[0].body[0]
+    assert isinstance(asn, ast.Assignment)
+    assert isinstance(asn.target.resolved, ast.Subscript)
+    assert asn.target.resolved.target.segments == ("lista",)
+    assert asn.target.resolved.index.segments == ("indeks",)
+    assert asn.value.resolved == ast.IntLit(1)
+
+
+def test_subscript_in_struct_field_value(parse):
+    """`nowe Pudełko o wartości lista pod jeden` — value pola = Subscript.
+    Wartość pola w struct_creation parsuje się przez `parse_phrase`,
+    więc subscript naturalnie się stosuje."""
+    src = (
+        "definicja Pudełka:\n    wartość (Liczba)\n"
+        "aby działać:\n    p to nowe Pudełko o wartości lista pod jeden\n"
+    )
+    m = parse(src)
+    sc = m.body[1].body[0].value.resolved
+    assert isinstance(sc, ast.StructCreation)
+    assert sc.type_name == ("pudełko",)
+    assert len(sc.args) == 1
+    assert sc.args[0].field_name == ("wartość",)
+    assert isinstance(sc.args[0].value, ast.Subscript)
+    assert sc.args[0].value.index == ast.IntLit(1)
+
+
+def test_subscript_after_fcall_with_two_args(parse):
+    """`weź_z_bazy autora po listą pod indeksem` (2-arg fcall) →
+    Subscript(FCall(z dwoma args), indeks)."""
+    src = (
+        "aby weź_z_bazy autora po listą:\n    zwrócić\n"
+        "aby działać:\n"
+        "    wynik to weź_z_bazy autora po listą pod indeksem\n"
+    )
+    m = parse(src)
+    expr = m.body[1].body[0].value.resolved
+    assert isinstance(expr, ast.Subscript)
+    assert isinstance(expr.target, ast.FunctionCall)
+    assert len(expr.target.params) == 2
+    assert isinstance(expr.index, ast.Identifier)
+    assert expr.index.segments == ("indeks",)
+
+
+def test_subscript_full_composition(parse):
+    """Pełny przykład 5 użytkownika: chain pod fcall to nowy Post o treści Subscript."""
+    src = (
+        "definicja Postu:\n    treść (Tekst)\n"
+        "definicja Autora:\n    lista_postów (Tekst)\n"
+        "aby policz_index od liczby:\n    zwrócić\n"
+        "aby działać:\n"
+        "    lista_postów autora pod policz_index od liczby "
+        "to nowy Post o treści lista_treści pod indeksem\n"
+    )
+    m = parse(src)
+    asn = m.body[3].body[0]
+    assert isinstance(asn, ast.Assignment)
+    # LHS: Subscript(GetterChain(lista_postów, autor), FCall(policz_index, [liczba]))
+    lhs = asn.target.resolved
+    assert isinstance(lhs, ast.Subscript)
+    assert isinstance(lhs.target, ast.GetterChain)
+    assert len(lhs.target.chain) == 2
+    assert isinstance(lhs.index, ast.FunctionCall)
+    # RHS: StructCreation(Post, [(treść, Subscript(lista_treści, indeksem))])
+    rhs = asn.value.resolved
+    assert isinstance(rhs, ast.StructCreation)
+    assert rhs.type_name == ("post",)
+    assert len(rhs.args) == 1
+    assert rhs.args[0].field_name == ("treść",)
+    assert isinstance(rhs.args[0].value, ast.Subscript)
+
+
+def test_subscript_missing_right_operand(parse):
+    """`lista pod` (bez indeksu) → ResolveError."""
+    with pytest.raises(ast.ResolveError):
+        parse(_wrap("lista pod"))
+
+
 def test_struct_arg_field_name_disambiguated_by_case(parse):
     """Identyfikator pola identyczny w obu kontekstach — sprawdzamy że
     `o trybie` (loc) i `o aspekcie` (loc) trafiają w różne pola, każde

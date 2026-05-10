@@ -263,6 +263,12 @@ class GetterChain:
 
 
 @dataclass
+class Subscript:
+    target: object
+    index: object
+
+
+@dataclass
 class StructCreation:
     type_name: tuple
     args: list

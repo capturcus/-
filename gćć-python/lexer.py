@@ -17,6 +17,7 @@ class Token(Enum):
     ARITH_OP = auto()
     TERM_OP = auto()
     CMP_OP = auto()
+    POD = auto()
 
 
 _TOKEN_RE = re.compile(r'"([^"]*)"|(->)|(:)|([()])|([^\s:"()]+)')

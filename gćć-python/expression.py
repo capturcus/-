@@ -9,13 +9,17 @@ Pełna gramatyka:
   cmp_expr   := arith [CMP_OP arith]
   arith      := term (ARITH_OP term)*       # +, -
   term       := factor (TERM_OP factor)*    # *
-  factor     := [ARITH_OP] primary          # unary +/-
+  factor     := [ARITH_OP] subscript        # unary +/-
+  subscript  := primary ("pod" primary)*    # left-assoc, postfix
   primary    := INT_LIT | TEXT | "(" phrase ")"
               | function_call | getter_chain | struct_creation
               | identifier_ref
 
 Argumenty function_call są ograniczone do `primary` (lewostronne wiązanie),
 żeby `weź dla X plus 7` parsowało się jako `BinOp(+, FCall(weź, [X]), 7)`.
+W szczególności argumenty NIE wchodzą na poziom `subscript` — `f od listy
+pod indeksem` daje `Subscript(FCall(f, [listy]), indeksem)`, a żeby wepchnąć
+subscript do argumentu trzeba parens: `f od (listy pod indeksem)`.
 Wartości pól w struct_creation są pełnymi `phrase` (boundary: kolejny `o/z`
 matchujący niezajęte pole z aktywnego StructCtx).
 """
@@ -28,7 +32,7 @@ from ast_nodes import (
     Identifier, FunctionIdentifier, FunctionIdentifierError,
     StructDef, FunctionDef,
     IntLit, StrLit, BinOp, UnaryOp, And, Or, Not,
-    FunctionCall, GetterChain, StructCreation, StructArg, StructCtx,
+    FunctionCall, GetterChain, Subscript, StructCreation, StructArg, StructCtx,
     ResolveError, Word, LOGICAL_OPS,
 )
 from identifier import make_identifier, is_prep
@@ -136,7 +140,18 @@ class ExpressionParser:
         if self.peek() and self.peek()[0] is lexer.Token.ARITH_OP:
             op = self.advance()[1]
             return UnaryOp(op, self.parse_factor())
-        return self.parse_primary()
+        return self.parse_subscript()
+
+    def parse_subscript(self):
+        left = self.parse_primary()
+        while self.peek() and self.peek()[0] is lexer.Token.POD:
+            self.advance()
+            if self.peek() is None:
+                raise ResolveError(
+                    "operator 'pod' wymaga prawego operandu (indeksu)"
+                )
+            left = Subscript(target=left, index=self.parse_primary())
+        return left
 
     def parse_primary(self):
         t = self.peek()

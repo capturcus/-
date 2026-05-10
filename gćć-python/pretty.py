@@ -101,6 +101,8 @@ def _label(node):
         return f"FunctionCall {'_'.join(node.name.segments)}"
     if isinstance(node, ast.GetterChain):
         return "GetterChain"
+    if isinstance(node, ast.Subscript):
+        return "Subscript"
     if isinstance(node, ast.StructCreation):
         return f"StructCreation {'_'.join(node.type_name)}"
     if isinstance(node, ast.StructArg):
@@ -155,6 +157,8 @@ def _children(node):
         return []
     if isinstance(node, ast.GetterChain):
         return node.chain
+    if isinstance(node, ast.Subscript):
+        return [node.target, node.index]
     if isinstance(node, ast.StructCreation):
         return []
     if isinstance(node, ast.StructArg):
