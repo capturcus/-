@@ -96,7 +96,7 @@ aby zarejestrować z nazwą (Tekst) z emailem (Tekst) z hasłem (Tekst) -> Użyt
         zwróć stwórz_błąd "email zajęty"
     nowy to stwórz_użytkownika z nazwą z emailem z hasłem
     identyfikator nowego to wygeneruj_id
-    liczba_obserwujących nowego to 0
+    liczba_obserwujących nowego to zero
     zapisz w bazie nowego
     zwróć nowego
 
@@ -117,12 +117,12 @@ aby wyloguj sesję (Sesja):
 
 
 aby pasowało_hasło użytkownika (Użytkownik) do hasła (Tekst) -> Przełącznik:
-    zwróć hasło użytkownika = hasło
+    zwróć hasło użytkownika równe hasło
 
 
 aby istnieje_użytkownik z emailem (Tekst) -> Przełącznik:
     znaleziony to znajdź_użytkownika z emailem
-    zwróć nie znaleziony = pusty
+    zwróć nie znaleziony równe pusty
 
 
 # === Posty ===
@@ -132,20 +132,20 @@ aby opublikuj_post z treścią (Tekst) w sesji (Sesja) -> Post:
         zwróć stwórz_błąd "brak aktywnej sesji"
     nowy to stwórz_post z treścią dla użytkownika sesji
     identyfikator nowego to wygeneruj_id
-    liczba_polubień nowego to 0
+    liczba_polubień nowego to zero
     zapisz w bazie nowego
     zwróć nowego
 
 
 aby polubić post (Post):
-    liczba_polubień postu to liczba_polubień postu + 1
+    liczba_polubień postu to liczba_polubień postu plus jeden
     zapisz w bazie post
 
 
 aby usuń_post post (Post) w sesji (Sesja):
     jeśli nie flaga_aktywności sesji:
         zwróć stwórz_błąd "brak sesji"
-    jeśli nie identyfikator autora postu = identyfikator użytkownika sesji:
+    jeśli nie identyfikator autora postu równe identyfikator użytkownika sesji:
         zwróć stwórz_błąd "nie wolno"
     usuń z bazy post
 
@@ -162,7 +162,7 @@ aby skomentuj post (Post) z treścią (Tekst) w sesji (Sesja) -> Komentarz:
 
 
 aby usuń_komentarz komentarz (Komentarz) w sesji (Sesja):
-    jeśli nie identyfikator autora komentarza = identyfikator użytkownika sesji:
+    jeśli nie identyfikator autora komentarza równe identyfikator użytkownika sesji:
         zwróć stwórz_błąd "nie wolno"
     usuń z bazy komentarz
 
@@ -172,24 +172,24 @@ aby usuń_komentarz komentarz (Komentarz) w sesji (Sesja):
 aby zacząć_obserwować użytkownika (Użytkownik) przez obserwatora (Użytkownik):
     jeśli już_obserwuje obserwatora przez użytkownika:
         zwróć stwórz_błąd "już obserwujesz"
-    jeśli identyfikator obserwatora = identyfikator użytkownika:
+    jeśli identyfikator obserwatora równe identyfikator użytkownika:
         zwróć stwórz_błąd "nie można obserwować siebie"
     nowa to stwórz_obserwację dla obserwatora dla użytkownika
     zapisz w bazie nową
-    liczba_obserwujących użytkownika to liczba_obserwujących użytkownika + 1
+    liczba_obserwujących użytkownika to liczba_obserwujących użytkownika plus jeden
 
 
 aby przestań_obserwować użytkownika (Użytkownik) przez obserwatora (Użytkownik):
     obserwacja to znajdź_obserwację obserwatora przez użytkownika
-    jeśli obserwacja = pusty:
+    jeśli obserwacja równe pusty:
         zwróć stwórz_błąd "nie obserwujesz"
     usuń z bazy obserwację
-    liczba_obserwujących użytkownika to liczba_obserwujących użytkownika - 1
+    liczba_obserwujących użytkownika to liczba_obserwujących użytkownika minus jeden
 
 
 aby już_obserwować obserwatora (Użytkownik) przez użytkownika (Użytkownik) -> Przełącznik:
     obserwacja to znajdź_obserwację obserwatora przez użytkownika
-    zwróć nie obserwacja = pusty
+    zwróć nie obserwacja równe pusty
 
 
 # === Listing postów ===
@@ -197,13 +197,13 @@ aby już_obserwować obserwatora (Użytkownik) przez użytkownika (Użytkownik) 
 aby pokaż_feed dla użytkownika (Użytkownik) z limitem (Liczba) -> Lista:
     posty to pusta_lista
     obserwowani to znajdź_obserwowanych użytkownika
-    licznik to 0
-    dopóki licznik < limit i nie obserwowani = pusty:
+    licznik to zero
+    dopóki licznik mniejsze od limit i nie obserwowani równe pusty:
         kolejny to weź_głowę obserwowanych
         nowe to znajdź_posty kolejnego
         posty to dodaj_wszystkie nowych do postów
         obserwowani to weź_ogon obserwowanych
-        licznik to licznik + 1
+        licznik to licznik plus jeden
     zwróć posty
 
 

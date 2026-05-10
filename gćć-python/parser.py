@@ -1,204 +1,30 @@
-from dataclasses import dataclass
+"""Parser strukturalny (Pass 1).
+
+Rozpoznaje top-level konstrukcje: definicje funkcji/struktur, struktury sterujące
+(if/while/break/return), assignment. Wszystko, co nie jest słowem kluczowym
+strukturalnym, trafia do `Phrase` jako surowy strumień tokenów.
+
+Treść `Phrase` (matematyka, function calls, getter chains, struct creation)
+jest parsowana w drugim przebiegu przez `expression.resolve_module`.
+"""
 
 import lexer
-from morph_anal import canonical, VERB_POS, VerbForm
+from morph_anal import canonical
+from ast_nodes import (
+    Module, FunctionIdentifier, FunctionDef, Param, StructDef, Field,
+    Phrase, Assignment, If, While, Break, Return,
+)
+from identifier import make_identifier, is_prep
 
 
-@dataclass
-class Module:
-    body: list
-    phrases: list
-
-
-@dataclass(frozen=True)
-class Identifier:
-    segments: tuple
-    surface: tuple
-    case: frozenset = None
-    analyses: tuple = ()  # tuple[tuple[MorphAnalysis, ...], ...]
-
-
-class IdentifierError(SyntaxError):
-    pass
-
-
-class FunctionIdentifierError(IdentifierError):
-    pass
-
-
-def _validate_function_name(surface, segments, analyses):
-    if not analyses:
-        raise FunctionIdentifierError(
-            f"identyfikator funkcji '{'_'.join(surface)}' "
-            f"nie ma danych morfologicznych"
-        )
-    for i, anas in enumerate(analyses):
-        seg = surface[i]
-        if not anas or len(seg) == 1:
-            continue
-        verb_anas = [a for a in anas if a.pos in VERB_POS]
-        if not verb_anas:
-            continue
-        chosen = next(
-            (a for a in verb_anas if a.lemma == segments[i]),
-            verb_anas[0],
-        )
-        return i, chosen.verb_form
-    raise FunctionIdentifierError(
-        f"nazwa funkcji '{'_'.join(surface)}' nie zawiera czasownika; "
-        f"wymagany jest co najmniej jeden segment czasownikowy "
-        f"(fin, impt, inf, imps, praet, pcon, winien, będzie, fut, cond)"
-    )
-
-
-@dataclass(frozen=True)
-class FunctionIdentifier:
-    segments: tuple
-    surface: tuple
-    verb_index: int
-    verb_form: VerbForm
-
-    @classmethod
-    def from_head(cls, head):
-        verb_index, verb_form = _validate_function_name(
-            head.surface, head.segments, head.analyses
-        )
-        return cls(
-            segments=head.segments,
-            surface=head.surface,
-            verb_index=verb_index,
-            verb_form=verb_form,
-        )
-
-    @classmethod
-    def from_token(cls, tok):
-        """Buduje FunctionIdentifier bezpośrednio z tokenu morfologicznego.
-        Używane przez parse_func_def — definicja funkcji jest jednoznaczna,
-        więc nie potrzeba etapu HeadIdentifier."""
-        _, surface, analyses = tok
-        segments = canonical(tok)
-        analyses_t = tuple(tuple(a) for a in analyses)
-        verb_index, verb_form = _validate_function_name(
-            surface, segments, analyses_t
-        )
-        return cls(
-            segments=segments,
-            surface=surface,
-            verb_index=verb_index,
-            verb_form=verb_form,
-        )
-
-
-@dataclass
-class FunctionDef:
-    name: "FunctionIdentifier"
-    params: list
-    body: list
-    return_type: tuple = None
-
-
-@dataclass
-class Param:
-    prep: tuple
-    name: Identifier
-    case: frozenset
-    type: tuple = None
-
-
-@dataclass
-class StructDef:
-    name: tuple
-    fields: list
-
-
-@dataclass
-class Field:
-    name: Identifier
-    type: tuple
-
-
-@dataclass
-class Phrase:
-    words: list
-
-
-@dataclass
-class Word:
-    prep: tuple
-    value: object
-    case: str
-
-
-@dataclass
-class Assignment:
-    target: tuple
-    value: object
-
-
-@dataclass
-class IntLit:
-    value: int
-
-
-@dataclass
-class StrLit:
-    value: str
-
-
-@dataclass
-class BinOp:
-    op: str
-    left: object
-    right: object
-
-
-@dataclass
-class UnaryOp:
-    op: str
-    operand: object
-
-
-@dataclass
-class If:
-    cond: object
-    then_body: list
-    else_body: list
-
-
-@dataclass
-class While:
-    cond: object
-    body: list
-
-
-@dataclass
-class Break:
-    pass
-
-
-@dataclass
-class Return:
-    value: object = None
-
-
-@dataclass
-class Not:
-    operand: object
-
-
-@dataclass
-class And:
-    left: object
-    right: object
-
-
-@dataclass
-class Or:
-    left: object
-    right: object
-
-
-LOGICAL_OPS = {("nie",), ("i",), ("lub",)}
+_PHRASE_END_KINDS = frozenset({
+    lexer.Token.NEWLINE,
+    lexer.Token.COLON,
+    lexer.Token.ARROW,
+    lexer.Token.INDENT,
+    lexer.Token.DEDENT,
+    lexer.Token.ASSIGN,
+})
 
 
 class Parser:
@@ -206,7 +32,7 @@ class Parser:
         self.tokens = tokens
         self.pos = 0
         self.preps = preps or {}
-        self.phrases = []
+        self.phrases = []  # zbierane na potrzeby drugiego przebiegu
 
     def peek(self, offset=0):
         i = self.pos + offset
@@ -220,7 +46,6 @@ class Parser:
     def expect(self, kind):
         t = self.advance()
         if t is None or t[0] is not kind:
-            print(self.peek(-2), self.peek(-1), self.peek(-0))
             raise SyntaxError(f"Expected {kind}, got {t}")
         return t
 
@@ -228,130 +53,31 @@ class Parser:
         while self.peek() and self.peek()[0] is lexer.Token.NEWLINE:
             self.advance()
 
-    def _is_prep(self, token):
-        if token is None or token[0] is not lexer.Token.WORD:
-            return False
-        canon = canonical(token)
-        return len(canon) == 1 and canon[0] in self.preps
+    def collect_phrase(self):
+        """Zbiera surowe tokeny od bieżącej pozycji do granicy statementu.
 
-    def _is_logical_op(self, token):
-        return (
-            token is not None
-            and token[0] is lexer.Token.WORD
-            and canonical(token) in LOGICAL_OPS
-        )
-
-    def _ident(self, tok):
-        _, surface, analyses = tok
-        segments = canonical(tok)
-        analyses_t = tuple(tuple(a) for a in analyses)
-        case = self._validate_identifier_case(tok, segments, surface, analyses_t)
-        return Identifier(
-            segments=segments, surface=surface, case=case, analyses=analyses_t,
-        )
-
-    def _validate_identifier_case(self, tok, segments, surface, analyses_t):
-        _, _, analyses = tok
-        # Jeśli któryś segment ma POS czasownikową ALE nie ma żadnej rzeczownikowej
-        # (subst/adj/pact/ppas), identyfikator MUSI być wyrażeniem czasownikowym
-        # (nazwą funkcji) — czasownik nie ma gramatycznego przypadka, więc
-        # case=None. Sam fakt obecności fin/impt/itp. nie wystarczy: wiele form
-        # rzeczowników (np. „nazwie", „post") ma homonimy fin/impt z bardzo
-        # rzadkich czasowników i NIE są to wyrażenia czasownikowe w typowym użyciu.
-        from morph_anal import VERB_POS
-        _NOUN_LIKE = {"subst", "adj", "pact", "ppas"}
-        for seg, anas in zip(surface, analyses):
-            if not anas or len(seg) == 1:
-                continue
-            poses = {a.pos for a in anas}
-            if poses & VERB_POS and not (poses & _NOUN_LIKE):
-                return None
-        adj_per_seg = []
-        subst_per_seg = []
-        has_morph = False
-        for seg, anas in zip(surface, analyses):
-            if len(seg) == 1 or not anas:
-                adj_per_seg.append(None)
-                subst_per_seg.append(None)
-                continue
-            has_morph = True
-            adj_cases = frozenset()
-            subst_cases = frozenset()
-            for ana in anas:
-                if not ana.case:
-                    continue
-                if ana.pos in ("adj", "pact", "ppas"):
-                    adj_cases |= ana.case
-                elif ana.pos == "subst":
-                    subst_cases |= ana.case
-            adj_per_seg.append(adj_cases)
-            subst_per_seg.append(subst_cases)
-        if not has_morph:
-            return None
-        cases = None  # None = "brak ograniczeń" (jeszcze nic nie weszło do prefiksu)
-        had_subst = False
-        prefix_len = 0
-        n_segs = len(adj_per_seg)
-        for i, (adj, sub) in enumerate(zip(adj_per_seg, subst_per_seg)):
-            if adj is None and sub is None:
-                # opaque (krótki/bez analiz) — passthrough, nie zmienia cases
-                prefix_len = i + 1
-                continue
-            if had_subst:
-                # Po napotkaniu subst pozostałe segmenty to "reszta" (np.
-                # rzeczownik w dopełniaczu) — zwężają jedynie przez adj.
-                seg_cases = adj
-            elif n_segs == 1:
-                # Single-segment identyfikator: gramatycznie wszystkie odczyty
-                # noun-like (subst + adj/pact/ppas) są dopuszczalne — bierzemy
-                # ich unię. Kontekst (slot, otoczenie) potem rozstrzyga.
-                seg_cases = adj | sub
-            elif adj:
-                # Multi-seg, segment z adj-reading: kontynuujemy prefix
-                # przymiotnikowy. Subst-reading zostawiamy potencjalnie na
-                # ostatni segment (głowa rzeczownikowa).
-                seg_cases = adj
-            else:
-                # Multi-seg, segment bez adj-reading: musi być subst (głowa).
-                seg_cases = sub
-            if not seg_cases:
+        Granica (poza nawiasami): NEWLINE/COLON/ARROW/INDENT/DEDENT/ASSIGN
+        lub niezbalansowane RPAREN. ARITH_OP/CMP_OP/`i`/`lub`/`nie` SĄ
+        częścią Phrase — drugi przebieg buduje z nich wyrażenia.
+        """
+        tokens = []
+        paren_depth = 0
+        while self.peek() is not None:
+            t = self.peek()
+            kind = t[0]
+            if paren_depth == 0 and kind in _PHRASE_END_KINDS:
                 break
-            new_cases = seg_cases if cases is None else (cases & seg_cases)
-            if not new_cases:
-                break
-            cases = new_cases
-            prefix_len = i + 1
-            # Czy ten segment był „głową rzeczownikową"? — jeśli tak, prefix
-            # zamykamy. Dla single-seg z unią: subst-reading istniało → tak.
-            # Dla multi-seg: tylko gdy NIE wybraliśmy adj (czyli sub-only).
-            chose_subst_head = (
-                sub and (n_segs == 1 or not adj)
-            )
-            if chose_subst_head:
-                had_subst = True
-                break
-        if prefix_len == 0:
-            if len(surface) == 1:
-                # Single-segment atom bez identyfikowalnej formy nominalnej
-                # (interj, qub, hapax, etc.) — referencja bez case'u.
-                return None
-            raise IdentifierError(self._ident_err(
-                surface,
-                f"pierwszy segment '{surface[0]}' nie jest ani przymiotnikiem, "
-                f"ani rzeczownikiem, ani identyfikatorem funkcji",
-            ))
-        if cases is None:
-            # cały prefix był opaque — atom z przypadkiem nieokreślonym
-            return None
-        return cases
-
-    @staticmethod
-    def _ident_err(surface, reason):
-        return (
-            f"Niepoprawny identyfikator '{'_'.join(surface)}': {reason}. "
-            f"Oczekiwana forma: [przymiotnik...] [rzeczownik] [reszta], "
-            f"gdzie przymiotniki i rzeczownik zgadzają się w przypadku."
-        )
+            if kind is lexer.Token.LPAREN:
+                paren_depth += 1
+            elif kind is lexer.Token.RPAREN:
+                if paren_depth == 0:
+                    break
+                paren_depth -= 1
+            tokens.append(t)
+            self.advance()
+        phrase = Phrase(tokens=tokens)
+        self.phrases.append(phrase)
+        return phrase
 
     def parse_module(self):
         body = []
@@ -381,16 +107,16 @@ class Parser:
                 nxt = self.peek()
                 if nxt is None or nxt[0] in (lexer.Token.NEWLINE, lexer.Token.DEDENT):
                     return Return(value=None)
-                return Return(value=self.parse_expr())
-        expr = self.parse_expr()
+                return Return(value=self.collect_phrase())
+        lhs = self.collect_phrase()
         if self.peek() and self.peek()[0] is lexer.Token.ASSIGN:
             self.advance()
-            return Assignment(target=expr, value=self.parse_expr())
-        return expr
+            return Assignment(target=lhs, value=self.collect_phrase())
+        return lhs
 
     def parse_if(self):
         self.expect(lexer.Token.WORD)  # jeśli
-        cond = self.parse_expr()
+        cond = self.collect_phrase()
         self.expect(lexer.Token.COLON)
         self._skip_newlines()
         self.expect(lexer.Token.INDENT)
@@ -420,7 +146,7 @@ class Parser:
 
     def parse_while(self):
         self.expect(lexer.Token.WORD)  # dopóki
-        cond = self.parse_expr()
+        cond = self.collect_phrase()
         self.expect(lexer.Token.COLON)
         self._skip_newlines()
         self.expect(lexer.Token.INDENT)
@@ -473,11 +199,11 @@ class Parser:
         self.expect(lexer.Token.LPAREN)
         type_ = canonical(self.expect(lexer.Token.WORD))
         self.expect(lexer.Token.RPAREN)
-        return Field(name=self._ident(name_tok), type=type_)
+        return Field(name=make_identifier(name_tok), type=type_)
 
     def parse_param(self):
         prep = None
-        if self._is_prep(self.peek()):
+        if is_prep(self.peek(), self.preps):
             prep = canonical(self.advance())
         name_tok = self.expect(lexer.Token.WORD)
         type_ = None
@@ -485,132 +211,8 @@ class Parser:
             self.advance()
             type_ = canonical(self.expect(lexer.Token.WORD))
             self.expect(lexer.Token.RPAREN)
-        name = self._ident(name_tok)
+        name = make_identifier(name_tok)
         return Param(prep=prep, name=name, case=name.case, type=type_)
-
-    def parse_phrase(self):
-        head_tok = self.expect(lexer.Token.WORD)
-        head_ident = self._ident(head_tok)
-        head = Word(prep=None, value=head_ident, case=head_ident.case)
-        words = [head]
-        while self._is_word_start(self.peek()):
-            words.append(self.parse_simple_word())
-        phrase = Phrase(words=words)
-        self.phrases.append(phrase)
-        return phrase
-
-    def _is_word_start(self, t):
-        if t is None:
-            return False
-        if self._is_logical_op(t):
-            return False
-        return t[0] in (
-            lexer.Token.NUMBER,
-            lexer.Token.TEXT,
-            lexer.Token.WORD,
-            lexer.Token.LPAREN,
-        )
-
-    def parse_simple_word(self):
-        prep = None
-        t = self.peek()
-        if self._is_prep(t):
-            nxt = self.peek(1)
-            if nxt and nxt[0] in (
-                lexer.Token.NUMBER,
-                lexer.Token.TEXT,
-                lexer.Token.WORD,
-                lexer.Token.LPAREN,
-            ):
-                prep = canonical(self.advance())
-        value = self.parse_simple_value()
-        case = value.case if isinstance(value, Identifier) else None
-        return Word(prep=prep, value=value, case=case)
-
-    def parse_simple_value(self):
-        t = self.peek()
-        if t is None:
-            raise SyntaxError("Unexpected end of input in word")
-        if t[0] is lexer.Token.NUMBER:
-            return IntLit(self.advance()[1])
-        if t[0] is lexer.Token.TEXT:
-            return StrLit(self.advance()[1])
-        if t[0] is lexer.Token.LPAREN:
-            self.advance()
-            expr = self.parse_expr()
-            self.expect(lexer.Token.RPAREN)
-            return expr
-        if t[0] is lexer.Token.WORD:
-            return self._ident(self.advance())
-        raise SyntaxError(f"Unexpected token in word value: {t}")
-
-    def parse_expr(self):
-        return self.parse_or()
-
-    def parse_or(self):
-        left = self.parse_and()
-        while self.peek() and self._is_logical_op(self.peek()) and canonical(self.peek()) == ("lub",):
-            self.advance()
-            left = Or(left, self.parse_and())
-        return left
-
-    def parse_and(self):
-        left = self.parse_not()
-        while self.peek() and self._is_logical_op(self.peek()) and canonical(self.peek()) == ("i",):
-            self.advance()
-            left = And(left, self.parse_not())
-        return left
-
-    def parse_not(self):
-        if self.peek() and self._is_logical_op(self.peek()) and canonical(self.peek()) == ("nie",):
-            self.advance()
-            return Not(self.parse_not())
-        return self.parse_cmp()
-
-    def parse_cmp(self):
-        left = self.parse_arith()
-        while self.peek() and self.peek()[0] is lexer.Token.BIN_OP and self.peek()[1] in ("<", ">", "<=", ">=", "!=", "="):
-            op = self.advance()[1]
-            left = BinOp(op, left, self.parse_arith())
-        return left
-
-    def parse_arith(self):
-        left = self.parse_term()
-        while self.peek() and self.peek()[0] is lexer.Token.BIN_OP and self.peek()[1] in ("+", "-"):
-            op = self.advance()[1]
-            left = BinOp(op, left, self.parse_term())
-        return left
-
-    def parse_term(self):
-        left = self.parse_factor()
-        while self.peek() and self.peek()[0] is lexer.Token.BIN_OP and self.peek()[1] in ("*", "/", "%"):
-            op = self.advance()[1]
-            left = BinOp(op, left, self.parse_factor())
-        return left
-
-    def parse_factor(self):
-        t = self.peek()
-        if t and t[0] is lexer.Token.BIN_OP and t[1] in ("+", "-"):
-            op = self.advance()[1]
-            return UnaryOp(op, self.parse_factor())
-        return self.parse_primary()
-
-    def parse_primary(self):
-        t = self.peek()
-        if t is None:
-            raise SyntaxError("Unexpected end of input in expr")
-        if t[0] is lexer.Token.NUMBER:
-            return IntLit(self.advance()[1])
-        if t[0] is lexer.Token.TEXT:
-            return StrLit(self.advance()[1])
-        if t[0] is lexer.Token.LPAREN:
-            self.advance()
-            expr = self.parse_expr()
-            self.expect(lexer.Token.RPAREN)
-            return expr
-        if t[0] is lexer.Token.WORD:
-            return self.parse_phrase()
-        raise SyntaxError(f"Unexpected token in expr: {t}")
 
 
 def parse(tokens, preps=None):

@@ -6,17 +6,21 @@ class Token(Enum):
     DEDENT = auto()
     NEWLINE = auto()
     WORD = auto()
-    NUMBER = auto()
     TEXT = auto()
-    BIN_OP = auto()
     COLON = auto()
     ASSIGN = auto()
     LPAREN = auto()
     RPAREN = auto()
     ARROW = auto()
+    # Produkowane wyłącznie przez preprocess.preprocess (nie przez lex).
+    INT_LIT = auto()
+    ARITH_OP = auto()
+    TERM_OP = auto()
+    CMP_OP = auto()
 
 
-_TOKEN_RE = re.compile(r'"([^"]*)"|(\d+)|(->)|(<=|>=|!=|[=+\-*/%<>])|(:)|([()])|([^\s=+\-*/%:"()<>!]+)')
+_TOKEN_RE = re.compile(r'"([^"]*)"|(->)|(:)|([()])|([^\s:"()]+)')
+
 
 _UPPER = "A-ZĄĆĘŁŃÓŚŹŻ"
 _CAMEL_RE = re.compile(rf'[{_UPPER}][^{_UPPER}]*|[^{_UPPER}]+')
@@ -54,7 +58,6 @@ def lex(text):
     for line in text.split("\n"):
         stripped = line.strip()
         if stripped == "" or stripped.startswith("#"):
-            # Puste linie i pełnoliniowe komentarze nie wpływają na poziom wcięcia.
             continue
         line_indents = _count_indent(line)
         indent_diff = line_indents - indent_level
@@ -63,15 +66,11 @@ def lex(text):
         indent_level = line_indents
         before = len(ret)
         for m in _TOKEN_RE.finditer(stripped):
-            text_, number, arrow, binop, colon, paren, word = m.groups()
+            text_, arrow, colon, paren, word = m.groups()
             if text_ is not None:
                 ret.append((Token.TEXT, text_))
-            elif number is not None:
-                ret.append((Token.NUMBER, int(number)))
             elif arrow is not None:
                 ret.append((Token.ARROW, None))
-            elif binop is not None:
-                ret.append((Token.BIN_OP, binop))
             elif colon is not None:
                 ret.append((Token.COLON, None))
             elif paren is not None:

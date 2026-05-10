@@ -48,46 +48,43 @@ aby zweryfikować x:
 
 
 aby działać:
-    liczba to 5
+    liczba to pięć
 
 aby nasrać_w_kiblu:
     gówno to inne_gówno
-    zmienna to 78
+    zmienna to siedemdziesiąt osiem
     tekst to "siemka"
 
 aby dodać_liczby:
-    wynik to 2 + 3
+    wynik to dwa plus trzy
 
 aby odjąć_liczby:
-    wynik to 5 - 2
+    wynik to pięć minus dwa
 
 aby skomplikowanie_zarządzić_liczby:
-    wynik to 2 + 3 * 5
-
-aby podzielić_liczby:
-    liczba to 19 / 6
+    wynik to dwa plus trzy razy pięć
 
 aby rozjebać_parser:
-    liczba to -5
+    liczba to minus pięć
 
 aby testować_porównanie:
-    wynik to 2 + 3 < 4 + 5
+    wynik to dwa plus trzy mniejsze od cztery plus pięć
 
 aby testować_ify:
-    jeśli x > 3:
-        liczba to 1
+    jeśli x większe od trzy:
+        liczba to jeden
 
 aby testować_ify_2:
-    jeśli x < 3:
-        liczba to 1
+    jeśli x mniejsze od trzy:
+        liczba to jeden
     inaczej:
-        liczba to 2
+        liczba to dwa
 
 aby pracować:
-    dopóki a < 10:
-        jeśli a = 5:
-            x to 1
-        a to a + 1
+    dopóki a mniejsze od dziesięć:
+        jeśli a równe pięć:
+            x to jeden
+        a to a plus jeden
 
 # Funkcje z parametrami
 
@@ -118,7 +115,7 @@ hasło to "dupa.8"
 zaloguj annę hasłem
 
 aby reagować na zdarzenie:
-    jeśli zdarzenie = "klik":
+    jeśli zdarzenie równe "klik":
         pisz "kliknięto"
     inaczej:
         pisz "ignoruję"
@@ -133,7 +130,7 @@ aby przestać_obserwować użytkownika (Użytkownik) przez obserwującego (Użyt
     zwróć prawda
 
 aby testować_logikę:
-    wynik to policzyć rzeczy > 0
+    wynik to policz rzeczy większe od zero
 
 definicja Sesji:
     token (Tekst)
@@ -144,4 +141,4 @@ definicja Sesji:
 
 aby zweryfikować_sesję:
     zweryfikuj token sesji
-    token sesji to 5
+    token sesji to pięć
