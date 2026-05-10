@@ -1,0 +1,318 @@
+# Przekład morph_anal.py na język Ć — test rzeczywistej gramatyki.
+# Brakujące w stdlib elementy zadeklarowane jako puste funkcje wbudowane.
+#
+# Każdy parametr funkcji ma postać `[prep] name`. „Modyfikatory" w stylu
+# „z tagu T" nie da się wyrazić — bo „z tagu" to już prep + name. Dlatego
+# wszystkie multi-arg funkcje używają single-letter nazw parametrów.
+
+# === Stuby biblioteki standardowej ===
+
+aby stworzyć_pustą_listę:
+    zwrócić
+
+aby policz_długość_listy l:
+    zwrócić
+
+aby weź_z_listy l pod i:
+    zwrócić
+
+aby dodaj_do_listy l e:
+    zwrócić
+
+aby zawiera_lista l e:
+    zwrócić
+
+aby stworzyć_pustą_mapę:
+    zwrócić
+
+aby ma_klucz m pod k:
+    zwrócić
+
+aby weź_z_mapy m pod k:
+    zwrócić
+
+aby ustaw_w_mapie m pod k z w:
+    zwrócić
+
+aby stworzyć_pusty_zbiór:
+    zwrócić
+
+aby stworzyć_zbiór_z_listy l:
+    zwrócić
+
+aby połącz_zbiory p z d:
+    zwrócić
+
+aby zawiera_zbiór j e:
+    zwrócić
+
+aby policz_długość_zbioru j:
+    zwrócić
+
+aby utwórz_jednoelementowy_zbiór z e:
+    zwrócić
+
+aby policz_długość_tekstu t:
+    zwrócić
+
+aby podziel_tekst t po s:
+    zwrócić
+
+aby weź_pierwszy_segment t po s:
+    zwrócić
+
+aby zawiera_tekst t e:
+    zwrócić
+
+aby otwórz_plik z s:
+    zwrócić
+
+aby sprawdź_koniec_pliku p:
+    zwrócić
+
+aby czytaj_linię z p:
+    zwrócić
+
+aby zamknij_plik p:
+    zwrócić
+
+aby obetnij_białe_znaki t:
+    zwrócić
+
+aby wypisz_błąd k:
+    zwrócić
+
+aby zmierz_aktualny_czas:
+    zwrócić
+
+aby policz_różnicę_czasów od p do k:
+    zwrócić
+
+
+# === Definicje typów danych ===
+
+definicja Forma:
+    kategoria (Tekst)
+    tryb (Tekst)
+    aspekt (Tekst)
+    liczebność (Tekst)
+    osoba (Tekst)
+    rodzaj (Tekst)
+
+
+definicja Analiza:
+    kategoria (Tekst)
+    przypadki (Zbiór)
+    lemat (Tekst)
+    tag (Tekst)
+
+
+definicja Wynik:
+    baza (Mapa)
+    przyimki (Mapa)
+
+
+# === Stałe globalne ===
+
+aby stwórz_listę_przypadków:
+    zwrócić
+
+aby stwórz_listę_kategorii_czasownikowych:
+    zwrócić
+
+aby stwórz_listę_kwalifikatorów:
+    zwrócić
+
+aby stwórz_mapę_trybu:
+    zwrócić
+
+przypadki_dopuszczalne to stworzyć_zbiór_z_listy stwórz_listę_przypadków
+kategorie_czasownikowe to stworzyć_zbiór_z_listy stwórz_listę_kategorii_czasownikowych
+wykluczone_kwalifikatory to stwórz_listę_kwalifikatorów
+tryb_dla_kategorii to stwórz_mapę_trybu
+
+
+# === Budowanie Formy z tagu — POS w `k`, części tagu w `c` ===
+
+aby zbuduj_formę dla k z c:
+    tryb to weź_z_mapy tryb_dla_kategorii pod k
+    n to policz_długość_listy c minus jeden
+    jeśli k równe "inf" lub k równe "imps" lub k równe "pcon":
+        zwrócić nowy Forma o kategorii k o trybie tryb
+    jeśli k równe "fin" lub k równe "impt" lub k równe "bedzie" lub k równe "fut":
+        zwrócić nowy Forma o kategorii k o trybie tryb o liczebności weź_z_listy c pod jeden o osobie weź_z_listy c pod dwa o aspekcie weź_z_listy c pod trzy
+    jeśli k równe "praet" lub k równe "winien":
+        zwrócić nowy Forma o kategorii k o trybie tryb o liczebności weź_z_listy c pod jeden o rodzaju weź_z_listy c pod dwa o aspekcie weź_z_listy c pod trzy
+    jeśli k równe "cond":
+        zwrócić nowy Forma o kategorii k o trybie tryb o liczebności weź_z_listy c pod jeden o rodzaju weź_z_listy c pod dwa o osobie weź_z_listy c pod trzy o aspekcie weź_z_listy c pod cztery
+    zwrócić
+
+
+# === Cache form czasownikowych — k=POS, t=tag, p=mapa pamięci ===
+
+aby weź_formę dla k z t z p:
+    jeśli nie zawiera_zbiór kategorie_czasownikowe k:
+        zwrócić
+    jeśli ma_klucz p pod t:
+        zwrócić weź_z_mapy p pod t
+    części to podziel_tekst t po ":"
+    forma to zbuduj_formę dla k z części
+    ustaw_w_mapie p pod t z forma
+    zwrócić forma
+
+
+# === Wyciąganie przypadków z tagu ===
+
+aby wyciągnij_przypadki z t z c z p:
+    jeśli ma_klucz p pod t:
+        zwrócić weź_z_mapy p pod t
+    znalezione to stworzyć_pusty_zbiór
+    indeks to jeden
+    dopóki indeks mniejsze od policz_długość_listy c:
+        kandydat to weź_z_listy c pod indeksem
+        kandydaci to podziel_tekst kandydat po "."
+        i to zero
+        dopóki i mniejsze od policz_długość_listy kandydaci:
+            wybór to weź_z_listy kandydaci pod i
+            jeśli zawiera_zbiór przypadki_dopuszczalne wybór:
+                znalezione to połącz_zbiory znalezione z utwórz_jednoelementowy_zbiór z wybór
+            i to i plus jeden
+        jeśli policz_długość_zbioru znalezione większe od zero:
+            stop
+        indeks to indeks plus jeden
+    ustaw_w_mapie p pod t z znalezione
+    zwrócić znalezione
+
+
+# === Załadowanie bazy SGJP ===
+
+aby sprawdź_kwalifikator k:
+    i to zero
+    dopóki i mniejsze od policz_długość_listy wykluczone_kwalifikatory:
+        kw to weź_z_listy wykluczone_kwalifikatory pod i
+        jeśli zawiera_tekst k kw:
+            zwrócić prawda
+        i to i plus jeden
+    zwrócić fałsz
+
+
+aby załaduj_bazę z s:
+    wypisz_błąd "Wczytywanie bazy"
+    początek to zmierz_aktualny_czas
+    baza to stworzyć_pustą_mapę
+    przyimki to stworzyć_pustą_mapę
+    pamięć to stworzyć_pustą_mapę
+    plik to otwórz_plik z s
+
+    dopóki nie sprawdź_koniec_pliku plik:
+        linia to czytaj_linię z plik
+        linia to obetnij_białe_znaki linia
+        kolumny to podziel_tekst linia po "\t"
+        jeśli policz_długość_listy kolumny mniejsze od trzy:
+            stop
+
+        forma to weź_z_listy kolumny pod zero
+        pole_lematu to weź_z_listy kolumny pod jeden
+        tag to weź_z_listy kolumny pod dwa
+        kwalifikatory to weź_z_listy kolumny pod cztery
+        lemat to weź_pierwszy_segment pole_lematu po ":"
+        kategoria to weź_pierwszy_segment tag po ":"
+        części to podziel_tekst tag po ":"
+        przypadki to wyciągnij_przypadki z tag z części z pamięć
+
+        analiza to nowa Analiza z kategorią z przypadkami z lematem z tagiem
+
+        jeśli nie ma_klucz baza pod forma:
+            ustaw_w_mapie baza pod forma z stworzyć_pustą_listę
+        dodaj_do_listy weź_z_mapy baza pod forma analiza
+
+        jeśli kategoria równe "prep" i policz_długość_zbioru przypadki większe od zero:
+            jeśli nie sprawdź_kwalifikator kwalifikatory:
+                jeśli nie ma_klucz przyimki pod lemat:
+                    ustaw_w_mapie przyimki pod lemat z stworzyć_pusty_zbiór
+                ustaw_w_mapie przyimki pod lemat z połącz_zbiory weź_z_mapy przyimki pod lemat z przypadki
+
+    zamknij_plik plik
+    koniec to zmierz_aktualny_czas
+    wypisz_błąd policz_różnicę_czasów od początek do koniec
+    zwrócić nowy Wynik o bazie baza o przyimkach przyimki
+
+
+# === Analiza tokenów wejściowych ===
+
+aby weź_wartość_tokenu t:
+    zwrócić
+
+aby weź_rodzaj_tokenu t:
+    zwrócić
+
+aby czy_token_jest_słowem t:
+    zwrócić
+
+aby weź_analizy_tokenu t:
+    zwrócić
+
+
+aby analizuj t z b:
+    wynik to stworzyć_pustą_listę
+    i to zero
+    dopóki i mniejsze od policz_długość_listy t:
+        token to weź_z_listy t pod i
+        jeśli czy_token_jest_słowem token:
+            segmenty to weź_wartość_tokenu token
+            analizy to stworzyć_pustą_listę
+            j to zero
+            dopóki j mniejsze od policz_długość_listy segmenty:
+                segment to weź_z_listy segmenty pod j
+                jeśli ma_klucz b pod segment:
+                    dodaj_do_listy analizy weź_z_mapy b pod segment
+                inaczej:
+                    dodaj_do_listy analizy stworzyć_pustą_listę
+                j to j plus jeden
+            dodaj_do_listy wynik token
+        inaczej:
+            dodaj_do_listy wynik token
+        i to i plus jeden
+    zwrócić wynik
+
+
+# === Forma kanoniczna ===
+
+aby stwórz_listę_kategorii_przymiotnikopodobnych:
+    zwrócić
+
+aby przefiltruj_analizy_po_kategoriach x po y:
+    zwrócić
+
+aby znajdź_analizę_z_lematem x z l:
+    i to zero
+    dopóki i mniejsze od policz_długość_listy x:
+        analiza to weź_z_listy x pod i
+        jeśli lemat analizy równe l:
+            zwrócić analiza
+        i to i plus jeden
+    zwrócić
+
+kategorie_przymiotnikopodobne to stworzyć_zbiór_z_listy stwórz_listę_kategorii_przymiotnikopodobnych
+
+
+aby wyznacz_kanoniczną_formę t:
+    segmenty to weź_wartość_tokenu t
+    analizy to weź_analizy_tokenu t
+    wynik to stworzyć_pustą_listę
+    i to zero
+    dopóki i mniejsze od policz_długość_listy segmenty:
+        segment to weź_z_listy segmenty pod i
+        anas to weź_z_listy analizy pod i
+        jeśli policz_długość_listy anas równe zero lub policz_długość_tekstu segment równe jeden:
+            dodaj_do_listy wynik segment
+        inaczej:
+            preferowane to przefiltruj_analizy_po_kategoriach anas po kategorie_przymiotnikopodobne
+            jeśli policz_długość_listy preferowane równe zero:
+                preferowane to anas
+            wybrana to znajdź_analizę_z_lematem preferowane z segment
+            jeśli wybrana równe pusty:
+                wybrana to weź_z_listy preferowane pod zero
+            dodaj_do_listy wynik lemat wybranej
+        i to i plus jeden
+    zwrócić wynik
