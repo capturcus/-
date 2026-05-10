@@ -34,38 +34,11 @@ def make_identifier(tok):
     _, surface, analyses = tok
     analyses_t = tuple(tuple(a) for a in analyses)
     variants = _enumerate_variants(surface, analyses_t)
-    if variants:
-        # Default segments: preferuj subst-first variant (semantycznie głowa
-        # rzeczownikowa jest typową interpretacją — subst-prefix zamyka prefix
-        # i ma zwykle szerszy case-set). Jeśli żaden subst-variant — pierwszy.
-        preferred_segments = _preferred_segments(variants, surface, analyses_t)
-        union_case = frozenset().union(*(case for _, case in variants))
-    else:
-        # Atom bez wariantów: identyfikator funkcji (verbal) lub single-seg
-        # opaque. Default to canonical, case=None.
-        preferred_segments = canonical(tok)
-        union_case = None
     return Identifier(
-        segments=preferred_segments,
         surface=surface,
-        case=union_case,
         analyses=analyses_t,
         variants=variants,
     )
-
-
-def _preferred_segments(variants, surface, analyses):
-    """Wybiera default segments tuple. Preferencja:
-    1) wariant z subst-głową (largest case-set jeśli wiele subst-variants),
-    2) inaczej pierwszy variant.
-
-    Przybliża dotychczasowe zachowanie `canonical()` przy subst-tylko
-    identyfikatorach, ale dla ambiguous (np. części_mowy) wybiera subst-prefix.
-    """
-    # Heurystyka: variant subst-prefix ma najczęściej >= cases niż adj-prefix
-    # (bo subst gen.dat.loc wystarczy szerokie). Bierzemy max po case-size.
-    best = max(variants, key=lambda v: len(v[1]))
-    return best[0]
 
 
 def _enumerate_variants(surface, analyses):

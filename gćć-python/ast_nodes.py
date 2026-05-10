@@ -3,24 +3,59 @@ from dataclasses import dataclass, field
 from morph_anal import canonical, VERB_POS, VerbForm
 
 
+_ADJ_LIKE = ("adj", "pact", "ppas")
+
+
 @dataclass
 class Module:
     body: list
     phrases: list
 
 
+def _canonical_segments(surface, analyses):
+    """Canonical-style lematy gdy identyfikator nie ma wariantów (verb-only
+    nazwa funkcji albo atom)."""
+    out = []
+    for seg, anas in zip(surface, analyses):
+        if not anas or len(seg) == 1:
+            out.append(seg)
+            continue
+        adj_like = [a for a in anas if a.pos in _ADJ_LIKE]
+        pool = adj_like if adj_like else list(anas)
+        chosen = next((a for a in pool if a.lemma == seg), pool[0])
+        out.append(chosen.lemma)
+    return tuple(out)
+
+
 @dataclass(frozen=True)
 class Identifier:
-    segments: tuple
+    """Identyfikator nie-funkcyjny.
+
+    Pełna informacja jest w `variants` — każdy wariant to spójna
+    interpretacja `(lemmas_tuple, case_frozenset)` (adj-czytanie vs
+    subst-czytanie per segment). Atrybuty `segments` i `case` to widoki
+    pochodne na variants:
+    - `segments`: lemmas wariantu z największym case-set (najmniej
+      zawężona interpretacja). Gdy variants=() (verbal-only lub atom)
+      fallback do canonical-style lemm z analiz.
+    - `case`: union case wszystkich wariantów. None gdy variants=().
+    """
     surface: tuple
-    case: frozenset = None
     analyses: tuple = ()  # tuple[tuple[MorphAnalysis, ...], ...]
-    # Wszystkie spójne interpretacje multi-segment identyfikatora
-    # (adj-czytanie vs subst-czytanie per segment). Każdy wariant to
-    # (lemmas_tuple, case_frozenset). Pole `segments` to preferowany
-    # wariant (subst-first), `case` to union wariantów. variants=()
-    # gdy identyfikator jest verbal (fcall name) lub atomem bez form.
-    variants: tuple = ()
+    variants: tuple = ()  # tuple[ tuple[lemmas_tuple, case_frozenset], ... ]
+
+    @property
+    def segments(self):
+        if self.variants:
+            best = max(self.variants, key=lambda v: len(v[1]))
+            return best[0]
+        return _canonical_segments(self.surface, self.analyses)
+
+    @property
+    def case(self):
+        if not self.variants:
+            return None
+        return frozenset().union(*(case for _, case in self.variants))
 
 
 class IdentifierError(SyntaxError):
@@ -31,7 +66,14 @@ class FunctionIdentifierError(IdentifierError):
     pass
 
 
-def _validate_function_name(surface, segments, analyses):
+def _validate_function_name(surface, analyses):
+    """Zwraca (verb_index, verb_form) lub rzuca FunctionIdentifierError.
+
+    Gdy w tym samym segmencie jest kilka verb-readings (np. impt różnych
+    czasowników), bierze pierwszy. To zachowuje obecną semantykę: w
+    praktyce takie kolizje są rzadkie, a wcześniejsza heurystyka i tak
+    fall-backowała do `verb_anas[0]` gdy `segments[i]` było non-verbal.
+    """
     if not analyses:
         raise FunctionIdentifierError(
             f"identyfikator funkcji '{'_'.join(surface)}' "
@@ -45,7 +87,7 @@ def _validate_function_name(surface, segments, analyses):
         if not verb_anas:
             continue
         chosen = next(
-            (a for a in verb_anas if a.lemma == segments[i]),
+            (a for a in verb_anas if a.lemma == seg),
             verb_anas[0],
         )
         return i, chosen.verb_form
@@ -66,10 +108,10 @@ class FunctionIdentifier:
     @classmethod
     def from_head(cls, head):
         verb_index, verb_form = _validate_function_name(
-            head.surface, head.segments, head.analyses
+            head.surface, head.analyses
         )
         return cls(
-            segments=head.segments,
+            segments=_canonical_segments(head.surface, head.analyses),
             surface=head.surface,
             verb_index=verb_index,
             verb_form=verb_form,
@@ -83,9 +125,7 @@ class FunctionIdentifier:
         _, surface, analyses = tok
         segments = canonical(tok)
         analyses_t = tuple(tuple(a) for a in analyses)
-        verb_index, verb_form = _validate_function_name(
-            surface, segments, analyses_t
-        )
+        verb_index, verb_form = _validate_function_name(surface, analyses_t)
         return cls(
             segments=segments,
             surface=surface,
