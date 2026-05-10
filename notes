@@ -1,10 +1,11 @@
 do zrobienia:
 
 składnia:
-pętla po elementach listy
+listy:
+    element listy
+    pętla po elementach listy
+    literał listy
 extern zewnętrznie / można
-struct creation: z autorem / o autorze
-liczby jako liczebniki
 
 semantyka:
 gramatyczne resolvowanie argumentów funkcji
