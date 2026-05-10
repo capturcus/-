@@ -13,9 +13,6 @@ aby stworzyć_pustą_listę:
 aby policz_długość_listy l:
     zwrócić
 
-aby weź_z_listy l pod i:
-    zwrócić
-
 aby dodaj_do_listy l e:
     zwrócić
 
@@ -25,13 +22,7 @@ aby zawiera_lista l e:
 aby stworzyć_pustą_mapę:
     zwrócić
 
-aby ma_klucz m pod k:
-    zwrócić
-
-aby weź_z_mapy m pod k:
-    zwrócić
-
-aby ustaw_w_mapie m pod k z w:
+aby ma_klucz m dla k:
     zwrócić
 
 aby stworzyć_pusty_zbiór:
@@ -135,16 +126,16 @@ tryb_dla_kategorii to stwórz_mapę_trybu
 # === Budowanie Formy z tagu — POS w `k`, części tagu w `c` ===
 
 aby zbuduj_formę dla k z c:
-    tryb to weź_z_mapy tryb_dla_kategorii pod k
+    tryb to tryb_dla_kategorii pod k
     n to policz_długość_listy c minus jeden
     jeśli k równe "inf" lub k równe "imps" lub k równe "pcon":
         zwrócić nowy Forma o kategorii k o trybie tryb
     jeśli k równe "fin" lub k równe "impt" lub k równe "bedzie" lub k równe "fut":
-        zwrócić nowy Forma o kategorii k o trybie tryb o liczebności weź_z_listy c pod jeden o osobie weź_z_listy c pod dwa o aspekcie weź_z_listy c pod trzy
+        zwrócić nowy Forma o kategorii k o trybie tryb o liczebności c pod jeden o osobie c pod dwa o aspekcie c pod trzy
     jeśli k równe "praet" lub k równe "winien":
-        zwrócić nowy Forma o kategorii k o trybie tryb o liczebności weź_z_listy c pod jeden o rodzaju weź_z_listy c pod dwa o aspekcie weź_z_listy c pod trzy
+        zwrócić nowy Forma o kategorii k o trybie tryb o liczebności c pod jeden o rodzaju c pod dwa o aspekcie c pod trzy
     jeśli k równe "cond":
-        zwrócić nowy Forma o kategorii k o trybie tryb o liczebności weź_z_listy c pod jeden o rodzaju weź_z_listy c pod dwa o osobie weź_z_listy c pod trzy o aspekcie weź_z_listy c pod cztery
+        zwrócić nowy Forma o kategorii k o trybie tryb o liczebności c pod jeden o rodzaju c pod dwa o osobie c pod trzy o aspekcie c pod cztery
     zwrócić
 
 
@@ -153,34 +144,34 @@ aby zbuduj_formę dla k z c:
 aby weź_formę dla k z t z p:
     jeśli nie zawiera_zbiór kategorie_czasownikowe k:
         zwrócić
-    jeśli ma_klucz p pod t:
-        zwrócić weź_z_mapy p pod t
+    jeśli ma_klucz p dla t:
+        zwrócić p pod t
     części to podziel_tekst t po ":"
     forma to zbuduj_formę dla k z części
-    ustaw_w_mapie p pod t z forma
+    p pod t to forma
     zwrócić forma
 
 
 # === Wyciąganie przypadków z tagu ===
 
 aby wyciągnij_przypadki z t z c z p:
-    jeśli ma_klucz p pod t:
-        zwrócić weź_z_mapy p pod t
+    jeśli ma_klucz p dla t:
+        zwrócić p pod t
     znalezione to stworzyć_pusty_zbiór
     indeks to jeden
     dopóki indeks mniejsze od policz_długość_listy c:
-        kandydat to weź_z_listy c pod indeksem
+        kandydat to c pod indeksem
         kandydaci to podziel_tekst kandydat po "."
         i to zero
         dopóki i mniejsze od policz_długość_listy kandydaci:
-            wybór to weź_z_listy kandydaci pod i
+            wybór to kandydaci pod i
             jeśli zawiera_zbiór przypadki_dopuszczalne wybór:
                 znalezione to połącz_zbiory znalezione z utwórz_jednoelementowy_zbiór z wybór
             i to i plus jeden
         jeśli policz_długość_zbioru znalezione większe od zero:
             stop
         indeks to indeks plus jeden
-    ustaw_w_mapie p pod t z znalezione
+    p pod t to znalezione
     zwrócić znalezione
 
 
@@ -189,7 +180,7 @@ aby wyciągnij_przypadki z t z c z p:
 aby sprawdź_kwalifikator k:
     i to zero
     dopóki i mniejsze od policz_długość_listy wykluczone_kwalifikatory:
-        kw to weź_z_listy wykluczone_kwalifikatory pod i
+        kw to wykluczone_kwalifikatory pod i
         jeśli zawiera_tekst k kw:
             zwrócić prawda
         i to i plus jeden
@@ -211,10 +202,10 @@ aby załaduj_bazę z s:
         jeśli policz_długość_listy kolumny mniejsze od trzy:
             stop
 
-        forma to weź_z_listy kolumny pod zero
-        pole_lematu to weź_z_listy kolumny pod jeden
-        tag to weź_z_listy kolumny pod dwa
-        kwalifikatory to weź_z_listy kolumny pod cztery
+        forma to kolumny pod zero
+        pole_lematu to kolumny pod jeden
+        tag to kolumny pod dwa
+        kwalifikatory to kolumny pod cztery
         lemat to weź_pierwszy_segment pole_lematu po ":"
         kategoria to weź_pierwszy_segment tag po ":"
         części to podziel_tekst tag po ":"
@@ -222,15 +213,15 @@ aby załaduj_bazę z s:
 
         analiza to nowa Analiza z kategorią z przypadkami z lematem z tagiem
 
-        jeśli nie ma_klucz baza pod forma:
-            ustaw_w_mapie baza pod forma z stworzyć_pustą_listę
-        dodaj_do_listy weź_z_mapy baza pod forma analiza
+        jeśli nie ma_klucz baza dla forma:
+            baza pod forma to stworzyć_pustą_listę
+        dodaj_do_listy (baza pod forma) analiza
 
         jeśli kategoria równe "prep" i policz_długość_zbioru przypadki większe od zero:
             jeśli nie sprawdź_kwalifikator kwalifikatory:
-                jeśli nie ma_klucz przyimki pod lemat:
-                    ustaw_w_mapie przyimki pod lemat z stworzyć_pusty_zbiór
-                ustaw_w_mapie przyimki pod lemat z połącz_zbiory weź_z_mapy przyimki pod lemat z przypadki
+                jeśli nie ma_klucz przyimki dla lemat:
+                    przyimki pod lemat to stworzyć_pusty_zbiór
+                przyimki pod lemat to połącz_zbiory (przyimki pod lemat) z przypadki
 
     zamknij_plik plik
     koniec to zmierz_aktualny_czas
@@ -257,15 +248,15 @@ aby analizuj t z b:
     wynik to stworzyć_pustą_listę
     i to zero
     dopóki i mniejsze od policz_długość_listy t:
-        token to weź_z_listy t pod i
+        token to t pod i
         jeśli czy_token_jest_słowem token:
             segmenty to weź_wartość_tokenu token
             analizy to stworzyć_pustą_listę
             j to zero
             dopóki j mniejsze od policz_długość_listy segmenty:
-                segment to weź_z_listy segmenty pod j
-                jeśli ma_klucz b pod segment:
-                    dodaj_do_listy analizy weź_z_mapy b pod segment
+                segment to segmenty pod j
+                jeśli ma_klucz b dla segment:
+                    dodaj_do_listy analizy (b pod segment)
                 inaczej:
                     dodaj_do_listy analizy stworzyć_pustą_listę
                 j to j plus jeden
@@ -287,7 +278,7 @@ aby przefiltruj_analizy_po_kategoriach x po y:
 aby znajdź_analizę_z_lematem x z l:
     i to zero
     dopóki i mniejsze od policz_długość_listy x:
-        analiza to weź_z_listy x pod i
+        analiza to x pod i
         jeśli lemat analizy równe l:
             zwrócić analiza
         i to i plus jeden
@@ -302,8 +293,8 @@ aby wyznacz_kanoniczną_formę t:
     wynik to stworzyć_pustą_listę
     i to zero
     dopóki i mniejsze od policz_długość_listy segmenty:
-        segment to weź_z_listy segmenty pod i
-        anas to weź_z_listy analizy pod i
+        segment to segmenty pod i
+        anas to analizy pod i
         jeśli policz_długość_listy anas równe zero lub policz_długość_tekstu segment równe jeden:
             dodaj_do_listy wynik segment
         inaczej:
@@ -312,7 +303,7 @@ aby wyznacz_kanoniczną_formę t:
                 preferowane to anas
             wybrana to znajdź_analizę_z_lematem preferowane z segment
             jeśli wybrana równe pusty:
-                wybrana to weź_z_listy preferowane pod zero
+                wybrana to preferowane pod zero
             dodaj_do_listy wynik lemat wybranej
         i to i plus jeden
     zwrócić wynik
