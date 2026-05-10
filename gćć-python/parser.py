@@ -60,7 +60,6 @@ class Parser:
         self.tokens = tokens
         self.pos = 0
         self.preps = preps or {}
-        self.phrases = []  # zbierane na potrzeby drugiego przebiegu
 
     def peek(self, offset=0):
         i = self.pos + offset
@@ -86,7 +85,8 @@ class Parser:
 
         Granica (poza nawiasami): NEWLINE/COLON/ARROW/INDENT/DEDENT/ASSIGN
         lub niezbalansowane RPAREN. ARITH_OP/CMP_OP/`i`/`lub`/`nie` SĄ
-        częścią Phrase — drugi przebieg buduje z nich wyrażenia.
+        częścią Phrase — drugi przebieg (`expression.resolve_module`) chodzi
+        po AST i wywołuje resolwer dla każdej Phrase w kontekście jej scope'u.
         """
         tokens = []
         paren_depth = 0
@@ -103,9 +103,7 @@ class Parser:
                 paren_depth -= 1
             tokens.append(t)
             self.advance()
-        phrase = Phrase(tokens=tokens)
-        self.phrases.append(phrase)
-        return phrase
+        return Phrase(tokens=tokens)
 
     def parse_module(self):
         body = []
@@ -113,7 +111,7 @@ class Parser:
         while self.peek() is not None:
             body.append(self.parse_stmt())
             self._skip_newlines()
-        return Module(body=body, phrases=self.phrases)
+        return Module(body=body)
 
     def parse_stmt(self):
         t = self.peek()

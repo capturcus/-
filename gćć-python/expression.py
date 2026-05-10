@@ -34,6 +34,7 @@ from ast_nodes import (
     IntLit, StrLit, BinOp, UnaryOp, And, Or, Not,
     FunctionCall, GetterChain, Subscript, StructCreation, StructArg, StructCtx,
     ResolveError, Word, LOGICAL_OPS,
+    Assignment, If, While, For, Return, Phrase,
 )
 from identifier import make_identifier, is_prep
 
@@ -59,12 +60,100 @@ class _Ctx:
         self.field_names = field_names
 
 
+class _Scope:
+    """Symbol table dla zmiennych. Chain w górę przez `parent`.
+
+    `variables` to set[tuple[str, ...]] — wszystkich możliwych lemma
+    interpretacji każdej zadeklarowanej zmiennej (dodajemy całe lemmas_set
+    identyfikatora). To pozwala odwołać się do zmiennej w dowolnej formie
+    morfologicznej."""
+
+    def __init__(self, parent=None):
+        self.variables = set()
+        self.parent = parent
+
+    def add(self, ident):
+        self.variables |= ident.lemmas_set
+
+    def has_var(self, segs):
+        if segs in self.variables:
+            return True
+        return self.parent.has_var(segs) if self.parent else False
+
+
+# ---------- wolne helpery (używane przez ExpressionParser i pre-collect) ----------
+
+
+def _ident_is_field(ident, field_names):
+    """True jeśli któryś wariant identyfikatora pasuje do field_names."""
+    return bool(ident.lemmas_set & field_names)
+
+
+def _is_gen_word(token, preps):
+    """True jeśli token to WORD niebędący prep-em z gen w którymś wariancie."""
+    if token is None or token[0] is not lexer.Token.WORD:
+        return False
+    if is_prep(token, preps):
+        return False
+    ident = make_identifier(token)
+    if not ident.variants:
+        return False
+    return any("gen" in case for _, case in ident.variants)
+
+
+def _starts_chain(head_ident, next_token, field_names, preps):
+    """Ta sama logika co ExpressionParser._can_start_chain, ale bez self."""
+    return _ident_is_field(head_ident, field_names) and _is_gen_word(next_token, preps)
+
+
+def _field_lemmas(field_name):
+    """Lemmy reprezentujące pole — filtr po nom (konwencja deklaracji w mianowniku).
+    Atom (no variants) przepuszczany przez lemmas_set."""
+    if not field_name.variants:
+        return field_name.lemmas_set
+    nom_variants = [(s, c) for s, c in field_name.variants if "nom" in c]
+    if not nom_variants:
+        raise ResolveError(
+            f"pole struct-a '{'_'.join(field_name.surface)}' nie ma formy "
+            f"mianownika; pola deklaruj w nom"
+        )
+    return frozenset(s for s, _ in nom_variants)
+
+
+def _collect_target_var(target_phrase, scope, field_names, preps):
+    """Dodaje pierwsze WORD targetu jako zmienną, chyba że to chain (field write)."""
+    tokens = target_phrase.tokens
+    if not tokens or tokens[0][0] is not lexer.Token.WORD:
+        return
+    head_ident = make_identifier(tokens[0])
+    next_token = tokens[1] if len(tokens) > 1 else None
+    if _starts_chain(head_ident, next_token, field_names, preps):
+        return  # chain LHS — to field write, nie deklaracja zmiennej
+    scope.add(head_ident)
+
+
+def _collect_bindings_in_stmt(stmt, scope, field_names, preps):
+    """Bindings z While/If/For bodies leakują do enclosing scope (For-var
+    dodawany oddzielnie w _resolve_stmt do for-scope)."""
+    if isinstance(stmt, Assignment):
+        _collect_target_var(stmt.target, scope, field_names, preps)
+    elif isinstance(stmt, (While, For)):
+        for sub in stmt.body:
+            _collect_bindings_in_stmt(sub, scope, field_names, preps)
+    elif isinstance(stmt, If):
+        for sub in stmt.then_body:
+            _collect_bindings_in_stmt(sub, scope, field_names, preps)
+        for sub in stmt.else_body:
+            _collect_bindings_in_stmt(sub, scope, field_names, preps)
+
+
 class ExpressionParser:
-    def __init__(self, tokens, ctx, preps):
+    def __init__(self, tokens, ctx, preps, scope):
         self.tokens = tokens
         self.pos = 0
         self.ctx = ctx
         self.preps = preps
+        self.scope = scope
         self.struct_stack = []  # lista StructCtx aktywnych struct_creation
 
     def peek(self, offset=0):
@@ -186,27 +275,48 @@ class ExpressionParser:
         if self._can_start_chain(head_ident):
             return self._parse_getter_chain(head_ident)
         # Function call: head jest czasownikiem zdefiniowanym jako fname.
-        # Jeśli from_head zsucceeded ale funkcja nie istnieje — fallback do
-        # identifier_ref (może być lokalna zmienna; na tym etapie nie wiemy).
+        # Jeśli from_head zsucceeded ale żadna lemma nie matchuje — fallback
+        # do identifier_ref (może być lokalna zmienna).
         try:
             name = FunctionIdentifier.from_head(head_ident)
         except FunctionIdentifierError:
-            return head_ident
-        if name.segments not in self.ctx.function_defs:
-            return head_ident
-        return self._parse_function_call(name)
+            return self._narrow_to_variable(head_ident)
+        matched_lemma = next(
+            (lemma for lemma in name.lemmas_set if lemma in self.ctx.function_defs),
+            None,
+        )
+        if matched_lemma is None:
+            return self._narrow_to_variable(head_ident)
+        return self._parse_function_call(name, matched_lemma)
+
+    def _narrow_to_variable(self, ident):
+        """Zostaw tylko warianty, których lemmy są zadeklarowanymi zmiennymi
+        w scope. NIE wybiera 'najlepszego' — disambiguację dla > 1 wariantu
+        zostawia późniejszemu kontekstowi (fcall slot, type checker)."""
+        if not ident.variants:
+            return ident
+        matches = tuple(
+            (s, c) for s, c in ident.variants if self.scope.has_var(s)
+        )
+        if not matches or matches == ident.variants:
+            return ident
+        return Identifier(
+            surface=ident.surface,
+            analyses=ident.analyses,
+            variants=matches,
+        )
 
     # ---------- function call ----------
 
-    def _parse_function_call(self, name):
-        fdef = self.ctx.function_defs[name.segments]
+    def _parse_function_call(self, name, matched_lemma):
+        fdef = self.ctx.function_defs[matched_lemma]
         sig = tuple(fdef.params)
         n_slots = len(sig)
         arg_meta = []
         for _ in range(n_slots):
             if self.peek() is None:
                 raise ResolveError(
-                    f"funkcja '{'_'.join(name.segments)}' wymaga "
+                    f"funkcja '{'_'.join(name.surface)}' wymaga "
                     f"{n_slots} argumentów, otrzymała {len(arg_meta)}"
                 )
             prep, value, case = self._parse_arg()
@@ -265,7 +375,7 @@ class ExpressionParser:
         for ai, si in zip(remaining_args, free_slots):
             if si not in candidates[ai]:
                 raise ResolveError(
-                    f"argument funkcji '{'_'.join(name.segments)}' "
+                    f"argument funkcji '{'_'.join(name.surface)}' "
                     f"nie pasuje do żadnego wolnego parametru w trybie pozycyjnym"
                 )
             assigned[ai] = si
@@ -283,18 +393,14 @@ class ExpressionParser:
     # ---------- helpery wariantów ----------
 
     def _ident_is_field(self, ident):
-        """Czy KTÓRYŚ wariant identyfikatora jest field-em w obecnym ctx."""
-        for segs, _ in ident.variants:
-            if segs in self.ctx.field_names:
-                return True
-        return ident.segments in self.ctx.field_names
+        return _ident_is_field(ident, self.ctx.field_names)
 
     def _find_in_set(self, ident, target_set, exclude=frozenset(),
                      required_case=None):
         """Wyszukuje wariant z `segments in target_set` (i opcjonalnie z
-        `required_case in case`), wykluczając te w `exclude`. Tiebreak:
-        największy case-set. Zwraca dopasowane segments lub None.
-        """
+        `required_case in case`), wykluczając te w `exclude`.
+        Jeśli wiele wariantów pasuje po filtrach → ResolveError (ambiguity).
+        Zwraca dopasowane segments lub None gdy brak matchu."""
         matches = []
         for segs, case in ident.variants:
             if segs in exclude:
@@ -304,39 +410,28 @@ class ExpressionParser:
             if required_case is not None and required_case not in case:
                 continue
             matches.append((segs, case))
-        if matches:
-            segs, _ = max(matches, key=lambda v: len(v[1]))
-            return segs
-        # Fallback: identyfikator bez wariantów (atom). Default segments
-        # mogą trafić w target_set tylko gdy required_case=None (atom nie
-        # ma case'u do dopasowania).
-        if not ident.variants and required_case is None:
-            if ident.segments in target_set and ident.segments not in exclude:
-                return ident.segments
-        return None
+        # Fallback: identyfikator bez wariantów (atom) — użyj lemmas_set.
+        if not matches and not ident.variants and required_case is None:
+            for segs in ident.lemmas_set:
+                if segs in target_set and segs not in exclude:
+                    matches.append((segs, None))
+        if not matches:
+            return None
+        if len(matches) > 1:
+            opts = ", ".join(sorted("_".join(s) for s, _ in matches))
+            raise ResolveError(
+                f"identyfikator '{'_'.join(ident.surface)}' jest niejednoznaczny "
+                f"w tym kontekście — pasuje do wielu opcji: {opts}"
+            )
+        return matches[0][0]
 
     # ---------- getter chain ----------
 
     def _can_start_chain(self, head_ident):
-        if not self._ident_is_field(head_ident):
-            return False
-        nxt = self.peek()
-        return self._is_gen_word(nxt)
+        return _starts_chain(head_ident, self.peek(), self.ctx.field_names, self.preps)
 
     def _is_gen_word(self, tok):
-        if tok is None or tok[0] is not lexer.Token.WORD:
-            return False
-        # Przyimki (np. `z`, `do`) mają wśród analiz `prep:gen:…` — same w sobie
-        # mają „gen" w case, ale są granicą argumentu fcall, nie kontynuacją
-        # chain. Wyklucz je z detekcji.
-        if is_prep(tok, self.preps):
-            return False
-        ident = make_identifier(tok)
-        # Wystarczy że KTÓRYŚ wariant ma 'gen'. Identifier.case to union
-        # wariantów, więc w atomach bez wariantów case=None → False.
-        if ident.variants:
-            return any("gen" in case for _, case in ident.variants)
-        return False
+        return _is_gen_word(tok, self.preps)
 
     def _parse_getter_chain(self, head_ident):
         chain = [head_ident, make_identifier(self.advance())]
@@ -349,7 +444,7 @@ class ExpressionParser:
     def _starts_struct_creation(self, head_ident):
         """Zwraca dopasowane type_segments jeśli head zaczyna struct creation,
         inaczej None."""
-        if head_ident.segments != ("nowy",):
+        if ("nowy",) not in head_ident.lemmas_set:
             return None
         nxt = self.peek()
         if nxt is None or nxt[0] is not lexer.Token.WORD:
@@ -447,10 +542,20 @@ def _build_ctx(module):
             types.add(node.name)
             fbt = fields_by_type.setdefault(node.name, set())
             for f in node.fields:
-                fbt.add(f.name.segments)
-                field_names.add(f.name.segments)
+                for lemma in _field_lemmas(f.name):
+                    fbt.add(lemma)
+                    field_names.add(lemma)
         elif isinstance(node, FunctionDef):
-            function_defs[node.name.segments] = node
+            for lemma in node.name.lemmas_set:
+                existing = function_defs.get(lemma)
+                if existing is not None and existing is not node:
+                    raise ResolveError(
+                        f"konflikt nazw funkcji: '{'_'.join(lemma)}' "
+                        f"pasuje do wielu definicji "
+                        f"('{'_'.join(existing.name.surface)}' i "
+                        f"'{'_'.join(node.name.surface)}')"
+                    )
+                function_defs[lemma] = node
     overlap = field_names & set(function_defs.keys())
     if overlap:
         names = ", ".join("_".join(n) for n in sorted(overlap))
@@ -461,11 +566,11 @@ def _build_ctx(module):
     return _Ctx(function_defs, types, fields_by_type, field_names)
 
 
-def resolve_phrase(phrase, ctx, preps):
-    parser = ExpressionParser(phrase.tokens, ctx, preps)
+def resolve_phrase(phrase, ctx, preps, scope):
     if not phrase.tokens:
         phrase.resolved = None
         return
+    parser = ExpressionParser(phrase.tokens, ctx, preps, scope)
     phrase.resolved = parser.parse_phrase()
     if parser.peek() is not None:
         raise ResolveError(
@@ -474,8 +579,67 @@ def resolve_phrase(phrase, ctx, preps):
         )
 
 
+def _resolve(phrase, ctx, preps, scope):
+    """Alias dla resolve_phrase z miłą krótką nazwą do tree-walka."""
+    resolve_phrase(phrase, ctx, preps, scope)
+
+
+def _resolve_stmt(stmt, ctx, preps, scope):
+    if isinstance(stmt, Assignment):
+        _resolve(stmt.target, ctx, preps, scope)
+        _resolve(stmt.value, ctx, preps, scope)
+    elif isinstance(stmt, For):
+        _resolve(stmt.collection, ctx, preps, scope)
+        for_scope = _Scope(parent=scope)
+        for_scope.add(stmt.var)
+        for sub in stmt.body:
+            _resolve_stmt(sub, ctx, preps, for_scope)
+    elif isinstance(stmt, While):
+        _resolve(stmt.cond, ctx, preps, scope)
+        for sub in stmt.body:
+            _resolve_stmt(sub, ctx, preps, scope)
+    elif isinstance(stmt, If):
+        _resolve(stmt.cond, ctx, preps, scope)
+        for sub in stmt.then_body:
+            _resolve_stmt(sub, ctx, preps, scope)
+        for sub in stmt.else_body:
+            _resolve_stmt(sub, ctx, preps, scope)
+    elif isinstance(stmt, Return):
+        if stmt.value is not None:
+            _resolve(stmt.value, ctx, preps, scope)
+    elif isinstance(stmt, Phrase):
+        _resolve(stmt, ctx, preps, scope)
+    # Break: no phrase
+
+
+def _resolve_body(body, ctx, preps, scope):
+    """Zbiera bindings (assignments w body + zagnieżdżonych If/While/For)
+    do obecnego scope'u, potem rezolwuje każdy statement."""
+    for stmt in body:
+        _collect_bindings_in_stmt(stmt, scope, ctx.field_names, preps)
+    for stmt in body:
+        _resolve_stmt(stmt, ctx, preps, scope)
+
+
 def resolve_module(module, preps=None):
     ctx = _build_ctx(module)
-    for phrase in module.phrases:
-        resolve_phrase(phrase, ctx, preps or {})
+    preps = preps or {}
+    module_scope = _Scope()
+    # Pre-collect: top-level assignment targets
+    for node in module.body:
+        if isinstance(node, Assignment):
+            _collect_target_var(node.target, module_scope, ctx.field_names, preps)
+    # Resolve module-level
+    for node in module.body:
+        if isinstance(node, Assignment):
+            _resolve(node.target, ctx, preps, module_scope)
+            _resolve(node.value, ctx, preps, module_scope)
+        elif isinstance(node, FunctionDef):
+            fn_scope = _Scope(parent=module_scope)
+            for p in node.params:
+                fn_scope.add(p.name)
+            _resolve_body(node.body, ctx, preps, fn_scope)
+        elif isinstance(node, Phrase):
+            _resolve(node, ctx, preps, module_scope)
+        # StructDef: brak fraz
     return module

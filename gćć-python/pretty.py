@@ -81,19 +81,19 @@ def _label(node):
     if isinstance(node, ast.Module):
         return "Module"
     if isinstance(node, ast.FunctionDef):
-        s = f"FunctionDef {'_'.join(node.name.segments)}"
+        s = f"FunctionDef {'_'.join(node.name.surface)}"
         if node.return_type:
             s += f" -> {'_'.join(node.return_type)}"
         return s
     if isinstance(node, ast.StructDef):
         return f"StructDef {'_'.join(node.name)}"
     if isinstance(node, ast.Field):
-        return f"Field {'_'.join(node.name.segments)} : {'_'.join(node.type)}"
+        return f"Field {'_'.join(node.name.surface)} : {'_'.join(node.type)}"
     if isinstance(node, ast.Param):
         parts = ["Param"]
         if node.prep:
             parts.append("_".join(node.prep))
-        parts.append("_".join(node.name.segments))
+        parts.append("_".join(node.name.surface))
         if node.case:
             parts.append(f"({_format_case(node.case)})")
         if node.type:
@@ -104,7 +104,7 @@ def _label(node):
             return _label(node.resolved)
         return "Phrase"
     if isinstance(node, ast.FunctionCall):
-        return f"FunctionCall {'_'.join(node.name.segments)}"
+        return f"FunctionCall {'_'.join(node.name.surface)}"
     if isinstance(node, ast.GetterChain):
         return "GetterChain"
     if isinstance(node, ast.Subscript):
@@ -115,13 +115,13 @@ def _label(node):
         suffix = " (shorthand)" if node.value is None else ""
         return f"StructArg {'_'.join(node.field_name)}{suffix}"
     if isinstance(node, ast.Identifier):
-        return f"Reference {'_'.join(node.segments)}"
+        return f"Reference {'_'.join(node.surface)}"
     if isinstance(node, ast.Word):
         parts = ["Word"]
         if node.prep:
             parts.append("_".join(node.prep))
         if isinstance(node.value, ast.Identifier):
-            parts.append("_".join(node.value.segments))
+            parts.append("_".join(node.value.surface))
         if node.case:
             parts.append(f"({_format_case(node.case)})")
         return " ".join(parts)

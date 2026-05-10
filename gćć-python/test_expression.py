@@ -159,7 +159,7 @@ def test_not_with_phrase(parse):
     expr = _value_of_first_assignment(parse(_wrap("nie inna_zmienna")))
     assert isinstance(expr, ast.Not)
     assert isinstance(expr.operand, ast.Identifier)
-    assert expr.operand.segments == ("inny", "zmienny")
+    assert ("inny", "zmienny") in expr.operand.lemmas_set
 
 
 def test_not_lower_precedence_than_comparison(parse):
@@ -198,7 +198,7 @@ def test_simple_function_call(parse):
     m = parse(src)
     fc = m.body[1].body[0].resolved
     assert isinstance(fc, ast.FunctionCall)
-    assert fc.name.segments == ("pisać",)
+    assert ("pisać",) in fc.name.lemmas_set
     assert len(fc.params) == 1
     assert isinstance(fc.params[0], ast.Word)
     assert fc.params[0].value == ast.StrLit("hej")
@@ -212,7 +212,7 @@ def test_function_call_arg_with_prep(parse):
     m = parse(src)
     fc = m.body[1].body[0].resolved
     assert isinstance(fc, ast.FunctionCall)
-    assert fc.name.segments == ("wywołać", "funkcja")
+    assert ("wywołać", "funkcja") in fc.name.lemmas_set
     assert fc.params[0].prep == ("z",)
     assert fc.params[0].value == ast.IntLit(2)
 
@@ -228,7 +228,7 @@ def test_function_call_followed_by_binop_left_binding(parse):
     expr = m.body[1].body[0].value.resolved
     assert isinstance(expr, ast.BinOp) and expr.op == "+"
     assert isinstance(expr.left, ast.FunctionCall)
-    assert expr.left.name.segments == ("wziąć", "wiek", "z", "baza")
+    assert ("wziąć", "wiek", "z", "baza") in expr.left.name.lemmas_set
     assert expr.right == ast.IntLit(7)
 
 
@@ -270,8 +270,8 @@ def test_simple_chain(parse):
     chain = m.body[1].body[0].value.resolved
     assert isinstance(chain, ast.GetterChain)
     assert len(chain.chain) == 2
-    assert chain.chain[0].segments == ("autor",)
-    assert chain.chain[1].segments == ("post",)
+    assert ("autor",) in chain.chain[0].lemmas_set
+    assert ("post",) in chain.chain[1].lemmas_set
 
 
 def test_chain_with_arith_left_binding(parse):
@@ -345,7 +345,7 @@ def test_bare_identifier_single_letter(parse):
     m = parse(src)
     expr = m.body[0].body[0].value.resolved
     assert isinstance(expr, ast.Identifier)
-    assert expr.segments == ("y",)
+    assert ("y",) in expr.lemmas_set
 
 
 def test_bare_identifier_multiseg_no_verb(parse):
@@ -354,7 +354,7 @@ def test_bare_identifier_multiseg_no_verb(parse):
     m = parse(src)
     expr = m.body[0].body[0].value.resolved
     assert isinstance(expr, ast.Identifier)
-    assert expr.segments == ("wielki", "kot")
+    assert ("wielki", "kot") in expr.lemmas_set
 
 
 # ---------- Two-pass: forward references działają ----------
@@ -368,7 +368,7 @@ def test_function_can_be_called_before_definition(parse):
     m = parse(src)
     fc = m.body[0].body[0].resolved
     assert isinstance(fc, ast.FunctionCall)
-    assert fc.name.segments == ("pisać",)
+    assert ("pisać",) in fc.name.lemmas_set
 
 
 # ---------- Identifier variants (subst vs adj-prefix) ----------
@@ -392,11 +392,13 @@ def test_identifier_has_multiple_variants_when_segment_ambiguous(db):
 
 
 def test_default_segments_pick_largest_case_set(db):
-    """Tiebreak: domyślne `Identifier.segments` to wariant z największym
-    case-set (subst-prefix `("część","mowa")` ma case={gen,dat,loc,nom,acc,voc},
-    adj-prefix `("częsty","mowa")` ma case={nom,voc})."""
+    """Po refaktorze: `Identifier.segments` (heurystyka max case-set)
+    została usunięta. Identyfikator niesie WSZYSTKIE warianty; weryfikujemy
+    że zarówno subst-prefix jak i adj-prefix są dostępne, oraz że `case`
+    to union casów wszystkich wariantów."""
     ident = _make_ident(db, "części_mowy")
-    assert ident.segments == ("część", "mowa")
+    assert ("część", "mowa") in ident.lemmas_set
+    assert ("częsty", "mowa") in ident.lemmas_set
     # Sanity: union case = wszystkie z obu wariantów
     assert "gen" in ident.case
     assert "loc" in ident.case
@@ -468,7 +470,7 @@ def test_subscript_atom_int_index(parse):
     expr = _value_of_first_assignment(parse(_wrap("lista pod jeden")))
     assert isinstance(expr, ast.Subscript)
     assert isinstance(expr.target, ast.Identifier)
-    assert expr.target.segments == ("lista",)
+    assert ("lista",) in expr.target.lemmas_set
     assert expr.index == ast.IntLit(1)
 
 
@@ -477,9 +479,9 @@ def test_subscript_atom_ident_index(parse):
     expr = _value_of_first_assignment(parse(_wrap("lista pod indeksem")))
     assert isinstance(expr, ast.Subscript)
     assert isinstance(expr.target, ast.Identifier)
-    assert expr.target.segments == ("lista",)
+    assert ("lista",) in expr.target.lemmas_set
     assert isinstance(expr.index, ast.Identifier)
-    assert expr.index.segments == ("indeks",)
+    assert ("indeks",) in expr.index.lemmas_set
 
 
 def test_subscript_left_associative(parse):
@@ -491,7 +493,7 @@ def test_subscript_left_associative(parse):
     assert isinstance(expr.target, ast.Subscript)
     assert expr.target.index == ast.IntLit(1)
     assert isinstance(expr.target.target, ast.Identifier)
-    assert expr.target.target.segments == ("lista",)
+    assert ("lista",) in expr.target.target.lemmas_set
 
 
 def test_subscript_lower_precedence_than_arith(parse):
@@ -529,9 +531,9 @@ def test_subscript_on_fcall_result(parse):
     expr = m.body[1].body[0].value.resolved
     assert isinstance(expr, ast.Subscript)
     assert isinstance(expr.target, ast.FunctionCall)
-    assert expr.target.name.segments == ("wziąć",)
+    assert ("wziąć",) in expr.target.name.lemmas_set
     assert isinstance(expr.index, ast.Identifier)
-    assert expr.index.segments == ("indeks",)
+    assert ("indeks",) in expr.index.lemmas_set
 
 
 def test_subscript_inside_fcall_arg_via_parens(parse):
@@ -543,7 +545,7 @@ def test_subscript_inside_fcall_arg_via_parens(parse):
     m = parse(src)
     expr = m.body[1].body[0].value.resolved
     assert isinstance(expr, ast.FunctionCall)
-    assert expr.name.segments == ("wziąć",)
+    assert ("wziąć",) in expr.name.lemmas_set
     assert len(expr.params) == 1
     assert isinstance(expr.params[0].value, ast.Subscript)
 
@@ -560,11 +562,11 @@ def test_subscript_chain_as_index(parse):
     expr = m.body[1].body[0].value.resolved
     assert isinstance(expr, ast.Subscript)
     assert isinstance(expr.target, ast.Identifier)
-    assert expr.target.segments == ("lista",)
+    assert ("lista",) in expr.target.lemmas_set
     assert isinstance(expr.index, ast.GetterChain)
     assert len(expr.index.chain) == 2
-    assert expr.index.chain[0].segments == ("numer",)
-    assert expr.index.chain[1].segments == ("autor",)
+    assert ("numer",) in expr.index.chain[0].lemmas_set
+    assert ("autor",) in expr.index.chain[1].lemmas_set
 
 
 def test_subscript_as_assignment_target(parse):
@@ -574,8 +576,8 @@ def test_subscript_as_assignment_target(parse):
     asn = m.body[0].body[0]
     assert isinstance(asn, ast.Assignment)
     assert isinstance(asn.target.resolved, ast.Subscript)
-    assert asn.target.resolved.target.segments == ("lista",)
-    assert asn.target.resolved.index.segments == ("indeks",)
+    assert ("lista",) in asn.target.resolved.target.lemmas_set
+    assert ("indeks",) in asn.target.resolved.index.lemmas_set
     assert asn.value.resolved == ast.IntLit(1)
 
 
@@ -611,7 +613,7 @@ def test_subscript_after_fcall_with_two_args(parse):
     assert isinstance(expr.target, ast.FunctionCall)
     assert len(expr.target.params) == 2
     assert isinstance(expr.index, ast.Identifier)
-    assert expr.index.segments == ("indeks",)
+    assert ("indeks",) in expr.index.lemmas_set
 
 
 def test_subscript_full_composition(parse):
@@ -661,9 +663,9 @@ def test_for_basic(parse):
     for_node = m.body[0].body[0]
     assert isinstance(for_node, ast.For)
     assert isinstance(for_node.var, ast.Identifier)
-    assert for_node.var.segments == ("użytkownik",)
+    assert ("użytkownik",) in for_node.var.lemmas_set
     # collection: Phrase z resolved=Identifier(lista)
-    assert for_node.collection.resolved.segments == ("lista",)
+    assert ("lista",) in for_node.collection.resolved.lemmas_set
     assert len(for_node.body) == 1
 
 
@@ -678,7 +680,7 @@ def test_for_var_multiseg_adj_subst(parse):
     m = parse(src)
     for_node = m.body[0].body[0]
     assert isinstance(for_node, ast.For)
-    assert for_node.var.segments == ("wielki", "użytkownik")
+    assert ("wielki", "użytkownik") in for_node.var.lemmas_set
 
 
 def test_for_body_with_stop(parse):
@@ -707,12 +709,12 @@ def test_for_nested(parse):
     m = parse(src)
     outer = m.body[1].body[0]
     assert isinstance(outer, ast.For)
-    assert outer.var.segments == ("x",)
+    assert ("x",) in outer.var.lemmas_set
     inner = outer.body[0]
     assert isinstance(inner, ast.For)
-    assert inner.var.segments == ("y",)
+    assert ("y",) in inner.var.lemmas_set
     # Inner collection refers to outer var
-    assert inner.collection.resolved.segments == ("x",)
+    assert ("x",) in inner.collection.resolved.lemmas_set
 
 
 def test_for_collection_is_subscript(parse):
@@ -727,7 +729,7 @@ def test_for_collection_is_subscript(parse):
     assert isinstance(for_node, ast.For)
     coll = for_node.collection.resolved
     assert isinstance(coll, ast.Subscript)
-    assert coll.target.segments == ("lista",)
+    assert ("lista",) in coll.target.lemmas_set
     assert coll.index == ast.IntLit(1)
 
 
@@ -744,7 +746,7 @@ def test_for_collection_is_function_call(parse):
     assert isinstance(for_node, ast.For)
     coll = for_node.collection.resolved
     assert isinstance(coll, ast.FunctionCall)
-    assert coll.name.segments == ("wziąć", "lista")
+    assert ("wziąć", "lista") in coll.name.lemmas_set
     assert len(coll.params) == 1
 
 
@@ -792,7 +794,7 @@ def test_for_collection_chain_with_subscript_index(parse):
     for_node = m.body[1].body[0]
     coll = for_node.collection.resolved
     assert isinstance(coll, ast.Subscript)
-    assert coll.target.segments == ("lista",)
+    assert ("lista",) in coll.target.lemmas_set
     assert isinstance(coll.index, ast.GetterChain)
 
 
@@ -876,11 +878,11 @@ def test_for_var_referenced_in_body_by_segments(parse):
     m = parse(src)
     for_node = m.body[0].body[0]
     # Var: declared as 'użytkownika' (gen sg) → segments=("użytkownik",)
-    assert for_node.var.segments == ("użytkownik",)
+    assert ("użytkownik",) in for_node.var.lemmas_set
     # Body reference: 'użytkownik' (nom sg) → segments=("użytkownik",)
     body_ref = for_node.body[0].value.resolved
     assert isinstance(body_ref, ast.Identifier)
-    assert body_ref.segments == for_node.var.segments
+    assert body_ref.lemmas_set & for_node.var.lemmas_set  # wspólna lemma
 
 
 def test_for_collection_with_logical_op(parse):
@@ -913,3 +915,191 @@ def test_struct_arg_field_name_disambiguated_by_case(parse):
     assigned = {a.field_name for a in sc.args}
     assert ("część", "mowa") in assigned
     assert ("tryb",) in assigned
+
+
+# ---------- Scope-aware narrowing wariantów ----------
+
+def test_narrow_to_module_scope_var(parse):
+    """`lista` zadeklarowana na module-level; `liście` w foreach narrowed
+    do wariantu `("lista",)` (loc sg). Inne lemmy wariantów `liście` (liść,
+    liście-neutrum) NIE są w scope, więc są odfiltrowane."""
+    src = (
+        "lista to coś\n"
+        "aby działać:\n"
+        "    dla użytkownika w liście:\n"
+        "        stop\n"
+    )
+    m = parse(src)
+    for_node = m.body[1].body[0]
+    coll = for_node.collection.resolved
+    assert isinstance(coll, ast.Identifier)
+    # Po narrowingu: tylko `("lista",)` w lemmas_set (jedyny wariant w scope).
+    assert coll.lemmas_set == frozenset({("lista",)})
+
+
+def test_narrow_to_function_local_var(parse):
+    """Var zadeklarowana lokalnie w funkcji — narrowing też działa."""
+    src = (
+        "aby działać:\n"
+        "    lista to coś\n"
+        "    dla użytkownika w liście:\n"
+        "        stop\n"
+    )
+    m = parse(src)
+    for_node = m.body[0].body[1]
+    coll = for_node.collection.resolved
+    assert coll.lemmas_set == frozenset({("lista",)})
+
+
+def test_narrow_to_function_param(parse):
+    """Var w scope poprzez parametr funkcji. Param `listy` (gen sg of `lista`,
+    nom pl of `list`) dodaje do scope oba lemmy: {("lista",), ("list",)}.
+    Reference `liście` ma 4 warianty: lista, list, liść, liście-neutrum —
+    narrowing filtruje do tych w scope: lista i list. Pozostałe są odrzucone."""
+    src = (
+        "aby działać_dla listy:\n"
+        "    dla użytkownika w liście:\n"
+        "        stop\n"
+    )
+    m = parse(src)
+    for_node = m.body[0].body[0]
+    coll = for_node.collection.resolved
+    assert ("lista",) in coll.lemmas_set
+    assert ("list",) in coll.lemmas_set
+    assert ("liść",) not in coll.lemmas_set  # nie w scope → odfiltrowane
+    assert ("liście",) not in coll.lemmas_set  # nie w scope → odfiltrowane
+
+
+def test_narrow_keeps_multiple_when_multiple_in_scope():
+    """Gdy więcej niż jeden wariant pasuje do scope, narrowing zostawia
+    WSZYSTKIE matchujące (NIE wybiera 'lepszego' heurystyką). Disambiguację
+    zostawia późniejszemu kontekstowi (fcall slot, type checker)."""
+    from expression import ExpressionParser, _Ctx, _Scope
+    ident = ast.Identifier(
+        surface=("test",),
+        analyses=(),
+        variants=(
+            (("a",), frozenset({"nom"})),
+            (("b",), frozenset({"nom", "gen"})),
+            (("c",), frozenset({"nom", "acc", "dat"})),
+        ),
+    )
+    scope = _Scope()
+    scope.variables = {("a",), ("b",)}  # `c` NIE w scope
+    ctx = _Ctx(function_defs={}, types=set(), fields_by_type={}, field_names=set())
+    parser = ExpressionParser(tokens=[], ctx=ctx, preps={}, scope=scope)
+    narrowed = parser._narrow_to_variable(ident)
+    seg_options = {s for s, _ in narrowed.variants}
+    assert ("a",) in seg_options
+    assert ("b",) in seg_options
+    assert ("c",) not in seg_options  # odfiltrowane bo nie w scope
+
+
+def test_no_narrowing_when_var_not_in_scope(parse):
+    """Gdy odpowiednia zmienna nie jest zadeklarowana, narrowing jest no-op
+    — zostają wszystkie warianty oryginalnego identyfikatora."""
+    src = (
+        "aby działać:\n"
+        "    dla x w liście:\n"
+        "        stop\n"
+    )
+    m = parse(src)
+    for_node = m.body[0].body[0]
+    coll = for_node.collection.resolved
+    # Brak `lista`/`liść`/`liście` w scope → narrowing no-op, wszystkie warianty.
+    assert ("lista",) in coll.lemmas_set
+    assert ("liść",) in coll.lemmas_set
+    assert ("liście",) in coll.lemmas_set
+
+
+def test_for_var_visible_in_nested_collection(parse):
+    """For-var widoczna w body inner-for (jako enclosing scope dla inner's
+    collection). `dla y w x:` w outer-for body — `x` widoczne."""
+    src = (
+        "aby działać:\n"
+        "    dla x w listy:\n"
+        "        dla y w x:\n"
+        "            stop\n"
+    )
+    m = parse(src)
+    outer = m.body[0].body[0]
+    inner = outer.body[0]
+    # Inner collection: `x` (atom) resolved jako reference do outer for-var.
+    coll = inner.collection.resolved
+    assert isinstance(coll, ast.Identifier)
+    assert ("x",) in coll.lemmas_set
+
+
+def test_for_body_assignment_leaks_to_outer(parse):
+    """Body for'a może mutować zmienne z outer scope (Python-like).
+    `znalezione` zadeklarowane przed pętlą — przypisanie w body referuje
+    OUTER `znalezione`, nie tworzy for-lokalnej kopii."""
+    src = (
+        "aby działać:\n"
+        "    znaleziony to pusta\n"
+        "    dla x w lista:\n"
+        "        znaleziony to x\n"
+        "    wynik to znaleziony\n"
+    )
+    m = parse(src)
+    fn_body = m.body[0].body
+    # body[0] = znaleziony to pusta
+    # body[1] = for x in lista
+    # body[2] = wynik to znaleziony
+    znaleziony_ref = fn_body[2].value.resolved
+    assert isinstance(znaleziony_ref, ast.Identifier)
+    assert ("znaleziony",) in znaleziony_ref.lemmas_set
+
+
+def test_field_write_does_not_register_as_var(parse):
+    """Chain LHS (`autor postu to "X"`) jest field write — `autor` NIE staje
+    się zadeklarowaną zmienną. Późniejsze użycie `autor postu` dalej resolwuje
+    jako chain (field interpretation)."""
+    src = (
+        "definicja Postu:\n    autor (Tekst)\n"
+        "aby działać:\n"
+        "    autor postu to \"X\"\n"
+        "    wynik to autor postu\n"
+    )
+    m = parse(src)
+    fn_body = m.body[1].body
+    # Drugie wystąpienie autor postu jako chain.
+    chain = fn_body[1].value.resolved
+    assert isinstance(chain, ast.GetterChain)
+
+
+def test_field_lemmas_filtered_by_nom(parse):
+    """Pole zadeklarowane `lista` (nom sg). Tylko wariant z nom (= ("lista",))
+    trafia do field_names. Wariant ("lista",) z innym case'm nie istnieje
+    (lista nom-only), ale dla wielowariantowych pól (jak `liście`) filtr
+    odrzuca warianty bez nom."""
+    src = (
+        "definicja Boxu:\n    lista (Tekst)\n"
+        "aby działać:\n    wartość to lista pudełka\n"
+    )
+    m = parse(src)
+    chain = m.body[1].body[0].value.resolved
+    assert isinstance(chain, ast.GetterChain)
+    assert ("lista",) in chain.chain[0].lemmas_set
+
+
+def test_find_in_set_ambiguity_error():
+    """Gdy `_find_in_set` po filtrach ma > 1 matchów — ResolveError.
+    Test syntetyczny: konstruujemy Identifier z dwoma matchującymi
+    wariantami i sprawdzamy że error się rzuca."""
+    # Konstrukcja ręczna identyfikatora z dwoma wariantami pasującymi do
+    # target_set bez `required_case` (rzadko spotykane w praktyce, ale możliwe).
+    from expression import ExpressionParser, _Ctx, _Scope
+    target_set = {("a",), ("b",)}
+    ident = ast.Identifier(
+        surface=("x",),
+        analyses=(),
+        variants=(
+            (("a",), frozenset({"nom"})),
+            (("b",), frozenset({"nom"})),
+        ),
+    )
+    ctx = _Ctx(function_defs={}, types=set(), fields_by_type={}, field_names=target_set)
+    parser = ExpressionParser(tokens=[], ctx=ctx, preps={}, scope=_Scope())
+    with pytest.raises(ast.ResolveError, match="niejednoznaczny"):
+        parser._find_in_set(ident, target_set)

@@ -216,7 +216,7 @@ def test_preps_excludes_archaic_qualifiers(preps):
 def test_parse_func_decl_no_params(parse):
     m = parse("aby działać:\n    zwrócić\n")
     assert isinstance(m.body[0], ast.FunctionDef)
-    assert m.body[0].name.segments == ("działać",)
+    assert ("działać",) in m.body[0].name.lemmas_set
     assert m.body[0].params == []
 
 
@@ -225,7 +225,7 @@ def test_parse_func_decl_with_param_no_prep(parse):
     fd = m.body[0]
     assert len(fd.params) == 1
     assert fd.params[0].prep is None
-    assert fd.params[0].name.segments == ("x",)
+    assert ("x",) in fd.params[0].name.lemmas_set
 
 
 def test_parse_func_decl_with_prep(parse):
@@ -302,15 +302,17 @@ def test_parse_struct_name_camelcase_split(parse):
 
 
 def test_parse_struct_field_name_lemmatized(parse):
-    src = "definicja Postu:\n    autora_komentarza (Tekst)\n"
+    # Konwencja: pola deklaruj w mianowniku (head w nom). `autor` nom +
+    # `komentarza` gen — head jest w nom, więc _field_lemmas akceptuje.
+    src = "definicja Postu:\n    autor_komentarza (Tekst)\n"
     m = parse(src)
-    assert m.body[0].fields[0].name.segments == ("autor", "komentarz")
+    assert ("autor", "komentarz") in m.body[0].fields[0].name.lemmas_set
 
 
 def test_parse_struct_field_underscore_name(parse):
     src = "definicja Sesji:\n    adres_ip (Tekst)\n"
     m = parse(src)
-    assert m.body[0].fields[0].name.segments == ("adres", "ip")
+    assert ("adres", "ip") in m.body[0].fields[0].name.lemmas_set
 
 
 def test_parse_struct_then_function(parse):
@@ -473,43 +475,43 @@ def _ident_of(parse, surface):
 
 def test_ident_valid_subst_only(parse):
     ident = _ident_of(parse, "autora")
-    assert ident.segments == ("autor",)
+    assert ("autor",) in ident.lemmas_set
     assert ident.case and "gen" in ident.case
 
 
 def test_ident_valid_subst_plus_rest(parse):
     ident = _ident_of(parse, "autora_książki")
-    assert ident.segments == ("autor", "książka")
+    assert ("autor", "książka") in ident.lemmas_set
     assert ident.case
 
 
 def test_ident_valid_adj_plus_subst(parse):
     ident = _ident_of(parse, "szanownego_autora")
-    assert ident.segments == ("szanowny", "autor")
+    assert ("szanowny", "autor") in ident.lemmas_set
     assert ident.case == frozenset({"gen", "acc"})
 
 
 def test_ident_valid_two_adj_plus_subst(parse):
     ident = _ident_of(parse, "pięknego_szanownego_autora")
-    assert len(ident.segments) == 3
+    assert len(ident.surface) == 3
     assert ident.case == frozenset({"gen", "acc"})
 
 
 def test_ident_valid_adj_plus_subst_plus_rest(parse):
     ident = _ident_of(parse, "zielonego_drzewa_z_lasu")
-    assert len(ident.segments) == 4
+    assert len(ident.surface) == 4
     assert "gen" in ident.case
 
 
 def test_ident_valid_pact_alone(parse):
     ident = _ident_of(parse, "obserwującego")
-    assert ident.segments == ("obserwujący",)
+    assert ("obserwujący",) in ident.lemmas_set
     assert ident.case
 
 
 def test_ident_valid_ppas_alone(parse):
     ident = _ident_of(parse, "obserwowanego")
-    assert ident.segments == ("obserwowany",)
+    assert ("obserwowany",) in ident.lemmas_set
     assert ident.case
 
 
@@ -520,13 +522,13 @@ def test_ident_invalid_qub_plus_adj(parse):
 
 def test_ident_pcon_plus_subst_is_valid_function_id(parse):
     ident = _ident_of(parse, "ruszając_kółkiem")
-    assert ident.segments == ("ruszać", "kółko")
+    assert ("ruszać", "kółko") in ident.lemmas_set
     assert ident.case is None
 
 
 def test_ident_fin_plus_subst_is_valid_function_id(parse):
     ident = _ident_of(parse, "jadę_samochodem")
-    assert ident.segments == ("jechać", "samochód")
+    assert ("jechać", "samochód") in ident.lemmas_set
     assert ident.case is None
 
 

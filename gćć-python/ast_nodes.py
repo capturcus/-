@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from itertools import product
 
 from morph_anal import canonical, VERB_POS, VerbForm
 
@@ -9,22 +10,26 @@ _ADJ_LIKE = ("adj", "pact", "ppas")
 @dataclass
 class Module:
     body: list
-    phrases: list
 
 
-def _canonical_segments(surface, analyses):
-    """Canonical-style lematy gdy identyfikator nie ma wariantów (verb-only
-    nazwa funkcji albo atom)."""
-    out = []
+def enumerate_canonical_lemmas(surface, analyses):
+    """Wszystkie kanoniczne interpretacje lemma — kartezjański produkt
+    per-segment opcji. Używane gdy identyfikator nie ma wariantów (atomy,
+    verb-only function names) oraz przez FunctionIdentifier.
+
+    Zwraca list[tuple[str, ...]]. Atom (single-letter, no analyses) → [(seg,)].
+    Multi-pos segment → wszystkie lemmy z poolu (adj-priority jeśli adj-like
+    readings istnieją, inaczej wszystkie analizy)."""
+    per_seg = []
     for seg, anas in zip(surface, analyses):
         if not anas or len(seg) == 1:
-            out.append(seg)
+            per_seg.append((seg,))
             continue
         adj_like = [a for a in anas if a.pos in _ADJ_LIKE]
         pool = adj_like if adj_like else list(anas)
-        chosen = next((a for a in pool if a.lemma == seg), pool[0])
-        out.append(chosen.lemma)
-    return tuple(out)
+        lemmas = tuple({a.lemma for a in pool})
+        per_seg.append(lemmas)
+    return [tuple(combo) for combo in product(*per_seg)]
 
 
 @dataclass(frozen=True)
@@ -33,11 +38,9 @@ class Identifier:
 
     Pełna informacja jest w `variants` — każdy wariant to spójna
     interpretacja `(lemmas_tuple, case_frozenset)` (adj-czytanie vs
-    subst-czytanie per segment). Atrybuty `segments` i `case` to widoki
-    pochodne na variants:
-    - `segments`: lemmas wariantu z największym case-set (najmniej
-      zawężona interpretacja). Gdy variants=() (verbal-only lub atom)
-      fallback do canonical-style lemm z analiz.
+    subst-czytanie per segment). Widoki pochodne:
+    - `lemmas_set`: frozenset wszystkich możliwych lemma-tuple'i (variants
+      lub fallback do enumerate_canonical_lemmas dla atomów).
     - `case`: union case wszystkich wariantów. None gdy variants=().
     """
     surface: tuple
@@ -45,11 +48,10 @@ class Identifier:
     variants: tuple = ()  # tuple[ tuple[lemmas_tuple, case_frozenset], ... ]
 
     @property
-    def segments(self):
+    def lemmas_set(self):
         if self.variants:
-            best = max(self.variants, key=lambda v: len(v[1]))
-            return best[0]
-        return _canonical_segments(self.surface, self.analyses)
+            return frozenset(s for s, _ in self.variants)
+        return frozenset(enumerate_canonical_lemmas(self.surface, self.analyses))
 
     @property
     def case(self):
@@ -100,7 +102,7 @@ def _validate_function_name(surface, analyses):
 
 @dataclass(frozen=True)
 class FunctionIdentifier:
-    segments: tuple
+    lemmas_set: frozenset  # frozenset[tuple[str, ...]] — wszystkie kanoniczne interpretacje
     surface: tuple
     verb_index: int
     verb_form: VerbForm
@@ -110,8 +112,9 @@ class FunctionIdentifier:
         verb_index, verb_form = _validate_function_name(
             head.surface, head.analyses
         )
+        lemmas = frozenset(enumerate_canonical_lemmas(head.surface, head.analyses))
         return cls(
-            segments=_canonical_segments(head.surface, head.analyses),
+            lemmas_set=lemmas,
             surface=head.surface,
             verb_index=verb_index,
             verb_form=verb_form,
@@ -120,14 +123,15 @@ class FunctionIdentifier:
     @classmethod
     def from_token(cls, tok):
         """Buduje FunctionIdentifier bezpośrednio z tokenu morfologicznego.
-        Używane przez parse_func_def — definicja funkcji jest jednoznaczna,
-        więc nie potrzeba etapu HeadIdentifier."""
+        Używane przez parse_func_def — definicja funkcji jest jednoznaczna
+        strukturalnie (zaczyna się od 'aby'), ale jej name może mieć wiele
+        kanonicznych interpretacji lemma (np. multi-pos segmenty)."""
         _, surface, analyses = tok
-        segments = canonical(tok)
         analyses_t = tuple(tuple(a) for a in analyses)
         verb_index, verb_form = _validate_function_name(surface, analyses_t)
+        lemmas = frozenset(enumerate_canonical_lemmas(surface, analyses_t))
         return cls(
-            segments=segments,
+            lemmas_set=lemmas,
             surface=surface,
             verb_index=verb_index,
             verb_form=verb_form,
