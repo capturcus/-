@@ -369,3 +369,112 @@ def test_function_can_be_called_before_definition(parse):
     fc = m.body[0].body[0].resolved
     assert isinstance(fc, ast.FunctionCall)
     assert fc.name.segments == ("pisać",)
+
+
+# ---------- Identifier variants (subst vs adj-prefix) ----------
+
+def _make_ident(db, surface_text):
+    """Pomocnik: make_identifier dla pojedynczego słowa."""
+    import identifier as ident_mod
+    toks = morph_anal.analyze(lexer.lex(surface_text + "\n"), db)
+    word = next(t for t in toks if t[0] is lexer.Token.WORD)
+    return ident_mod.make_identifier(word)
+
+
+def test_identifier_has_multiple_variants_when_segment_ambiguous(db):
+    """`części_mowy` ma w SGJP dwa odczyty: subst+subst (`część` gen.dat.loc
+    + `mowa`) i adj+subst (`częsty` adj:m1.pl.nom.voc + `mowa`). Identifier
+    musi nieść oba warianty, żeby dispatcher kontekstowy mógł wybrać."""
+    ident = _make_ident(db, "części_mowy")
+    seg_options = {segs for segs, _ in ident.variants}
+    assert ("część", "mowa") in seg_options
+    assert ("częsty", "mowa") in seg_options
+
+
+def test_default_segments_pick_largest_case_set(db):
+    """Tiebreak: domyślne `Identifier.segments` to wariant z największym
+    case-set (subst-prefix `("część","mowa")` ma case={gen,dat,loc,nom,acc,voc},
+    adj-prefix `("częsty","mowa")` ma case={nom,voc})."""
+    ident = _make_ident(db, "części_mowy")
+    assert ident.segments == ("część", "mowa")
+    # Sanity: union case = wszystkie z obu wariantów
+    assert "gen" in ident.case
+    assert "loc" in ident.case
+    assert "nom" in ident.case
+
+
+def test_single_variant_when_no_ambiguity(db):
+    """`część` w nominativie ma TYLKO subst reading (brak adj `częsty:nom:f`)
+    — Identifier ma tylko 1 wariant."""
+    ident = _make_ident(db, "część")
+    assert len(ident.variants) == 1
+    segs, case = ident.variants[0]
+    assert segs == ("część",)
+
+
+def test_chain_head_subst_variant_when_adj_variant_exists(parse):
+    """Pole `("część","mowa")` jest field-em. Mimo że identyfikator
+    `części_mowy` ma TAKŻE adj-variant `("częsty","mowa")` który NIE jest
+    field-em, dispatcher znajduje subst-variant i startuje chain."""
+    src = (
+        "definicja Słowa:\n    część_mowy (Tekst)\n"
+        "aby działać:\n    wynik to części_mowy słowa\n"
+    )
+    m = parse(src)
+    expr = m.body[1].body[0].value.resolved
+    assert isinstance(expr, ast.GetterChain)
+    assert len(expr.chain) == 2
+    head = expr.chain[0]
+    # Head niesie oba warianty
+    seg_options = {segs for segs, _ in head.variants}
+    assert ("część", "mowa") in seg_options
+    assert ("częsty", "mowa") in seg_options
+
+
+def test_struct_arg_loc_picks_subst_variant(parse):
+    """`nowe Słowo o częściach_mowy ...` — dispatcher struct arg wymaga loc.
+    Subst-prefix `("część","mowa")` ma loc w {dat,loc} pl, adj-prefix
+    `("częsty","mowa")` nie ma loc. Wybierz subst-variant."""
+    src = (
+        "definicja Słowa:\n    część_mowy (Tekst)\n"
+        "aby działać:\n    s to nowe Słowo o częściach_mowy \"czasownik\"\n"
+    )
+    m = parse(src)
+    sc = m.body[1].body[0].value.resolved
+    assert isinstance(sc, ast.StructCreation)
+    assert sc.type_name == ("słowo",)
+    assert len(sc.args) == 1
+    assert sc.args[0].field_name == ("część", "mowa")
+    assert sc.args[0].value == ast.StrLit("czasownik")
+
+
+def test_struct_creation_no_match_leaves_tokens(parse):
+    """`o pole` które nie matchuje żadnego pola w typie → struct args
+    kończą się bez args. Pozostałe tokeny prowadzą do ResolveError
+    (nie są ignorowane). Brak match nie jest błędem dispatchera, ale
+    tokeny dalej muszą się sparsować."""
+    src = (
+        "definicja Punktu:\n    x (Liczba)\n"
+        "aby działać:\n    p to nowy Punkt o nazwie \"A\"\n"
+    )
+    with pytest.raises(ast.ResolveError):
+        parse(src)
+
+
+def test_struct_arg_field_name_disambiguated_by_case(parse):
+    """Identyfikator pola identyczny w obu kontekstach — sprawdzamy że
+    `o trybie` (loc) i `o aspekcie` (loc) trafiają w różne pola, każde
+    z odrębnym lematem subst-variant."""
+    src = (
+        "definicja Słowa:\n"
+        "    część_mowy (Tekst)\n"
+        "    tryb (Tekst)\n"
+        "aby działać:\n"
+        "    s to nowe Słowo o częściach_mowy \"v\" o trybie \"oznajmujący\"\n"
+    )
+    m = parse(src)
+    sc = m.body[1].body[0].value.resolved
+    assert isinstance(sc, ast.StructCreation)
+    assigned = {a.field_name for a in sc.args}
+    assert ("część", "mowa") in assigned
+    assert ("tryb",) in assigned

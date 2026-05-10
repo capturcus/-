@@ -15,6 +15,12 @@ class Identifier:
     surface: tuple
     case: frozenset = None
     analyses: tuple = ()  # tuple[tuple[MorphAnalysis, ...], ...]
+    # Wszystkie spójne interpretacje multi-segment identyfikatora
+    # (adj-czytanie vs subst-czytanie per segment). Każdy wariant to
+    # (lemmas_tuple, case_frozenset). Pole `segments` to preferowany
+    # wariant (subst-first), `case` to union wariantów. variants=()
+    # gdy identyfikator jest verbal (fcall name) lub atomem bez form.
+    variants: tuple = ()
 
 
 class IdentifierError(SyntaxError):

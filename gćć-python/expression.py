@@ -164,8 +164,9 @@ class ExpressionParser:
         head_tok = self.advance()
         head_ident = make_identifier(head_tok)
         # Struct creation: "nowy" + <typ>
-        if self._head_starts_struct_creation(head_ident):
-            return self._parse_struct_creation(head_ident)
+        type_segs = self._starts_struct_creation(head_ident)
+        if type_segs is not None:
+            return self._parse_struct_creation(head_ident, type_segs)
         # Getter chain: field + następne słowo w gen
         if self._can_start_chain(head_ident):
             return self._parse_getter_chain(head_ident)
@@ -264,10 +265,45 @@ class ExpressionParser:
             return True
         return bool(param.case & tok_case)
 
+    # ---------- helpery wariantów ----------
+
+    def _ident_is_field(self, ident):
+        """Czy KTÓRYŚ wariant identyfikatora jest field-em w obecnym ctx."""
+        for segs, _ in ident.variants:
+            if segs in self.ctx.field_names:
+                return True
+        return ident.segments in self.ctx.field_names
+
+    def _find_in_set(self, ident, target_set, exclude=frozenset(),
+                     required_case=None):
+        """Wyszukuje wariant z `segments in target_set` (i opcjonalnie z
+        `required_case in case`), wykluczając te w `exclude`. Tiebreak:
+        największy case-set. Zwraca dopasowane segments lub None.
+        """
+        matches = []
+        for segs, case in ident.variants:
+            if segs in exclude:
+                continue
+            if segs not in target_set:
+                continue
+            if required_case is not None and required_case not in case:
+                continue
+            matches.append((segs, case))
+        if matches:
+            segs, _ = max(matches, key=lambda v: len(v[1]))
+            return segs
+        # Fallback: identyfikator bez wariantów (atom). Default segments
+        # mogą trafić w target_set tylko gdy required_case=None (atom nie
+        # ma case'u do dopasowania).
+        if not ident.variants and required_case is None:
+            if ident.segments in target_set and ident.segments not in exclude:
+                return ident.segments
+        return None
+
     # ---------- getter chain ----------
 
     def _can_start_chain(self, head_ident):
-        if head_ident.segments not in self.ctx.field_names:
+        if not self._ident_is_field(head_ident):
             return False
         nxt = self.peek()
         return self._is_gen_word(nxt)
@@ -281,26 +317,35 @@ class ExpressionParser:
         if is_prep(tok, self.preps):
             return False
         ident = make_identifier(tok)
-        return ident.case is not None and "gen" in ident.case
+        # Wystarczy że KTÓRYŚ wariant ma 'gen'. Identifier.case to union
+        # wariantów, więc w atomach bez wariantów case=None → False.
+        if ident.variants:
+            return any("gen" in case for _, case in ident.variants)
+        return False
 
     def _parse_getter_chain(self, head_ident):
         chain = [head_ident, make_identifier(self.advance())]
-        while self._is_gen_word(self.peek()) and chain[-1].segments in self.ctx.field_names:
+        while self._is_gen_word(self.peek()) and self._ident_is_field(chain[-1]):
             chain.append(make_identifier(self.advance()))
         return GetterChain(chain=chain)
 
     # ---------- struct creation ----------
 
-    def _head_starts_struct_creation(self, head_ident):
+    def _starts_struct_creation(self, head_ident):
+        """Zwraca dopasowane type_segments jeśli head zaczyna struct creation,
+        inaczej None."""
         if head_ident.segments != ("nowy",):
-            return False
+            return None
         nxt = self.peek()
         if nxt is None or nxt[0] is not lexer.Token.WORD:
-            return False
+            return None
         nxt_ident = make_identifier(nxt)
-        if nxt_ident.segments not in self.ctx.types:
-            return False
-        return self._cases_overlap(head_ident, nxt_ident)
+        type_segs = self._find_in_set(nxt_ident, self.ctx.types)
+        if type_segs is None:
+            return None
+        if not self._cases_overlap(head_ident, nxt_ident):
+            return None
+        return type_segs
 
     @staticmethod
     def _cases_overlap(nowy_ident, type_ident):
@@ -310,10 +355,8 @@ class ExpressionParser:
             return True
         return bool(nowy_cases & type_cases)
 
-    def _parse_struct_creation(self, _nowy_ident):
-        type_tok = self.advance()
-        type_ident = make_identifier(type_tok)
-        type_name = type_ident.segments
+    def _parse_struct_creation(self, _nowy_ident, type_name):
+        self.advance()  # consume token typu (już zwalidowany w `_starts_struct_creation`)
         ctx = StructCtx(type_name=type_name)
         self.struct_stack.append(ctx)
         args = []
@@ -344,7 +387,11 @@ class ExpressionParser:
 
     def _next_struct_arg_kind(self, ctx):
         """Zwraca (prep_canon, field_name, is_shorthand) jeśli kolejny token to
-        struct arg; inaczej None."""
+        struct arg; inaczej None.
+
+        Iteruje po wariantach identyfikatora pola — szuka wariantu z
+        `required_case in case` i `segments in fields_by_type[type_name]`.
+        Tiebreak: największy case-set (najmniej zawężona interpretacja)."""
         p1 = self.peek()
         p2 = self.peek(1)
         if p1 is None or p1[0] is not lexer.Token.WORD:
@@ -361,29 +408,15 @@ class ExpressionParser:
         else:
             return None
         field_ident = make_identifier(p2)
-        if field_ident.case is None or required_case not in field_ident.case:
-            return None
-        matched = self._field_name_match(
-            field_ident, self.ctx.fields_by_type[ctx.type_name]
+        field_set = self.ctx.fields_by_type[ctx.type_name]
+        matched = self._find_in_set(
+            field_ident, field_set,
+            exclude=frozenset(ctx.assigned),
+            required_case=required_case,
         )
-        if matched is None or matched in ctx.assigned:
+        if matched is None:
             return None
         return prep_canon, matched, is_shorthand
-
-    @staticmethod
-    def _field_name_match(identifier, field_set):
-        if identifier.segments in field_set:
-            return identifier.segments
-        if not identifier.analyses:
-            return None
-        options = [
-            sorted({a.lemma for a in seg_anas}) if seg_anas else [identifier.segments[i]]
-            for i, seg_anas in enumerate(identifier.analyses)
-        ]
-        for combo in product(*options):
-            if combo in field_set:
-                return combo
-        return None
 
 
 # ---------- module-level resolver ----------
