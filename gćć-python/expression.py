@@ -30,7 +30,7 @@ import lexer
 from morph_anal import canonical
 from ast_nodes import (
     Identifier, FunctionIdentifier, FunctionIdentifierError,
-    StructDef, FunctionDef,
+    StructDef, FunctionDef, ExternFunctionDef,
     IntLit, StrLit, BinOp, UnaryOp, And, Or, Not,
     FunctionCall, GetterChain, Subscript, StructCreation, StructArg, StructCtx,
     ResolveError, Word, LOGICAL_OPS,
@@ -545,7 +545,7 @@ def _build_ctx(module):
                 for lemma in _field_lemmas(f.name):
                     fbt.add(lemma)
                     field_names.add(lemma)
-        elif isinstance(node, FunctionDef):
+        elif isinstance(node, (FunctionDef, ExternFunctionDef)):
             for lemma in node.name.lemmas_set:
                 existing = function_defs.get(lemma)
                 if existing is not None and existing is not node:
