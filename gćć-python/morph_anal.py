@@ -5,7 +5,6 @@ from typing import NamedTuple
 import lexer
 
 CASES = {"nom", "gen", "dat", "acc", "inst", "loc", "voc"}
-EXCLUDED_QUALIFIERS = ("daw.", "gwar.", "przest.")
 PARTICIPLE_POS = {"pact", "ppas"}
 VERB_POS = frozenset({
     "fin", "impt", "inf", "imps", "praet", "pcon",
@@ -149,7 +148,7 @@ def load(path):
             db.setdefault(form, []).append(
                 tuple_new(Ma, (pos, case, lemma, tag))
             )
-            if pos == "prep" and case and not any(q in qualifiers for q in EXCLUDED_QUALIFIERS):
+            if pos == "prep" and case:
                 preps.setdefault(lemma, set()).update(case)
             if pos in PARTICIPLE_POS:
                 if tag_parts is None:

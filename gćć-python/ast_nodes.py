@@ -234,6 +234,11 @@ class Break:
 
 
 @dataclass
+class Continue:
+    pass
+
+
+@dataclass
 class Return:
     value: object = None
 

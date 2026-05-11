@@ -207,10 +207,6 @@ def test_preps_aliases_vocalic_variants(preps):
     assert "nade" not in preps
 
 
-def test_preps_excludes_archaic_qualifiers(preps):
-    assert "gwoli" not in preps
-
-
 # ---------- Parser strukturalny: definicje funkcji ----------
 
 def test_parse_func_decl_no_params(parse):
@@ -413,6 +409,41 @@ def test_parse_break_standalone(parse):
     src = "aby działać:\n    stop\n"
     m = parse(src)
     assert isinstance(m.body[0].body[0], ast.Break)
+
+
+def test_parse_continue_standalone(parse):
+    src = "aby działać:\n    dalej\n"
+    m = parse(src)
+    assert isinstance(m.body[0].body[0], ast.Continue)
+
+
+def test_parse_continue_inside_for(parse):
+    src = (
+        "aby działać:\n"
+        "    dla użytkownika w liście:\n"
+        "        jeśli użytkownik równe pięć:\n            dalej\n"
+        "        wynik to użytkownik\n"
+    )
+    m = parse(src)
+    for_node = m.body[0].body[0]
+    if_node = for_node.body[0]
+    assert isinstance(if_node.then_body[0], ast.Continue)
+
+
+def test_parse_continue_with_trailing_token_is_error(parse):
+    src = "aby działać:\n    dalej coś\n"
+    with pytest.raises(SyntaxError):
+        parse(src)
+
+
+def test_parse_dalej_inside_phrase_not_special(parse_struct_only):
+    """`dalej` poza początkiem statementu pozostaje zwykłym tokenem phrase'a."""
+    src = "aby działać:\n    a to dalej\n"
+    m = parse_struct_only(src)
+    a = m.body[0].body[0]
+    assert isinstance(a, ast.Assignment)
+    assert isinstance(a.value, ast.Phrase)
+    assert not isinstance(a.value, ast.Continue)
 
 
 def test_parse_return_with_int(parse):

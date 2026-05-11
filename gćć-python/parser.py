@@ -12,7 +12,7 @@ Gramatyka Pass 1:
   module     := stmt*
   stmt       := func_def | struct_def
               | if_stmt | while_stmt | for_stmt
-              | "stop" | "zwrócić" [phrase]
+              | "stop" | "dalej" | "zwrócić" [phrase]
               | assignment | expr_stmt
   func_def   := "aby" function_name param* ["->" type] ":" INDENT stmt+ DEDENT
   struct_def := "definicja" type_name ":" INDENT field+ DEDENT
@@ -40,7 +40,7 @@ import lexer
 from morph_anal import canonical
 from ast_nodes import (
     Module, FunctionIdentifier, FunctionDef, Param, StructDef, Field,
-    Phrase, Assignment, If, While, For, Break, Return,
+    Phrase, Assignment, If, While, For, Break, Continue, Return,
 )
 from identifier import make_identifier, is_prep
 
@@ -130,6 +130,14 @@ class Parser:
             if canon == ("stop",):
                 self.advance()
                 return Break()
+            if canon == ("dalej",):
+                self.advance()
+                nxt = self.peek()
+                if nxt is None or nxt[0] in (lexer.Token.NEWLINE, lexer.Token.DEDENT):
+                    return Continue()
+                raise SyntaxError(
+                    f"po 'dalej' (continue) oczekiwano końca linii, otrzymano {nxt}"
+                )
             if canon == ("zwrócić",):
                 self.advance()
                 nxt = self.peek()
