@@ -10,11 +10,12 @@ subscript) jest parsowana w drugim przebiegu przez `expression.resolve_module`.
 Gramatyka Pass 1:
 
   module     := stmt*
-  stmt       := func_def | struct_def
+  stmt       := func_def | extern_def | struct_def
               | if_stmt | while_stmt | for_stmt
               | "stop" | "dalej" | "zwrócić" [phrase]
               | assignment | expr_stmt
   func_def   := "aby" function_name param* ["->" type] ":" INDENT stmt+ DEDENT
+  extern_def := "można" function_name param* ["->" type] NEWLINE
   struct_def := "definicja" type_name ":" INDENT field+ DEDENT
   field      := identifier "(" type ")"
   param      := [prep] identifier ["(" type ")"]
@@ -34,13 +35,18 @@ sama semantyka co istniejące params/fields.
 `dla` jest STRUKTURALNYM keyword'em TYLKO na pierwszej pozycji statementu;
 wewnątrz `phrase` (np. argumenty fcall: `weź dla użytkownika`) `dla`
 pozostaje zwykłym przyimkiem rozpoznawanym przez `expression.py`.
+
+`extern_def` deklaruje sygnaturę funkcji zewnętrznej (analog `extern` z C);
+nagłówek identyczny z `aby`, ale brak `:` i brak ciała — cała deklaracja
+mieści się w jednej linii.
 """
 
 import lexer
 from morph_anal import canonical
 from ast_nodes import (
-    Module, FunctionIdentifier, FunctionDef, Param, StructDef, Field,
-    Phrase, Assignment, If, While, For, Break, Continue, Return,
+    Module, FunctionIdentifier, FunctionDef, ExternFunctionDef, Param,
+    StructDef, Field, Phrase, Assignment, If, While, For, Break, Continue,
+    Return,
 )
 from identifier import make_identifier, is_prep
 
@@ -121,6 +127,11 @@ class Parser:
                 return self.parse_func_def()
             if canon == ("definicja",):
                 return self.parse_struct_def()
+            # `można` canonicalizuje się do ("możny",) (adj-priority w canonical
+            # bije reading pred), więc dopasowujemy surface — i tak nie chcemy
+            # żeby parsowanie extern wyzwalały inne formy adj `możny`.
+            if t[1] == ("można",):
+                return self.parse_extern_def()
             if canon == ("jeśli",):
                 return self.parse_if()
             if canon == ("dopóki",):
@@ -237,6 +248,27 @@ class Parser:
             self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
         return FunctionDef(name=name, params=params, body=body, return_type=return_type)
+
+    def parse_extern_def(self):
+        self.expect(lexer.Token.WORD)  # można
+        name_tok = self.expect(lexer.Token.WORD)
+        name = FunctionIdentifier.from_token(name_tok)
+        params = []
+        while self.peek() and self.peek()[0] not in (
+            lexer.Token.NEWLINE, lexer.Token.ARROW, lexer.Token.DEDENT,
+        ):
+            params.append(self.parse_param())
+        return_type = None
+        if self.peek() and self.peek()[0] is lexer.Token.ARROW:
+            self.advance()
+            return_type = canonical(self.expect(lexer.Token.WORD))
+        nxt = self.peek()
+        if nxt is not None and nxt[0] not in (lexer.Token.NEWLINE, lexer.Token.DEDENT):
+            raise SyntaxError(
+                f"deklaracja 'można' nie przyjmuje ciała ani dwukropka; "
+                f"oczekiwano końca linii, otrzymano {nxt}"
+            )
+        return ExternFunctionDef(name=name, params=params, return_type=return_type)
 
     def parse_struct_def(self):
         self.expect(lexer.Token.WORD)  # definicja

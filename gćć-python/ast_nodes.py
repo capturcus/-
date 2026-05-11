@@ -147,6 +147,13 @@ class FunctionDef:
 
 
 @dataclass
+class ExternFunctionDef:
+    name: "FunctionIdentifier"
+    params: list
+    return_type: tuple = None
+
+
+@dataclass
 class Param:
     prep: tuple
     name: Identifier

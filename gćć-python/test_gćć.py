@@ -280,6 +280,90 @@ def test_parse_multiple_function_definitions(parse):
     assert len(m.body) == 2
 
 
+# ---------- Parser strukturalny: deklaracje extern (`można`) ----------
+
+def test_parse_extern_no_params(parse):
+    """`można działać` — najprostsza deklaracja extern."""
+    m = parse("można działać\n")
+    e = m.body[0]
+    assert isinstance(e, ast.ExternFunctionDef)
+    assert ("działać",) in e.name.lemmas_set
+    assert e.params == []
+    assert e.return_type is None
+
+
+def test_parse_extern_one_param_no_prep(parse):
+    """`można wypisać tekst` — jeden parametr bez przyimka."""
+    m = parse("można wypisać tekst\n")
+    e = m.body[0]
+    assert isinstance(e, ast.ExternFunctionDef)
+    assert ("wypisać",) in e.name.lemmas_set
+    assert len(e.params) == 1
+    assert e.params[0].prep is None
+
+
+def test_parse_extern_with_prep_param(parse):
+    """`można zapisać do bazy dane` — parametr z przyimkiem."""
+    m = parse("można zapisać do bazy dane\n")
+    e = m.body[0]
+    assert isinstance(e, ast.ExternFunctionDef)
+    preps_seen = [p.prep for p in e.params]
+    assert ("do",) in preps_seen
+
+
+def test_parse_extern_multiple_prep_params(parse):
+    """`można leżeć na polanie w lesie przy jeziorze` — trzy parametry przyimkowe."""
+    m = parse("można leżeć na polanie w lesie przy jeziorze\n")
+    e = m.body[0]
+    assert isinstance(e, ast.ExternFunctionDef)
+    assert len(e.params) == 3
+    preps_seen = [p.prep for p in e.params]
+    assert ("na",) in preps_seen
+    assert ("w",) in preps_seen
+    assert ("przy",) in preps_seen
+
+
+def test_parse_extern_multiple_prep_params_with_types(parse):
+    """`można leżeć na polanie (Miejsce) w lesie (Miejsce) przy jeziorze (Liczba)` —
+    typy w nawiasach przy każdym parametrze."""
+    m = parse(
+        "można leżeć na polanie (Miejsce) w lesie (Miejsce) przy jeziorze (Liczba)\n"
+    )
+    e = m.body[0]
+    assert isinstance(e, ast.ExternFunctionDef)
+    assert len(e.params) == 3
+    types_by_prep = {p.prep: p.type for p in e.params}
+    assert types_by_prep[("na",)] == ("miejsce",)
+    assert types_by_prep[("w",)] == ("miejsce",)
+    assert types_by_prep[("przy",)] == ("liczba",)
+
+
+def test_parse_extern_with_return_type(parse):
+    """`można policzyć x -> liczba` — z deklaracją typu zwracanego."""
+    m = parse("można policzyć x -> liczba\n")
+    e = m.body[0]
+    assert isinstance(e, ast.ExternFunctionDef)
+    assert e.return_type == ("liczba",)
+
+
+def test_parse_extern_rejects_colon_body(parse):
+    """`można` nie przyjmuje `:` — błąd składni."""
+    with pytest.raises(SyntaxError):
+        parse("można działać:\n    zwrócić\n")
+
+
+def test_parse_extern_alongside_function_def(parse):
+    """Extern i zwykłą funkcję można mieszać w jednym module."""
+    src = (
+        "można wypisać tekst\n"
+        "aby działać:\n"
+        "    zwrócić\n"
+    )
+    m = parse(src)
+    assert isinstance(m.body[0], ast.ExternFunctionDef)
+    assert isinstance(m.body[1], ast.FunctionDef)
+
+
 # ---------- Parser strukturalny: definicje struktur ----------
 
 def test_parse_struct_def_basic(parse):

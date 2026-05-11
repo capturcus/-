@@ -1,21 +1,15 @@
 do zrobienia:
 
-składnia:
-listy:
-    literał listy
-extern zewnętrznie / można
-
 semantyka:
-gramatyczne resolvowanie argumentów funkcji
 hindley milner
+
+uruchamianie:
+gramatyczne resolvowanie argumentów funkcji
 
 stdlib:
 listy
 Przełącznik
 konkatenacja stringów
-
-
-
 
 
 tryb przypuszczający - usunąłbyś_komentarz dla usera z identyfikatorem?
