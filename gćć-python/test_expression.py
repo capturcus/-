@@ -653,10 +653,10 @@ def test_subscript_missing_right_operand(parse):
 # ---------- For (foreach) ----------
 
 def test_for_basic(parse):
-    """`dla użytkownika w lista:` — podstawowa pętla."""
+    """`dla użytkownika w liście:` — podstawowa pętla."""
     src = (
         "aby działać:\n"
-        "    dla użytkownika w lista:\n"
+        "    dla użytkownika w liście:\n"
         "        wynik to użytkownik\n"
     )
     m = parse(src)
@@ -674,7 +674,7 @@ def test_for_var_multiseg_adj_subst(parse):
     `wielkiego_użytkownika` (gen sg masc) → segments ('wielki', 'użytkownik')."""
     src = (
         "aby działać:\n"
-        "    dla wielkiego_użytkownika w lista:\n"
+        "    dla wielkiego_użytkownika w liście:\n"
         "        stop\n"
     )
     m = parse(src)
@@ -687,7 +687,7 @@ def test_for_body_with_stop(parse):
     """Body może zawierać `stop` (break)."""
     src = (
         "aby działać:\n"
-        "    dla x w lista:\n"
+        "    dla x w liście:\n"
         "        stop\n"
     )
     m = parse(src)
@@ -755,7 +755,7 @@ def test_for_collection_is_getter_chain(parse):
     src = (
         "definicja Autora:\n    lista_postów (Tekst)\n"
         "aby działać:\n"
-        "    dla post w lista_postów autora:\n"
+        "    dla post w liście_postów autora:\n"
         "        stop\n"
     )
     m = parse(src)
