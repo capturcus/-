@@ -1,0 +1,6 @@
+definicja Struktury:
+    pierwsze_pole (Tekst)
+    drugie_pole (Tekst)
+
+aby działać:
+    struktura to nowa Struktura o pierwszym_polu "test"

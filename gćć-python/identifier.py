@@ -44,7 +44,10 @@ def make_identifier(tok):
 def _enumerate_variants(surface, analyses):
     """Wszystkie spójne interpretacje identyfikatora.
 
-    Zwraca tuple[(lemmas_tuple, case_frozenset), ...].
+    Zwraca tuple[(lemmas_tuple, case_frozenset, rest_length), ...].
+    `rest_length` = liczba passthrough-segmentów po subst-głowie
+    (0 dla `[adj+][subst]`, 0 dla pure-adj bez subst, ≥1 gdy po subst
+    są jeszcze segmenty doklejane jako reszta).
     Pusta krotka → identyfikator funkcji (verbal-only segment) lub atom
     bez form (single-seg opaque). Multi-seg z brakiem valid prefiksu →
     raise IdentifierError.
@@ -94,39 +97,40 @@ def _enumerate_variants(surface, analyses):
     # Step 3: backtrack.
     variants = []
 
-    def backtrack(seg_i, lemmas, cases, had_subst):
+    def backtrack(seg_i, lemmas, cases, had_subst, subst_at):
         if had_subst:
             # Reszta segmentów: passthrough z canonical-style lemma; case bez zmian.
             rest_lemmas = list(lemmas)
             for j in range(seg_i, n_segs):
                 d = seg_data[j]
                 rest_lemmas.append(d["lemma"] if d["opaque"] else d["rest_lemma"])
-            variants.append((tuple(rest_lemmas), cases))
+            rest_length = n_segs - subst_at - 1
+            variants.append((tuple(rest_lemmas), cases, rest_length))
             return
         if seg_i == n_segs:
             # Doszliśmy do końca prefiksu bez subst-głowy. Akceptujemy gdy
             # cases niepuste — to single-seg adj/pact/ppas alone (np.
             # "obserwującego") albo multi-seg z adj-only (rzadkie ale OK).
             if cases is not None:
-                variants.append((tuple(lemmas), cases))
+                variants.append((tuple(lemmas), cases, 0))
             return
         d = seg_data[seg_i]
         if d["opaque"]:
             # Opaque (single-letter lub bez analiz): passthrough, bez wpływu na case.
-            backtrack(seg_i + 1, lemmas + [d["lemma"]], cases, had_subst)
+            backtrack(seg_i + 1, lemmas + [d["lemma"]], cases, had_subst, subst_at)
             return
         # Wariant: adj-czytanie (kontynuuje prefix). Jedna gałąź per unikalna lemma.
         for adj_lemma, adj_cases in d["adj_choices"]:
             new_cases = adj_cases if cases is None else (cases & adj_cases)
             if new_cases:
-                backtrack(seg_i + 1, lemmas + [adj_lemma], new_cases, had_subst)
+                backtrack(seg_i + 1, lemmas + [adj_lemma], new_cases, had_subst, subst_at)
         # Wariant: subst-czytanie (zamyka prefix jako głowa). Jedna gałąź per lemma.
         for subst_lemma, subst_cases in d["subst_choices"]:
             new_cases = subst_cases if cases is None else (cases & subst_cases)
             if new_cases:
-                backtrack(seg_i + 1, lemmas + [subst_lemma], new_cases, had_subst=True)
+                backtrack(seg_i + 1, lemmas + [subst_lemma], new_cases, had_subst=True, subst_at=seg_i)
 
-    backtrack(0, [], None, False)
+    backtrack(0, [], None, False, None)
 
     if not variants:
         # Brak żadnej spójnej interpretacji.

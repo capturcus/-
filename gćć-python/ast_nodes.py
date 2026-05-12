@@ -37,27 +37,28 @@ class Identifier:
     """Identyfikator nie-funkcyjny.
 
     Pełna informacja jest w `variants` — każdy wariant to spójna
-    interpretacja `(lemmas_tuple, case_frozenset)` (adj-czytanie vs
-    subst-czytanie per segment). Widoki pochodne:
+    interpretacja `(lemmas_tuple, case_frozenset, rest_length)` (adj-czytanie
+    vs subst-czytanie per segment; rest_length = liczba passthrough-segs
+    po subst-głowie, 0 dla `[adj+][subst]` lub pure-adj). Widoki pochodne:
     - `lemmas_set`: frozenset wszystkich możliwych lemma-tuple'i (variants
       lub fallback do enumerate_canonical_lemmas dla atomów).
     - `case`: union case wszystkich wariantów. None gdy variants=().
     """
     surface: tuple
     analyses: tuple = ()  # tuple[tuple[MorphAnalysis, ...], ...]
-    variants: tuple = ()  # tuple[ tuple[lemmas_tuple, case_frozenset], ... ]
+    variants: tuple = ()  # tuple[ (lemmas_tuple, case_frozenset, rest_length), ... ]
 
     @property
     def lemmas_set(self):
         if self.variants:
-            return frozenset(s for s, _ in self.variants)
+            return frozenset(s for s, _, _ in self.variants)
         return frozenset(enumerate_canonical_lemmas(self.surface, self.analyses))
 
     @property
     def case(self):
         if not self.variants:
             return None
-        return frozenset().union(*(case for _, case in self.variants))
+        return frozenset().union(*(case for _, case, _ in self.variants))
 
 
 class IdentifierError(SyntaxError):

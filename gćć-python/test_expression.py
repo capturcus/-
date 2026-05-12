@@ -386,7 +386,7 @@ def test_identifier_has_multiple_variants_when_segment_ambiguous(db):
     + `mowa`) i adj+subst (`częsty` adj:m1.pl.nom.voc + `mowa`). Identifier
     musi nieść oba warianty, żeby dispatcher kontekstowy mógł wybrać."""
     ident = _make_ident(db, "części_mowy")
-    seg_options = {segs for segs, _ in ident.variants}
+    seg_options = {segs for segs, _, _ in ident.variants}
     assert ("część", "mowa") in seg_options
     assert ("częsty", "mowa") in seg_options
 
@@ -410,7 +410,7 @@ def test_single_variant_when_no_ambiguity(db):
     — Identifier ma tylko 1 wariant."""
     ident = _make_ident(db, "część")
     assert len(ident.variants) == 1
-    segs, case = ident.variants[0]
+    segs, case, _ = ident.variants[0]
     assert segs == ("część",)
 
 
@@ -428,7 +428,7 @@ def test_chain_head_subst_variant_when_adj_variant_exists(parse):
     assert len(expr.chain) == 2
     head = expr.chain[0]
     # Head niesie oba warianty
-    seg_options = {segs for segs, _ in head.variants}
+    seg_options = {segs for segs, _, _ in head.variants}
     assert ("część", "mowa") in seg_options
     assert ("częsty", "mowa") in seg_options
 
@@ -979,9 +979,9 @@ def test_narrow_keeps_multiple_when_multiple_in_scope():
         surface=("test",),
         analyses=(),
         variants=(
-            (("a",), frozenset({"nom"})),
-            (("b",), frozenset({"nom", "gen"})),
-            (("c",), frozenset({"nom", "acc", "dat"})),
+            (("a",), frozenset({"nom"}), 0),
+            (("b",), frozenset({"nom", "gen"}), 0),
+            (("c",), frozenset({"nom", "acc", "dat"}), 0),
         ),
     )
     scope = _Scope()
@@ -989,7 +989,7 @@ def test_narrow_keeps_multiple_when_multiple_in_scope():
     ctx = _Ctx(function_defs={}, types=set(), fields_by_type={}, field_names=set())
     parser = ExpressionParser(tokens=[], ctx=ctx, preps={}, scope=scope)
     narrowed = parser._narrow_to_variable(ident)
-    seg_options = {s for s, _ in narrowed.variants}
+    seg_options = {s for s, _, _ in narrowed.variants}
     assert ("a",) in seg_options
     assert ("b",) in seg_options
     assert ("c",) not in seg_options  # odfiltrowane bo nie w scope
@@ -1095,11 +1095,64 @@ def test_find_in_set_ambiguity_error():
         surface=("x",),
         analyses=(),
         variants=(
-            (("a",), frozenset({"nom"})),
-            (("b",), frozenset({"nom"})),
+            (("a",), frozenset({"nom"}), 0),
+            (("b",), frozenset({"nom"}), 0),
         ),
     )
     ctx = _Ctx(function_defs={}, types=set(), fields_by_type={}, field_names=target_set)
     parser = ExpressionParser(tokens=[], ctx=ctx, preps={}, scope=_Scope())
     with pytest.raises(ast.ResolveError, match="niejednoznaczny"):
         parser._find_in_set(ident, target_set)
+
+
+def test_field_canonical_lemma_picks_min_rest_for_adj_noun(parse):
+    """Pole `pierwsze_pole` ma kilka wariantów morfologicznych:
+    [adj `pierwszy` + subst `pole`] (rest=0) oraz [subst `pierwsze`/`pierwsza`/
+    `pierwszy:S` + rest `pole`] (rest=1). Kanoniczna forma to (pierwszy, pole)
+    z rest=0. Następnie użycie `o pierwszym polu` (loc) musi się rozwiązać
+    do tego samego pola — adj+subst (rest=0) bije gałąź subst+rest (rest=1)
+    nawet gdy obie dają `segs=(pierwszy, pole)`."""
+    src = (
+        "definicja Struktury:\n"
+        "    pierwsze_pole (Tekst)\n"
+        "    drugie_pole (Tekst)\n"
+        "aby działać:\n"
+        "    s to nowa Struktura o pierwszym_polu \"v\"\n"
+    )
+    m = parse(src)
+    sc = m.body[1].body[0].value.resolved
+    assert isinstance(sc, ast.StructCreation)
+    assert len(sc.args) == 1
+    assert sc.args[0].field_name == ("pierwszy", "pole")
+
+
+def test_field_canonical_lemma_ambiguous_after_min_rest():
+    """Gdy po filtrze `nom` + min-rest wciąż zostaje >1 unikalnych segs,
+    `_field_canonical_lemma` rzuca ResolveError z listą opcji.
+    Test syntetyczny: konstruujemy Identifier z dwoma wariantami w nom
+    o tej samej długości reszty (rest=0) i różnych segs."""
+    from expression import _field_canonical_lemma
+    field_name = ast.Identifier(
+        surface=("foo",),
+        analyses=(),
+        variants=(
+            (("a",), frozenset({"nom"}), 0),
+            (("b",), frozenset({"nom"}), 0),
+        ),
+    )
+    with pytest.raises(ast.ResolveError, match="niejednoznaczna"):
+        _field_canonical_lemma(field_name)
+
+
+def test_field_canonical_lemma_requires_nom():
+    """Deklaracja pola w formie innej niż nom (np. tylko gen/dat) → ResolveError."""
+    from expression import _field_canonical_lemma
+    field_name = ast.Identifier(
+        surface=("foo",),
+        analyses=(),
+        variants=(
+            (("foo",), frozenset({"gen", "dat"}), 0),
+        ),
+    )
+    with pytest.raises(ast.ResolveError, match="mianownik"):
+        _field_canonical_lemma(field_name)

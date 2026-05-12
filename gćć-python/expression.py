@@ -98,7 +98,7 @@ def _is_gen_word(token, preps):
     ident = make_identifier(token)
     if not ident.variants:
         return False
-    return any("gen" in case for _, case in ident.variants)
+    return any("gen" in case for _, case, _ in ident.variants)
 
 
 def _starts_chain(head_ident, next_token, field_names, preps):
@@ -106,18 +106,42 @@ def _starts_chain(head_ident, next_token, field_names, preps):
     return _ident_is_field(head_ident, field_names) and _is_gen_word(next_token, preps)
 
 
-def _field_lemmas(field_name):
-    """Lemmy reprezentujące pole — filtr po nom (konwencja deklaracji w mianowniku).
-    Atom (no variants) przepuszczany przez lemmas_set."""
+def _field_canonical_lemma(field_name):
+    """Jedna kanoniczna forma nazwy pola.
+
+    Wymaga `nom` (konwencja: pola deklarujemy w mianowniku).
+    Preferuje min rest_length (krótszy passthrough po subst-głowie) —
+    `[adj+][subst]` (rest=0) bije `[subst][rest...]` (rest≥1).
+    Konwencja masc-sg-nom dla adj jest automatyczna: SGJP lemmy
+    przymiotników są masc nom sg, więc `pierwsze`/`pierwsza` w gałęzi
+    adj dają lemma `pierwszy`.
+
+    Jeśli po filtrze min-rest zostaje >1 unikalnych `segs` → ResolveError
+    z listą opcji. Atom (no variants) zwraca jedyny element `lemmas_set`."""
     if not field_name.variants:
-        return field_name.lemmas_set
-    nom_variants = [(s, c) for s, c in field_name.variants if "nom" in c]
+        ls = field_name.lemmas_set
+        if len(ls) != 1:
+            opts = ", ".join(sorted("_".join(s) for s in ls))
+            raise ResolveError(
+                f"nazwa pola '{'_'.join(field_name.surface)}' jest "
+                f"niejednoznaczna: {opts}"
+            )
+        return next(iter(ls))
+    nom_variants = [(s, c, r) for s, c, r in field_name.variants if "nom" in c]
     if not nom_variants:
         raise ResolveError(
             f"pole struct-a '{'_'.join(field_name.surface)}' nie ma formy "
             f"mianownika; pola deklaruj w nom"
         )
-    return frozenset(s for s, _ in nom_variants)
+    min_rest = min(r for _, _, r in nom_variants)
+    candidates = {s for s, _, r in nom_variants if r == min_rest}
+    if len(candidates) > 1:
+        opts = ", ".join(sorted("_".join(s) for s in candidates))
+        raise ResolveError(
+            f"nazwa pola '{'_'.join(field_name.surface)}' jest niejednoznaczna "
+            f"— pasuje do wielu opcji o tej samej długości reszty: {opts}"
+        )
+    return next(iter(candidates))
 
 
 def _collect_target_var(target_phrase, scope, field_names, preps):
@@ -296,7 +320,7 @@ class ExpressionParser:
         if not ident.variants:
             return ident
         matches = tuple(
-            (s, c) for s, c in ident.variants if self.scope.has_var(s)
+            (s, c, r) for s, c, r in ident.variants if self.scope.has_var(s)
         )
         if not matches or matches == ident.variants:
             return ident
@@ -399,26 +423,34 @@ class ExpressionParser:
                      required_case=None):
         """Wyszukuje wariant z `segments in target_set` (i opcjonalnie z
         `required_case in case`), wykluczając te w `exclude`.
-        Jeśli wiele wariantów pasuje po filtrach → ResolveError (ambiguity).
+        Po filtrach preferuje min `rest_length` (krótszy passthrough po
+        subst-głowie) — to eliminuje fałszywe duplikaty `segs` z różnych
+        ścieżek backtrackowania.
+        Jeśli po min-rest zostaje >1 wariantów → ResolveError (ambiguity).
         Zwraca dopasowane segments lub None gdy brak matchu."""
         matches = []
-        for segs, case in ident.variants:
+        for segs, case, rest_len in ident.variants:
             if segs in exclude:
                 continue
             if segs not in target_set:
                 continue
             if required_case is not None and required_case not in case:
                 continue
-            matches.append((segs, case))
+            matches.append((segs, case, rest_len))
         # Fallback: identyfikator bez wariantów (atom) — użyj lemmas_set.
         if not matches and not ident.variants and required_case is None:
             for segs in ident.lemmas_set:
                 if segs in target_set and segs not in exclude:
-                    matches.append((segs, None))
+                    matches.append((segs, None, 0))
         if not matches:
             return None
+        # Preferuj wariant z najkrótszą "resztą" — np. dla `pierwszym polu`
+        # gałąź adj+subst (rest=0) bije gałąź subst-głowa+rest (rest=1),
+        # nawet gdy obie dają to samo `segs`.
+        min_rest = min(r for _, _, r in matches)
+        matches = [m for m in matches if m[2] == min_rest]
         if len(matches) > 1:
-            opts = ", ".join(sorted("_".join(s) for s, _ in matches))
+            opts = ", ".join(sorted("_".join(s) for s, _, _ in matches))
             raise ResolveError(
                 f"identyfikator '{'_'.join(ident.surface)}' jest niejednoznaczny "
                 f"w tym kontekście — pasuje do wielu opcji: {opts}"
@@ -542,9 +574,9 @@ def _build_ctx(module):
             types.add(node.name)
             fbt = fields_by_type.setdefault(node.name, set())
             for f in node.fields:
-                for lemma in _field_lemmas(f.name):
-                    fbt.add(lemma)
-                    field_names.add(lemma)
+                lemma = _field_canonical_lemma(f.name)
+                fbt.add(lemma)
+                field_names.add(lemma)
         elif isinstance(node, (FunctionDef, ExternFunctionDef)):
             for lemma in node.name.lemmas_set:
                 existing = function_defs.get(lemma)
