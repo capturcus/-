@@ -300,7 +300,7 @@ def test_struct_creation_basic(parse):
     assert isinstance(sc, ast.StructCreation)
     assert sc.type_name == ("Użytkownik",)
     assert len(sc.args) == 1
-    assert sc.args[0].field_name == ("nazwa",)
+    assert sc.args[0].field_name == (("nazwa",), "sg", "f")
     assert sc.args[0].value == ast.StrLit("Anna")
 
 
@@ -316,12 +316,12 @@ def test_struct_creation_field_value_is_full_expr(parse):
     sc = m.body[2].body[0].value.resolved
     assert isinstance(sc, ast.StructCreation)
     # Pierwsze pole — wiek = BinOp(+, FCall, 7)
-    wiek_arg = next(a for a in sc.args if a.field_name == ("wiek",))
+    wiek_arg = next(a for a in sc.args if a.field_name == (("wiek",), "sg", "m"))
     assert isinstance(wiek_arg.value, ast.BinOp) and wiek_arg.value.op == "+"
     assert isinstance(wiek_arg.value.left, ast.FunctionCall)
     assert wiek_arg.value.right == ast.IntLit(7)
     # Drugie — nazwa = "Anna"
-    nazwa_arg = next(a for a in sc.args if a.field_name == ("nazwa",))
+    nazwa_arg = next(a for a in sc.args if a.field_name == (("nazwa",), "sg", "f"))
     assert nazwa_arg.value == ast.StrLit("Anna")
 
 
@@ -335,7 +335,9 @@ def test_struct_creation_shorthand(parse):
     assert isinstance(sc, ast.StructCreation)
     assert len(sc.args) == 2
     assert all(a.value is None for a in sc.args)
-    assert {a.field_name for a in sc.args} == {("nazwa",), ("wiek",)}
+    assert {a.field_name for a in sc.args} == {
+        (("nazwa",), "sg", "f"), (("wiek",), "sg", "m"),
+    }
 
 
 # ---------- Identifier reference ----------
@@ -386,7 +388,7 @@ def test_identifier_has_multiple_variants_when_segment_ambiguous(db):
     + `mowa`) i adj+subst (`częsty` adj:m1.pl.nom.voc + `mowa`). Identifier
     musi nieść oba warianty, żeby dispatcher kontekstowy mógł wybrać."""
     ident = _make_ident(db, "części_mowy")
-    seg_options = {segs for segs, _, _ in ident.variants}
+    seg_options = {v.lemmas for v in ident.variants}
     assert ("część", "mowa") in seg_options
     assert ("częsty", "mowa") in seg_options
 
@@ -410,8 +412,8 @@ def test_single_variant_when_no_ambiguity(db):
     — Identifier ma tylko 1 wariant."""
     ident = _make_ident(db, "część")
     assert len(ident.variants) == 1
-    segs, case, _ = ident.variants[0]
-    assert segs == ("część",)
+    v = ident.variants[0]
+    assert v.lemmas == ("część",)
 
 
 def test_chain_head_subst_variant_when_adj_variant_exists(parse):
@@ -428,25 +430,26 @@ def test_chain_head_subst_variant_when_adj_variant_exists(parse):
     assert len(expr.chain) == 2
     head = expr.chain[0]
     # Head niesie oba warianty
-    seg_options = {segs for segs, _, _ in head.variants}
+    seg_options = {v.lemmas for v in head.variants}
     assert ("część", "mowa") in seg_options
     assert ("częsty", "mowa") in seg_options
 
 
 def test_struct_arg_loc_picks_subst_variant(parse):
-    """`nowe Słowo o częściach_mowy ...` — dispatcher struct arg wymaga loc.
-    Subst-prefix `("część","mowa")` ma loc w {dat,loc} pl, adj-prefix
-    `("częsty","mowa")` nie ma loc. Wybierz subst-variant."""
+    """`nowe Słowo o części_mowy ...` — dispatcher struct arg wymaga loc.
+    Subst-prefix `("część","mowa")` ma loc, adj-prefix `("częsty","mowa")`
+    nie ma loc. Wybierz subst-variant. (Field decl jest sg-f, więc reference
+    też musi być sg dla pełnego klucza match.)"""
     src = (
         "definicja Słowa:\n    część_mowy (Tekst)\n"
-        "aby działać:\n    s to nowe Słowo o częściach_mowy \"czasownik\"\n"
+        "aby działać:\n    s to nowe Słowo o części_mowy \"czasownik\"\n"
     )
     m = parse(src)
     sc = m.body[1].body[0].value.resolved
     assert isinstance(sc, ast.StructCreation)
     assert sc.type_name == ("Słowo",)
     assert len(sc.args) == 1
-    assert sc.args[0].field_name == ("część", "mowa")
+    assert sc.args[0].field_name == (("część", "mowa"), "sg", "f")
     assert sc.args[0].value == ast.StrLit("czasownik")
 
 
@@ -594,7 +597,7 @@ def test_subscript_in_struct_field_value(parse):
     assert isinstance(sc, ast.StructCreation)
     assert sc.type_name == ("Pudełko",)
     assert len(sc.args) == 1
-    assert sc.args[0].field_name == ("wartość",)
+    assert sc.args[0].field_name == (("wartość",), "sg", "f")
     assert isinstance(sc.args[0].value, ast.Subscript)
     assert sc.args[0].value.index == ast.IntLit(1)
 
@@ -640,7 +643,7 @@ def test_subscript_full_composition(parse):
     assert isinstance(rhs, ast.StructCreation)
     assert rhs.type_name == ("Post",)
     assert len(rhs.args) == 1
-    assert rhs.args[0].field_name == ("treść",)
+    assert rhs.args[0].field_name == (("treść",), "sg", "f")
     assert isinstance(rhs.args[0].value, ast.Subscript)
 
 
@@ -900,21 +903,21 @@ def test_for_collection_with_logical_op(parse):
 
 def test_struct_arg_field_name_disambiguated_by_case(parse):
     """Identyfikator pola identyczny w obu kontekstach — sprawdzamy że
-    `o trybie` (loc) i `o aspekcie` (loc) trafiają w różne pola, każde
-    z odrębnym lematem subst-variant."""
+    `o części_mowy` (loc sg) i `o trybie` (loc) trafiają w różne pola,
+    każde z odrębnym pełnym kluczem (lemmas, number, gender)."""
     src = (
         "definicja Słowa:\n"
         "    część_mowy (Tekst)\n"
         "    tryb (Tekst)\n"
         "aby działać:\n"
-        "    s to nowe Słowo o częściach_mowy \"v\" o trybie \"oznajmujący\"\n"
+        "    s to nowe Słowo o części_mowy \"v\" o trybie \"oznajmujący\"\n"
     )
     m = parse(src)
     sc = m.body[1].body[0].value.resolved
     assert isinstance(sc, ast.StructCreation)
     assigned = {a.field_name for a in sc.args}
-    assert ("część", "mowa") in assigned
-    assert ("tryb",) in assigned
+    assert (("część", "mowa"), "sg", "f") in assigned
+    assert (("tryb",), "sg", "m") in assigned
 
 
 # ---------- Scope-aware narrowing wariantów ----------
@@ -952,10 +955,11 @@ def test_narrow_to_function_local_var(parse):
 
 
 def test_narrow_to_function_param(parse):
-    """Var w scope poprzez parametr funkcji. Param `listy` (gen sg of `lista`,
-    nom pl of `list`) dodaje do scope oba lemmy: {("lista",), ("list",)}.
-    Reference `liście` ma 4 warianty: lista, list, liść, liście-neutrum —
-    narrowing filtruje do tych w scope: lista i list. Pozostałe są odrzucone."""
+    """Var w scope poprzez parametr funkcji. Param `listy` ma scope-keys
+    {(lista, pl, f), (lista, sg, f, gen), (list, pl, m)}. Reference `liście`
+    ma scope-keys {(lista, sg, f), (list, sg, m), (liść, pl, m), (liście, sg, n)}.
+    Po narrowing zostaje tylko (lista, sg, f) — pozostałe nie matchują scope
+    pełnym kluczem (list pl m ≠ list sg m itp.)."""
     src = (
         "aby działać_dla listy:\n"
         "    dla użytkownika w liście:\n"
@@ -965,9 +969,9 @@ def test_narrow_to_function_param(parse):
     for_node = m.body[0].body[0]
     coll = for_node.collection.resolved
     assert ("lista",) in coll.lemmas_set
-    assert ("list",) in coll.lemmas_set
-    assert ("liść",) not in coll.lemmas_set  # nie w scope → odfiltrowane
-    assert ("liście",) not in coll.lemmas_set  # nie w scope → odfiltrowane
+    assert ("list",) not in coll.lemmas_set  # (list, sg, m) ≠ (list, pl, m) w scope
+    assert ("liść",) not in coll.lemmas_set
+    assert ("liście",) not in coll.lemmas_set
 
 
 def test_narrow_keeps_multiple_when_multiple_in_scope():
@@ -979,17 +983,20 @@ def test_narrow_keeps_multiple_when_multiple_in_scope():
         surface=("test",),
         analyses=(),
         variants=(
-            (("a",), frozenset({"nom"}), 0),
-            (("b",), frozenset({"nom", "gen"}), 0),
-            (("c",), frozenset({"nom", "acc", "dat"}), 0),
+            ast.Variant(("a",), frozenset({"nom"}), "sg", "f", 0),
+            ast.Variant(("b",), frozenset({"nom", "gen"}), "sg", "f", 0),
+            ast.Variant(("c",), frozenset({"nom", "acc", "dat"}), "sg", "f", 0),
         ),
     )
     scope = _Scope()
-    scope.variables = {("a",), ("b",)}  # `c` NIE w scope
-    ctx = _Ctx(function_defs={}, types=set(), fields_by_type={}, field_names=set())
+    scope.variables = {
+        (("a",), "sg", "f"),
+        (("b",), "sg", "f"),
+    }  # `c` NIE w scope
+    ctx = _Ctx(function_defs={}, types=set(), fields_by_type={}, field_lemmas=set())
     parser = ExpressionParser(tokens=[], ctx=ctx, preps={}, scope=scope)
     narrowed = parser._narrow_to_variable(ident)
-    seg_options = {s for s, _, _ in narrowed.variants}
+    seg_options = {v.lemmas for v in narrowed.variants}
     assert ("a",) in seg_options
     assert ("b",) in seg_options
     assert ("c",) not in seg_options  # odfiltrowane bo nie w scope
@@ -1095,11 +1102,11 @@ def test_find_in_set_ambiguity_error():
         surface=("x",),
         analyses=(),
         variants=(
-            (("a",), frozenset({"nom"}), 0),
-            (("b",), frozenset({"nom"}), 0),
+            ast.Variant(("a",), frozenset({"nom"}), "sg", "f", 0),
+            ast.Variant(("b",), frozenset({"nom"}), "sg", "f", 0),
         ),
     )
-    ctx = _Ctx(function_defs={}, types=set(), fields_by_type={}, field_names=target_set)
+    ctx = _Ctx(function_defs={}, types=set(), fields_by_type={}, field_lemmas=target_set)
     parser = ExpressionParser(tokens=[], ctx=ctx, preps={}, scope=_Scope())
     with pytest.raises(ast.ResolveError, match="niejednoznaczny"):
         parser._find_in_set(ident, target_set)
@@ -1123,7 +1130,7 @@ def test_field_canonical_lemma_picks_min_rest_for_adj_noun(parse):
     sc = m.body[1].body[0].value.resolved
     assert isinstance(sc, ast.StructCreation)
     assert len(sc.args) == 1
-    assert sc.args[0].field_name == ("pierwszy", "pole")
+    assert sc.args[0].field_name == (("pierwszy", "pole"), "sg", "n")
 
 
 def test_field_canonical_lemma_ambiguous_after_min_rest():
@@ -1136,8 +1143,8 @@ def test_field_canonical_lemma_ambiguous_after_min_rest():
         surface=("foo",),
         analyses=(),
         variants=(
-            (("a",), frozenset({"nom"}), 0),
-            (("b",), frozenset({"nom"}), 0),
+            ast.Variant(("a",), frozenset({"nom"}), "sg", "f", 0),
+            ast.Variant(("b",), frozenset({"nom"}), "sg", "f", 0),
         ),
     )
     with pytest.raises(ast.ResolveError, match="niejednoznaczna"):
@@ -1151,7 +1158,7 @@ def test_field_canonical_lemma_requires_nom():
         surface=("foo",),
         analyses=(),
         variants=(
-            (("foo",), frozenset({"gen", "dat"}), 0),
+            ast.Variant(("foo",), frozenset({"gen", "dat"}), "sg", "f", 0),
         ),
     )
     with pytest.raises(ast.ResolveError, match="mianownik"):

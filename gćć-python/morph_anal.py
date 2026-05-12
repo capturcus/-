@@ -5,6 +5,15 @@ from typing import NamedTuple
 import lexer
 
 CASES = {"nom", "gen", "dat", "acc", "inst", "loc", "voc"}
+NUMBERS = {"sg", "pl"}
+# SGJP rodzajowe tagi → znormalizowany rodzaj koarse (m/f/n).
+# m1 (męskoosobowy), m2 (męskozwierzęcy), m3 (męskorzeczowy) → wszystkie m.
+# n1/n2 → n. p1/p2/p3 (gramatyczne kategorie pluralne) ignorowane — nie są rodzajem słowa.
+_GENDER_MAP = {
+    "m1": "m", "m2": "m", "m3": "m", "m": "m",
+    "f": "f",
+    "n1": "n", "n2": "n", "n": "n",
+}
 PARTICIPLE_POS = {"pact", "ppas"}
 VERB_POS = frozenset({
     "fin", "impt", "inf", "imps", "praet", "pcon",
@@ -15,27 +24,44 @@ VERB_POS = frozenset({
 class MorphAnalysis(NamedTuple):
     pos: str
     case: frozenset
+    number: str  # "sg" / "pl" / None (verby, prep, atom)
+    gender: frozenset  # frozenset znormalizowanych rodzajów (m/f/n) lub None
     lemma: str
     tag: str  # surowy tag SGJP, np. "fin:sg:pri:imperf"
 
 
-def _case_for_tag(tag, tag_parts, cache):
-    """Wyciąga frozenset casów z tagu, cache'ując po surowym tagu.
-    SGJP ma ~tysiąc unikalnych tagów, ale 5M wpisów — cache hit rate ~99%."""
-    cached = cache.get(tag)
-    if cached is not _SENTINEL:
-        return cached
-    case = None
-    for tp in tag_parts[1:]:
-        cases_here = frozenset(p for p in tp.split(".") if p in CASES)
-        if cases_here:
-            case = cases_here
-            break
-    cache[tag] = case
-    return case
-
-
 _SENTINEL = object()
+
+
+def _morpho_for_tag(tag_parts):
+    """Wyciąga (case, number, gender) z parts tagu SGJP.
+    Iteruje raz po częściach — wykrywa po przynależności wartości do CASES,
+    NUMBERS, _GENDER_MAP. Zwraca pierwsze trafienie każdej kategorii."""
+    case = None
+    number = None
+    gender = None
+    for tp in tag_parts[1:]:
+        atoms = tp.split(".")
+        if case is None:
+            cases_here = frozenset(p for p in atoms if p in CASES)
+            if cases_here:
+                case = cases_here
+                continue
+        if number is None:
+            for p in atoms:
+                if p in NUMBERS:
+                    number = p
+                    break
+            if number is not None:
+                continue
+        if gender is None:
+            genders_here = frozenset(
+                _GENDER_MAP[p] for p in atoms if p in _GENDER_MAP
+            )
+            if genders_here:
+                gender = genders_here
+                continue
+    return case, number, gender
 
 
 def load(path):
@@ -44,8 +70,8 @@ def load(path):
     db = {}
     preps = {}
     citation = {}
-    case_cache = {}
-    case_cache_get = case_cache.get
+    morpho_cache = {}
+    morpho_cache_get = morpho_cache.get
     # Bind w lokalnej zmiennej żeby zminimalizować dispatch w gorącej pętli.
     tuple_new = tuple.__new__
     Ma = MorphAnalysis
@@ -60,23 +86,21 @@ def load(path):
             lemma = lemma_field.partition(":")[0]
             # partition jest szybsze od full split gdy chcemy tylko pos
             pos = tag.partition(":")[0]
-            # Cache po tagu — Python sam wyhashuje string.
-            case = case_cache_get(tag, _SENTINEL)
+            # Cache po tagu — jeden lookup zwraca (case, number, gender).
+            cached = morpho_cache_get(tag, _SENTINEL)
             tag_parts = None  # leniwe — split tylko gdy potrzebny
-            if case is _SENTINEL:
+            if cached is _SENTINEL:
                 tag_parts = tag.split(":")
-                case = None
-                if pos not in verb_pos:
-                    for tp in tag_parts[1:]:
-                        cases_here = frozenset(p for p in tp.split(".") if p in CASES)
-                        if cases_here:
-                            case = cases_here
-                            break
-                case_cache[tag] = case
+                if pos in verb_pos:
+                    cached = (None, None, None)
+                else:
+                    cached = _morpho_for_tag(tag_parts)
+                morpho_cache[tag] = cached
+            case, number, gender = cached
             # tuple.__new__ omija NamedTuple.__new__ (walidację argumentów),
             # wraca do konstruktora w C — istotne przy 5M wpisach.
             db.setdefault(form, []).append(
-                tuple_new(Ma, (pos, case, lemma, tag))
+                tuple_new(Ma, (pos, case, number, gender, lemma, tag))
             )
             if pos == "prep" and case:
                 preps.setdefault(lemma, set()).update(case)

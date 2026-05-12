@@ -42,6 +42,25 @@ from identifier import make_identifier, is_prep
 _ADJ_LIKE_POS = ("adj", "pact", "ppas")
 
 
+def _lemma_key(v):
+    """Default key_fn dla _find_in_set — używane dla typów (lemma-only)."""
+    return v.lemmas
+
+
+def _full_key(v):
+    """key_fn dla _find_in_set wyciągający pełen klucz (lemmas, number, gender).
+    Używane dla pól struktur."""
+    return (v.lemmas, v.number, v.gender)
+
+
+def _describe_key(k):
+    """Czytelny opis klucza w komunikatach błędów — działa zarówno dla
+    lemma-tuple (typy) jak i pełnego klucza (pola/scope)."""
+    if isinstance(k, tuple) and len(k) == 3 and isinstance(k[0], tuple):
+        return _format_scope_key(k)
+    return "_".join(k)
+
+
 def _describe_tok(t):
     """Czytelny opis tokenu do komunikatów błędów (bez analiz/MorphAnalysis)."""
     if t is None:
@@ -63,40 +82,73 @@ def _adj_cases_from_analyses(analyses):
 
 
 class _Ctx:
-    def __init__(self, function_defs, types, fields_by_type, field_names):
+    """Statyczny kontekst rezolucji.
+
+    - `function_defs`: dict[lemma_tuple → FunctionDef] (funkcje keyed po
+      lemma; rodzaj/liczba nie różnicują funkcji).
+    - `types`: set[lemma_tuple] (typy capitalized, lemma-only).
+    - `fields_by_type`: dict[type_name → set[(lemmas, num, g)]] — pełne
+      klucze pól per struktura, służą do dopasowania referencji.
+    - `field_lemmas`: set[lemma_tuple] — projekcja `fields_by_type` po
+      lemmie, do szybkiego "czy ten token to w ogóle field" w detekcji
+      chain. Konkretne dopasowanie (number/gender) robi `_find_in_set`."""
+    def __init__(self, function_defs, types, fields_by_type, field_lemmas):
         self.function_defs = function_defs
         self.types = types
         self.fields_by_type = fields_by_type
-        self.field_names = field_names
+        self.field_lemmas = field_lemmas
 
 
 class _Scope:
     """Symbol table dla zmiennych. Chain w górę przez `parent`.
 
-    `variables` to set[tuple[str, ...]] — wszystkich możliwych lemma
-    interpretacji każdej zadeklarowanej zmiennej (dodajemy całe lemmas_set
-    identyfikatora). To pozwala odwołać się do zmiennej w dowolnej formie
-    morfologicznej."""
+    `variables` to set[(lemmas_tuple, number, gender)] — pełnych kluczy
+    zadeklarowanych zmiennych. To rozróżnia np. "kotek" (sg, m) od "kotka"
+    (sg, f) i "forma" (sg, f) od "formy" (pl, f). `add` dodaje
+    `ident.scope_keys` (dla deklaracji niewalidowanych — np. for-var, param
+    — wszystkie warianty; LHS przypisania waliduje nom-uniqueness osobno).
+
+    Atom-compat: atomy (single-letter, brak analiz) mają klucz
+    (lemma, None, None). `has_var` dopuszcza match takich kluczy po samej
+    lemmie z dowolnym wpisem scope o tej samej lemmie."""
 
     def __init__(self, parent=None):
         self.variables = set()
         self.parent = parent
 
     def add(self, ident):
-        self.variables |= ident.lemmas_set
+        self.variables |= ident.scope_keys
 
-    def has_var(self, segs):
-        if segs in self.variables:
+    def add_key(self, key):
+        self.variables.add(key)
+
+    def has_var(self, key):
+        if key in self.variables:
             return True
-        return self.parent.has_var(segs) if self.parent else False
+        # Atom-compat: klucz z None matchuje dowolny scope-key o tej samej lemmie.
+        lemmas, number, gender = key
+        if number is None and gender is None:
+            for k in self.variables:
+                if k[0] == lemmas:
+                    return True
+        else:
+            # Symetrycznie: jeśli scope ma wpis atomowy (None, None), też matchuj.
+            if (lemmas, None, None) in self.variables:
+                return True
+        return self.parent.has_var(key) if self.parent else False
 
 
 # ---------- wolne helpery (używane przez ExpressionParser i pre-collect) ----------
 
 
-def _ident_is_field(ident, field_names):
-    """True jeśli któryś wariant identyfikatora pasuje do field_names."""
-    return bool(ident.lemmas_set & field_names)
+def _ident_is_field(ident, field_lemmas):
+    """True jeśli któryś wariant identyfikatora ma lemma w `field_lemmas`.
+
+    Używa lemma-only comparison (nie pełnego klucza scope) — pozwala na
+    detekcję "to jest field" niezależnie od liczby/rodzaju surface'u.
+    Faktyczne dopasowanie do konkretnego pola (z liczbą i rodzajem) robi
+    `_find_in_set` z pełnym key_fn."""
+    return bool(ident.lemmas_set & field_lemmas)
 
 
 def _is_gen_word(token, preps):
@@ -108,26 +160,34 @@ def _is_gen_word(token, preps):
     ident = make_identifier(token)
     if not ident.variants:
         return False
-    return any("gen" in case for _, case, _ in ident.variants)
+    return any("gen" in v.case for v in ident.variants)
 
 
-def _starts_chain(head_ident, next_token, field_names, preps):
+def _starts_chain(head_ident, next_token, field_lemmas, preps):
     """Ta sama logika co ExpressionParser._can_start_chain, ale bez self."""
-    return _ident_is_field(head_ident, field_names) and _is_gen_word(next_token, preps)
+    return _ident_is_field(head_ident, field_lemmas) and _is_gen_word(next_token, preps)
+
+
+def _format_scope_key(key):
+    """Czytelny opis klucza scope (lemmas, number, gender) do błędów."""
+    lemmas, number, gender = key
+    name = "_".join(lemmas)
+    parts = [p for p in (number, gender) if p is not None]
+    return f"{name} ({', '.join(parts)})" if parts else name
 
 
 def _field_canonical_lemma(field_name):
-    """Jedna kanoniczna forma nazwy pola.
+    """Kanoniczny klucz pola (lemmas, number, gender).
 
-    Wymaga `nom` (konwencja: pola deklarujemy w mianowniku).
+    Wymaga `nom` (konwencja: pola deklarujemy w mianowniku) oraz
+    jednoznaczności pełnego klucza (lemmas, number, gender). Splittowanie
+    wariantów per (lemma, number, gender) gwarantuje że `kotki` (pole
+    deklarowane z l.mn. nom) byłoby ambiguous: (kotek, pl, m) i (kotka,
+    pl, f) — error.
+
     Preferuje min rest_length (krótszy passthrough po subst-głowie) —
     `[adj+][subst]` (rest=0) bije `[subst][rest...]` (rest≥1).
-    Konwencja masc-sg-nom dla adj jest automatyczna: SGJP lemmy
-    przymiotników są masc nom sg, więc `pierwsze`/`pierwsza` w gałęzi
-    adj dają lemma `pierwszy`.
-
-    Jeśli po filtrze min-rest zostaje >1 unikalnych `segs` → ResolveError
-    z listą opcji. Atom (no variants) zwraca jedyny element `lemmas_set`."""
+    Atom (no variants) zwraca (jedyny lemma, None, None)."""
     if not field_name.variants:
         ls = field_name.lemmas_set
         if len(ls) != 1:
@@ -137,51 +197,77 @@ def _field_canonical_lemma(field_name):
                 f"niejednoznaczna: {opts}",
                 line=field_name.line,
             )
-        return next(iter(ls))
-    nom_variants = [(s, c, r) for s, c, r in field_name.variants if "nom" in c]
+        return (next(iter(ls)), None, None)
+    nom_variants = [v for v in field_name.variants if "nom" in v.case]
     if not nom_variants:
         raise ResolveError(
             f"pole struct-a '{'_'.join(field_name.surface)}' nie ma formy "
             f"mianownika; pola deklaruj w nom",
             line=field_name.line,
         )
-    min_rest = min(r for _, _, r in nom_variants)
-    candidates = {s for s, _, r in nom_variants if r == min_rest}
+    min_rest = min(v.rest_length for v in nom_variants)
+    candidates = {
+        (v.lemmas, v.number, v.gender)
+        for v in nom_variants if v.rest_length == min_rest
+    }
     if len(candidates) > 1:
-        opts = ", ".join(sorted("_".join(s) for s in candidates))
+        opts = ", ".join(sorted(_format_scope_key(k) for k in candidates))
         raise ResolveError(
             f"nazwa pola '{'_'.join(field_name.surface)}' jest niejednoznaczna "
-            f"— pasuje do wielu opcji o tej samej długości reszty: {opts}",
+            f"w mianowniku — pasuje do wielu opcji: {opts}",
             line=field_name.line,
         )
     return next(iter(candidates))
 
 
-def _collect_target_var(target_phrase, scope, field_names, preps):
-    """Dodaje pierwsze WORD targetu jako zmienną, chyba że to chain (field write)."""
+def _collect_target_var(target_phrase, scope, field_lemmas, preps):
+    """Dodaje pierwsze WORD targetu jako zmienną w scope, walidując że LHS
+    jest w mianowniku i jednoznaczny w (lemmas, number, gender)."""
     tokens = target_phrase.tokens
     if not tokens or tokens[0][0] is not lexer.Token.WORD:
         return
     head_ident = make_identifier(tokens[0])
     next_token = tokens[1] if len(tokens) > 1 else None
-    if _starts_chain(head_ident, next_token, field_names, preps):
+    if _starts_chain(head_ident, next_token, field_lemmas, preps):
         return  # chain LHS — to field write, nie deklaracja zmiennej
-    scope.add(head_ident)
+    # Atom (single-letter, brak analiz) — bez nom validation, dodaj jak jest.
+    if not head_ident.variants:
+        scope.add(head_ident)
+        return
+    nom_keys = {
+        (v.lemmas, v.number, v.gender)
+        for v in head_ident.variants if "nom" in v.case
+    }
+    if not nom_keys:
+        raise ResolveError(
+            f"lewa strona przypisania '{'_'.join(head_ident.surface)}' nie "
+            f"ma formy mianownika; zmienne deklaruj w mianowniku",
+            line=head_ident.line,
+        )
+    if len(nom_keys) > 1:
+        opts = ", ".join(sorted(_format_scope_key(k) for k in nom_keys))
+        raise ResolveError(
+            f"lewa strona przypisania '{'_'.join(head_ident.surface)}' "
+            f"jest niejednoznaczna w mianowniku — pasuje do wielu opcji: "
+            f"{opts}. Użyj jednoznacznej formy.",
+            line=head_ident.line,
+        )
+    scope.add_key(next(iter(nom_keys)))
 
 
-def _collect_bindings_in_stmt(stmt, scope, field_names, preps):
+def _collect_bindings_in_stmt(stmt, scope, field_lemmas, preps):
     """Bindings z While/If/For bodies leakują do enclosing scope (For-var
     dodawany oddzielnie w _resolve_stmt do for-scope)."""
     if isinstance(stmt, Assignment):
-        _collect_target_var(stmt.target, scope, field_names, preps)
+        _collect_target_var(stmt.target, scope, field_lemmas, preps)
     elif isinstance(stmt, (While, For)):
         for sub in stmt.body:
-            _collect_bindings_in_stmt(sub, scope, field_names, preps)
+            _collect_bindings_in_stmt(sub, scope, field_lemmas, preps)
     elif isinstance(stmt, If):
         for sub in stmt.then_body:
-            _collect_bindings_in_stmt(sub, scope, field_names, preps)
+            _collect_bindings_in_stmt(sub, scope, field_lemmas, preps)
         for sub in stmt.else_body:
-            _collect_bindings_in_stmt(sub, scope, field_names, preps)
+            _collect_bindings_in_stmt(sub, scope, field_lemmas, preps)
 
 
 class ExpressionParser:
@@ -352,13 +438,15 @@ class ExpressionParser:
         return self._parse_function_call(name, matched_lemma)
 
     def _narrow_to_variable(self, ident):
-        """Zostaw tylko warianty, których lemmy są zadeklarowanymi zmiennymi
-        w scope. NIE wybiera 'najlepszego' — disambiguację dla > 1 wariantu
-        zostawia późniejszemu kontekstowi (fcall slot, type checker)."""
+        """Zostaw tylko warianty, których pełny klucz (lemmas, number, gender)
+        jest zadeklarowaną zmienną w scope. NIE wybiera 'najlepszego' —
+        disambiguację dla > 1 wariantu zostawia późniejszemu kontekstowi
+        (fcall slot, type checker)."""
         if not ident.variants:
             return ident
         matches = tuple(
-            (s, c, r) for s, c, r in ident.variants if self.scope.has_var(s)
+            v for v in ident.variants
+            if self.scope.has_var((v.lemmas, v.number, v.gender))
         )
         if not matches or matches == ident.variants:
             return ident
@@ -457,51 +545,59 @@ class ExpressionParser:
     # ---------- helpery wariantów ----------
 
     def _ident_is_field(self, ident):
-        return _ident_is_field(ident, self.ctx.field_names)
+        return _ident_is_field(ident, self.ctx.field_lemmas)
 
     def _find_in_set(self, ident, target_set, exclude=frozenset(),
-                     required_case=None):
-        """Wyszukuje wariant z `segments in target_set` (i opcjonalnie z
-        `required_case in case`), wykluczając te w `exclude`.
+                     required_case=None, key_fn=_lemma_key):
+        """Wyszukuje wariant którego klucz (`key_fn(v)`) jest w `target_set`
+        (i opcjonalnie ma `required_case in case`), wykluczając te w `exclude`.
+
+        `key_fn` (default = lemma-only) wyciąga klucz porównawczy z wariantu.
+        Dla typów używamy `_lemma_key`, dla pól `_full_key` (lemmas, number,
+        gender).
+
         Po filtrach preferuje min `rest_length` (krótszy passthrough po
-        subst-głowie) — to eliminuje fałszywe duplikaty `segs` z różnych
-        ścieżek backtrackowania.
-        Jeśli po min-rest zostaje >1 wariantów → ResolveError (ambiguity).
-        Zwraca dopasowane segments lub None gdy brak matchu."""
+        subst-głowie) — eliminuje fałszywe duplikaty z różnych ścieżek
+        backtrackowania. Jeśli po min-rest zostaje >1 unikalnych kluczy →
+        ResolveError (ambiguity). Zwraca dopasowany klucz lub None."""
         matches = []
-        for segs, case, rest_len in ident.variants:
-            if segs in exclude:
+        for v in ident.variants:
+            k = key_fn(v)
+            if k in exclude:
                 continue
-            if segs not in target_set:
+            if k not in target_set:
                 continue
-            if required_case is not None and required_case not in case:
+            if required_case is not None and required_case not in v.case:
                 continue
-            matches.append((segs, case, rest_len))
-        # Fallback: identyfikator bez wariantów (atom) — użyj lemmas_set.
-        if not matches and not ident.variants and required_case is None:
+            matches.append((k, v.case, v.rest_length))
+        # Fallback dla atomu (brak variants): porównuj lemma-tuple bezpośrednio
+        # z target_set. Sensowne tylko gdy key_fn jest lemma-only — pełne
+        # klucze pól mają number/gender, których atom nie ma.
+        if (not matches and not ident.variants and required_case is None
+                and key_fn is _lemma_key):
             for segs in ident.lemmas_set:
                 if segs in target_set and segs not in exclude:
                     matches.append((segs, None, 0))
         if not matches:
             return None
         # Preferuj wariant z najkrótszą "resztą" — np. dla `pierwszym polu`
-        # gałąź adj+subst (rest=0) bije gałąź subst-głowa+rest (rest=1),
-        # nawet gdy obie dają to samo `segs`.
+        # gałąź adj+subst (rest=0) bije gałąź subst-głowa+rest (rest=1).
         min_rest = min(r for _, _, r in matches)
         matches = [m for m in matches if m[2] == min_rest]
-        if len(matches) > 1:
-            opts = ", ".join(sorted("_".join(s) for s, _, _ in matches))
+        uniq_keys = list({m[0] for m in matches})
+        if len(uniq_keys) > 1:
+            opts = ", ".join(sorted(_describe_key(k) for k in uniq_keys))
             raise ResolveError(
                 f"identyfikator '{'_'.join(ident.surface)}' jest niejednoznaczny "
                 f"w tym kontekście — pasuje do wielu opcji: {opts}",
                 line=getattr(ident, "line", None),
             )
-        return matches[0][0]
+        return uniq_keys[0]
 
     # ---------- getter chain ----------
 
     def _can_start_chain(self, head_ident):
-        return _starts_chain(head_ident, self.peek(), self.ctx.field_names, self.preps)
+        return _starts_chain(head_ident, self.peek(), self.ctx.field_lemmas, self.preps)
 
     def _is_gen_word(self, tok):
         return _is_gen_word(tok, self.preps)
@@ -597,6 +693,7 @@ class ExpressionParser:
             field_ident, field_set,
             exclude=frozenset(ctx.assigned),
             required_case=required_case,
+            key_fn=_full_key,
         )
         if matched is None:
             return None
@@ -610,14 +707,14 @@ def _build_ctx(module):
     function_defs = {}
     types = set()
     fields_by_type = {}
-    field_names = set()
+    field_lemmas = set()
     for node in module.body:
         if isinstance(node, StructDef):
             types.add(node.name)
             fbt = fields_by_type.setdefault(node.name, set())
             for f in node.fields:
                 try:
-                    lemma = _field_canonical_lemma(f.name)
+                    key = _field_canonical_lemma(f.name)
                 except ResolveError as e:
                     if e.extra_context is None and node.line is not None:
                         e.extra_context = (
@@ -625,8 +722,14 @@ def _build_ctx(module):
                             f"(linia {node.line})"
                         )
                     raise
-                fbt.add(lemma)
-                field_names.add(lemma)
+                if key in fbt:
+                    raise ResolveError(
+                        f"pole '{_format_scope_key(key)}' zadeklarowane "
+                        f"dwukrotnie w strukturze '{'_'.join(node.name)}'",
+                        line=node.line,
+                    )
+                fbt.add(key)
+                field_lemmas.add(key[0])
         elif isinstance(node, (FunctionDef, ExternFunctionDef)):
             for lemma in node.name.lemmas_set:
                 existing = function_defs.get(lemma)
@@ -647,14 +750,14 @@ def _build_ctx(module):
                         extra_context=extra,
                     )
                 function_defs[lemma] = node
-    overlap = field_names & set(function_defs.keys())
+    overlap = field_lemmas & set(function_defs.keys())
     if overlap:
         names = ", ".join("_".join(n) for n in sorted(overlap))
         raise ResolveError(
             f"konflikt nazw: identyfikator nie może być jednocześnie "
             f"polem i funkcją: {names}"
         )
-    return _Ctx(function_defs, types, fields_by_type, field_names)
+    return _Ctx(function_defs, types, fields_by_type, field_lemmas)
 
 
 def resolve_phrase(phrase, ctx, preps, scope):
@@ -709,7 +812,7 @@ def _resolve_body(body, ctx, preps, scope):
     """Zbiera bindings (assignments w body + zagnieżdżonych If/While/For)
     do obecnego scope'u, potem rezolwuje każdy statement."""
     for stmt in body:
-        _collect_bindings_in_stmt(stmt, scope, ctx.field_names, preps)
+        _collect_bindings_in_stmt(stmt, scope, ctx.field_lemmas, preps)
     for stmt in body:
         _resolve_stmt(stmt, ctx, preps, scope)
 
@@ -721,7 +824,7 @@ def resolve_module(module, preps=None):
     # Pre-collect: top-level assignment targets
     for node in module.body:
         if isinstance(node, Assignment):
-            _collect_target_var(node.target, module_scope, ctx.field_names, preps)
+            _collect_target_var(node.target, module_scope, ctx.field_lemmas, preps)
     # Resolve module-level
     for node in module.body:
         if isinstance(node, Assignment):

@@ -1,10 +1,27 @@
 from dataclasses import dataclass, field
 from itertools import product
+from typing import NamedTuple
 
 from morph_anal import canonical, VERB_POS
 
 
 _ADJ_LIKE = ("adj", "pact", "ppas")
+
+
+class Variant(NamedTuple):
+    """Spójna interpretacja identyfikatora: lemma + case + liczba + rodzaj + reszta.
+
+    `lemmas` to krotka lemm per segment. `case` to frozenset przypadków
+    spójnych dla wszystkich segmentów. `number` (sg/pl) i `gender` (m/f/n)
+    pochodzą z subst-głowy (lub adj-głowy w pure-adj variants). Mogą być
+    None tylko dla atomów / passthroughów single-letter. `rest_length` to
+    liczba passthrough-segmentów po subst-głowie.
+    """
+    lemmas: tuple
+    case: frozenset
+    number: str
+    gender: str
+    rest_length: int
 
 
 @dataclass
@@ -41,30 +58,44 @@ def enumerate_canonical_lemmas(surface, analyses):
 class Identifier:
     """Identyfikator nie-funkcyjny.
 
-    Pełna informacja jest w `variants` — każdy wariant to spójna
-    interpretacja `(lemmas_tuple, case_frozenset, rest_length)` (adj-czytanie
-    vs subst-czytanie per segment; rest_length = liczba passthrough-segs
-    po subst-głowie, 0 dla `[adj+][subst]` lub pure-adj). Widoki pochodne:
+    Pełna informacja jest w `variants` — krotka `Variant` (lemmas, case,
+    number, gender, rest_length). Każdy wariant to spójna interpretacja
+    (adj-czytanie vs subst-czytanie per segment, splittowanie per (lemma,
+    number, gender)). Widoki pochodne:
     - `lemmas_set`: frozenset wszystkich możliwych lemma-tuple'i (variants
       lub fallback do enumerate_canonical_lemmas dla atomów).
+    - `scope_keys`: frozenset pełnych kluczy (lemmas, number, gender) —
+      używany przez scope zmiennych i field_names. Atomy mają klucz
+      (lemma, None, None).
     - `case`: union case wszystkich wariantów. None gdy variants=().
     """
     surface: tuple
     analyses: tuple = ()  # tuple[tuple[MorphAnalysis, ...], ...]
-    variants: tuple = ()  # tuple[ (lemmas_tuple, case_frozenset, rest_length), ... ]
+    variants: tuple = ()  # tuple[Variant, ...]
     line: int = None  # 1-based linia w źródle, None gdy syntetyczna konstrukcja
 
     @property
     def lemmas_set(self):
         if self.variants:
-            return frozenset(s for s, _, _ in self.variants)
+            return frozenset(v.lemmas for v in self.variants)
         return frozenset(enumerate_canonical_lemmas(self.surface, self.analyses))
+
+    @property
+    def scope_keys(self):
+        if self.variants:
+            return frozenset(
+                (v.lemmas, v.number, v.gender) for v in self.variants
+            )
+        return frozenset(
+            (l, None, None)
+            for l in enumerate_canonical_lemmas(self.surface, self.analyses)
+        )
 
     @property
     def case(self):
         if not self.variants:
             return None
-        return frozenset().union(*(case for _, case, _ in self.variants))
+        return frozenset().union(*(v.case for v in self.variants))
 
 
 class InterpreterError(SyntaxError):

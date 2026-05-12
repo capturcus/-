@@ -726,8 +726,8 @@ def test_struct_decl_gen_ambiguous():
         lexer.Token.WORD,
         ("xyz",),
         [[
-            MorphAnalysis(pos="subst", case=frozenset({"gen"}), lemma="alfa", tag="subst:sg:gen:f"),
-            MorphAnalysis(pos="subst", case=frozenset({"gen"}), lemma="beta", tag="subst:sg:gen:m3"),
+            MorphAnalysis(pos="subst", case=frozenset({"gen"}), number="sg", gender=frozenset({"f"}), lemma="alfa", tag="subst:sg:gen:f"),
+            MorphAnalysis(pos="subst", case=frozenset({"gen"}), number="sg", gender=frozenset({"m"}), lemma="beta", tag="subst:sg:gen:m3"),
         ]],
     )
     with pytest.raises(SyntaxError, match="niejednoznaczna"):
@@ -758,8 +758,8 @@ def test_canonical_nom_ambiguous_synthetic():
         lexer.Token.WORD,
         ("xyz",),
         [[
-            MorphAnalysis(pos="subst", case=frozenset({"nom"}), lemma="alfa", tag="subst:sg:nom:f"),
-            MorphAnalysis(pos="subst", case=frozenset({"nom"}), lemma="beta", tag="subst:sg:nom:m3"),
+            MorphAnalysis(pos="subst", case=frozenset({"nom"}), number="sg", gender=frozenset({"f"}), lemma="alfa", tag="subst:sg:nom:f"),
+            MorphAnalysis(pos="subst", case=frozenset({"nom"}), number="sg", gender=frozenset({"m"}), lemma="beta", tag="subst:sg:nom:m3"),
         ]],
     )
     with pytest.raises(SyntaxError, match="niejednoznaczna w mianowniku"):
@@ -810,3 +810,125 @@ def test_canonical_preserves_case_distinction_type_vs_variable(parse):
     sc = asn.value.resolved
     assert isinstance(sc, ast.StructCreation)
     assert sc.type_name == ("Forma",)
+
+
+# ---------- Number/gender w wariantach + scope-key (lemmas, number, gender) ----------
+
+
+def test_kotek_kotka_coexist_in_scope(parse):
+    """`kotek` (m, sg, nom) i `kotka` (f, sg, nom) są deklarowane jako
+    odrębne zmienne — różny scope-key mimo że surface `kotka` ma też
+    interpretację `gen sg m` od `kotek`."""
+    src = (
+        "aby działać:\n"
+        "    kotek to \"tom\"\n"
+        "    kotka to \"lila\"\n"
+    )
+    m = parse(src)
+    # Bez błędu — obie deklaracje akceptowane.
+    body = m.body[0].body
+    assert len(body) == 2
+
+
+def test_forma_formy_distinct_scope(parse):
+    """`forma` (sg, f) i `formy` (pl, f) mają różne scope-keys —
+    deklarujemy je osobno, każda zmienna istnieje niezależnie."""
+    src = (
+        "aby działać:\n"
+        "    forma to \"x\"\n"
+        "    formy to 5\n"
+    )
+    m = parse(src)
+    body = m.body[0].body
+    assert len(body) == 2
+
+
+def test_lhs_ambiguous_nom_kotki_raises(parse):
+    """`kotki` w mianowniku ma dwa warianty: `(kotek, pl, m)` i `(kotka,
+    pl, f)`. LHS przypisania wymaga jednoznacznego mianownika — error."""
+    src = (
+        "aby działać:\n"
+        "    kotki to \"x\"\n"
+    )
+    with pytest.raises(SyntaxError, match="niejednoznaczna w mianowniku"):
+        parse(src)
+
+
+def test_lhs_must_have_nom_raises(parse):
+    """`Marka` (capital) — surface ma readings: `marek` (m1 sg nom-as-imię)
+    i `marka` (f sg nom). Capital → lemmy capitalized. Tu pokazujemy że
+    LHS bez nom (`marki` — dop. sg lub mian. pl) z ambiguity raises.
+    Używamy `obserwującego` (ppas sg gen) — żadnego wariantu w nom."""
+    src = (
+        "aby działać:\n"
+        "    obserwującego to \"x\"\n"
+    )
+    with pytest.raises(SyntaxError, match="mianownik"):
+        parse(src)
+
+
+def test_field_decl_ambiguous_nom_kotki_raises(parse):
+    """Pole `kotki` w deklaracji struct-a — niejednoznaczne w mianowniku
+    (pl m kotek vs pl f kotka) → error."""
+    src = (
+        "definicja Domu:\n"
+        "    kotki (Tekst)\n"
+    )
+    with pytest.raises(SyntaxError, match="niejednoznaczn"):
+        parse(src)
+
+
+def test_variant_carries_number_gender(parse):
+    """`make_identifier('formy')` produkuje 2 warianty: (forma, pl, f) i
+    (forma, sg, f). Sprawdzenie struktury Variant z polami number/gender."""
+    from morph_anal import analyze
+    from identifier import make_identifier
+    toks = list(lexer.lex("formy"))
+    word_tok = next(t for t in toks if t[0] is lexer.Token.WORD)
+    db = _load_db()
+    analyzed = analyze([word_tok], db)
+    ident = make_identifier(analyzed[0])
+    keys = {(v.number, v.gender, "nom" in v.case) for v in ident.variants}
+    assert ("pl", "f", True) in keys
+    assert ("sg", "f", False) in keys  # sg variant jest w gen
+
+
+def test_pure_adj_splits_by_gender(parse):
+    """`obserwującego` to ppas sg gen z gender m.n — po normalizacji 2
+    osobne warianty (gender='m' i gender='n'). Pure-adj variants — bez
+    subst-głowy — dziedziczą number/gender z adj segmentu."""
+    from morph_anal import analyze
+    from identifier import make_identifier
+    toks = list(lexer.lex("obserwującego"))
+    word_tok = next(t for t in toks if t[0] is lexer.Token.WORD)
+    db = _load_db()
+    analyzed = analyze([word_tok], db)
+    ident = make_identifier(analyzed[0])
+    genders = {v.gender for v in ident.variants}
+    assert "m" in genders
+    assert "n" in genders
+
+
+def test_field_decl_field_with_distinct_number_coexist(parse):
+    """Dwa pola w jednej strukturze: `forma` (sg) i `formy` (pl) —
+    różne pełne klucze, więc współistnieją (nie kolidują)."""
+    src = (
+        "definicja Słownika:\n"
+        "    forma (Tekst)\n"
+        "    formy (Tekst)\n"
+    )
+    m = parse(src)
+    sd = m.body[0]
+    assert len(sd.fields) == 2
+
+
+_DB_CACHE = []
+
+
+def _load_db():
+    """Lazy-loader dla SGJP — bez fixturki, używamy w testach poza fixtured scope."""
+    if not _DB_CACHE:
+        import morph_anal
+        db, _ = morph_anal.load(SGJP_PATH)
+        _DB_CACHE.append(db)
+    return _DB_CACHE[0]
