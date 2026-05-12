@@ -28,6 +28,7 @@ class MorphAnalysis(NamedTuple):
     gender: frozenset  # frozenset znormalizowanych rodzajów (m/f/n) lub None
     lemma: str
     tag: str  # surowy tag SGJP, np. "fin:sg:pri:imperf"
+    qualifier: str  # SGJP qualifier (np. "ryb.", "przest.", "pot.") lub ""
 
 
 _SENTINEL = object()
@@ -100,7 +101,7 @@ def load(path):
             # tuple.__new__ omija NamedTuple.__new__ (walidację argumentów),
             # wraca do konstruktora w C — istotne przy 5M wpisach.
             db.setdefault(form, []).append(
-                tuple_new(Ma, (pos, case, number, gender, lemma, tag))
+                tuple_new(Ma, (pos, case, number, gender, lemma, tag, qualifiers))
             )
             if pos == "prep" and case:
                 preps.setdefault(lemma, set()).update(case)

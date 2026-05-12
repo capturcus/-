@@ -215,12 +215,12 @@ aby skapitalizuj_lemat x (Tekst) z segmentem (Tekst) -> Tekst:
 
 aby znormalizuj_łagodnie wyraz (Wyraz) -> Lista:
     lista_segmentów to segmenty wyrazu
-    wszystkie_pule to analizy wyrazu
+    zbiory_pul to analizy wyrazu
     wynik to stwórz_pustą_listę
     indeks to zero
     dopóki indeks mniejsze od policz_długość_listy lista_segmentów:
         segment to lista_segmentów pod indeks
-        pula_segmentu to wszystkie_pule pod indeks
+        pula_segmentu to zbiory_pul pod indeks
         jeśli policz_długość_listy pula_segmentu równe zero:
             dopisz_na_koniec wynik z segmentem
             indeks to indeks plus jeden
@@ -253,12 +253,12 @@ aby znormalizuj_łagodnie wyraz (Wyraz) -> Lista:
 
 aby znormalizuj_ściśle wyraz (Wyraz) z wymaganym_przypadkiem (Tekst) -> Lista:
     lista_segmentów to segmenty wyrazu
-    wszystkie_pule to analizy wyrazu
+    zbiory_pul to analizy wyrazu
     wynik to stwórz_pustą_listę
     indeks to zero
     dopóki indeks mniejsze od policz_długość_listy lista_segmentów:
         segment to lista_segmentów pod indeks
-        pula_segmentu to wszystkie_pule pod indeks
+        pula_segmentu to zbiory_pul pod indeks
         jeśli policz_długość_listy pula_segmentu równe zero:
             dopisz_na_koniec wynik z segmentem
             indeks to indeks plus jeden

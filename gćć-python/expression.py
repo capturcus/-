@@ -176,6 +176,65 @@ def _format_scope_key(key):
     return f"{name} ({', '.join(parts)})" if parts else name
 
 
+def _prefer_subst(variants):
+    """Jeśli istnieje wariant z subst-głową, odrzuć pure-adj variants.
+
+    Pure-adj readings (np. `częsty` dla surface `części`) to typowo
+    fałszywi przyjaciele — w Polskim nazwy zmiennych/pól to rzeczowniki,
+    nie przymiotniki. Bez tej preferencji `części` jako LHS byłoby
+    niejednoznaczne `(częsty, pl, m)` vs `(część, pl, f)`. Pure-adj
+    pozostają wybierane TYLKO gdy nie ma żadnego subst-readingu (np.
+    `obserwującego` jest tylko ppas, brak subst)."""
+    subst_variants = [v for v in variants if v.had_subst]
+    return subst_variants if subst_variants else variants
+
+
+def _prefer_mainstream(variants):
+    """Preferuj warianty mainstream (specialized=False) nad qualified.
+
+    SGJP oznacza specjalistyczne/regionalne/przestarzałe znaczenia
+    qualifierami (np. `wiersza` "ryb." dla rybackiego określenia ryby).
+    Te warianty istnieją w wynikach (nie są filtrowane całkowicie — wciąż
+    są w `ident.variants` dla downstream resolution), ale przy walidacji
+    jednoznaczności LHS/pola wybieramy mainstream. Fallback do specialized
+    tylko gdy nie ma żadnego mainstream-readingu."""
+    mainstream = [v for v in variants if not v.specialized]
+    return mainstream if mainstream else variants
+
+
+def _canonical_priority(key):
+    """Priorytet dla wyboru kanonicznego klucza spośród same-lemma wariantów.
+    Najbardziej naturalna forma to sg m (l.poj. r. męski) — typowa lemma-citation.
+    Kolejno: sg m > sg f > sg n > pl m > pl f > pl n."""
+    lemmas, number, gender = key
+    return (
+        number != "sg",
+        gender != "m",
+        gender != "f",
+        gender != "n",
+        number or "",
+        gender or "",
+        lemmas,
+    )
+
+
+def _collapse_same_lemma(keys):
+    """Jeśli wszystkie klucze (lemmas, num, gender) mają tę samą lemmę,
+    zwróć jeden kanoniczny (preferuje sg m). Inaczej zwróć oryginalne keys.
+
+    Pure-adj surface jak `zebrane` produkuje wiele nom wariantów
+    `(zebrany, *, *)` (po splitcie gender-frozensetu) — to ta sama "rzecz"
+    w intencji użytkownika (nominalizacja). Subst-only ambiguity
+    (np. `kotki`: kotek vs kotka) NIE jest collapsed — różne lematy
+    oznaczają różne zmienne."""
+    if len(keys) <= 1:
+        return keys
+    lemmas = {k[0] for k in keys}
+    if len(lemmas) == 1:
+        return {min(keys, key=_canonical_priority)}
+    return keys
+
+
 def _field_canonical_lemma(field_name):
     """Kanoniczny klucz pola (lemmas, number, gender).
 
@@ -185,7 +244,8 @@ def _field_canonical_lemma(field_name):
     deklarowane z l.mn. nom) byłoby ambiguous: (kotek, pl, m) i (kotka,
     pl, f) — error.
 
-    Preferuje min rest_length (krótszy passthrough po subst-głowie) —
+    Preferuje subst-głowę nad pure-adj (typowo nazwy pól to rzeczowniki),
+    potem min rest_length (krótszy passthrough po subst-głowie) —
     `[adj+][subst]` (rest=0) bije `[subst][rest...]` (rest≥1).
     Atom (no variants) zwraca (jedyny lemma, None, None)."""
     if not field_name.variants:
@@ -205,11 +265,13 @@ def _field_canonical_lemma(field_name):
             f"mianownika; pola deklaruj w nom",
             line=field_name.line,
         )
+    nom_variants = _prefer_subst(nom_variants)
+    nom_variants = _prefer_mainstream(nom_variants)
     min_rest = min(v.rest_length for v in nom_variants)
-    candidates = {
+    candidates = _collapse_same_lemma({
         (v.lemmas, v.number, v.gender)
         for v in nom_variants if v.rest_length == min_rest
-    }
+    })
     if len(candidates) > 1:
         opts = ", ".join(sorted(_format_scope_key(k) for k in candidates))
         raise ResolveError(
@@ -234,16 +296,23 @@ def _collect_target_var(target_phrase, scope, field_lemmas, preps):
     if not head_ident.variants:
         scope.add(head_ident)
         return
-    nom_keys = {
-        (v.lemmas, v.number, v.gender)
-        for v in head_ident.variants if "nom" in v.case
-    }
-    if not nom_keys:
+    nom_variants = [v for v in head_ident.variants if "nom" in v.case]
+    if not nom_variants:
         raise ResolveError(
             f"lewa strona przypisania '{'_'.join(head_ident.surface)}' nie "
             f"ma formy mianownika; zmienne deklaruj w mianowniku",
             line=head_ident.line,
         )
+    nom_variants = _prefer_subst(nom_variants)
+    nom_variants = _prefer_mainstream(nom_variants)
+    # Min-rest preferencja: `[adj+][subst]` (rest=0) bije `[subst][rest...]`
+    # (rest≥1) — np. `nowa_analiza` parsuje się jako adj `nowy`+subst `analiza`,
+    # nie subst `nowa`+passthrough `analiza`.
+    min_rest = min(v.rest_length for v in nom_variants)
+    nom_variants = [v for v in nom_variants if v.rest_length == min_rest]
+    nom_keys = _collapse_same_lemma(
+        {(v.lemmas, v.number, v.gender) for v in nom_variants}
+    )
     if len(nom_keys) > 1:
         opts = ", ".join(sorted(_format_scope_key(k) for k in nom_keys))
         raise ResolveError(

@@ -726,8 +726,8 @@ def test_struct_decl_gen_ambiguous():
         lexer.Token.WORD,
         ("xyz",),
         [[
-            MorphAnalysis(pos="subst", case=frozenset({"gen"}), number="sg", gender=frozenset({"f"}), lemma="alfa", tag="subst:sg:gen:f"),
-            MorphAnalysis(pos="subst", case=frozenset({"gen"}), number="sg", gender=frozenset({"m"}), lemma="beta", tag="subst:sg:gen:m3"),
+            MorphAnalysis(pos="subst", case=frozenset({"gen"}), number="sg", gender=frozenset({"f"}), lemma="alfa", tag="subst:sg:gen:f", qualifier=""),
+            MorphAnalysis(pos="subst", case=frozenset({"gen"}), number="sg", gender=frozenset({"m"}), lemma="beta", tag="subst:sg:gen:m3", qualifier=""),
         ]],
     )
     with pytest.raises(SyntaxError, match="niejednoznaczna"):
@@ -758,8 +758,8 @@ def test_canonical_nom_ambiguous_synthetic():
         lexer.Token.WORD,
         ("xyz",),
         [[
-            MorphAnalysis(pos="subst", case=frozenset({"nom"}), number="sg", gender=frozenset({"f"}), lemma="alfa", tag="subst:sg:nom:f"),
-            MorphAnalysis(pos="subst", case=frozenset({"nom"}), number="sg", gender=frozenset({"m"}), lemma="beta", tag="subst:sg:nom:m3"),
+            MorphAnalysis(pos="subst", case=frozenset({"nom"}), number="sg", gender=frozenset({"f"}), lemma="alfa", tag="subst:sg:nom:f", qualifier=""),
+            MorphAnalysis(pos="subst", case=frozenset({"nom"}), number="sg", gender=frozenset({"m"}), lemma="beta", tag="subst:sg:nom:m3", qualifier=""),
         ]],
     )
     with pytest.raises(SyntaxError, match="niejednoznaczna w mianowniku"):

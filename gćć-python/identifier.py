@@ -85,7 +85,11 @@ def _enumerate_variants(surface, analyses):
         if len(seg) == 1 or not anas:
             seg_data.append({"opaque": True, "lemma": seg})
             continue
-        adj_groups = {}    # (lemma, number, gender) → cases (frozenset)
+        # Grupa (lemma, num, g) → {cases, specialized}. `specialized` jest
+        # True dopóki KAŻDA analiza w grupie ma niepusty SGJP qualifier
+        # (`ryb.`, `przest.`, `pot.` itp). Gdy choć jedna jest unqualified
+        # (mainstream), grupa staje się mainstream.
+        adj_groups = {}
         subst_groups = {}
         for a in anas:
             if not a.case:
@@ -96,11 +100,13 @@ def _enumerate_variants(surface, analyses):
                 target = subst_groups
             else:
                 continue
+            is_specialized = bool(a.qualifier)
             genders = a.gender if a.gender else frozenset({None})
             for g in genders:
                 key = (a.lemma, a.number, g)
-                target[key] = target.get(key, frozenset()) | a.case
-        adj_choices = list(adj_groups.items())   # [((lemma, num, g), cases), ...]
+                prev_cases, prev_spec = target.get(key, (frozenset(), True))
+                target[key] = (prev_cases | a.case, prev_spec and is_specialized)
+        adj_choices = list(adj_groups.items())   # [((lemma, num, g), (cases, spec)), ...]
         subst_choices = list(subst_groups.items())
         # Lemma fallback dla „reszty" (segmenty po subst-głowie) — canonical-style.
         # seg.lower() chroni przed pułapką homograficzną: dla capital surface
@@ -129,12 +135,15 @@ def _enumerate_variants(surface, analyses):
     def _cap_tuple(lemmas):
         return tuple(_cap(l, surface[i]) for i, l in enumerate(lemmas))
 
-    def backtrack(seg_i, lemmas, cases, number, gender, had_subst, subst_at):
+    def backtrack(seg_i, lemmas, cases, number, gender, had_subst, subst_at, specialized):
         # number/gender pochodzą z subst-głowy (lub adj-głowy w pure-adj
         # variants). Adj-prefiks NIE narzuca kongruencji — case intersection
         # i tak filtruje większość niespójności, a strict agreement zepsułaby
         # warianty typu `części_mowy` z adj-prefiksem `częsty` (m) + subst
         # `mowa` (f), które dispatcher musi widzieć żeby później rzucić.
+        # `specialized` jest True gdy wszystkie wybrane grupy miały SGJP
+        # qualifier — to flaguje wariant jako niemainstream (deprio przy
+        # ambiguity, ale wciąż produkowany dla downstream resolution).
         if had_subst:
             # Reszta segmentów: passthrough z canonical-style lemma; case bez zmian.
             # number/gender dziedziczone z subst-głowy.
@@ -143,7 +152,10 @@ def _enumerate_variants(surface, analyses):
                 d = seg_data[j]
                 rest_lemmas.append(d["lemma"] if d["opaque"] else d["rest_lemma"])
             rest_length = n_segs - subst_at - 1
-            variants.append(Variant(_cap_tuple(rest_lemmas), cases, number, gender, rest_length))
+            variants.append(Variant(
+                _cap_tuple(rest_lemmas), cases, number, gender, rest_length,
+                had_subst=True, specialized=specialized,
+            ))
             return
         if seg_i == n_segs:
             # Doszliśmy do końca prefiksu bez subst-głowy. Akceptujemy gdy
@@ -151,36 +163,41 @@ def _enumerate_variants(surface, analyses):
             # "obserwującego") albo multi-seg z adj-only (rzadkie ale OK).
             # number/gender w tym przypadku z ostatniego adj-segmentu.
             if cases is not None:
-                variants.append(Variant(_cap_tuple(lemmas), cases, number, gender, 0))
+                variants.append(Variant(
+                    _cap_tuple(lemmas), cases, number, gender, 0,
+                    had_subst=False, specialized=specialized,
+                ))
             return
         d = seg_data[seg_i]
         if d["opaque"]:
             # Opaque (single-letter lub bez analiz): passthrough, bez wpływu
-            # na case/number/gender.
-            backtrack(seg_i + 1, lemmas + [d["lemma"]], cases, number, gender, had_subst, subst_at)
+            # na case/number/gender/specialized.
+            backtrack(seg_i + 1, lemmas + [d["lemma"]], cases, number, gender, had_subst, subst_at, specialized)
             return
         # Wariant: adj-czytanie (kontynuuje prefix). Gałąź per (lemma, num, g).
         # Number/gender adj-segmentu propagowane do następnego segmentu — w
         # pure-adj variants posłużą jako finalna kategoria.
-        for (adj_lemma, adj_num, adj_g), adj_cases in d["adj_choices"]:
+        for (adj_lemma, adj_num, adj_g), (adj_cases, adj_spec) in d["adj_choices"]:
             new_cases = adj_cases if cases is None else (cases & adj_cases)
             if new_cases:
                 backtrack(
                     seg_i + 1, lemmas + [adj_lemma], new_cases,
                     adj_num, adj_g, had_subst, subst_at,
+                    specialized or adj_spec,
                 )
         # Wariant: subst-czytanie (zamyka prefix jako głowa). Gałąź per (lemma, num, g).
         # Subst-głowa narzuca finalne (number, gender) wariantu — adj-prefiks
         # już nie ma wpływu (jego (num, g) zostają nadpisane).
-        for (subst_lemma, subst_num, subst_g), subst_cases in d["subst_choices"]:
+        for (subst_lemma, subst_num, subst_g), (subst_cases, subst_spec) in d["subst_choices"]:
             new_cases = subst_cases if cases is None else (cases & subst_cases)
             if new_cases:
                 backtrack(
                     seg_i + 1, lemmas + [subst_lemma], new_cases,
                     subst_num, subst_g, had_subst=True, subst_at=seg_i,
+                    specialized=specialized or subst_spec,
                 )
 
-    backtrack(0, [], None, None, None, False, None)
+    backtrack(0, [], None, None, None, False, None, False)
 
     if not variants:
         # Brak żadnej spójnej interpretacji.

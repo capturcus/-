@@ -113,7 +113,10 @@ def _label(node):
         return f"StructCreation {'_'.join(node.type_name)}"
     if isinstance(node, ast.StructArg):
         suffix = " (shorthand)" if node.value is None else ""
-        return f"StructArg {'_'.join(node.field_name)}{suffix}"
+        # field_name to teraz pełen klucz (lemmas, number, gender);
+        # dla wydruku użyj samej lemma-tuple.
+        lemmas = node.field_name[0] if isinstance(node.field_name[0], tuple) else node.field_name
+        return f"StructArg {'_'.join(lemmas)}{suffix}"
     if isinstance(node, ast.Identifier):
         return f"Reference {'_'.join(node.surface)}"
     if isinstance(node, ast.Word):

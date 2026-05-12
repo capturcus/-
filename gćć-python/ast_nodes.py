@@ -15,13 +15,20 @@ class Variant(NamedTuple):
     spójnych dla wszystkich segmentów. `number` (sg/pl) i `gender` (m/f/n)
     pochodzą z subst-głowy (lub adj-głowy w pure-adj variants). Mogą być
     None tylko dla atomów / passthroughów single-letter. `rest_length` to
-    liczba passthrough-segmentów po subst-głowie.
+    liczba passthrough-segmentów po subst-głowie. `had_subst` flaga
+    czy wariant ma subst-głowę — używana do preferowania subst-readings
+    nad adj przy walidacji LHS/field (zmienne są zwykle rzeczownikami).
+    `specialized` flaga czy któraś z analiz źródłowych miała SGJP qualifier
+    (np. `ryb.`, `przest.`, `pot.`) — przy ambiguity preferujemy odczyty
+    mainstream (specialized=False).
     """
     lemmas: tuple
     case: frozenset
     number: str
     gender: str
     rest_length: int
+    had_subst: bool = True
+    specialized: bool = False
 
 
 @dataclass
