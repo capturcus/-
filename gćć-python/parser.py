@@ -42,7 +42,7 @@ mieści się w jednej linii.
 """
 
 import lexer
-from morph_anal import canonical
+from morph_anal import canonical, canonical_gen
 from ast_nodes import (
     Module, FunctionIdentifier, FunctionDef, ExternFunctionDef, Param,
     StructDef, Field, Phrase, Assignment, If, While, For, Break, Continue,
@@ -282,7 +282,7 @@ class Parser:
             fields.append(self.parse_field())
             self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
-        return StructDef(name=canonical(name_tok), fields=fields)
+        return StructDef(name=canonical_gen(name_tok), fields=fields)
 
     def parse_field(self):
         name_tok = self.expect(lexer.Token.WORD)

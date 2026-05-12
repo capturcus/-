@@ -2,5 +2,10 @@ definicja Struktury:
     pierwsze_pole (Tekst)
     drugie_pole (Tekst)
 
+definicja Listy:
+    rozmiar (Liczba)
+    pierwszy_element (Liczba)
+
 aby działać:
     struktura to nowa Struktura o pierwszym_polu "test"
+    lista to nowa Lista o pierwszym_elemencie jeden

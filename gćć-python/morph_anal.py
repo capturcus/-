@@ -197,3 +197,35 @@ def canonical(token):
         chosen = next((a for a in pool if a.lemma == seg), pool[0])
         out.append(chosen.lemma)
     return tuple(out)
+
+
+def canonical_gen(token):
+    """Kanonikalizacja nazwy typu — strict gen.
+
+    `definicja` (rzeczownik) rządzi dopełniaczem, więc per-segment filtruj
+    analizy po `gen in case`. Każdy segment z analizami musi mieć ≥1
+    gen-analizę i wszystkie gen-analizy muszą mieć tę samą lemma —
+    inaczej SyntaxError. Segmenty bez analiz (non-Polish words,
+    single-letter) → użyj surface."""
+    _, value, analyses = token
+    out = []
+    for seg, anas in zip(value, analyses):
+        if not anas or len(seg) == 1:
+            out.append(seg)
+            continue
+        gen_anas = [a for a in anas if a.case and "gen" in a.case]
+        if not gen_anas:
+            raise SyntaxError(
+                f"nazwa typu '{'_'.join(value)}' musi być w dopełniaczu; "
+                f"segment '{seg}' nie ma formy dopełniacza"
+            )
+        gen_lemmas = {a.lemma for a in gen_anas}
+        if len(gen_lemmas) > 1:
+            opts = ", ".join(sorted(gen_lemmas))
+            raise SyntaxError(
+                f"nazwa typu '{'_'.join(value)}' jest niejednoznaczna w "
+                f"dopełniaczu — pasuje do wielu lemm: {opts}. "
+                f"Użyj jednoznacznej formy."
+            )
+        out.append(next(iter(gen_lemmas)))
+    return tuple(out)

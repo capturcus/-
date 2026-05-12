@@ -376,7 +376,7 @@ def test_parse_struct_def_basic(parse):
 
 
 def test_parse_struct_name_camelcase_split(parse):
-    src = "definicja AdresKorespondencyjny:\n    wartość (Tekst)\n"
+    src = "definicja AdresuKorespondencyjnego:\n    wartość (Tekst)\n"
     m = parse(src)
     assert m.body[0].name == ("adres", "korespondencyjny")
 
@@ -650,3 +650,36 @@ def test_ident_fin_plus_subst_is_valid_function_id(parse):
 def test_ident_invalid_error_mentions_expected_form(parse):
     with pytest.raises(ast.IdentifierError, match=r"\[przymiotnik\.\.\.\] \[rzeczownik\] \[reszta\]"):
         _ident_of(parse, "czy_zielony")
+
+
+# ---------- canonical_gen: strict gen w nazwie typu (definicja X) ----------
+
+def test_struct_decl_gen_disambiguates_listy(parse):
+    """`listy` w SGJP ma dwa lematy: `list` (m3, gen-pl-tylko-pl-nom) i `lista`
+    (f, sg-gen + pl-nom). canonical_gen filtruje po gen — zostaje tylko
+    `lista` (sg gen f). Bez tego canonical brałby `pool[0]` = `list`."""
+    src = "definicja Listy:\n    rozmiar (Liczba)\n"
+    m = parse(src)
+    assert m.body[0].name == ("lista",)
+
+
+def test_struct_decl_gen_rejects_nom(parse):
+    """`definicja Lista:` (sg nom, brak gen) → SyntaxError o dopełniaczu."""
+    src = "definicja Lista:\n    x (Tekst)\n"
+    with pytest.raises(SyntaxError, match="dopełniacz"):
+        parse(src)
+
+
+def test_struct_decl_gen_ambiguous():
+    """Syntetyczny: token z 2 gen-analizami i różnymi lematami → SyntaxError."""
+    from morph_anal import canonical_gen, MorphAnalysis
+    token = (
+        lexer.Token.WORD,
+        ("xyz",),
+        [[
+            MorphAnalysis(pos="subst", case=frozenset({"gen"}), lemma="alfa", tag="subst:sg:gen:f"),
+            MorphAnalysis(pos="subst", case=frozenset({"gen"}), lemma="beta", tag="subst:sg:gen:m3"),
+        ]],
+    )
+    with pytest.raises(SyntaxError, match="niejednoznaczna"):
+        canonical_gen(token)
