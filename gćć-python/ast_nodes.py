@@ -19,7 +19,12 @@ def enumerate_canonical_lemmas(surface, analyses):
 
     Zwraca list[tuple[str, ...]]. Atom (single-letter, no analyses) → [(seg,)].
     Multi-pos segment → wszystkie lemmy z poolu (adj-priority jeśli adj-like
-    readings istnieją, inaczej wszystkie analizy)."""
+    readings istnieją, inaczej wszystkie analizy). Per-segment caps z surface
+    aplikowane do lemmy (capital surface → capitalized lemma)."""
+    def _cap(lemma, seg):
+        if seg and seg[0].isupper() and lemma:
+            return lemma[:1].upper() + lemma[1:]
+        return lemma
     per_seg = []
     for seg, anas in zip(surface, analyses):
         if not anas or len(seg) == 1:
@@ -27,7 +32,7 @@ def enumerate_canonical_lemmas(surface, analyses):
             continue
         adj_like = [a for a in anas if a.pos in _ADJ_LIKE]
         pool = adj_like if adj_like else list(anas)
-        lemmas = tuple({a.lemma for a in pool})
+        lemmas = tuple({_cap(a.lemma, seg) for a in pool})
         per_seg.append(lemmas)
     return [tuple(combo) for combo in product(*per_seg)]
 

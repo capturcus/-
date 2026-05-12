@@ -126,11 +126,11 @@ def test_lex_to_inside_underscore_identifier_stays_word():
     assert not any(t[0] is lexer.Token.ASSIGN for t in toks)
 
 
-def test_lex_camelcase_splits_into_lowercase_segments():
+def test_lex_camelcase_splits_into_segments_preserving_case():
     toks = lexer.lex("UżytkownikAdministrujący\n")
     word_toks = [t for t in toks if t[0] is lexer.Token.WORD]
     assert word_toks == [
-        (lexer.Token.WORD, ("użytkownik", "administrujący")),
+        (lexer.Token.WORD, ("Użytkownik", "Administrujący")),
     ]
 
 
@@ -252,7 +252,7 @@ def test_parse_func_decl_multiple_params(parse):
 def test_parse_func_decl_param_with_type(parse):
     m = parse("aby pisać x (Tekst):\n    zwrócić\n")
     fd = m.body[0]
-    assert fd.params[0].type == ("tekst",)
+    assert fd.params[0].type == ("Tekst",)
 
 
 def test_parse_func_decl_return_type(parse):
@@ -267,8 +267,8 @@ def test_parse_func_decl_full_types(parse):
         "    zwrócić\n"
     )
     fd = m.body[0]
-    assert fd.params[0].type == ("tekst",)
-    assert fd.params[1].type == ("tekst",)
+    assert fd.params[0].type == ("Tekst",)
+    assert fd.params[1].type == ("Tekst",)
     assert fd.return_type == ("wynik",)
 
 
@@ -333,9 +333,9 @@ def test_parse_extern_multiple_prep_params_with_types(parse):
     assert isinstance(e, ast.ExternFunctionDef)
     assert len(e.params) == 3
     types_by_prep = {p.prep: p.type for p in e.params}
-    assert types_by_prep[("na",)] == ("miejsce",)
-    assert types_by_prep[("w",)] == ("miejsce",)
-    assert types_by_prep[("przy",)] == ("liczba",)
+    assert types_by_prep[("na",)] == ("Miejsce",)
+    assert types_by_prep[("w",)] == ("Miejsce",)
+    assert types_by_prep[("przy",)] == ("Liczba",)
 
 
 def test_parse_extern_with_return_type(parse):
@@ -371,14 +371,14 @@ def test_parse_struct_def_basic(parse):
     m = parse(src)
     sd = m.body[0]
     assert isinstance(sd, ast.StructDef)
-    assert sd.name == ("sesja",)
+    assert sd.name == ("Sesja",)
     assert len(sd.fields) == 2
 
 
 def test_parse_struct_name_camelcase_split(parse):
     src = "definicja AdresuKorespondencyjnego:\n    wartość (Tekst)\n"
     m = parse(src)
-    assert m.body[0].name == ("adres", "korespondencyjny")
+    assert m.body[0].name == ("Adres", "Korespondencyjny")
 
 
 def test_parse_struct_field_name_lemmatized(parse):
@@ -660,7 +660,7 @@ def test_struct_decl_gen_disambiguates_listy(parse):
     `lista` (sg gen f). Bez tego canonical brałby `pool[0]` = `list`."""
     src = "definicja Listy:\n    rozmiar (Liczba)\n"
     m = parse(src)
-    assert m.body[0].name == ("lista",)
+    assert m.body[0].name == ("Lista",)
 
 
 def test_struct_decl_gen_rejects_nom(parse):
@@ -683,3 +683,49 @@ def test_struct_decl_gen_ambiguous():
     )
     with pytest.raises(SyntaxError, match="niejednoznaczna"):
         canonical_gen(token)
+
+
+# ---------- Capitalization: rozróżnienie typu od zmiennej przez caps ----------
+
+def test_canonical_disambiguates_pora_homograph_in_field_type(parse):
+    """Surface "Pora" w SGJP ma analizy z lematami `por` (warzywo, m3) i
+    `pora` (czas, f). Pool[0] dla "pora" w SGJP to `por`. Bez `.lower()`
+    w canonical-comparison `a.lemma == seg` dla capital "Pora" fallback
+    wybrałby pool[0]="por" → wynik `("Por",)` (warzywo). Z `.lower()`
+    citation-match wybiera lemma "pora" → wynik `("Pora",)` (czas).
+
+    Test używa "Pora" jako typu pola (parse_field wywołuje canonical())."""
+    src = "definicja Pory:\n    x (Pora)\n"
+    m = parse(src)
+    assert m.body[0].fields[0].type == ("Pora",)
+
+
+def test_canonical_disambiguates_marka_homograph_in_field_type(parse):
+    """Surface "Marka" — SGJP ma lematy `marek` (imię męskie m1) i `marka`
+    (brand f). Pool[0] = `marek`. Bez `.lower()` capital "Marka" wpada
+    w fallback → `("Marek",)`. Z `.lower()` → `("Marka",)`."""
+    src = "definicja Marki:\n    x (Marka)\n"
+    m = parse(src)
+    assert m.body[0].fields[0].type == ("Marka",)
+
+
+def test_canonical_preserves_case_distinction_type_vs_variable(parse):
+    """Typ `Forma` i zmienna `forma` mają RÓŻNE lematy — `("Forma",)` vs
+    `("forma",)` — dzięki capitalization. Nie kolidują w ctx.types/scope."""
+    src = (
+        "definicja Formy:\n    nazwa (Tekst)\n"
+        "aby działać:\n"
+        "    forma to nowa Forma o nazwie \"v\"\n"
+    )
+    m = parse(src)
+    sd = m.body[0]
+    assert sd.name == ("Forma",)
+    # Drugi assignment LHS to zmienna `forma` (lowercase) — nie koliduje z typem.
+    asn = m.body[1].body[0]
+    target = asn.target.resolved
+    assert isinstance(target, ast.Identifier)
+    assert ("forma",) in target.lemmas_set
+    # RHS to StructCreation typu Forma (capitalized).
+    sc = asn.value.resolved
+    assert isinstance(sc, ast.StructCreation)
+    assert sc.type_name == ("Forma",)

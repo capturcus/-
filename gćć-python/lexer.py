@@ -45,7 +45,7 @@ def _segments(word):
             continue
         for sub in _CAMEL_RE.findall(piece):
             if sub:
-                parts.append(sub.lower())
+                parts.append(sub)  # zachowaj oryginalny case dla canonical/cap
     return tuple(parts)
 
 

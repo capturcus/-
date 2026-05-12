@@ -175,7 +175,8 @@ def analyze(tokens, db):
         kind, value = tok[0], tok[1]
         line = getattr(tok, "line", None)
         if kind is lexer.Token.WORD:
-            seg_analyses = [db.get(seg, []) for seg in value]
+            # SGJP keyed by lowercase; surface może być mixed-case po refaktorze.
+            seg_analyses = [db.get(seg.lower(), []) for seg in value]
             out.append(lexer.Tok(kind, value, seg_analyses, line=line))
         else:
             out.append(lexer.Tok(kind, value, None, line=line))
@@ -185,19 +186,31 @@ def analyze(tokens, db):
 _ADJ_LIKE_POS = {"adj", "pact", "ppas"}
 
 
+def _cap_lemma(lemma, surface_seg):
+    """Capitalize lemma jeśli surface zaczynał się wielką literą.
+    Pozwala rozróżnić typ (`Forma` → `("Forma",)`) od zmiennej (`forma` →
+    `("forma",)`) w przestrzeni lemm."""
+    if surface_seg and surface_seg[0].isupper() and lemma:
+        return lemma[:1].upper() + lemma[1:]
+    return lemma
+
+
 def canonical(token):
-    _, value, analyses = token
+    _, value, analyses = token[0], token[1], token[2]
     out = []
     for seg, anas in zip(value, analyses):
         if not anas or len(seg) == 1:
-            out.append(seg)
+            out.append(seg)  # zachowaj oryginalny case (np. single-letter "X")
             continue
         # Preferuj analizy adj-like (adj/pact/ppas) — dla form dwuznacznych jak
         # `zielonego` (adj `zielony` vs substantywizowane subst `zielone`)
         # wybieramy formę przymiotnikową rodzaju męskiego.
         pool = [a for a in anas if a.pos in _ADJ_LIKE_POS] or anas
-        chosen = next((a for a in pool if a.lemma == seg), pool[0])
-        out.append(chosen.lemma)
+        # seg.lower() chroni przed pułapką homograficzną: dla capital "Pora"
+        # bez .lower() fallback do pool[0] = "por" (warzywo); z .lower()
+        # citation-match wybiera "pora" (czas).
+        chosen = next((a for a in pool if a.lemma == seg.lower()), pool[0])
+        out.append(_cap_lemma(chosen.lemma, seg))
     return tuple(out)
 
 
@@ -208,7 +221,11 @@ def canonical_gen(token):
     analizy po `gen in case`. Każdy segment z analizami musi mieć ≥1
     gen-analizę i wszystkie gen-analizy muszą mieć tę samą lemma —
     inaczej InterpreterError. Segmenty bez analiz (non-Polish words,
-    single-letter) → użyj surface."""
+    single-letter) → użyj surface.
+
+    Kapitalizacja: `_cap_lemma` aplikowane na finalny lemmat — typy pisane
+    capitalized (`definicja Pory:` → `("Pora",)`) odróżniają się od zmiennych
+    (`pora`) w przestrzeni lemm."""
     from ast_nodes import InterpreterError
     _, value, analyses = token[0], token[1], token[2]
     line = getattr(token, "line", None)
@@ -233,5 +250,5 @@ def canonical_gen(token):
                 f"Użyj jednoznacznej formy.",
                 line=line,
             )
-        out.append(next(iter(gen_lemmas)))
+        out.append(_cap_lemma(next(iter(gen_lemmas)), seg))
     return tuple(out)

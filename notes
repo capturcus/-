@@ -17,7 +17,6 @@ które
 kiedy
 
 małe do zrobienia:
-4. rozróżnianie wielkich liter od małych liter w typie/zmiennej
 canonical — wymuś unique lemma, zlikwiduj pool[0]-fallback
 5. escape w stringach
 filtrowanie func call args po prep mandated case

@@ -89,9 +89,12 @@ def _enumerate_variants(surface, analyses):
         adj_choices = list(adj_groups.items())   # [(lemma, cases), ...]
         subst_choices = list(subst_groups.items())
         # Lemma fallback dla „reszty" (segmenty po subst-głowie) — canonical-style.
+        # seg.lower() chroni przed pułapką homograficzną: dla capital surface
+        # bez .lower() fallback do pool[0] może wybrać niewłaściwy lemmat
+        # (np. "por" zamiast "pora", "marek" zamiast "marka").
         rest_pool = [a for a in anas if a.pos in _ADJ_LIKE] or list(anas)
         rest_lemma = next(
-            (a.lemma for a in rest_pool if a.lemma == seg),
+            (a.lemma for a in rest_pool if a.lemma == seg.lower()),
             rest_pool[0].lemma if rest_pool else seg,
         )
         seg_data.append({
@@ -104,6 +107,14 @@ def _enumerate_variants(surface, analyses):
     # Step 3: backtrack.
     variants = []
 
+    def _cap(lemma, seg):
+        if seg and seg[0].isupper() and lemma:
+            return lemma[:1].upper() + lemma[1:]
+        return lemma
+
+    def _cap_tuple(lemmas):
+        return tuple(_cap(l, surface[i]) for i, l in enumerate(lemmas))
+
     def backtrack(seg_i, lemmas, cases, had_subst, subst_at):
         if had_subst:
             # Reszta segmentów: passthrough z canonical-style lemma; case bez zmian.
@@ -112,14 +123,14 @@ def _enumerate_variants(surface, analyses):
                 d = seg_data[j]
                 rest_lemmas.append(d["lemma"] if d["opaque"] else d["rest_lemma"])
             rest_length = n_segs - subst_at - 1
-            variants.append((tuple(rest_lemmas), cases, rest_length))
+            variants.append((_cap_tuple(rest_lemmas), cases, rest_length))
             return
         if seg_i == n_segs:
             # Doszliśmy do końca prefiksu bez subst-głowy. Akceptujemy gdy
             # cases niepuste — to single-seg adj/pact/ppas alone (np.
             # "obserwującego") albo multi-seg z adj-only (rzadkie ale OK).
             if cases is not None:
-                variants.append((tuple(lemmas), cases, 0))
+                variants.append((_cap_tuple(lemmas), cases, 0))
             return
         d = seg_data[seg_i]
         if d["opaque"]:

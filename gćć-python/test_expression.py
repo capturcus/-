@@ -298,7 +298,7 @@ def test_struct_creation_basic(parse):
     m = parse(src)
     sc = m.body[1].body[0].value.resolved
     assert isinstance(sc, ast.StructCreation)
-    assert sc.type_name == ("użytkownik",)
+    assert sc.type_name == ("Użytkownik",)
     assert len(sc.args) == 1
     assert sc.args[0].field_name == ("nazwa",)
     assert sc.args[0].value == ast.StrLit("Anna")
@@ -444,7 +444,7 @@ def test_struct_arg_loc_picks_subst_variant(parse):
     m = parse(src)
     sc = m.body[1].body[0].value.resolved
     assert isinstance(sc, ast.StructCreation)
-    assert sc.type_name == ("słowo",)
+    assert sc.type_name == ("Słowo",)
     assert len(sc.args) == 1
     assert sc.args[0].field_name == ("część", "mowa")
     assert sc.args[0].value == ast.StrLit("czasownik")
@@ -592,7 +592,7 @@ def test_subscript_in_struct_field_value(parse):
     m = parse(src)
     sc = m.body[1].body[0].value.resolved
     assert isinstance(sc, ast.StructCreation)
-    assert sc.type_name == ("pudełko",)
+    assert sc.type_name == ("Pudełko",)
     assert len(sc.args) == 1
     assert sc.args[0].field_name == ("wartość",)
     assert isinstance(sc.args[0].value, ast.Subscript)
@@ -638,7 +638,7 @@ def test_subscript_full_composition(parse):
     # RHS: StructCreation(Post, [(treść, Subscript(lista_treści, indeksem))])
     rhs = asn.value.resolved
     assert isinstance(rhs, ast.StructCreation)
-    assert rhs.type_name == ("post",)
+    assert rhs.type_name == ("Post",)
     assert len(rhs.args) == 1
     assert rhs.args[0].field_name == ("treść",)
     assert isinstance(rhs.args[0].value, ast.Subscript)
