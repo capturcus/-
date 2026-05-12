@@ -17,11 +17,8 @@ które
 kiedy
 
 małe do zrobienia:
-2. canonical() jest niedeterministyczny względem SGJP. Gdy nie ma analiz adj-like, bierze pool[0] (pierwszą analizę w kolejności wpisów w pliku). listy w SGJP ma najpierw list:subst:pl:nom, potem lista:subst:pl:nom, więc definicja Listy: daje typ ('list',), nie
-  ('lista',). Cisza, struct creation potem nie matchuje, użytkownik nie rozumie czemu. Każda forma odmiany typu jest bombą zegarową zależną od kolejności w SGJP. Nie wiedziałem, że muszę użyć definicja Lista: (nom) dopóki nie zacząłem dłubać w morph_anal.py — README
-  sugeruje że dowolna forma działa.
-3. informacje o lokalizacji błędu
 4. rozróżnianie wielkich liter od małych liter w typie/zmiennej
+canonical — wymuś unique lemma, zlikwiduj pool[0]-fallback
 5. escape w stringach
 filtrowanie func call args po prep mandated case
 

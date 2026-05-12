@@ -41,7 +41,10 @@ _ALL_LEMMAS = (
 )
 
 
-class NumberParseError(SyntaxError):
+from ast_nodes import InterpreterError
+
+
+class NumberParseError(InterpreterError):
     pass
 
 
@@ -92,10 +95,12 @@ def parse_number_words(tokens):
     total = 0
     current = 0
     for tok in tokens:
+        line = getattr(tok, "line", None)
         lemma = _num_lemma(tok)
         if lemma is None:
             raise NumberParseError(
-                f"token {tok!r} nie jest liczebnikiem"
+                f"token {tok!r} nie jest liczebnikiem",
+                line=line,
             )
         if lemma in UNITS:
             current += UNITS[lemma]
@@ -108,6 +113,7 @@ def parse_number_words(tokens):
             current = 0
         else:
             raise NumberParseError(
-                f"liczebnik '{lemma}' nie jest rozpoznawany przez słowniki"
+                f"liczebnik '{lemma}' nie jest rozpoznawany przez słowniki",
+                line=line,
             )
     return total + current

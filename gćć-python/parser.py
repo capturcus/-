@@ -46,7 +46,7 @@ from morph_anal import canonical, canonical_gen
 from ast_nodes import (
     Module, FunctionIdentifier, FunctionDef, ExternFunctionDef, Param,
     StructDef, Field, Phrase, Assignment, If, While, For, Break, Continue,
-    Return,
+    Return, InterpreterError,
 )
 from identifier import make_identifier, is_prep
 
@@ -59,6 +59,16 @@ _PHRASE_END_KINDS = frozenset({
     lexer.Token.DEDENT,
     lexer.Token.ASSIGN,
 })
+
+
+def _describe_tok(t):
+    """Czytelny opis tokenu do komunikatów błędów (bez analiz/MorphAnalysis)."""
+    if t is None:
+        return "koniec pliku"
+    kind = t[0].name
+    if len(t) > 1 and t[1] is not None:
+        return f"{kind} {t[1]!r}"
+    return kind
 
 
 class Parser:
@@ -79,8 +89,17 @@ class Parser:
     def expect(self, kind):
         t = self.advance()
         if t is None or t[0] is not kind:
-            raise SyntaxError(f"Expected {kind}, got {t}")
+            line = getattr(t, "line", None) if t is not None else self._last_seen_line()
+            raise InterpreterError(
+                f"oczekiwano {kind.name}, otrzymano {_describe_tok(t)}",
+                line=line,
+            )
         return t
+
+    def _last_seen_line(self):
+        if self.pos > 0 and self.pos - 1 < len(self.tokens):
+            return getattr(self.tokens[self.pos - 1], "line", None)
+        return None
 
     def _skip_newlines(self):
         while self.peek() and self.peek()[0] is lexer.Token.NEWLINE:
@@ -96,6 +115,7 @@ class Parser:
         """
         tokens = []
         paren_depth = 0
+        first_line = None
         while self.peek() is not None:
             t = self.peek()
             kind = t[0]
@@ -107,9 +127,11 @@ class Parser:
                 if paren_depth == 0:
                     break
                 paren_depth -= 1
+            if first_line is None:
+                first_line = getattr(t, "line", None)
             tokens.append(t)
             self.advance()
-        return Phrase(tokens=tokens)
+        return Phrase(tokens=tokens, line=first_line)
 
     def parse_module(self):
         body = []
@@ -146,8 +168,10 @@ class Parser:
                 nxt = self.peek()
                 if nxt is None or nxt[0] in (lexer.Token.NEWLINE, lexer.Token.DEDENT):
                     return Continue()
-                raise SyntaxError(
-                    f"po 'dalej' (continue) oczekiwano końca linii, otrzymano {nxt}"
+                raise InterpreterError(
+                    f"po 'dalej' (continue) oczekiwano końca linii, "
+                    f"otrzymano {_describe_tok(nxt)}",
+                    line=getattr(nxt, "line", None),
                 )
             if canon == ("zwrócić",):
                 self.advance()
@@ -211,9 +235,10 @@ class Parser:
         var = make_identifier(var_tok)
         w_tok = self.expect(lexer.Token.WORD)
         if canonical(w_tok) != ("w",):
-            raise SyntaxError(
-                f"w pętli `dla X w Y:` oczekiwano 'w' po zmiennej, "
-                f"otrzymano {w_tok}"
+            raise InterpreterError(
+                f"w pętli 'dla X w Y:' oczekiwano 'w' po zmiennej, "
+                f"otrzymano {_describe_tok(w_tok)}",
+                line=getattr(w_tok, "line", None),
             )
         collection = self.collect_phrase()
         self.expect(lexer.Token.COLON)
@@ -228,7 +253,7 @@ class Parser:
         return For(var=var, collection=collection, body=body)
 
     def parse_func_def(self):
-        self.expect(lexer.Token.WORD)  # aby
+        aby_tok = self.expect(lexer.Token.WORD)  # aby
         name_tok = self.expect(lexer.Token.WORD)
         name = FunctionIdentifier.from_token(name_tok)
         params = []
@@ -247,7 +272,10 @@ class Parser:
             body.append(self.parse_stmt())
             self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
-        return FunctionDef(name=name, params=params, body=body, return_type=return_type)
+        return FunctionDef(
+            name=name, params=params, body=body, return_type=return_type,
+            line=getattr(aby_tok, "line", None),
+        )
 
     def parse_extern_def(self):
         self.expect(lexer.Token.WORD)  # można
@@ -264,14 +292,18 @@ class Parser:
             return_type = canonical(self.expect(lexer.Token.WORD))
         nxt = self.peek()
         if nxt is not None and nxt[0] not in (lexer.Token.NEWLINE, lexer.Token.DEDENT):
-            raise SyntaxError(
+            raise InterpreterError(
                 f"deklaracja 'można' nie przyjmuje ciała ani dwukropka; "
-                f"oczekiwano końca linii, otrzymano {nxt}"
+                f"oczekiwano końca linii, otrzymano {_describe_tok(nxt)}",
+                line=getattr(nxt, "line", None),
             )
-        return ExternFunctionDef(name=name, params=params, return_type=return_type)
+        return ExternFunctionDef(
+            name=name, params=params, return_type=return_type,
+            line=name.line,
+        )
 
     def parse_struct_def(self):
-        self.expect(lexer.Token.WORD)  # definicja
+        definicja_tok = self.expect(lexer.Token.WORD)  # definicja
         name_tok = self.expect(lexer.Token.WORD)
         self.expect(lexer.Token.COLON)
         self._skip_newlines()
@@ -282,14 +314,20 @@ class Parser:
             fields.append(self.parse_field())
             self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
-        return StructDef(name=canonical_gen(name_tok), fields=fields)
+        return StructDef(
+            name=canonical_gen(name_tok), fields=fields,
+            line=getattr(definicja_tok, "line", None),
+        )
 
     def parse_field(self):
         name_tok = self.expect(lexer.Token.WORD)
         self.expect(lexer.Token.LPAREN)
         type_ = canonical(self.expect(lexer.Token.WORD))
         self.expect(lexer.Token.RPAREN)
-        return Field(name=make_identifier(name_tok), type=type_)
+        return Field(
+            name=make_identifier(name_tok), type=type_,
+            line=getattr(name_tok, "line", None),
+        )
 
     def parse_param(self):
         prep = None

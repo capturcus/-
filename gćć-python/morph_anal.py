@@ -171,12 +171,14 @@ def load(path):
 
 def analyze(tokens, db):
     out = []
-    for kind, value in tokens:
+    for tok in tokens:
+        kind, value = tok[0], tok[1]
+        line = getattr(tok, "line", None)
         if kind is lexer.Token.WORD:
             seg_analyses = [db.get(seg, []) for seg in value]
-            out.append((kind, value, seg_analyses))
+            out.append(lexer.Tok(kind, value, seg_analyses, line=line))
         else:
-            out.append((kind, value, None))
+            out.append(lexer.Tok(kind, value, None, line=line))
     return out
 
 
@@ -205,9 +207,11 @@ def canonical_gen(token):
     `definicja` (rzeczownik) rządzi dopełniaczem, więc per-segment filtruj
     analizy po `gen in case`. Każdy segment z analizami musi mieć ≥1
     gen-analizę i wszystkie gen-analizy muszą mieć tę samą lemma —
-    inaczej SyntaxError. Segmenty bez analiz (non-Polish words,
+    inaczej InterpreterError. Segmenty bez analiz (non-Polish words,
     single-letter) → użyj surface."""
-    _, value, analyses = token
+    from ast_nodes import InterpreterError
+    _, value, analyses = token[0], token[1], token[2]
+    line = getattr(token, "line", None)
     out = []
     for seg, anas in zip(value, analyses):
         if not anas or len(seg) == 1:
@@ -215,17 +219,19 @@ def canonical_gen(token):
             continue
         gen_anas = [a for a in anas if a.case and "gen" in a.case]
         if not gen_anas:
-            raise SyntaxError(
+            raise InterpreterError(
                 f"nazwa typu '{'_'.join(value)}' musi być w dopełniaczu; "
-                f"segment '{seg}' nie ma formy dopełniacza"
+                f"segment '{seg}' nie ma formy dopełniacza",
+                line=line,
             )
         gen_lemmas = {a.lemma for a in gen_anas}
         if len(gen_lemmas) > 1:
             opts = ", ".join(sorted(gen_lemmas))
-            raise SyntaxError(
+            raise InterpreterError(
                 f"nazwa typu '{'_'.join(value)}' jest niejednoznaczna w "
                 f"dopełniaczu — pasuje do wielu lemm: {opts}. "
-                f"Użyj jednoznacznej formy."
+                f"Użyj jednoznacznej formy.",
+                line=line,
             )
         out.append(next(iter(gen_lemmas)))
     return tuple(out)

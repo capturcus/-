@@ -20,6 +20,17 @@ class Token(Enum):
     POD = auto()
 
 
+class Tok(tuple):
+    """Token z atrybutem `line` (1-based numer linii w źródle).
+    Subclass tuple — zachowuje pełną kompatybilność z `tok[0]`, `tok[1]`,
+    unpackingiem `for kind, value in tokens` i tuple-equality
+    (`tok == (Token.WORD, ("aby",))`)."""
+    def __new__(cls, *items, line=None):
+        t = super().__new__(cls, items)
+        t.line = line
+        return t
+
+
 _TOKEN_RE = re.compile(r'"([^"]*)"|(->)|(:)|([()])|([^\s:"()]+)')
 
 
@@ -56,33 +67,35 @@ def _count_indent(line):
 def lex(text):
     ret = []
     indent_level = 0
-    for line in text.split("\n"):
+    last_line_no = 0
+    for line_no, line in enumerate(text.split("\n"), start=1):
         stripped = line.strip()
         if stripped == "" or stripped.startswith("#"):
             continue
         line_indents = _count_indent(line)
         indent_diff = line_indents - indent_level
         for _ in range(0, abs(indent_diff)):
-            ret.append((Token.INDENT, None) if indent_diff > 0 else (Token.DEDENT, None))
+            ret.append(Tok(Token.INDENT if indent_diff > 0 else Token.DEDENT, None, line=line_no))
         indent_level = line_indents
         before = len(ret)
         for m in _TOKEN_RE.finditer(stripped):
             text_, arrow, colon, paren, word = m.groups()
             if text_ is not None:
-                ret.append((Token.TEXT, text_))
+                ret.append(Tok(Token.TEXT, text_, line=line_no))
             elif arrow is not None:
-                ret.append((Token.ARROW, None))
+                ret.append(Tok(Token.ARROW, None, line=line_no))
             elif colon is not None:
-                ret.append((Token.COLON, None))
+                ret.append(Tok(Token.COLON, None, line=line_no))
             elif paren is not None:
-                ret.append((Token.LPAREN if paren == "(" else Token.RPAREN, None))
+                ret.append(Tok(Token.LPAREN if paren == "(" else Token.RPAREN, None, line=line_no))
             else:
                 if word == "to":
-                    ret.append((Token.ASSIGN, None))
+                    ret.append(Tok(Token.ASSIGN, None, line=line_no))
                 else:
-                    ret.append((Token.WORD, _segments(word)))
+                    ret.append(Tok(Token.WORD, _segments(word), line=line_no))
         if len(ret) > before:
-            ret.append((Token.NEWLINE, None))
+            ret.append(Tok(Token.NEWLINE, None, line=line_no))
+        last_line_no = line_no
     for _ in range(indent_level):
-        ret.append((Token.DEDENT, None))
+        ret.append(Tok(Token.DEDENT, None, line=last_line_no))
     return ret

@@ -42,6 +42,16 @@ from identifier import make_identifier, is_prep
 _ADJ_LIKE_POS = ("adj", "pact", "ppas")
 
 
+def _describe_tok(t):
+    """Czytelny opis tokenu do komunikatów błędów (bez analiz/MorphAnalysis)."""
+    if t is None:
+        return "koniec wyrażenia"
+    kind = t[0].name
+    if len(t) > 1 and t[1] is not None:
+        return f"{kind} {t[1]!r}"
+    return kind
+
+
 def _adj_cases_from_analyses(analyses):
     if not analyses:
         return frozenset()
@@ -124,14 +134,16 @@ def _field_canonical_lemma(field_name):
             opts = ", ".join(sorted("_".join(s) for s in ls))
             raise ResolveError(
                 f"nazwa pola '{'_'.join(field_name.surface)}' jest "
-                f"niejednoznaczna: {opts}"
+                f"niejednoznaczna: {opts}",
+                line=field_name.line,
             )
         return next(iter(ls))
     nom_variants = [(s, c, r) for s, c, r in field_name.variants if "nom" in c]
     if not nom_variants:
         raise ResolveError(
             f"pole struct-a '{'_'.join(field_name.surface)}' nie ma formy "
-            f"mianownika; pola deklaruj w nom"
+            f"mianownika; pola deklaruj w nom",
+            line=field_name.line,
         )
     min_rest = min(r for _, _, r in nom_variants)
     candidates = {s for s, _, r in nom_variants if r == min_rest}
@@ -139,7 +151,8 @@ def _field_canonical_lemma(field_name):
         opts = ", ".join(sorted("_".join(s) for s in candidates))
         raise ResolveError(
             f"nazwa pola '{'_'.join(field_name.surface)}' jest niejednoznaczna "
-            f"— pasuje do wielu opcji o tej samej długości reszty: {opts}"
+            f"— pasuje do wielu opcji o tej samej długości reszty: {opts}",
+            line=field_name.line,
         )
     return next(iter(candidates))
 
@@ -192,8 +205,26 @@ class ExpressionParser:
     def expect(self, kind):
         t = self.advance()
         if t is None or t[0] is not kind:
-            raise ResolveError(f"oczekiwano {kind}, otrzymano {t}")
+            line = getattr(t, "line", None) if t is not None else self._last_line()
+            raise ResolveError(
+                f"oczekiwano {kind.name}, otrzymano {_describe_tok(t)}",
+                line=line,
+            )
         return t
+
+    def _current_line(self):
+        """Line bieżącego tokenu (jeśli istnieje), w przeciwnym razie line
+        ostatniego widzianego tokenu."""
+        if self.pos < len(self.tokens):
+            return getattr(self.tokens[self.pos], "line", None)
+        return self._last_line()
+
+    def _last_line(self):
+        if self.pos > 0 and self.pos - 1 < len(self.tokens):
+            return getattr(self.tokens[self.pos - 1], "line", None)
+        if self.tokens:
+            return getattr(self.tokens[-1], "line", None)
+        return None
 
     # ---------- detekcja słów kluczowych logicznych ----------
 
@@ -258,10 +289,11 @@ class ExpressionParser:
     def parse_subscript(self):
         left = self.parse_primary()
         while self.peek() and self.peek()[0] is lexer.Token.POD:
-            self.advance()
+            pod_tok = self.advance()
             if self.peek() is None:
                 raise ResolveError(
-                    "operator 'pod' wymaga prawego operandu (indeksu)"
+                    "operator 'pod' wymaga prawego operandu (indeksu)",
+                    line=getattr(pod_tok, "line", None),
                 )
             left = Subscript(target=left, index=self.parse_primary())
         return left
@@ -269,7 +301,10 @@ class ExpressionParser:
     def parse_primary(self):
         t = self.peek()
         if t is None:
-            raise ResolveError("nieoczekiwany koniec wyrażenia w primary")
+            raise ResolveError(
+                "nieoczekiwany koniec wyrażenia w primary",
+                line=self._last_line(),
+            )
         kind = t[0]
         if kind is lexer.Token.INT_LIT:
             self.advance()
@@ -284,7 +319,10 @@ class ExpressionParser:
             return inner
         if kind is lexer.Token.WORD:
             return self._parse_word_primary()
-        raise ResolveError(f"nieoczekiwany token w primary: {t}")
+        raise ResolveError(
+            f"nieoczekiwany token w primary: {_describe_tok(t)}",
+            line=getattr(t, "line", None),
+        )
 
     # ---------- WORD-primary dispatcher ----------
 
@@ -341,7 +379,8 @@ class ExpressionParser:
             if self.peek() is None:
                 raise ResolveError(
                     f"funkcja '{'_'.join(name.surface)}' wymaga "
-                    f"{n_slots} argumentów, otrzymała {len(arg_meta)}"
+                    f"{n_slots} argumentów, otrzymała {len(arg_meta)}",
+                    line=name.line if hasattr(name, "line") else self._last_line(),
                 )
             prep, value, case = self._parse_arg()
             arg_meta.append((prep, case, value))
@@ -400,7 +439,8 @@ class ExpressionParser:
             if si not in candidates[ai]:
                 raise ResolveError(
                     f"argument funkcji '{'_'.join(name.surface)}' "
-                    f"nie pasuje do żadnego wolnego parametru w trybie pozycyjnym"
+                    f"nie pasuje do żadnego wolnego parametru w trybie pozycyjnym",
+                    line=getattr(name, "line", None),
                 )
             assigned[ai] = si
             used.add(si)
@@ -453,7 +493,8 @@ class ExpressionParser:
             opts = ", ".join(sorted("_".join(s) for s, _, _ in matches))
             raise ResolveError(
                 f"identyfikator '{'_'.join(ident.surface)}' jest niejednoznaczny "
-                f"w tym kontekście — pasuje do wielu opcji: {opts}"
+                f"w tym kontekście — pasuje do wielu opcji: {opts}",
+                line=getattr(ident, "line", None),
             )
         return matches[0][0]
 
@@ -517,7 +558,8 @@ class ExpressionParser:
                     if self.peek() is None:
                         raise ResolveError(
                             f"pole '{'_'.join(field_name)}' wprowadzone przez 'o' "
-                            f"wymaga wartości"
+                            f"wymaga wartości",
+                            line=self._last_line(),
                         )
                     args.append(StructArg(
                         field_name=field_name,
@@ -574,18 +616,35 @@ def _build_ctx(module):
             types.add(node.name)
             fbt = fields_by_type.setdefault(node.name, set())
             for f in node.fields:
-                lemma = _field_canonical_lemma(f.name)
+                try:
+                    lemma = _field_canonical_lemma(f.name)
+                except ResolveError as e:
+                    if e.extra_context is None and node.line is not None:
+                        e.extra_context = (
+                            f"w deklaracji struktury '{'_'.join(node.name)}' "
+                            f"(linia {node.line})"
+                        )
+                    raise
                 fbt.add(lemma)
                 field_names.add(lemma)
         elif isinstance(node, (FunctionDef, ExternFunctionDef)):
             for lemma in node.name.lemmas_set:
                 existing = function_defs.get(lemma)
                 if existing is not None and existing is not node:
+                    extra = None
+                    if existing.line is not None:
+                        extra = (
+                            f"konflikt z definicją "
+                            f"'{'_'.join(existing.name.surface)}' "
+                            f"w linii {existing.line}"
+                        )
                     raise ResolveError(
                         f"konflikt nazw funkcji: '{'_'.join(lemma)}' "
                         f"pasuje do wielu definicji "
                         f"('{'_'.join(existing.name.surface)}' i "
-                        f"'{'_'.join(node.name.surface)}')"
+                        f"'{'_'.join(node.name.surface)}')",
+                        line=node.line,
+                        extra_context=extra,
                     )
                 function_defs[lemma] = node
     overlap = field_names & set(function_defs.keys())
@@ -605,9 +664,11 @@ def resolve_phrase(phrase, ctx, preps, scope):
     parser = ExpressionParser(phrase.tokens, ctx, preps, scope)
     phrase.resolved = parser.parse_phrase()
     if parser.peek() is not None:
+        leftover = parser.peek()
         raise ResolveError(
             f"po sparsowaniu frazy pozostały niesparsowane tokeny "
-            f"(pierwszy: {parser.peek()})"
+            f"(pierwszy: {_describe_tok(leftover)})",
+            line=getattr(leftover, "line", None) or phrase.line,
         )
 
 

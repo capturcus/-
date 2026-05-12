@@ -31,13 +31,20 @@ def is_prep(token, preps):
 
 
 def make_identifier(tok):
-    _, surface, analyses = tok
+    _, surface, analyses = tok[0], tok[1], tok[2]
+    line = getattr(tok, "line", None)
     analyses_t = tuple(tuple(a) for a in analyses)
-    variants = _enumerate_variants(surface, analyses_t)
+    try:
+        variants = _enumerate_variants(surface, analyses_t)
+    except IdentifierError as e:
+        if e.line is None:
+            e.line = line
+        raise
     return Identifier(
         surface=surface,
         analyses=analyses_t,
         variants=variants,
+        line=line,
     )
 
 

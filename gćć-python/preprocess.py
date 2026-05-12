@@ -65,12 +65,14 @@ def _scan_cmp(tokens):
         s1 = _surface_or_none(tokens[i])
         s2 = _surface_or_none(tokens[i + 1]) if i + 1 < n else None
         if s1 is not None and s2 is not None and (s1, s2) in _CMP_2WORD:
-            out.append((lexer.Token.CMP_OP, _CMP_2WORD[(s1, s2)], None))
+            line = getattr(tokens[i], "line", None)
+            out.append(lexer.Tok(lexer.Token.CMP_OP, _CMP_2WORD[(s1, s2)], None, line=line))
             i += 2
             continue
         c1 = _canon_or_none(tokens[i])
         if c1 in _CMP_1WORD_LEMMAS:
-            out.append((lexer.Token.CMP_OP, _CMP_1WORD_LEMMAS[c1], None))
+            line = getattr(tokens[i], "line", None)
+            out.append(lexer.Tok(lexer.Token.CMP_OP, _CMP_1WORD_LEMMAS[c1], None, line=line))
             i += 1
             continue
         out.append(tokens[i])
@@ -82,10 +84,11 @@ def _scan_arith(tokens):
     out = []
     for t in tokens:
         s = _surface_or_none(t)
+        line = getattr(t, "line", None)
         if s in _ARITH_SURFACE:
-            out.append((lexer.Token.ARITH_OP, _ARITH_SURFACE[s], None))
+            out.append(lexer.Tok(lexer.Token.ARITH_OP, _ARITH_SURFACE[s], None, line=line))
         elif s in _TERM_SURFACE:
-            out.append((lexer.Token.TERM_OP, _TERM_SURFACE[s], None))
+            out.append(lexer.Tok(lexer.Token.TERM_OP, _TERM_SURFACE[s], None, line=line))
         else:
             out.append(t)
     return out
@@ -95,7 +98,8 @@ def _scan_pod(tokens):
     out = []
     for t in tokens:
         if _canon_or_none(t) == ("pod",):
-            out.append((lexer.Token.POD, "pod", None))
+            line = getattr(t, "line", None)
+            out.append(lexer.Tok(lexer.Token.POD, "pod", None, line=line))
         else:
             out.append(t)
     return out
@@ -116,7 +120,8 @@ def _scan_numbers(tokens):
             ):
                 j += 1
             value = parse_number_words(tokens[i:j])
-            out.append((lexer.Token.INT_LIT, value, None))
+            line = getattr(tokens[i], "line", None)
+            out.append(lexer.Tok(lexer.Token.INT_LIT, value, None, line=line))
             i = j
             continue
         out.append(t)

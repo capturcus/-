@@ -47,6 +47,7 @@ class Identifier:
     surface: tuple
     analyses: tuple = ()  # tuple[tuple[MorphAnalysis, ...], ...]
     variants: tuple = ()  # tuple[ (lemmas_tuple, case_frozenset, rest_length), ... ]
+    line: int = None  # 1-based linia w źródle, None gdy syntetyczna konstrukcja
 
     @property
     def lemmas_set(self):
@@ -61,7 +62,20 @@ class Identifier:
         return frozenset().union(*(case for _, case, _ in self.variants))
 
 
-class IdentifierError(SyntaxError):
+class InterpreterError(SyntaxError):
+    """Bazowa klasa błędów interpretera. Niesie `line` (1-based numer linii
+    w pliku źródłowym) oraz `extra_context` (opcjonalny block tekstu z
+    structural-context, np. 'w deklaracji struktury Foo (linia N)').
+
+    `SyntaxError` jako baza zapewnia że `pytest.raises(SyntaxError, ...)`
+    nadal łapie błędy migrowane z plain SyntaxError."""
+    def __init__(self, message, *, line=None, extra_context=None):
+        super().__init__(message)
+        self.line = line
+        self.extra_context = extra_context
+
+
+class IdentifierError(InterpreterError):
     pass
 
 
@@ -107,18 +121,25 @@ class FunctionIdentifier:
     surface: tuple
     verb_index: int
     verb_form: VerbForm
+    line: int = None
 
     @classmethod
     def from_head(cls, head):
-        verb_index, verb_form = _validate_function_name(
-            head.surface, head.analyses
-        )
+        try:
+            verb_index, verb_form = _validate_function_name(
+                head.surface, head.analyses
+            )
+        except FunctionIdentifierError as e:
+            if e.line is None:
+                e.line = head.line
+            raise
         lemmas = frozenset(enumerate_canonical_lemmas(head.surface, head.analyses))
         return cls(
             lemmas_set=lemmas,
             surface=head.surface,
             verb_index=verb_index,
             verb_form=verb_form,
+            line=head.line,
         )
 
     @classmethod
@@ -127,15 +148,22 @@ class FunctionIdentifier:
         Używane przez parse_func_def — definicja funkcji jest jednoznaczna
         strukturalnie (zaczyna się od 'aby'), ale jej name może mieć wiele
         kanonicznych interpretacji lemma (np. multi-pos segmenty)."""
-        _, surface, analyses = tok
+        _, surface, analyses = tok[0], tok[1], tok[2]
+        line = getattr(tok, "line", None)
         analyses_t = tuple(tuple(a) for a in analyses)
-        verb_index, verb_form = _validate_function_name(surface, analyses_t)
+        try:
+            verb_index, verb_form = _validate_function_name(surface, analyses_t)
+        except FunctionIdentifierError as e:
+            if e.line is None:
+                e.line = line
+            raise
         lemmas = frozenset(enumerate_canonical_lemmas(surface, analyses_t))
         return cls(
             lemmas_set=lemmas,
             surface=surface,
             verb_index=verb_index,
             verb_form=verb_form,
+            line=line,
         )
 
 
@@ -145,6 +173,7 @@ class FunctionDef:
     params: list
     body: list
     return_type: tuple = None
+    line: int = None
 
 
 @dataclass
@@ -152,6 +181,7 @@ class ExternFunctionDef:
     name: "FunctionIdentifier"
     params: list
     return_type: tuple = None
+    line: int = None
 
 
 @dataclass
@@ -166,18 +196,21 @@ class Param:
 class StructDef:
     name: tuple
     fields: list
+    line: int = None
 
 
 @dataclass
 class Field:
     name: Identifier
     type: tuple
+    line: int = None
 
 
 @dataclass
 class Phrase:
     tokens: list  # surowe tokeny (po preprocess) zebrane przez parser.collect_phrase
     resolved: object = None  # wypełniane przez expression.resolve_module
+    line: int = None  # 1-based linia pierwszego tokenu (do error reporting)
 
 
 @dataclass
@@ -271,7 +304,7 @@ class Or:
 LOGICAL_OPS = {("nie",), ("i",), ("lub",)}
 
 
-class ResolveError(Exception):
+class ResolveError(InterpreterError):
     pass
 
 
