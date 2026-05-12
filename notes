@@ -17,6 +17,8 @@ które
 kiedy
 
 małe do zrobienia:
+rozróżnianie słów po liczbie? po rodzaju?
+Lepsze błędy parsera w okolicach chain detection. „Tokeny niesparsowane" to za mało.
 filtrowanie func call args po prep mandated case
 
 niejednoznaczność lematu typu?

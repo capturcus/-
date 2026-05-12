@@ -1,11 +1,77 @@
 # Analizator morfologiczny — przekład gćć-python/morph_anal.py na język Ć.
-# Wbudowane typy `Lista` i `Mapa` muszą być widziane przez parser jako
-# `definicja`, więc dostają tu jedno pole-zaślepkę. Listy/mapy tworzymy
-# pustą formą `nowa Lista` / `nowa Mapa` i wypełniamy: dla map subscript-LHS
-# (`mapa pod k to v`), dla list `dodać_do_listy lista element`.
+# Wczytuje słownik SGJP, dopina analizy do tokenów, zwraca kanoniczną krotkę
+# lematów dla zadanego tokenu.
 
 
-# === Typy kontenerowe ===
+# === Funkcje wbudowane (do uzupełnienia przez przyszły runtime) ===
+
+# Wejście-wyjście, czas.
+można otwórz_plik x (Tekst) -> Lista
+można wypisz_na_stderr x (Tekst)
+można weź_obecny_czas -> Liczba
+
+# Operacje tekstowe.
+można rozdziel x (Tekst) z separatorem (Tekst) -> Lista
+można weź_przed_separatorem x (Tekst) z separatorem (Tekst) -> Tekst
+można obniż_litery x (Tekst) -> Tekst
+można podnieś_pierwszą_literę x (Tekst) -> Tekst
+można weź_pierwszy_znak x (Tekst) -> Tekst
+można sklej_dwa x (Tekst) z drugim (Tekst) -> Tekst
+można policz_długość_tekstu x (Tekst) -> Liczba
+można sprawdź_wielką_literę x (Tekst) -> Przełącznik
+można sprawdź_równość_tekstów x (Tekst) z drugim (Tekst) -> Przełącznik
+
+# Operacje listowe.
+można dopisz_na_koniec x (Lista) z elementem
+można policz_długość_listy x (Lista) -> Liczba
+
+# Operacje mapowe.
+można ustaw_w_mapie x (Mapa) z kluczem z wartością
+można sprawdź_klucz_mapy x (Mapa) z kluczem -> Przełącznik
+można pobierz_lub_pustą_listę x (Mapa) z kluczem -> Lista
+można pobierz_klucze_mapy x (Mapa) -> Lista
+
+# Klasyfikacja oznaczeń SGJP.
+można sprawdź_czy_przypadek x (Tekst) -> Przełącznik
+można sprawdź_czy_imiesłów x (Tekst) -> Przełącznik
+można sprawdź_czy_czasownik x (Tekst) -> Przełącznik
+można sprawdź_czy_przymiotnikowate x (Tekst) -> Przełącznik
+
+# Atrybuty tokenu — dostęp do struktury Token z lekser-a.
+można stwórz_nowy_token z rodzajem (Tekst) z segmentami (Lista) z analizami (Lista) -> Wyraz
+
+# Sygnalizowanie błędu.
+można rzuć_błąd x (Tekst)
+
+
+# === Definicje typów ===
+
+definicja Analizy:
+    część_mowy (Tekst)
+    lemat (Tekst)
+    znacznik (Tekst)
+    przypadek (Lista)
+
+
+definicja Wyrazu:
+    rodzaj (Tekst)
+    segmenty (Lista)
+    analizy (Lista)
+
+
+definicja Bazy:
+    słownik_form (Mapa)
+    słownik_przyimków (Mapa)
+
+
+definicja Klucza:
+    część_mowy (Tekst)
+    lemat (Tekst)
+
+
+# Stuby typów wbudowanych — w docelowej formie języka będą dostępne
+# bez deklaracji. Pola są symboliczne; parser potrzebuje ich tylko po to,
+# żeby `nowa Lista` / `nowa Mapa` traktować jak konstrukcję struct.
 
 definicja Listy:
     rozmiar (Liczba)
@@ -15,291 +81,207 @@ definicja Mapy:
     rozmiar (Liczba)
 
 
-# === Typy domenowe ===
+# === Pomocnicze konstruktory ===
 
-definicja Postaci:
-    kategoria (Tekst)
-    tryb (Tekst)
-    aspekt (Tekst)
-    liczebność (Tekst)
-    osoba (Tekst)
-    rodzaj (Tekst)
+aby stwórz_pustą_listę -> Lista:
+    zwróć nowa Lista
 
 
-definicja Analizy:
-    kategoria (Tekst)
-    przypadki (Lista)
-    lemat (Tekst)
-    tag (Tekst)
+aby stwórz_pustą_mapę -> Mapa:
+    zwróć nowa Mapa
 
 
-definicja Wyniku:
-    baza (Mapa)
-    przyimki (Mapa)
+# === Wydobycie przypadków z znacznika SGJP ===
+# Tag SGJP ma postać "pos:cat1:cat2:..." — szukamy pierwszej części po pos
+# zawierającej oznaczenia przypadków (rozdzielone kropką).
 
-
-# === Operacje wbudowane (zadeklarowane przez `można`) ===
-
-# Listy
-można dodać_do_listy l (Lista) e
-można policzyć_długość_listy l (Lista) -> Liczba
-można zawiera_lista l (Lista) e -> Przełącznik
-można sumować_listy p (Lista) z d (Lista) -> Lista
-można weź_ostatni_element l (Lista) -> Tekst
-
-# Mapy
-można ma_klucz m (Mapa) dla k
-można weź_wartości_mapy m (Mapa) -> Lista
-
-# Tekst
-można podzielić_tekst t (Tekst) po s (Tekst) -> Lista
-można weź_pierwszy_segment_tekstu t (Tekst) po s (Tekst) -> Tekst
-można obciąć_białe_znaki_tekstu t (Tekst) -> Tekst
-można policzyć_długość_tekstu t (Tekst) -> Liczba
-można zawiera_tekst t (Tekst) e (Tekst) -> Przełącznik
-można złącz_klucz_imiesłowu kat (Tekst) z lem (Tekst) -> Tekst
-
-# Plik
-można wczytać_plik s (Tekst) -> Lista
-
-# Diagnostyka i czas
-można wypisać_błąd komunikat
-można zmierzyć_czas -> Liczba
-można policzyć_różnicę_czasów od p (Liczba) do k (Liczba) -> Liczba
-
-# Token (struktura tokenu z leksera — opaque z perspektywy tego pliku)
-można czy_token_jest_słowem t -> Przełącznik
-można weź_wartość_tokenu t -> Lista
-można weź_analizy_tokenu t -> Lista
-można stwórz_token_z_analizami t z a (Lista)
-
-
-# === Stałe globalne ===
-
-przypadki to nowa Lista
-dodać_do_listy przypadki "nom"
-dodać_do_listy przypadki "gen"
-dodać_do_listy przypadki "dat"
-dodać_do_listy przypadki "acc"
-dodać_do_listy przypadki "inst"
-dodać_do_listy przypadki "loc"
-dodać_do_listy przypadki "voc"
-
-imiesłowy to nowa Lista
-dodać_do_listy imiesłowy "pact"
-dodać_do_listy imiesłowy "ppas"
-
-czasowniki to nowa Lista
-dodać_do_listy czasowniki "fin"
-dodać_do_listy czasowniki "impt"
-dodać_do_listy czasowniki "inf"
-dodać_do_listy czasowniki "imps"
-dodać_do_listy czasowniki "praet"
-dodać_do_listy czasowniki "pcon"
-dodać_do_listy czasowniki "winien"
-dodać_do_listy czasowniki "bedzie"
-dodać_do_listy czasowniki "fut"
-dodać_do_listy czasowniki "cond"
-
-przymiotnikopodobne to nowa Lista
-dodać_do_listy przymiotnikopodobne "adj"
-dodać_do_listy przymiotnikopodobne "pact"
-dodać_do_listy przymiotnikopodobne "ppas"
-
-tryb_dla_kategorii to nowa Mapa
-tryb_dla_kategorii pod "impt" to "rozkazujący"
-tryb_dla_kategorii pod "cond" to "przypuszczający"
-tryb_dla_kategorii pod "fin" to "oznajmujący"
-tryb_dla_kategorii pod "praet" to "oznajmujący"
-tryb_dla_kategorii pod "bedzie" to "oznajmujący"
-tryb_dla_kategorii pod "fut" to "oznajmujący"
-
-pamięć_postaci to nowa Mapa
-
-
-# === Budowanie Postaci z tagu ===
-# `kat` — kategoria (pos); `c` — lista części tagu po rozcięciu po ":".
-
-aby zbudować_postać dla kat z c (Lista) -> Postać:
-    tryb to tryb_dla_kategorii pod kat
-    jeśli kat równe "inf" lub kat równe "imps" lub kat równe "pcon":
-        zwrócić nowa Postać o kategorii kat o trybie tryb o aspekcie c pod jeden
-    jeśli kat równe "impt" lub kat równe "fin" lub kat równe "bedzie" lub kat równe "fut":
-        zwrócić nowa Postać o kategorii kat o trybie tryb o aspekcie c pod trzy o liczebności c pod jeden o osobie c pod dwa
-    jeśli kat równe "praet" lub kat równe "winien":
-        zwrócić nowa Postać o kategorii kat o trybie tryb o aspekcie c pod trzy o liczebności c pod jeden o rodzaju c pod dwa
-    jeśli kat równe "cond":
-        zwrócić nowa Postać o kategorii kat o trybie tryb o aspekcie c pod cztery o liczebności c pod jeden o rodzaju c pod dwa o osobie c pod trzy
-    zwrócić
-
-
-# Cache form czasownikowych — lazy lookup po surowym tagu.
-aby weź_postać dla kat z t (Tekst) -> Postać:
-    jeśli nie zawiera_lista czasowniki kat:
-        zwrócić
-    jeśli ma_klucz pamięć_postaci dla t:
-        zwrócić pamięć_postaci pod t
-    części to podzielić_tekst t po ":"
-    wynik to zbudować_postać dla kat z części
-    pamięć_postaci pod t to wynik
-    zwrócić wynik
-
-
-# === Wyciąganie przypadków z tagu ===
-# `t` — surowy tag, `c` — części tagu, `p` — mapa cache po surowym tagu.
-
-aby wyciągnąć_przypadki z t (Tekst) z c (Lista) z p (Mapa) -> Lista:
-    jeśli ma_klucz p dla t:
-        zwrócić p pod t
-    znalezione to nowa Lista
+aby wydobądź_przypadki x (Tekst) -> Lista:
+    części to rozdziel x z ":"
     indeks to jeden
-    dopóki indeks mniejsze od policzyć_długość_listy c:
-        kandydat to c pod indeksem
-        kandydaci to podzielić_tekst kandydat po "."
-        i to zero
-        dopóki i mniejsze od policzyć_długość_listy kandydaci:
-            wybór to kandydaci pod i
-            jeśli zawiera_lista przypadki wybór:
-                dodać_do_listy znalezione wybór
-            i to i plus jeden
-        jeśli policzyć_długość_listy znalezione większe od zero:
-            stop
+    dopóki indeks mniejsze od policz_długość_listy części:
+        kawałek to części pod indeks
+        atomy to rozdziel kawałek z "."
+        zebrane to stwórz_pustą_listę
+        wewnętrzny to zero
+        dopóki wewnętrzny mniejsze od policz_długość_listy atomy:
+            atom to atomy pod wewnętrzny
+            jeśli sprawdź_czy_przypadek atom:
+                dopisz_na_koniec zebrane z atomem
+            wewnętrzny to wewnętrzny plus jeden
+        jeśli policz_długość_listy zebrane większe od zero:
+            zwróć zebrane
         indeks to indeks plus jeden
-    p pod t to znalezione
-    zwrócić znalezione
+    zwróć stwórz_pustą_listę
 
 
-# === Pomocnicze sprawdzenie kwalifikatorów ===
-# Python: lista kwalifikatorów wykluczonych, podana w stringu — sprawdzamy
-# substring w polu `qualifiers` SGJP. Tu prosty stub po wzorcu.
+# === Wczytanie bazy SGJP ===
+# Format pliku: linie z tab-rozdzielonymi polami:
+#   forma  lemat_z_kropką  znacznik  ...
+# Budujemy mapę forma → lista Analiz oraz mapę przyimek → lista przypadków.
+# Imiesłowy (pact, ppas) mają w SGJP lemmę = bezokolicznik; podmieniamy ją
+# na formę cytowaną (nom sg m1).
 
-aby sprawdź_kwalifikator_wykluczony kw (Tekst) -> Przełącznik:
-    zwrócić zawiera_tekst kw "nieoficjalny"
-
-
-# === Załadowanie bazy SGJP ===
-
-aby załadować z s (Tekst) -> Wynik:
-    wypisać_błąd "Wczytywanie bazy"
-    początek to zmierzyć_czas
-    baza to nowa Mapa
-    przyimki to nowa Mapa
-    pamięć to nowa Mapa
-    cytaty to nowa Mapa
-    linie to wczytać_plik s
-
-    dla linia w liniach:
-        oczyszczona to obciąć_białe_znaki_tekstu linia
-        kolumny to podzielić_tekst oczyszczona po "\t"
-        jeśli policzyć_długość_listy kolumny mniejsze od trzy:
+aby ładuj_bazę x (Tekst) -> Bazy:
+    wypisz_na_stderr "Wczytywanie bazy SGJP..."
+    czas_startu to weź_obecny_czas
+    mapa_form to stwórz_pustą_mapę
+    mapa_przyimków to stwórz_pustą_mapę
+    mapa_cytatów to stwórz_pustą_mapę
+    wiersze to otwórz_plik x
+    indeks_wiersza to zero
+    dopóki indeks_wiersza mniejsze od policz_długość_listy wiersze:
+        wiersz to wiersze pod indeks_wiersza
+        kolumny to rozdziel wiersz z "	"
+        jeśli policz_długość_listy kolumny mniejsze od trzy:
+            indeks_wiersza to indeks_wiersza plus jeden
             dalej
-
-        słowo to kolumny pod zero
+        forma to kolumny pod zero
         pole_lematu to kolumny pod jeden
-        tag to kolumny pod dwa
-        kwalifikatory to kolumny pod cztery
-        lemat to weź_pierwszy_segment_tekstu pole_lematu po ":"
-        kategoria to weź_pierwszy_segment_tekstu tag po ":"
-        części to podzielić_tekst tag po ":"
-        zbiór_przypadków to wyciągnąć_przypadki z tag z części z pamięć
-
-        analiza to nowa Analiza o kategorii kategoria o przypadkach zbiór_przypadków o lemacie lemat o tagu tag
-
-        jeśli nie ma_klucz baza dla słowo:
-            baza pod słowo to nowa Lista
-        dodać_do_listy (baza pod słowo) analiza
-
-        jeśli kategoria równe "prep" i policzyć_długość_listy zbiór_przypadków większe od zero:
-            jeśli nie sprawdź_kwalifikator_wykluczony kwalifikatory:
-                jeśli nie ma_klucz przyimki dla lemat:
-                    przyimki pod lemat to nowa Lista
-                przyimki pod lemat to sumować_listy (przyimki pod lemat) z zbiór_przypadków
-
-        jeśli zawiera_lista imiesłowy kategoria:
-            jeśli policzyć_długość_listy części większe równe cztery:
-                jeśli (części pod jeden) równe "sg" i zawiera_tekst (części pod dwa) "nom" i zawiera_tekst (części pod trzy) "m1" i (weź_ostatni_element części) równe "aff":
-                    klucz to złącz_klucz_imiesłowu kategoria z lemat
-                    cytaty pod klucz to słowo
-
-    # Drugi przebieg: imiesłowy mają lemat zastąpiony cytowaną formą.
-    wartości to weź_wartości_mapy baza
-    dla lista_analiz w wartości:
-        i to zero
-        dopóki i mniejsze od policzyć_długość_listy lista_analiz:
-            analiza to lista_analiz pod i
-            jeśli zawiera_lista imiesłowy kategoria analizy:
-                klucz to złącz_klucz_imiesłowu (kategoria analizy) z (lemat analizy)
-                jeśli ma_klucz cytaty dla klucz:
-                    nowy_lemat to cytaty pod klucz
-                    lista_analiz pod i to nowa Analiza o kategorii (kategoria analizy) o przypadkach (przypadki analizy) o lemacie nowy_lemat o tagu (tag analizy)
-            i to i plus jeden
-
-    koniec to zmierzyć_czas
-    wypisać_błąd policzyć_różnicę_czasów od początek do koniec
-    zwrócić nowy Wynik o bazie baza o przyimkach przyimki
+        znacznik to kolumny pod dwa
+        lemat to weź_przed_separatorem pole_lematu z ":"
+        część_mowy to weź_przed_separatorem znacznik z ":"
+        przypadek to wydobądź_przypadki znacznik
+        nowa_analiza to nowa Analiza o części_mowy część_mowy o lemacie lemat o znaczniku znacznik o przypadku przypadek
+        jeśli nie sprawdź_klucz_mapy mapa_form z formą:
+            ustaw_w_mapie mapa_form z formą z stwórz_pustą_listę
+        kontener_analiz to mapa_form pod forma
+        dopisz_na_koniec kontener_analiz z nową_analizą
+        jeśli sprawdź_równość_tekstów część_mowy z "prep":
+            jeśli policz_długość_listy przypadek większe od zero:
+                jeśli nie sprawdź_klucz_mapy mapa_przyimków z lematem:
+                    ustaw_w_mapie mapa_przyimków z lematem z stwórz_pustą_listę
+                kontener_przypadków to mapa_przyimków pod lemat
+                dla pojedynczy_przypadek w przypadek:
+                    dopisz_na_koniec kontener_przypadków z pojedynczym_przypadkiem
+        jeśli sprawdź_czy_imiesłów część_mowy:
+            klucz_cytatu to nowy Klucz o części_mowy część_mowy o lemacie lemat
+            ustaw_w_mapie mapa_cytatów z kluczem_cytatu z formą
+        indeks_wiersza to indeks_wiersza plus jeden
+    # Drugi przebieg — podmiana lematu imiesłowów na formę cytowaną.
+    wszystkie_klucze to pobierz_klucze_mapy mapa_form
+    indeks_klucza to zero
+    dopóki indeks_klucza mniejsze od policz_długość_listy wszystkie_klucze:
+        bieżący_klucz to wszystkie_klucze pod indeks_klucza
+        pula_analiz to mapa_form pod bieżący_klucz
+        dla pojedyncza_analiza w pula_analiz:
+            jeśli sprawdź_czy_imiesłów część_mowy pojedynczej_analizy:
+                stary_klucz to nowy Klucz o części_mowy część_mowy pojedynczej_analizy o lemacie lemat pojedynczej_analizy
+                jeśli sprawdź_klucz_mapy mapa_cytatów z starym_kluczem:
+                    nowy_lemat to mapa_cytatów pod stary_klucz
+                    lemat pojedynczej_analizy to nowy_lemat
+        indeks_klucza to indeks_klucza plus jeden
+    wypisz_na_stderr "Baza wczytana."
+    zwróć nowa Baza o słowniku_form mapa_form o słowniku_przyimków mapa_przyimków
 
 
-# === Analiza tokenów wejściowych ===
-# Dla każdego WORD-tokenu doczepiamy listę analiz po segmencie.
+# === Anotowanie tokenów analizami ===
+# Dla każdego tokenu typu WORD dopinamy listę analiz per segment.
+# Pozostałe tokeny przechodzą bez analiz.
 
-aby analizować z t (Lista) z b (Mapa) -> Lista:
-    wynik to nowa Lista
-    dla token w t:
-        jeśli czy_token_jest_słowem token:
-            segmenty to weź_wartość_tokenu token
-            analizy to nowa Lista
-            dla segment w segmenty:
-                jeśli ma_klucz b dla segment:
-                    dodać_do_listy analizy (b pod segment)
-                inaczej:
-                    dodać_do_listy analizy (nowa Lista)
-            wzbogacony to stwórz_token_z_analizami token z analizy
-            dodać_do_listy wynik wzbogacony
-        inaczej:
-            dodać_do_listy wynik token
-    zwrócić wynik
-
-
-# === Forma kanoniczna ===
-
-aby przefiltrować_po_kategoriach lista_analiz (Lista) po kategorie (Lista) -> Lista:
-    wynik to nowa Lista
-    i to zero
-    dopóki i mniejsze od policzyć_długość_listy lista_analiz:
-        analiza to lista_analiz pod i
-        jeśli zawiera_lista kategorie kategoria analizy:
-            dodać_do_listy wynik analiza
-        i to i plus jeden
-    zwrócić wynik
+aby przeanalizuj_tokeny x (Lista) z bazą (Bazy) -> Lista:
+    wynik to stwórz_pustą_listę
+    dla wyraz w x:
+        rodzaj_wyrazu to rodzaj wyrazu
+        lista_segmentów to segmenty wyrazu
+        analizy_per_segment to stwórz_pustą_listę
+        jeśli sprawdź_równość_tekstów rodzaj_wyrazu z "WORD":
+            dla segment w lista_segmentów:
+                małe to obniż_litery segment
+                pula to pobierz_lub_pustą_listę słownik_form bazy z małym
+                dopisz_na_koniec analizy_per_segment z pulą
+        nowy to stwórz_nowy_token z rodzajem_wyrazu z listą_segmentów z analizami_per_segment
+        dopisz_na_koniec wynik z nowym
+    zwróć wynik
 
 
-aby znaleźć_analizę_o_lemacie x (Lista) z l (Tekst) -> Analiza:
-    i to zero
-    dopóki i mniejsze od policzyć_długość_listy x:
-        analiza to x pod i
-        jeśli lemat analizy równe l:
-            zwrócić analiza
-        i to i plus jeden
-    zwrócić
+# === Skapitalizowanie lematu ===
+# Jeśli pierwszy znak segmentu jest wielki, podnieś pierwszy znak lematu.
+
+aby skapitalizuj_lemat x (Tekst) z segmentem (Tekst) -> Tekst:
+    jeśli policz_długość_tekstu segmentem równe zero:
+        zwróć x
+    jeśli policz_długość_tekstu x równe zero:
+        zwróć x
+    pierwszy to weź_pierwszy_znak segmentem
+    jeśli nie sprawdź_wielką_literę pierwszy:
+        zwróć x
+    zwróć podnieś_pierwszą_literę x
 
 
-aby wyznaczyć_kanoniczną postać t -> Lista:
-    segmenty to weź_wartość_tokenu t
-    analizy to weź_analizy_tokenu t
-    wynik to nowa Lista
-    i to zero
-    dopóki i mniejsze od policzyć_długość_listy segmenty:
-        segment to segmenty pod i
-        anas to analizy pod i
-        jeśli policzyć_długość_listy anas równe zero lub policzyć_długość_tekstu segment równe jeden:
-            dodać_do_listy wynik segment
-        inaczej:
-            preferowane to przefiltrować_po_kategoriach anas po przymiotnikopodobne
-            jeśli policzyć_długość_listy preferowane równe zero:
-                preferowane to anas
-            wybrana to znaleźć_analizę_o_lemacie preferowane z segment
-            jeśli wybrana równe pusty:
-                wybrana to preferowane pod zero
-            dodać_do_listy wynik lemat wybranej
-        i to i plus jeden
-    zwrócić wynik
+# === Kanonikalizacja łagodna ===
+# Per-segment: preferuj analizy adj-like, dopasuj do formy powierzchniowej,
+# w razie braku — pierwszy element puli. Segmenty bez analiz / jednoznakowe
+# przechodzą bez zmian.
+
+aby znormalizuj_łagodnie wyraz (Wyraz) -> Lista:
+    lista_segmentów to segmenty wyrazu
+    wszystkie_pule to analizy wyrazu
+    wynik to stwórz_pustą_listę
+    indeks to zero
+    dopóki indeks mniejsze od policz_długość_listy lista_segmentów:
+        segment to lista_segmentów pod indeks
+        pula_segmentu to wszystkie_pule pod indeks
+        jeśli policz_długość_listy pula_segmentu równe zero:
+            dopisz_na_koniec wynik z segmentem
+            indeks to indeks plus jeden
+            dalej
+        jeśli policz_długość_tekstu segment równe jeden:
+            dopisz_na_koniec wynik z segmentem
+            indeks to indeks plus jeden
+            dalej
+        preferowane to stwórz_pustą_listę
+        dla pojedyncza w pula_segmentu:
+            jeśli sprawdź_czy_przymiotnikowate część_mowy pojedynczej:
+                dopisz_na_koniec preferowane z pojedynczą
+        jeśli policz_długość_listy preferowane równe zero:
+            preferowane to pula_segmentu
+        małe to obniż_litery segment
+        wybrana to preferowane pod zero
+        dla kandydatka w preferowane:
+            jeśli sprawdź_równość_tekstów lemat kandydatki z małym:
+                wybrana to kandydatka
+        skapitalizowany to skapitalizuj_lemat lemat wybranej z segmentem
+        dopisz_na_koniec wynik z skapitalizowanym
+        indeks to indeks plus jeden
+    zwróć wynik
+
+
+# === Kanonikalizacja ścisła ===
+# Per-segment filtruj analizy po wymaganym przypadku.
+# Każdy segment z analizami musi mieć ≥1 takich, wszystkie z tą samą lematą,
+# inaczej rzucamy błąd. Segmenty bez analiz / jednoznakowe — bez zmian.
+
+aby znormalizuj_ściśle wyraz (Wyraz) z wymaganym_przypadkiem (Tekst) -> Lista:
+    lista_segmentów to segmenty wyrazu
+    wszystkie_pule to analizy wyrazu
+    wynik to stwórz_pustą_listę
+    indeks to zero
+    dopóki indeks mniejsze od policz_długość_listy lista_segmentów:
+        segment to lista_segmentów pod indeks
+        pula_segmentu to wszystkie_pule pod indeks
+        jeśli policz_długość_listy pula_segmentu równe zero:
+            dopisz_na_koniec wynik z segmentem
+            indeks to indeks plus jeden
+            dalej
+        jeśli policz_długość_tekstu segment równe jeden:
+            dopisz_na_koniec wynik z segmentem
+            indeks to indeks plus jeden
+            dalej
+        dopasowane to stwórz_pustą_listę
+        dla pojedyncza w pula_segmentu:
+            dla obecny_przypadek w przypadek pojedynczej:
+                jeśli sprawdź_równość_tekstów obecny_przypadek z wymaganym_przypadkiem:
+                    dopisz_na_koniec dopasowane z pojedynczą
+        jeśli policz_długość_listy dopasowane równe zero:
+            rzuć_błąd "segment nie ma wymaganej formy"
+        unikalne_lematy to stwórz_pustą_mapę
+        dla dopasowana w dopasowane:
+            ustaw_w_mapie unikalne_lematy z lematem_dopasowanej z jeden
+        klucze_lematów to pobierz_klucze_mapy unikalne_lematy
+        jeśli policz_długość_listy klucze_lematów większe od jeden:
+            rzuć_błąd "niejednoznaczność lematu"
+        pierwsza to dopasowane pod zero
+        skapitalizowany to skapitalizuj_lemat lemat pierwszej z segmentem
+        dopisz_na_koniec wynik z skapitalizowanym
+        indeks to indeks plus jeden
+    zwróć wynik
