@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from itertools import product
 
-from morph_anal import canonical, VERB_POS, VerbForm
+from morph_anal import canonical, VERB_POS
 
 
 _ADJ_LIKE = ("adj", "pact", "ppas")
@@ -89,13 +89,9 @@ class FunctionIdentifierError(IdentifierError):
 
 
 def _validate_function_name(surface, analyses):
-    """Zwraca (verb_index, verb_form) lub rzuca FunctionIdentifierError.
-
-    Gdy w tym samym segmencie jest kilka verb-readings (np. impt różnych
-    czasowników), bierze pierwszy. To zachowuje obecną semantykę: w
-    praktyce takie kolizje są rzadkie, a wcześniejsza heurystyka i tak
-    fall-backowała do `verb_anas[0]` gdy `segments[i]` było non-verbal.
-    """
+    """Waliduje że identyfikator funkcji ma ≥1 segment czasownikowy.
+    Rzuca FunctionIdentifierError gdy: brak analiz, lub żaden segment
+    nie zawiera reading z `VERB_POS`."""
     if not analyses:
         raise FunctionIdentifierError(
             f"identyfikator funkcji '{'_'.join(surface)}' "
@@ -105,14 +101,8 @@ def _validate_function_name(surface, analyses):
         seg = surface[i]
         if not anas or len(seg) == 1:
             continue
-        verb_anas = [a for a in anas if a.pos in VERB_POS]
-        if not verb_anas:
-            continue
-        chosen = next(
-            (a for a in verb_anas if a.lemma == seg),
-            verb_anas[0],
-        )
-        return i, chosen.verb_form
+        if any(a.pos in VERB_POS for a in anas):
+            return
     raise FunctionIdentifierError(
         f"nazwa funkcji '{'_'.join(surface)}' nie zawiera czasownika; "
         f"wymagany jest co najmniej jeden segment czasownikowy "
@@ -124,16 +114,12 @@ def _validate_function_name(surface, analyses):
 class FunctionIdentifier:
     lemmas_set: frozenset  # frozenset[tuple[str, ...]] — wszystkie kanoniczne interpretacje
     surface: tuple
-    verb_index: int
-    verb_form: VerbForm
     line: int = None
 
     @classmethod
     def from_head(cls, head):
         try:
-            verb_index, verb_form = _validate_function_name(
-                head.surface, head.analyses
-            )
+            _validate_function_name(head.surface, head.analyses)
         except FunctionIdentifierError as e:
             if e.line is None:
                 e.line = head.line
@@ -142,8 +128,6 @@ class FunctionIdentifier:
         return cls(
             lemmas_set=lemmas,
             surface=head.surface,
-            verb_index=verb_index,
-            verb_form=verb_form,
             line=head.line,
         )
 
@@ -157,7 +141,7 @@ class FunctionIdentifier:
         line = getattr(tok, "line", None)
         analyses_t = tuple(tuple(a) for a in analyses)
         try:
-            verb_index, verb_form = _validate_function_name(surface, analyses_t)
+            _validate_function_name(surface, analyses_t)
         except FunctionIdentifierError as e:
             if e.line is None:
                 e.line = line
@@ -166,8 +150,6 @@ class FunctionIdentifier:
         return cls(
             lemmas_set=lemmas,
             surface=surface,
-            verb_index=verb_index,
-            verb_form=verb_form,
             line=line,
         )
 

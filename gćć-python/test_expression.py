@@ -1156,3 +1156,14 @@ def test_field_canonical_lemma_requires_nom():
     )
     with pytest.raises(ast.ResolveError, match="mianownik"):
         _field_canonical_lemma(field_name)
+
+
+def test_strlit_carries_unescaped_value(parse):
+    """End-to-end: lexer rozwija escape'y, parser opakowuje w StrLit. Wartość
+    StrLit zawiera prawdziwe znaki kontrolne (newline, tab), nie literalne
+    sekwencje backslash."""
+    src = 'aby działać:\n    x to "linia\\nkolumna\\ttab"\n'
+    m = parse(src)
+    asn = m.body[0].body[0]
+    assert isinstance(asn, ast.Assignment)
+    assert asn.value.resolved == ast.StrLit("linia\nkolumna\ttab")

@@ -88,6 +88,55 @@ def test_lex_string_literal_preserves_internal_spaces():
     assert text_values == ["ala ma kota"]
 
 
+# ---------- String escape sequences ----------
+
+def test_lex_string_with_newline_escape():
+    toks = lexer.lex('x to "hello\\nworld"\n')
+    text_values = [t[1] for t in toks if t[0] is lexer.Token.TEXT]
+    assert text_values == ["hello\nworld"]
+
+
+def test_lex_string_with_tab_escape():
+    toks = lexer.lex('x to "a\\tb"\n')
+    text_values = [t[1] for t in toks if t[0] is lexer.Token.TEXT]
+    assert text_values == ["a\tb"]
+
+
+def test_lex_string_with_carriage_return_escape():
+    toks = lexer.lex('x to "a\\rb"\n')
+    text_values = [t[1] for t in toks if t[0] is lexer.Token.TEXT]
+    assert text_values == ["a\rb"]
+
+
+def test_lex_string_with_backslash_escape():
+    toks = lexer.lex('x to "\\\\"\n')
+    text_values = [t[1] for t in toks if t[0] is lexer.Token.TEXT]
+    assert text_values == ["\\"]
+
+
+def test_lex_string_with_quote_escape():
+    toks = lexer.lex('x to "\\"hi\\""\n')
+    text_values = [t[1] for t in toks if t[0] is lexer.Token.TEXT]
+    assert text_values == ['"hi"']
+
+
+def test_lex_string_with_multiple_escapes():
+    toks = lexer.lex('x to "line1\\nline2\\ttab"\n')
+    text_values = [t[1] for t in toks if t[0] is lexer.Token.TEXT]
+    assert text_values == ["line1\nline2\ttab"]
+
+
+def test_lex_string_unknown_escape_raises():
+    with pytest.raises(ast.InterpreterError, match="nieznany escape"):
+        lexer.lex('x to "hello\\xworld"\n')
+
+
+def test_lex_string_empty():
+    toks = lexer.lex('x to ""\n')
+    text_values = [t[1] for t in toks if t[0] is lexer.Token.TEXT]
+    assert text_values == [""]
+
+
 def test_lex_colon_split_from_preceding_word():
     toks = lexer.lex("klienta:\n")
     kinds = [t[0] for t in toks]
@@ -672,7 +721,7 @@ def test_struct_decl_gen_rejects_nom(parse):
 
 def test_struct_decl_gen_ambiguous():
     """Syntetyczny: token z 2 gen-analizami i różnymi lematami → SyntaxError."""
-    from morph_anal import canonical_gen, MorphAnalysis
+    from morph_anal import canonical, MorphAnalysis
     token = (
         lexer.Token.WORD,
         ("xyz",),
@@ -682,7 +731,39 @@ def test_struct_decl_gen_ambiguous():
         ]],
     )
     with pytest.raises(SyntaxError, match="niejednoznaczna"):
-        canonical_gen(token)
+        canonical(token, required_case="gen")
+
+
+# ---------- Strict nom dla nazw typów ----------
+
+def test_canonical_nom_rejects_non_nom_field_type(parse):
+    """`(Tekstu)` (gen) jako typ pola — strict nom rzuca SyntaxError."""
+    src = "definicja Foo:\n    x (Tekstu)\n"
+    with pytest.raises(SyntaxError, match="mianownik"):
+        parse(src)
+
+
+def test_canonical_nom_disambiguates_listy_field_type(parse):
+    """`(Listy)` jako typ pola — `listy` ma pl-nom dla DWÓCH lemm (`list` m3,
+    `lista` f). Strict nom rzuca ambiguity SyntaxError."""
+    src = "definicja Foo:\n    x (Listy)\n"
+    with pytest.raises(SyntaxError, match="niejednoznaczna w mianowniku"):
+        parse(src)
+
+
+def test_canonical_nom_ambiguous_synthetic():
+    """Syntetyczny: token z 2 nom-analizami i różnymi lematami → SyntaxError."""
+    from morph_anal import canonical, MorphAnalysis
+    token = (
+        lexer.Token.WORD,
+        ("xyz",),
+        [[
+            MorphAnalysis(pos="subst", case=frozenset({"nom"}), lemma="alfa", tag="subst:sg:nom:f"),
+            MorphAnalysis(pos="subst", case=frozenset({"nom"}), lemma="beta", tag="subst:sg:nom:m3"),
+        ]],
+    )
+    with pytest.raises(SyntaxError, match="niejednoznaczna w mianowniku"):
+        canonical(token, required_case="nom")
 
 
 # ---------- Capitalization: rozróżnienie typu od zmiennej przez caps ----------

@@ -31,7 +31,47 @@ class Tok(tuple):
         return t
 
 
-_TOKEN_RE = re.compile(r'"([^"]*)"|(->)|(:)|([()])|([^\s:"()]+)')
+_TOKEN_RE = re.compile(r'"((?:\\.|[^"\\])*)"|(->)|(:)|([()])|([^\s:"()]+)')
+
+
+_ESC_MAP = {
+    "n": "\n",
+    "t": "\t",
+    "r": "\r",
+    "\\": "\\",
+    '"': '"',
+    "0": "\0",
+}
+
+
+def _unescape_string(raw, line_no):
+    """Przetwarza escape sequences w surowej zawartości literału stringowego.
+    Wspierane: \\n \\t \\r \\\\ \\" \\0. Nieznany escape → InterpreterError."""
+    from ast_nodes import InterpreterError
+    out = []
+    i = 0
+    n = len(raw)
+    while i < n:
+        c = raw[i]
+        if c != "\\":
+            out.append(c)
+            i += 1
+            continue
+        if i + 1 >= n:
+            # Regex `\\.` powinien temu zapobiec, ale defensywnie.
+            raise InterpreterError(
+                "wiszący backslash w literale stringowym", line=line_no,
+            )
+        esc = raw[i + 1]
+        if esc not in _ESC_MAP:
+            raise InterpreterError(
+                f"nieznany escape '\\{esc}' w literale stringowym; "
+                f"wspierane: \\n \\t \\r \\\\ \\\" \\0",
+                line=line_no,
+            )
+        out.append(_ESC_MAP[esc])
+        i += 2
+    return "".join(out)
 
 
 _UPPER = "A-ZĄĆĘŁŃÓŚŹŻ"
@@ -81,7 +121,7 @@ def lex(text):
         for m in _TOKEN_RE.finditer(stripped):
             text_, arrow, colon, paren, word = m.groups()
             if text_ is not None:
-                ret.append(Tok(Token.TEXT, text_, line=line_no))
+                ret.append(Tok(Token.TEXT, _unescape_string(text_, line_no), line=line_no))
             elif arrow is not None:
                 ret.append(Tok(Token.ARROW, None, line=line_no))
             elif colon is not None:

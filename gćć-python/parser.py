@@ -42,7 +42,7 @@ mieści się w jednej linii.
 """
 
 import lexer
-from morph_anal import canonical, canonical_gen
+from morph_anal import canonical
 from ast_nodes import (
     Module, FunctionIdentifier, FunctionDef, ExternFunctionDef, Param,
     StructDef, Field, Phrase, Assignment, If, While, For, Break, Continue,
@@ -262,7 +262,7 @@ class Parser:
         return_type = None
         if self.peek() and self.peek()[0] is lexer.Token.ARROW:
             self.advance()
-            return_type = canonical(self.expect(lexer.Token.WORD))
+            return_type = canonical(self.expect(lexer.Token.WORD), required_case="nom")
         self.expect(lexer.Token.COLON)
         self._skip_newlines()
         self.expect(lexer.Token.INDENT)
@@ -289,7 +289,7 @@ class Parser:
         return_type = None
         if self.peek() and self.peek()[0] is lexer.Token.ARROW:
             self.advance()
-            return_type = canonical(self.expect(lexer.Token.WORD))
+            return_type = canonical(self.expect(lexer.Token.WORD), required_case="nom")
         nxt = self.peek()
         if nxt is not None and nxt[0] not in (lexer.Token.NEWLINE, lexer.Token.DEDENT):
             raise InterpreterError(
@@ -315,14 +315,14 @@ class Parser:
             self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
         return StructDef(
-            name=canonical_gen(name_tok), fields=fields,
+            name=canonical(name_tok, required_case="gen"), fields=fields,
             line=getattr(definicja_tok, "line", None),
         )
 
     def parse_field(self):
         name_tok = self.expect(lexer.Token.WORD)
         self.expect(lexer.Token.LPAREN)
-        type_ = canonical(self.expect(lexer.Token.WORD))
+        type_ = canonical(self.expect(lexer.Token.WORD), required_case="nom")
         self.expect(lexer.Token.RPAREN)
         return Field(
             name=make_identifier(name_tok), type=type_,
@@ -337,7 +337,7 @@ class Parser:
         type_ = None
         if self.peek() and self.peek()[0] is lexer.Token.LPAREN:
             self.advance()
-            type_ = canonical(self.expect(lexer.Token.WORD))
+            type_ = canonical(self.expect(lexer.Token.WORD), required_case="nom")
             self.expect(lexer.Token.RPAREN)
         name = make_identifier(name_tok)
         return Param(prep=prep, name=name, case=name.case, type=type_)

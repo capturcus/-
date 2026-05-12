@@ -11,82 +11,12 @@ VERB_POS = frozenset({
     "winien", "bedzie", "fut", "cond",
 })
 
-MOOD_BY_POS = {
-    "impt":   "rozkazujący",
-    "cond":   "przypuszczający",
-    "fin":    "oznajmujący",
-    "praet":  "oznajmujący",
-    "bedzie": "oznajmujący",
-    "fut":    "oznajmujący",
-    # inf, imps, pcon, winien — formy niefinitywne, brak trybu
-}
-
-
-class VerbForm(NamedTuple):
-    pos: str
-    mood: str = None
-    aspect: str = None
-    number: str = None
-    person: str = None
-    gender: str = None
-
-
-_VERB_FORM_CACHE = {}
-
-
-def _build_verb_form(pos, tag_parts):
-    mood = MOOD_BY_POS.get(pos)
-    n = len(tag_parts) - 1
-    if pos == "inf" or pos == "imps" or pos == "pcon":
-        return VerbForm(pos, mood, tag_parts[1] if n > 0 else None)
-    if pos == "impt" or pos == "fin" or pos == "bedzie" or pos == "fut":
-        return VerbForm(
-            pos, mood,
-            tag_parts[3] if n > 2 else None,  # aspect
-            tag_parts[1] if n > 0 else None,  # number
-            tag_parts[2] if n > 1 else None,  # person
-        )
-    if pos == "praet" or pos == "winien":
-        return VerbForm(
-            pos, mood,
-            tag_parts[3] if n > 2 else None,  # aspect
-            tag_parts[1] if n > 0 else None,  # number
-            None,                              # person
-            tag_parts[2] if n > 1 else None,  # gender
-        )
-    if pos == "cond":
-        return VerbForm(
-            pos, mood,
-            tag_parts[4] if n > 3 else None,  # aspect
-            tag_parts[1] if n > 0 else None,  # number
-            tag_parts[3] if n > 2 else None,  # person
-            tag_parts[2] if n > 1 else None,  # gender
-        )
-    return None
-
-
-def _verb_form_for(pos, tag):
-    """Lazy lookup z cache'em — unikalnych tagów czasownikowych jest ~100,
-    więc kolejne wywołania trafiają w cache i nie alokują VerbForm."""
-    if pos not in VERB_POS:
-        return None
-    cached = _VERB_FORM_CACHE.get(tag)
-    if cached is not None:
-        return cached
-    vf = _build_verb_form(pos, tag.split(":"))
-    _VERB_FORM_CACHE[tag] = vf
-    return vf
-
 
 class MorphAnalysis(NamedTuple):
     pos: str
     case: frozenset
     lemma: str
     tag: str  # surowy tag SGJP, np. "fin:sg:pri:imperf"
-
-    @property
-    def verb_form(self):
-        return _verb_form_for(self.pos, self.tag)
 
 
 def _case_for_tag(tag, tag_parts, cache):
@@ -195,60 +125,63 @@ def _cap_lemma(lemma, surface_seg):
     return lemma
 
 
-def canonical(token):
-    _, value, analyses = token[0], token[1], token[2]
-    out = []
-    for seg, anas in zip(value, analyses):
-        if not anas or len(seg) == 1:
-            out.append(seg)  # zachowaj oryginalny case (np. single-letter "X")
-            continue
-        # Preferuj analizy adj-like (adj/pact/ppas) — dla form dwuznacznych jak
-        # `zielonego` (adj `zielony` vs substantywizowane subst `zielone`)
-        # wybieramy formę przymiotnikową rodzaju męskiego.
-        pool = [a for a in anas if a.pos in _ADJ_LIKE_POS] or anas
-        # seg.lower() chroni przed pułapką homograficzną: dla capital "Pora"
-        # bez .lower() fallback do pool[0] = "por" (warzywo); z .lower()
-        # citation-match wybiera "pora" (czas).
-        chosen = next((a for a in pool if a.lemma == seg.lower()), pool[0])
-        out.append(_cap_lemma(chosen.lemma, seg))
-    return tuple(out)
+_CASE_NAMES_LOC = {
+    "nom": "mianowniku",
+    "gen": "dopełniaczu",
+}
 
 
-def canonical_gen(token):
-    """Kanonikalizacja nazwy typu — strict gen.
+def canonical(token, *, required_case=None):
+    """Kanonikalizacja tokenu do tuple lemm per segment.
 
-    `definicja` (rzeczownik) rządzi dopełniaczem, więc per-segment filtruj
-    analizy po `gen in case`. Każdy segment z analizami musi mieć ≥1
-    gen-analizę i wszystkie gen-analizy muszą mieć tę samą lemma —
-    inaczej InterpreterError. Segmenty bez analiz (non-Polish words,
-    single-letter) → użyj surface.
+    Tryb lenient (`required_case=None`, default): per-segment preferuj
+    analizy adj-like, matchuj citation form (`a.lemma == seg.lower()`),
+    inaczej fallback do `pool[0]`. Używane dla keywordów (`canonical(t) ==
+    ("aby",)`) i prepów — surface zwykle citation, fallback rzadko odpala.
 
-    Kapitalizacja: `_cap_lemma` aplikowane na finalny lemmat — typy pisane
-    capitalized (`definicja Pory:` → `("Pora",)`) odróżniają się od zmiennych
-    (`pora`) w przestrzeni lemm."""
+    Tryb strict (`required_case="nom"` lub `"gen"`): per-segment filtruj
+    analizy po `required_case in case`. Każdy segment z analizami musi mieć
+    ≥1 takich analiz i wszystkie muszą mieć tę samą lemmę — inaczej
+    `InterpreterError`. Używane dla nazw typów (`nom`) i nazwy struktury
+    po `definicja` (`gen`).
+
+    Segmenty bez analiz (non-Polish, single-letter) → użyj surface.
+    Kapitalizacja: `_cap_lemma` aplikowane per-segment na finalny lemmat —
+    typy pisane capitalized (`(Tekst)` → `("Tekst",)`) odróżniają się od
+    zmiennych (`tekst`) w przestrzeni lemm."""
     from ast_nodes import InterpreterError
     _, value, analyses = token[0], token[1], token[2]
     line = getattr(token, "line", None)
     out = []
     for seg, anas in zip(value, analyses):
         if not anas or len(seg) == 1:
-            out.append(seg)
+            out.append(seg)  # zachowaj oryginalny case (np. single-letter "X")
             continue
-        gen_anas = [a for a in anas if a.case and "gen" in a.case]
-        if not gen_anas:
+        if required_case is None:
+            # Lenient: adj-priority + citation match + pool[0] fallback.
+            # seg.lower() chroni przed pułapką homograficzną dla capital
+            # surface (`Pora` → "pora", nie pool[0]="por").
+            pool = [a for a in anas if a.pos in _ADJ_LIKE_POS] or anas
+            chosen = next((a for a in pool if a.lemma == seg.lower()), pool[0])
+            out.append(_cap_lemma(chosen.lemma, seg))
+            continue
+        # Strict: case-filter + uniqueness.
+        case_anas = [a for a in anas if a.case and required_case in a.case]
+        case_name = _CASE_NAMES_LOC.get(required_case, required_case)
+        if not case_anas:
             raise InterpreterError(
-                f"nazwa typu '{'_'.join(value)}' musi być w dopełniaczu; "
-                f"segment '{seg}' nie ma formy dopełniacza",
+                f"nazwa typu '{'_'.join(value)}' musi być w {case_name}; "
+                f"segment '{seg}' nie ma formy {case_name}",
                 line=line,
             )
-        gen_lemmas = {a.lemma for a in gen_anas}
-        if len(gen_lemmas) > 1:
-            opts = ", ".join(sorted(gen_lemmas))
+        lemmas = {a.lemma for a in case_anas}
+        if len(lemmas) > 1:
+            opts = ", ".join(sorted(lemmas))
             raise InterpreterError(
                 f"nazwa typu '{'_'.join(value)}' jest niejednoznaczna w "
-                f"dopełniaczu — pasuje do wielu lemm: {opts}. "
+                f"{case_name} — pasuje do wielu lemm: {opts}. "
                 f"Użyj jednoznacznej formy.",
                 line=line,
             )
-        out.append(_cap_lemma(next(iter(gen_lemmas)), seg))
+        out.append(_cap_lemma(next(iter(lemmas)), seg))
     return tuple(out)
