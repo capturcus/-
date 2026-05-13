@@ -11,9 +11,18 @@ Pełna gramatyka:
   term       := factor (TERM_OP factor)*    # *
   factor     := [ARITH_OP] subscript        # unary +/-
   subscript  := primary ("pod" primary)*    # left-assoc, postfix
-  primary    := INT_LIT | TEXT | "(" phrase ")"
+  primary    := atom [ "(" TYPE_WORD ")" ]  # opcjonalny sufiks typu
+  atom       := INT_LIT | TEXT | "(" phrase ")"
               | function_call | getter_chain | struct_creation
               | identifier_ref
+
+Sufiks typu `(Typ)` wiąże najmocniej z atomem bezpośrednio przed nim:
+`f od x (Tekst)` daje `FCall(f, [Typed(x, Tekst)])`, NIE `Typed(FCall(...), Tekst)`.
+Otypowanie szerszego pod-wyrażenia wymaga grupowania: `(f od x) (Tekst)`.
+Wyzwalany TYLKO gdy WORD w nawiasach jest capitalized (pierwszy segment z
+wielką literą); lowercase `(x)` po atomie nie jest sufiksem — zostawiany
+do leftover-diagnostic. Capitalized WORD który NIE jest znanym typem rzuca
+ResolveError (nie fallback do grupowania).
 
 Argumenty function_call są ograniczone do `primary` (lewostronne wiązanie),
 żeby `weź dla X plus 7` parsowało się jako `BinOp(+, FCall(weź, [X]), 7)`.
@@ -33,7 +42,7 @@ from ast_nodes import (
     StructDef, FunctionDef, ExternFunctionDef,
     IntLit, StrLit, BinOp, UnaryOp, And, Or, Not,
     FunctionCall, GetterChain, Subscript, StructCreation, StructArg, StructCtx,
-    ResolveError, Word, LOGICAL_OPS,
+    Typed, ResolveError, Word, LOGICAL_OPS,
     Assignment, If, While, For, Return, Phrase,
 )
 from identifier import make_identifier, is_prep
@@ -468,6 +477,9 @@ class ExpressionParser:
         return left
 
     def parse_primary(self):
+        return self._maybe_typed(self._parse_atom())
+
+    def _parse_atom(self):
         t = self.peek()
         if t is None:
             raise ResolveError(
@@ -495,6 +507,40 @@ class ExpressionParser:
             f"nieoczekiwany token w primary: {_describe_tok(t)}",
             line=getattr(t, "line", None),
         )
+
+    def _maybe_typed(self, node):
+        """Opcjonalny sufiks typu `(Typ)` przyklejający się do atomu.
+
+        Aktywuje się GDY: kolejne tokeny to LPAREN WORD RPAREN i WORD ma
+        pierwszy segment z wielką literą. Dla capitalized WORD rzuca
+        ResolveError jeśli lemma ∉ ctx.types (nie ma legalnego znaczenia
+        capitalized identyfikatora w samotnych parens poza nazwą typu).
+        Lowercase WORD zostawia bez konsumpcji — to nie sufiks-typ.
+        """
+        if self.peek() is None or self.peek()[0] is not lexer.Token.LPAREN:
+            return node
+        inner = self.peek(1)
+        closer = self.peek(2)
+        if (inner is None or inner[0] is not lexer.Token.WORD
+                or closer is None or closer[0] is not lexer.Token.RPAREN):
+            return node
+        first_seg = inner[1][0] if inner[1] else ""
+        if not first_seg or not first_seg[0].isupper():
+            return node
+        lparen_line = getattr(self.peek(), "line", None)
+        type_tuple = canonical(inner, required_case="nom")
+        if type_tuple not in self.ctx.types:
+            known = ", ".join(sorted("_".join(t) for t in self.ctx.types)) or "(brak)"
+            raise ResolveError(
+                f"sufiks typu '({'_'.join(inner[1])})' odnosi się do nieznanego "
+                f"typu '{'_'.join(type_tuple)}'; znane typy: {known}",
+                line=getattr(inner, "line", None),
+            )
+        self.advance()  # LPAREN
+        self.advance()  # WORD
+        self.advance()  # RPAREN
+        self.last_production = {"kind": "type_suffix", "type": type_tuple}
+        return Typed(expr=node, type=type_tuple, line=lparen_line)
 
     # ---------- WORD-primary dispatcher ----------
 
@@ -1014,6 +1060,13 @@ def _diagnose_leftover(parser, phrase):
     elif kind in ("subscript", "parens", "literal"):
         bullets.append(
             "spodziewałem się operatora, 'pod' lub końca wyrażenia"
+        )
+
+    elif kind == "type_suffix":
+        type_str = "_".join(lp["type"])
+        bullets.append(
+            f"po sufiksie typu '({type_str})' spodziewałem się operatora, "
+            f"'pod' lub końca wyrażenia"
         )
 
     else:

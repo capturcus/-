@@ -357,6 +357,13 @@ class StructCreation:
 
 
 @dataclass
+class Typed:
+    expr: object
+    type: tuple
+    line: int = None
+
+
+@dataclass
 class StructArg:
     field_name: tuple
     value: object

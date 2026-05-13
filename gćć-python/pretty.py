@@ -111,6 +111,8 @@ def _label(node):
         return "Subscript"
     if isinstance(node, ast.StructCreation):
         return f"StructCreation {'_'.join(node.type_name)}"
+    if isinstance(node, ast.Typed):
+        return f"Typed : {'_'.join(node.type)}"
     if isinstance(node, ast.StructArg):
         suffix = " (shorthand)" if node.value is None else ""
         # field_name to teraz pełen klucz (lemmas, number, gender);
@@ -172,6 +174,8 @@ def _children(node):
         return [node.target, node.index]
     if isinstance(node, ast.StructCreation):
         return []
+    if isinstance(node, ast.Typed):
+        return [node.expr]
     if isinstance(node, ast.StructArg):
         return [] if node.value is None else [node.value]
     if isinstance(node, ast.Identifier):

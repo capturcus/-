@@ -9,6 +9,7 @@ import parser
 import expression
 import pretty
 from ast_nodes import InterpreterError
+from typechecker import resolve_module
 
 
 def main():
@@ -32,6 +33,8 @@ def main():
         sys.exit(1)
 
     pretty.pretty(module)
+    # resolve_module(module)
+
 
 
 def _print_error(filename, source, err):

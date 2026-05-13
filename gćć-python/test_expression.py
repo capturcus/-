@@ -1249,3 +1249,192 @@ def test_strlit_carries_unescaped_value(parse):
     asn = m.body[0].body[0]
     assert isinstance(asn, ast.Assignment)
     assert asn.value.resolved == ast.StrLit("linia\nkolumna\ttab")
+
+
+# ---------- Sufiks typu (type annotation) ----------
+
+_TYPE_PREAMBLE = (
+    "definicja Tekstu:\n    znak (Tekst)\n"
+    "definicja Liczby:\n    wartość (Liczba)\n"
+)
+
+
+def test_type_suffix_on_str_lit(parse):
+    src = _TYPE_PREAMBLE + 'aby działać:\n    wynik to "abc" (Tekst)\n'
+    m = parse(src)
+    val = m.body[2].body[0].value.resolved
+    assert val == ast.Typed(expr=ast.StrLit("abc"), type=("Tekst",), line=val.line)
+
+
+def test_type_suffix_on_int_lit(parse):
+    src = _TYPE_PREAMBLE + "aby działać:\n    wynik to pięć (Liczba)\n"
+    m = parse(src)
+    val = m.body[2].body[0].value.resolved
+    assert isinstance(val, ast.Typed)
+    assert val.type == ("Liczba",)
+    assert val.expr == ast.IntLit(5)
+
+
+def test_type_suffix_on_identifier(parse):
+    src = (
+        _TYPE_PREAMBLE
+        + 'aby działać:\n    zmienna to "abc"\n    wynik to zmienna (Tekst)\n'
+    )
+    m = parse(src)
+    val = m.body[2].body[1].value.resolved
+    assert isinstance(val, ast.Typed)
+    assert val.type == ("Tekst",)
+    assert isinstance(val.expr, ast.Identifier)
+    assert ("zmienna",) in val.expr.lemmas_set
+
+
+def test_type_suffix_on_lhs_assignment(parse):
+    src = _TYPE_PREAMBLE + 'aby działać:\n    wynik (Tekst) to "abc"\n'
+    m = parse(src)
+    asn = m.body[2].body[0]
+    target = asn.target.resolved
+    assert isinstance(target, ast.Typed)
+    assert target.type == ("Tekst",)
+    assert isinstance(target.expr, ast.Identifier)
+    assert ("wynik",) in target.expr.lemmas_set
+    assert asn.value.resolved == ast.StrLit("abc")
+
+
+def test_type_suffix_on_both_sides(parse):
+    src = (
+        _TYPE_PREAMBLE
+        + 'aby działać:\n    zmienna to "abc"\n'
+        + "    wynik (Tekst) to zmienna (Tekst)\n"
+    )
+    m = parse(src)
+    asn = m.body[2].body[1]
+    assert isinstance(asn.target.resolved, ast.Typed)
+    assert asn.target.resolved.type == ("Tekst",)
+    assert isinstance(asn.value.resolved, ast.Typed)
+    assert asn.value.resolved.type == ("Tekst",)
+
+
+def test_type_suffix_binds_to_atom_not_call(parse):
+    """`f od x (Tekst)` → Typed otacza `x` (atom argumentu), nie cały fcall."""
+    src = (
+        _TYPE_PREAMBLE
+        + "można wziąć od x (Tekst) -> Tekst\n"
+        + 'aby działać:\n    x to "abc"\n    wynik to weź od x (Tekst)\n'
+    )
+    m = parse(src)
+    val = m.body[3].body[1].value.resolved
+    assert isinstance(val, ast.FunctionCall)
+    assert len(val.params) == 1
+    arg_value = val.params[0].value
+    assert isinstance(arg_value, ast.Typed)
+    assert arg_value.type == ("Tekst",)
+
+
+def test_type_suffix_on_parens_expr_wraps_whole(parse):
+    """`(f od x) (Tekst)` → Typed otacza cały FunctionCall."""
+    src = (
+        _TYPE_PREAMBLE
+        + "można wziąć od x (Tekst) -> Tekst\n"
+        + 'aby działać:\n    x to "abc"\n    wynik to (weź od x) (Tekst)\n'
+    )
+    m = parse(src)
+    val = m.body[3].body[1].value.resolved
+    assert isinstance(val, ast.Typed)
+    assert val.type == ("Tekst",)
+    assert isinstance(val.expr, ast.FunctionCall)
+
+
+def test_type_suffix_on_subscript_index(parse):
+    """`lista pod indeksem (Liczba)` → Subscript(lista, Typed(indeksem, Liczba))."""
+    src = (
+        _TYPE_PREAMBLE
+        + 'aby działać:\n    lista to "x"\n    indeks to "y"\n'
+        + "    wynik to lista pod indeksem (Liczba)\n"
+    )
+    m = parse(src)
+    val = m.body[2].body[2].value.resolved
+    assert isinstance(val, ast.Subscript)
+    assert isinstance(val.index, ast.Typed)
+    assert val.index.type == ("Liczba",)
+    assert isinstance(val.index.expr, ast.Identifier)
+    assert ("indeks",) in val.index.expr.lemmas_set
+
+
+def test_type_suffix_on_subscript_target_requires_parens(parse):
+    """`(lista pod indeksem) (Liczba)` → Typed(Subscript(...), Liczba)."""
+    src = (
+        _TYPE_PREAMBLE
+        + 'aby działać:\n    lista to "x"\n    indeks to "y"\n'
+        + "    wynik to (lista pod indeksem) (Liczba)\n"
+    )
+    m = parse(src)
+    val = m.body[2].body[2].value.resolved
+    assert isinstance(val, ast.Typed)
+    assert val.type == ("Liczba",)
+    assert isinstance(val.expr, ast.Subscript)
+
+
+def test_type_suffix_on_getter_chain(parse):
+    """`autor postu (Tekst)` → Typed(GetterChain([...]), Tekst)."""
+    src = (
+        _TYPE_PREAMBLE
+        + "definicja Postu:\n    autor (Tekst)\n"
+        + "aby działać:\n    wynik to autor postu (Tekst)\n"
+    )
+    m = parse(src)
+    val = m.body[3].body[0].value.resolved
+    assert isinstance(val, ast.Typed)
+    assert val.type == ("Tekst",)
+    assert isinstance(val.expr, ast.GetterChain)
+
+
+def test_type_suffix_unknown_type_errors(parse):
+    src = _TYPE_PREAMBLE + 'aby działać:\n    wynik to "abc" (Bzdura)\n'
+    with pytest.raises(ast.ResolveError) as exc:
+        parse(src)
+    assert "nieznanego typu" in str(exc.value)
+    assert "Bzdura" in str(exc.value)
+    assert "Tekst" in str(exc.value)  # znane typy w hincie
+
+
+def test_lowercase_paren_word_not_type_suffix(parse):
+    """`"abc" (jakiś)` — lowercase WORD w nawiasach nie konsumowany jako
+    sufiks-typ. Następnie outer parser rzuca leftover error."""
+    src = _TYPE_PREAMBLE + 'aby działać:\n    wynik to "abc" (jakiś)\n'
+    with pytest.raises(ast.ResolveError) as exc:
+        parse(src)
+    # leftover-diagnostic dla literału, nie type_suffix
+    assert "type_suffix" not in str(exc.value)
+
+
+def test_type_suffix_multi_segment_type(parse):
+    """Multi-segment typ canonicalizuje się do tuple wielu lemm."""
+    src = (
+        _TYPE_PREAMBLE
+        + "definicja Numeru_Telefonu:\n    cyfra (Liczba)\n"
+        + 'aby działać:\n    wynik to "x" (Numer_Telefon)\n'
+    )
+    m = parse(src)
+    val = m.body[3].body[0].value.resolved
+    assert isinstance(val, ast.Typed)
+    assert val.type == ("Numer", "Telefon")
+
+
+def test_type_suffix_pretty_print(parse, capsys):
+    """Golden snapshot: Typed renderuje się jako `Typed : <typ>` z child."""
+    import pretty
+    src = _TYPE_PREAMBLE + 'aby działać:\n    wynik to "abc" (Tekst)\n'
+    m = parse(src)
+    pretty.pretty(m.body[2].body[0].value.resolved)
+    out = capsys.readouterr().out
+    assert "Typed : Tekst" in out
+    assert "StrLit 'abc'" in out
+
+
+def test_parens_grouping_regression(parse):
+    """Regression: `(dwa plus trzy) razy cztery` nadal produkuje BinOp,
+    nie zostaje owinięty w Typed (bo `razy` to nie LPAREN po grupowaniu)."""
+    expr = _value_of_first_assignment(parse(_wrap("(dwa plus trzy) razy cztery")))
+    assert expr == ast.BinOp(
+        "*", ast.BinOp("+", ast.IntLit(2), ast.IntLit(3)), ast.IntLit(4)
+    )
