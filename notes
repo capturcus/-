@@ -15,10 +15,3 @@ konkatenacja stringów
 tryb przypuszczający - usunąłbyś_komentarz dla usera z identyfikatorem?
 które
 kiedy
-
-małe do zrobienia:
-Lepsze błędy parsera w okolicach chain detection. „Tokeny niesparsowane" to za mało.
-filtrowanie func call args po prep mandated case
-
-niejednoznaczność lematu typu?
-aby weź z tagu T z pamięci P?

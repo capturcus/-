@@ -466,6 +466,81 @@ def test_struct_creation_no_match_leaves_tokens(parse):
         parse(src)
 
 
+# ---------- Diagnostyka leftover tokenów ----------
+
+
+def test_diag_leftover_after_chain_unfollowable(parse):
+    """Chain `autor postu` zjada 2 tokeny; `komentarza` jest gen-word ale
+    `postu` nie jest polem (lemmat = `post` to nie field) — chain nie może
+    iść dalej. Diagnostyka mówi: 'autor postu' rozpoznane jako chain, oraz
+    że `komentarza` wygląda jak rozszerzenie ale `postu` nie jest polem."""
+    src = (
+        "definicja Posta:\n    autor (Tekst)\n"
+        "aby działać:\n    wynik to autor postu komentarza\n"
+    )
+    with pytest.raises(ast.ResolveError, match="chain.*autor postu") as ei:
+        parse(src)
+    msg = str(ei.value)
+    assert "nie jest polem" in msg
+    assert "komentarza" in msg
+
+
+def test_diag_leftover_after_ident_undeclared(parse):
+    """`nieznana_zmienna posta` — `nieznana_zmienna` nie jest niczym
+    znanym (zmienną/funkcją/polem/typem). Diagnostyka sugeruje literówkę
+    lub brakującą deklarację."""
+    src = (
+        "aby działać:\n    x to nieznana_zmienna posta\n"
+    )
+    with pytest.raises(ast.ResolveError) as ei:
+        parse(src)
+    msg = str(ei.value)
+    assert "nieznana_zmienna" in msg
+    assert "literówka" in msg or "brakująca deklaracja" in msg
+
+
+def test_diag_leftover_after_struct_field_missing(parse):
+    """`nowy Punkt o nazwie ...` — pole `nazwa` nie istnieje w typie `Punkt`
+    (dostępne tylko `x`). Diagnostyka mówi nazwę struct'a i listę dostępnych
+    pól."""
+    src = (
+        "definicja Punktu:\n    x (Liczba)\n"
+        "aby działać:\n    p to nowy Punkt o nazwie \"A\"\n"
+    )
+    with pytest.raises(ast.ResolveError) as ei:
+        parse(src)
+    msg = str(ei.value)
+    assert "Punkt" in msg
+    assert "Dostępne pola" in msg
+    assert "x" in msg
+
+
+def test_diag_leftover_after_fcall_extra_tokens(parse):
+    """fcall `weź "hello"` zjada 1 argument; `leftover` po nim. Diagnostyka
+    mówi że funkcja wzięła N argument(ów) i nic więcej nie spodziewała."""
+    src = (
+        "aby weź x (Tekst):\n    zwróć x\n"
+        "aby działać:\n    wynik to weź \"hello\" leftover\n"
+    )
+    with pytest.raises(ast.ResolveError) as ei:
+        parse(src)
+    msg = str(ei.value)
+    assert "weź" in msg
+    assert "argument" in msg
+
+
+def test_diag_leftover_after_literal(parse):
+    """Po literacie tekstowym nieoczekiwany token — komunikat o oczekiwaniu
+    operatora."""
+    src = (
+        "aby działać:\n    x to \"hello\" nieoczekiwane\n"
+    )
+    with pytest.raises(ast.ResolveError) as ei:
+        parse(src)
+    msg = str(ei.value)
+    assert "operatora" in msg
+
+
 # ---------- Subscript ----------
 
 def test_subscript_atom_int_index(parse):

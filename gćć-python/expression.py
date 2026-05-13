@@ -62,13 +62,18 @@ def _describe_key(k):
 
 
 def _describe_tok(t):
-    """Czytelny opis tokenu do komunikatów błędów (bez analiz/MorphAnalysis)."""
+    """Czytelny opis tokenu do komunikatów błędów (bez analiz/MorphAnalysis).
+    WORD jest surface'em '_'.join'owany dla czytelności (`WORD 'autor_postu'`),
+    inne kindy pokazują value w `repr`."""
     if t is None:
         return "koniec wyrażenia"
-    kind = t[0].name
+    kind = t[0]
+    kind_name = kind.name
     if len(t) > 1 and t[1] is not None:
-        return f"{kind} {t[1]!r}"
-    return kind
+        if kind is lexer.Token.WORD and isinstance(t[1], tuple):
+            return f"WORD '{'_'.join(t[1])}'"
+        return f"{kind_name} {t[1]!r}"
+    return kind_name
 
 
 def _adj_cases_from_analyses(analyses):
@@ -347,6 +352,11 @@ class ExpressionParser:
         self.preps = preps
         self.scope = scope
         self.struct_stack = []  # lista StructCtx aktywnych struct_creation
+        # Ostatnia konsumująca produkcja — używane przez _diagnose_leftover gdy
+        # `resolve_phrase` napotka niesparsowane tokeny. Każda produkcja która
+        # konsumuje ≥1 token ustawia to przed return. Dict z polem "kind" +
+        # produkcyjnym contextem (zob. _diagnose_leftover).
+        self.last_production = None
 
     def peek(self, offset=0):
         i = self.pos + offset
@@ -443,7 +453,9 @@ class ExpressionParser:
 
     def parse_subscript(self):
         left = self.parse_primary()
+        had_pod = False
         while self.peek() and self.peek()[0] is lexer.Token.POD:
+            had_pod = True
             pod_tok = self.advance()
             if self.peek() is None:
                 raise ResolveError(
@@ -451,6 +463,8 @@ class ExpressionParser:
                     line=getattr(pod_tok, "line", None),
                 )
             left = Subscript(target=left, index=self.parse_primary())
+        if had_pod:
+            self.last_production = {"kind": "subscript"}
         return left
 
     def parse_primary(self):
@@ -463,14 +477,17 @@ class ExpressionParser:
         kind = t[0]
         if kind is lexer.Token.INT_LIT:
             self.advance()
+            self.last_production = {"kind": "literal", "type": "int"}
             return IntLit(t[1])
         if kind is lexer.Token.TEXT:
             self.advance()
+            self.last_production = {"kind": "literal", "type": "text"}
             return StrLit(t[1])
         if kind is lexer.Token.LPAREN:
             self.advance()
             inner = self.parse_phrase()
             self.expect(lexer.Token.RPAREN)
+            self.last_production = {"kind": "parens"}
             return inner
         if kind is lexer.Token.WORD:
             return self._parse_word_primary()
@@ -497,14 +514,45 @@ class ExpressionParser:
         try:
             name = FunctionIdentifier.from_head(head_ident)
         except FunctionIdentifierError:
-            return self._narrow_to_variable(head_ident)
+            return self._finish_as_ident_ref(head_ident)
         matched_lemma = next(
             (lemma for lemma in name.lemmas_set if lemma in self.ctx.function_defs),
             None,
         )
         if matched_lemma is None:
-            return self._narrow_to_variable(head_ident)
+            return self._finish_as_ident_ref(head_ident)
         return self._parse_function_call(name, matched_lemma)
+
+    def _finish_as_ident_ref(self, head_ident):
+        """Fallback dispatcher — head nie jest struct creation, chain ani fcall.
+        Zapisz produkcję jako ident_ref z metadanymi (czy w scope, czy field,
+        czy typ, czy funkcja-lemma) — używane przez _diagnose_leftover gdy
+        zostaną niesparsowane tokeny."""
+        narrowed = self._narrow_to_variable(head_ident)
+        in_scope = any(
+            self.scope.has_var((v.lemmas, v.number, v.gender))
+            for v in head_ident.variants
+        )
+        if not head_ident.variants:
+            # Atom — sprawdź lemma-only.
+            in_scope = any(
+                self.scope.has_var((l, None, None))
+                for l in head_ident.lemmas_set
+            )
+        is_field_lemma = bool(head_ident.lemmas_set & self.ctx.field_lemmas)
+        is_known_type = bool(head_ident.lemmas_set & self.ctx.types)
+        is_known_function = any(
+            l in self.ctx.function_defs for l in head_ident.lemmas_set
+        )
+        self.last_production = {
+            "kind": "ident_ref",
+            "surface": head_ident.surface,
+            "in_scope": in_scope,
+            "is_field_lemma": is_field_lemma,
+            "is_known_type": is_known_type,
+            "is_known_function": is_known_function,
+        }
+        return narrowed
 
     def _narrow_to_variable(self, ident):
         """Zostaw tylko warianty, których pełny klucz (lemmas, number, gender)
@@ -547,6 +595,15 @@ class ExpressionParser:
             arg_i = slot_to_arg[slot_i]
             prep, case, value = arg_meta[arg_i]
             params.append(Word(prep=prep, value=value, case=case))
+        # Ustaw last_production NA KOŃCU (przed return), bo _parse_arg →
+        # parse_primary nadpisuje state. Outer-most produkcja musi zostać
+        # zachowana dla diagnostyki leftover.
+        self.last_production = {
+            "kind": "fcall",
+            "name_surface": name.surface,
+            "n_slots": n_slots,
+            "fname_lemma": matched_lemma,
+        }
         return FunctionCall(name=name, params=params)
 
     def _parse_arg(self):
@@ -675,6 +732,14 @@ class ExpressionParser:
         chain = [head_ident, make_identifier(self.advance())]
         while self._is_gen_word(self.peek()) and self._ident_is_field(chain[-1]):
             chain.append(make_identifier(self.advance()))
+        # Diagnostyka leftover: rejestruj czy ostatnie ogniwo było polem
+        # (czyli czy chain MOŻE iść dalej) — to rozróżnia "user pomyłka"
+        # (last=value, leftover=gen-word) od "naturalny koniec chain'a".
+        self.last_production = {
+            "kind": "chain",
+            "chain_surfaces": [c.surface for c in chain],
+            "last_is_field": self._ident_is_field(chain[-1]),
+        }
         return GetterChain(chain=chain)
 
     # ---------- struct creation ----------
@@ -732,6 +797,12 @@ class ExpressionParser:
                     ))
         finally:
             self.struct_stack.pop()
+        self.last_production = {
+            "kind": "struct",
+            "type_name": type_name,
+            "assigned_keys": tuple(ctx.assigned),
+            "available_keys": tuple(self.ctx.fields_by_type.get(type_name, set())),
+        }
         return StructCreation(type_name=type_name, args=args)
 
     def _next_struct_arg_kind(self, ctx):
@@ -829,6 +900,135 @@ def _build_ctx(module):
     return _Ctx(function_defs, types, fields_by_type, field_lemmas)
 
 
+def _describe_leftover(tokens, max_show=3):
+    """Sformatowana lista pierwszych `max_show` tokenów do error-messages.
+    Reszta sygnalizowana wielokropkiem `…`."""
+    shown = [_describe_tok(t) for t in tokens[:max_show]]
+    suffix = " …" if len(tokens) > max_show else ""
+    return ", ".join(shown) + suffix
+
+
+def _format_field_options(ctx, type_name, exclude):
+    """Lista dostępnych pól struktury `type_name` (jeszcze nie przypisanych)
+    jako czytelny string."""
+    fbt = ctx.fields_by_type.get(type_name, set())
+    remaining = fbt - set(exclude)
+    if not remaining:
+        return "(brak — wszystkie pola już przypisane)"
+    return ", ".join(sorted(_format_scope_key(k) for k in remaining))
+
+
+def _format_chain_surfaces(surfaces):
+    """`[('autor',), ('post',)]` → `'autor postu'`-style czytelny opis chain'a."""
+    return " ".join("_".join(s) for s in surfaces)
+
+
+def _diagnose_leftover(parser, phrase):
+    """Buduje kontekstowy komunikat błędu dla niesparsowanych tokenów.
+
+    Wybiera narrację zależną od `parser.last_production.kind` — ostatniej
+    produkcji która konsumowała tokeny. Dorzuca hint'y oparte o aktualny
+    ctx (dostępne pola struct'a, czy ident jest w scope, etc.)."""
+    leftover_tokens = parser.tokens[parser.pos:]
+    leftover_str = _describe_leftover(leftover_tokens)
+    line = (
+        getattr(leftover_tokens[0], "line", None) or phrase.line
+        if leftover_tokens else phrase.line
+    )
+    lp = parser.last_production or {}
+    kind = lp.get("kind")
+    bullets = []
+
+    if kind == "chain":
+        chain_str = _format_chain_surfaces(lp["chain_surfaces"])
+        last_surface = "_".join(lp["chain_surfaces"][-1])
+        bullets.append(
+            f"po getter chain '{chain_str}' nie spodziewałem się dalszych "
+            f"tokenów (oczekiwałem operatora, 'pod' lub końca wyrażenia)"
+        )
+        first = leftover_tokens[0] if leftover_tokens else None
+        if first is not None and _is_gen_word(first, parser.preps):
+            if not lp["last_is_field"]:
+                bullets.append(
+                    f"token {_describe_tok(first)} wygląda jak rozszerzenie "
+                    f"chain'a, ale '{last_surface}' nie jest polem żadnej "
+                    f"struktury — chain nie może iść dalej"
+                )
+
+    elif kind == "fcall":
+        name = "_".join(lp["name_surface"])
+        bullets.append(
+            f"funkcja '{name}' przyjęła {lp['n_slots']} argument(ów); "
+            f"po niej nie spodziewałem się więcej tokenów (oczekiwałem "
+            f"operatora, 'pod' lub końca wyrażenia)"
+        )
+
+    elif kind == "struct":
+        type_str = "_".join(lp["type_name"])
+        assigned_str = (
+            ", ".join(sorted(_format_scope_key(k) for k in lp["assigned_keys"]))
+            or "(żadne)"
+        )
+        available_str = _format_field_options(
+            parser.ctx, lp["type_name"], lp["assigned_keys"],
+        )
+        bullets.append(
+            f"tworzenie struktury '{type_str}' z polami: {assigned_str}"
+        )
+        first = leftover_tokens[0] if leftover_tokens else None
+        second = leftover_tokens[1] if len(leftover_tokens) > 1 else None
+        if first is not None and first[0] is lexer.Token.WORD:
+            prep_canon = canonical(first)
+            if prep_canon in (("o",), ("z",)) and second is not None and second[0] is lexer.Token.WORD:
+                bullets.append(
+                    f"token {_describe_tok(second)} (po {_describe_tok(first)}) "
+                    f"nie jest polem struktury '{type_str}' w wymaganym "
+                    f"przypadku. Dostępne pola: {available_str}"
+                )
+            else:
+                bullets.append(
+                    f"spodziewałem się 'o <pole>' (longhand) lub "
+                    f"'z <pole>' (shorthand). Dostępne pola: {available_str}"
+                )
+
+    elif kind == "ident_ref":
+        surface = "_".join(lp["surface"])
+        if not (lp["in_scope"] or lp["is_field_lemma"]
+                or lp["is_known_type"] or lp["is_known_function"]):
+            bullets.append(
+                f"'{surface}' nie jest zadeklarowaną zmienną, znaną funkcją, "
+                f"polem żadnej struktury, ani typem — czy to literówka albo "
+                f"brakująca deklaracja?"
+            )
+        elif lp["is_field_lemma"] and not lp["in_scope"]:
+            bullets.append(
+                f"'{surface}' jest polem struktury (nie zmienną w scope) — "
+                f"użyj go w getter chain: '<obiekt> {surface}_w_gen'"
+            )
+        else:
+            bullets.append(
+                f"po referencji do '{surface}' spodziewałem się operatora, "
+                f"'pod' lub końca wyrażenia"
+            )
+
+    elif kind in ("subscript", "parens", "literal"):
+        bullets.append(
+            "spodziewałem się operatora, 'pod' lub końca wyrażenia"
+        )
+
+    else:
+        bullets.append(
+            "nie udało się rozpoznać ostatnio sparsowanej produkcji "
+            "(diagnostyka niedostępna)"
+        )
+
+    detail = "\n".join(f"  · {b}" for b in bullets)
+    raise ResolveError(
+        f"niesparsowane tokeny po wyrażeniu: {leftover_str}\n{detail}",
+        line=line,
+    )
+
+
 def resolve_phrase(phrase, ctx, preps, scope):
     if not phrase.tokens:
         phrase.resolved = None
@@ -836,12 +1036,7 @@ def resolve_phrase(phrase, ctx, preps, scope):
     parser = ExpressionParser(phrase.tokens, ctx, preps, scope)
     phrase.resolved = parser.parse_phrase()
     if parser.peek() is not None:
-        leftover = parser.peek()
-        raise ResolveError(
-            f"po sparsowaniu frazy pozostały niesparsowane tokeny "
-            f"(pierwszy: {_describe_tok(leftover)})",
-            line=getattr(leftover, "line", None) or phrase.line,
-        )
+        _diagnose_leftover(parser, phrase)
 
 
 def _resolve(phrase, ctx, preps, scope):
