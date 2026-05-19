@@ -1,61 +1,97 @@
 import ast_nodes as ast
+import re
 
+last_type = 0
+type_regex = re.compile(r"t[0-9]+")
+def new_type():
+    global last_type
+    ret = "t"+str(last_type)
+    last_type += 1
+    return ret
+
+class Scope:
+    types: dict = {}
+
+    def unify(self, t0, t1):
+        if len(t0) != len(t1):
+            print(f"types have wrong kind {t0} {t1} {len(t0)} {len(t1)}")
+            raise
+        global type_regex
+        result_type = []
+        for tt0, tt1 in zip(t0, t1):
+            if not type_regex.match(tt0) and not type_regex.match(tt1):
+                print(f"could not match types lmao: {tt0} {tt1}")
+                raise
+            concrete = tt1 if type_regex.match(tt0) else tt0
+            result_type.append(concrete)
+        for k in self.types:
+            if self.types[k] == t0 or self.types[k] == t1:
+                self.types[k] = concrete
 
 def resolve_module(node):
     print("Module")
+    scope = Scope()
     for decl in node.body:
         if isinstance(decl, ast.FunctionDef):
-            resolve_function_def(decl)
+            resolve_function_def(decl, scope)
+    print(scope.types)
 
 
-def resolve_function_def(node):
+def resolve_function_def(node, scope):
     print("FunctionDef")
     for stmt in node.body:
-        resolve_statement(stmt)
+        resolve_statement(stmt, scope)
 
 
-def resolve_statement(node):
+def resolve_statement(node, scope):
     if isinstance(node, ast.Assignment):
-        resolve_assignment(node)
+        resolve_assignment(node, scope)
     if isinstance(node, ast.If):
-        resolve_if(node)
+        resolve_if(node, scope)
     if isinstance(node, ast.While):
-        resolve_while(node)
+        resolve_while(node, scope)
     if isinstance(node, ast.For):
-        resolve_for(node)
+        resolve_for(node, scope)
     if isinstance(node, ast.Return):
-        resolve_return(node)
-    resolve_expression(node)
+        resolve_return(node, scope)
+    resolve_expression(node, scope)
 
 
-def resolve_expression(node):
+def resolve_expression(node, scope):
     if isinstance(node, ast.BinOp):
-        resolve_bin_op(node)
+        return resolve_bin_op(node, scope)
     if isinstance(node, ast.UnaryOp):
-        resolve_unary_op(node)
+        return resolve_unary_op(node, scope)
     if isinstance(node, ast.Not):
-        resolve_not(node)
+        return resolve_not(node, scope)
     if isinstance(node, ast.And):
-        resolve_and(node)
+        return resolve_and(node, scope)
     if isinstance(node, ast.Or):
-        resolve_or(node)
+        return resolve_or(node, scope)
     if isinstance(node, ast.FunctionCall):
-        resolve_function_call(node)
+        return resolve_function_call(node, scope)
     if isinstance(node, ast.GetterChain):
-        resolve_getter_chain(node)
+        return resolve_getter_chain(node, scope)
     if isinstance(node, ast.Subscript):
-        resolve_subscript(node)
+        return resolve_subscript(node, scope)
     if isinstance(node, ast.StructCreation):
-        resolve_struct_creation(node)
+        return resolve_struct_creation(node, scope)
     if isinstance(node, ast.StructArg):
-        resolve_struct_arg(node)
+        return resolve_struct_arg(node, scope)
     if isinstance(node, ast.Identifier):
-        resolve_identifier(node)
+        return resolve_identifier(node, scope)
+    if isinstance(node, ast.IntLit):
+        print("IntLit")
+        return ["number"]
+    if isinstance(node, ast.StrLit):
+        print("StrLit")
+        return ["string"]
 
-def resolve_assignment(node):
+def resolve_assignment(node, scope):
     print("Assignment")
-    resolve_expression(node.target.resolved)
-    resolve_expression(node.value.resolved)
+    target_type = resolve_expression(node.target.resolved, scope)
+    value_type = resolve_expression(node.value.resolved, scope)
+    scope.unify(target_type, value_type)
     # # target to krotka — element pojedynczy lub łańcuch getterów
     # if isinstance(node.target, tuple):
     #     for t in node.target:
@@ -65,94 +101,98 @@ def resolve_assignment(node):
     # check(node.value)
 
 
-def resolve_bin_op(node):
+def resolve_bin_op(node, scope):
     print("BinOp")
-    resolve_expression(node.left)
-    resolve_expression(node.right)
+    resolve_expression(node.left, scope)
+    resolve_expression(node.right, scope)
 
 
-def resolve_unary_op(node):
+def resolve_unary_op(node, scope):
     print("UnaryOp")
-    resolve_expression(node.operand)
+    resolve_expression(node.operand, scope)
 
 
-def resolve_if(node):
+def resolve_if(node, scope):
     print("If")
-    resolve_expression(node.cond)
+    resolve_expression(node.cond, scope)
     for stmt in node.then_body:
-        resolve_statement(stmt)
+        resolve_statement(stmt, scope)
     for stmt in node.else_body:
-        resolve_statement(stmt)
+        resolve_statement(stmt, scope)
 
 
-def resolve_while(node):
+def resolve_while(node, scope):
     print("While")
-    resolve_expression(node.cond)
+    resolve_expression(node.cond, scope)
     for stmt in node.body:
-        resolve_statement(stmt)
+        resolve_statement(stmt, scope)
 
 
-def resolve_for(node):
+def resolve_for(node, scope):
     print("For")
     # node.var
-    resolve_expression(node.collection)
+    resolve_expression(node.collection, scope)
     for stmt in node.body:
-        resolve_statement(stmt)
+        resolve_statement(stmt, scope)
 
 
-def resolve_return(node):
+def resolve_return(node, scope):
     print("Return")
     if node.value is not None:
-        resolve_expression(node.value)
+        resolve_expression(node.value, scope)
 
 
-def resolve_not(node):
+def resolve_not(node, scope):
     print("Not")
-    resolve_expression(node.operand)
+    resolve_expression(node.operand, scope)
 
 
-def resolve_and(node):
+def resolve_and(node, scope):
     print("And")
-    resolve_expression(node.left)
-    resolve_expression(node.right)
+    resolve_expression(node.left, scope)
+    resolve_expression(node.right, scope)
 
 
-def resolve_or(node):
+def resolve_or(node, scope):
     print("Or")
-    resolve_expression(node.left)
-    resolve_expression(node.right)
+    resolve_expression(node.left, scope)
+    resolve_expression(node.right, scope)
 
 
-def resolve_function_call(node):
+def resolve_function_call(node, scope):
     print("FunctionCall")
     for p in node.params:
-        resolve_expression(p)
+        resolve_expression(p, scope)
 
 
-def resolve_getter_chain(node):
+def resolve_getter_chain(node, scope):
     print("GetterChain", node)
 
 
-def resolve_subscript(node):
+def resolve_subscript(node, scope):
     print("Subscript")
-    resolve_expression(node.target)
-    resolve_expression(node.index)
+    resolve_expression(node.target, scope)
+    resolve_expression(node.index, scope)
 
 
-def resolve_struct_creation(node):
+def resolve_struct_creation(node, scope):
     print("StructCreation")
     for a in node.args:
-        resolve_expression(a)
+        resolve_expression(a, scope)
 
 
-def resolve_struct_arg(node):
+def resolve_struct_arg(node, scope):
     print("StructArg")
     if node.value is not None:
-        resolve_expression(node.value)
+        resolve_expression(node.value, scope)
 
 
-def resolve_identifier(node):
-    print("Identifier", node)
+def resolve_identifier(node, scope):
+    new_t = new_type()
+    lemmas = node.variants[0].lemmas
+    scope.types[lemmas] = [new_t]
+    print("Identifier")
+    return [new_t]
 
 
 # _DISPATCH = {

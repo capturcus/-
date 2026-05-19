@@ -8,8 +8,8 @@ import preprocess
 import parser
 import expression
 import pretty
+import typechecker
 from ast_nodes import InterpreterError
-from typechecker import resolve_module
 
 
 def main():
@@ -33,7 +33,7 @@ def main():
         sys.exit(1)
 
     pretty.pretty(module)
-    # resolve_module(module)
+    typechecker.resolve_module(module)
 
 
 

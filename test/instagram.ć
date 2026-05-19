@@ -40,7 +40,7 @@ aby znajdź_obserwację obserwatora (Użytkownik) przez użytkownika (Użytkowni
 aby znajdź_obserwowanych użytkownika (Użytkownik):
     zwrócić
 
-aby znajdź_posty kolejnego (Użytkownik):
+aby znajdź_wpisy kolejnego (Użytkownik):
     zwrócić
 
 aby wziąć_głowę obserwowanych (Lista):
@@ -195,16 +195,16 @@ aby już_obserwować obserwatora (Użytkownik) przez użytkownika (Użytkownik) 
 # === Listing postów ===
 
 aby pokaż_feed dla użytkownika (Użytkownik) z limitem (Liczba) -> Lista:
-    posty to pusta_lista
+    wpisy to pusta_lista
     obserwowani to znajdź_obserwowanych użytkownika
     licznik to zero
     dopóki licznik mniejsze od limit i nie obserwowani równe pusty:
         kolejny to weź_głowę obserwowanych
-        nowe to znajdź_posty kolejnego
-        posty to dodaj_wszystkie nowych do postów
+        nowe to znajdź_wpisy kolejnego
+        wpisy to dodaj_wszystkie nowych do wpisów
         obserwowani to weź_ogon obserwowanych
         licznik to licznik plus jeden
-    zwróć posty
+    zwróć wpisy
 
 
 aby zablokuj użytkownika (Użytkownik):
