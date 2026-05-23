@@ -10,31 +10,53 @@ def new_type():
     return ret
 
 class Scope:
-    types: dict = {}
+    types: list = []
+
+    def get_type(self, identifier):
+        id_lemmas = set([variant.lemmas for variant in identifier.variants])
+        for i in self.types:
+            v = i[0]
+            t = i[1]
+            variable_lemmas = set([variant.lemmas for variant in v.variants])
+            if id_lemmas & variable_lemmas:
+                return t
+        new_t = new_type()
+        self.types.append((identifier, new_t))
+        return new_t
+
 
     def unify(self, t0, t1):
-        if len(t0) != len(t1):
-            print(f"types have wrong kind {t0} {t1} {len(t0)} {len(t1)}")
-            raise
         global type_regex
-        result_type = []
-        for tt0, tt1 in zip(t0, t1):
-            if not type_regex.match(tt0) and not type_regex.match(tt1):
-                print(f"could not match types lmao: {tt0} {tt1}")
-                raise
-            concrete = tt1 if type_regex.match(tt0) else tt0
-            result_type.append(concrete)
+        concrete = t1 if type_regex.match(t0) else t0
+        new_types = []
         for k in self.types:
-            if self.types[k] == t0 or self.types[k] == t1:
-                self.types[k] = concrete
+            v = k[0]
+            t = k[1]
+            if t == t0 or t == t1:
+                new_types.append(v, concrete)
+            else:
+                new_types.append(v, t)
+        self.types = new_types
+
+fun_scopes = []
 
 def resolve_module(node):
     print("Module")
-    scope = Scope()
+    global fun_scopes
     for decl in node.body:
         if isinstance(decl, ast.FunctionDef):
-            resolve_function_def(decl, scope)
-    print(scope.types)
+            fun_name = decl.name.lemmas_set
+            scope = Scope()
+            for p in decl.params:
+                scope.types.append((p.name, new_type()))
+            fun_scopes.append((fun_name, scope))
+    i = 0
+    for decl in node.body:
+        if isinstance(decl, ast.FunctionDef):
+            resolve_function_def(decl, fun_scopes[i][1])
+            i += 1
+    for s in fun_scopes:
+        print(s[0], s[1].types)
 
 
 def resolve_function_def(node, scope):
@@ -82,16 +104,16 @@ def resolve_expression(node, scope):
         return resolve_identifier(node, scope)
     if isinstance(node, ast.IntLit):
         print("IntLit")
-        return ["number"]
+        return "Liczba"
     if isinstance(node, ast.StrLit):
         print("StrLit")
-        return ["string"]
+        return "Tekst"
 
 def resolve_assignment(node, scope):
     print("Assignment")
     target_type = resolve_expression(node.target.resolved, scope)
     value_type = resolve_expression(node.value.resolved, scope)
-    scope.unify(target_type, value_type)
+    # scope.unify(target_type, value_type)
     # # target to krotka — element pojedynczy lub łańcuch getterów
     # if isinstance(node.target, tuple):
     #     for t in node.target:
@@ -188,11 +210,7 @@ def resolve_struct_arg(node, scope):
 
 
 def resolve_identifier(node, scope):
-    new_t = new_type()
-    lemmas = node.variants[0].lemmas
-    scope.types[lemmas] = [new_t]
-    print("Identifier")
-    return [new_t]
+    return scope.get_type(node)
 
 
 # _DISPATCH = {
