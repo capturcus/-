@@ -10,7 +10,8 @@ def new_type():
     return ret
 
 class Scope:
-    types: list = []
+    def __init__(self):
+        self.types = []
 
     def get_type(self, identifier):
         id_lemmas = set([variant.lemmas for variant in identifier.variants])
