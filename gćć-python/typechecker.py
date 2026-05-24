@@ -34,9 +34,9 @@ class Scope:
             v = k[0]
             t = k[1]
             if t == t0 or t == t1:
-                new_types.append(v, concrete)
+                new_types.append((v, concrete))
             else:
-                new_types.append(v, t)
+                new_types.append((v, t))
         self.types = new_types
 
 fun_scopes = []
@@ -114,7 +114,7 @@ def resolve_assignment(node, scope):
     print("Assignment")
     target_type = resolve_expression(node.target.resolved, scope)
     value_type = resolve_expression(node.value.resolved, scope)
-    # scope.unify(target_type, value_type)
+    scope.unify(target_type, value_type)
     # # target to krotka — element pojedynczy lub łańcuch getterów
     # if isinstance(node.target, tuple):
     #     for t in node.target:
