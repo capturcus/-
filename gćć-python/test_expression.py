@@ -259,6 +259,107 @@ def test_function_call_with_paren_arith_arg(parse):
     assert isinstance(expr.params[0].value, ast.BinOp)
 
 
+# ---------- Dopasowanie argumentów do slotów (przypadek + przyimek) ----------
+#
+# `testować_funkcję` ma 3 parametry o ROZRÓŻNIALNYCH przypadkach:
+#   1. `pierwszemu_argumentowi`  — celownik (dat), bez przyimka
+#   2. `drugiego_argumentu`      — dopełniacz (gen), bez przyimka
+#   3. `z trzecim_argumentem`    — przyimek `z` + narzędnik (inst)
+# Dzięki temu argumenty można podać w dowolnej kolejności — fleksja je
+# dezambiguuje. `stworzyć_wartość` / `też_stworzyć_wartość` to funkcje
+# bezargumentowe używane jako argumenty zagnieżdżone (nie mają przypadku).
+
+_ARGMATCH_DECLS = (
+    "aby testować_funkcję pierwszemu_argumentowi drugiego_argumentu"
+    " z trzecim_argumentem:\n    zwróć\n"
+    "aby stworzyć_wartość:\n    zwróć jeden\n"
+    "aby też_stworzyć_wartość:\n    zwróć dwa\n"
+)
+
+
+def _argmatch_call(parse, call_line):
+    """Parsuje deklaracje + jedno wywołanie `testuj_funkcję ...` w ciele
+    `działać`; zwraca rozwiązany FunctionCall (3 sloty w kolejności sygnatury)."""
+    src = _ARGMATCH_DECLS + "aby działać:\n    " + call_line + "\n"
+    fc = parse(src).body[-1].body[0].resolved
+    assert isinstance(fc, ast.FunctionCall)
+    assert ("testować", "funkcja") in fc.name.lemmas_set
+    assert len(fc.params) == 3
+    return fc
+
+
+def _is_ident(word, lemma):
+    return isinstance(word.value, ast.Identifier) and lemma in word.value.lemmas_set
+
+
+def _is_call(word, lemma):
+    return (isinstance(word.value, ast.FunctionCall)
+            and lemma in word.value.name.lemmas_set)
+
+
+def test_args_in_signature_order(parse):
+    """Argumenty w kolejności sygnatury: celownik / dopełniacz / `z` + narzędnik
+    → `testuj_funkcję(domek, samochód, pies)`."""
+    fc = _argmatch_call(parse, "testuj_funkcję domkowi samochodu z psem")
+    assert _is_ident(fc.params[0], ("domek",))
+    assert _is_ident(fc.params[1], ("samochód",))
+    assert _is_ident(fc.params[2], ("pies",))
+    assert fc.params[2].prep == ("z",)
+
+
+def test_args_reordered_by_case_and_prep(parse):
+    """Argumenty w INNEJ kolejności niż sygnatura — rozróżnione po przypadku
+    i przyimku. `domku` (dopełniacz) → slot 2, `z psem` → slot 3,
+    `samochodowi` (celownik) → slot 1 ⇒ `testuj_funkcję(samochód, domek, pies)`."""
+    fc = _argmatch_call(parse, "testuj_funkcję domku z psem samochodowi")
+    assert _is_ident(fc.params[0], ("samochód",))
+    assert _is_ident(fc.params[1], ("domek",))
+    assert _is_ident(fc.params[2], ("pies",))
+    assert fc.params[2].prep == ("z",)
+
+
+def test_nested_fcall_fills_remaining_slot_positionally(parse):
+    """Wywołanie zagnieżdżone (`stwórz_wartość`) nie ma przypadku z fleksji.
+    `samochodowi`→slot 1 (cel.), `z psem`→slot 3, więc `stwórz_wartość`
+    trafia do jedynego wolnego slotu 2 ⇒
+    `testuj_funkcję(samochód, stwórz_wartość(), pies)`."""
+    fc = _argmatch_call(parse, "testuj_funkcję stwórz_wartość z psem samochodowi")
+    assert _is_ident(fc.params[0], ("samochód",))
+    assert _is_call(fc.params[1], ("stworzyć", "wartość"))
+    assert _is_ident(fc.params[2], ("pies",))
+
+
+def test_nested_fcall_with_prep_picks_slot_by_prep(parse):
+    """Zagnieżdżone wywołanie poprzedzone przyimkiem dezambiguuje się PO
+    PRZYIMKU mimo braku przypadku: `z stwórz_wartość`→slot 3 (`z`),
+    `domku`→slot 2, `samochodowi`→slot 1 ⇒
+    `testuj_funkcję(samochód, domek, stwórz_wartość())`."""
+    fc = _argmatch_call(parse, "testuj_funkcję z stwórz_wartość domku samochodowi")
+    assert _is_ident(fc.params[0], ("samochód",))
+    assert _is_ident(fc.params[1], ("domek",))
+    assert _is_call(fc.params[2], ("stworzyć", "wartość"))
+    assert fc.params[2].prep == ("z",)
+
+
+def test_indistinguishable_args_fall_back_to_positional(parse):
+    """Poza jednoznacznie dopasowanym po przyimku (`z psem`→slot 3), dwa
+    nierozróżnialne wywołania zagnieżdżone wpadają POZYCYJNIE w kolejności
+    zapisu do wolnych slotów 1 i 2 ⇒
+    `testuj_funkcję(stwórz_wartość(), też_stwórz_wartość(), pies)`."""
+    fc = _argmatch_call(parse, "testuj_funkcję z psem stwórz_wartość też_stwórz_wartość")
+    assert _is_call(fc.params[0], ("stworzyć", "wartość"))
+    assert _is_call(fc.params[1], ("tenże", "stworzyć", "wartość"))
+    assert _is_ident(fc.params[2], ("pies",))
+    assert fc.params[2].prep == ("z",)
+
+
+def test_missing_argument_fails(parse):
+    """Wszystkie argumenty muszą być obecne — brak choćby jednego (tu 2 z 3)
+    przerywa wywołanie błędem, niezależnie od dezambiguacji."""
+    with pytest.raises(ast.ResolveError, match="3 argument"):
+        _argmatch_call(parse, "testuj_funkcję domkowi z psem")
+
+
 # ---------- Getter chain ----------
 
 def test_simple_chain(parse):
