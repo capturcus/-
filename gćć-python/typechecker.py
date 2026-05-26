@@ -39,10 +39,35 @@ class Scope:
                 new_types.append((v, t))
         self.types = new_types
 
+
+    def unify_other(self, other, my_t, other_t):
+        concrete = other_t if type_regex.match(my_t) else my_t
+        new_types = []
+        for i in self.types:
+            v = i[0]
+            t = i[1]
+            if t == my_t:
+                new_types.append((v, concrete))
+            else:
+                new_types.append((v, t))
+        self.types = new_types
+        new_types = []
+        for i in other.types:
+            v = i[0]
+            t = i[1]
+            if t == other_t:
+                new_types.append((v, concrete))
+            else:
+                new_types.append((v, t))
+        other.types = new_types
+
 fun_scopes = []
+module = None
 
 def resolve_module(node):
     print("Module")
+    global module
+    module = node
     global fun_scopes
     for decl in node.body:
         if isinstance(decl, ast.FunctionDef):
@@ -81,6 +106,10 @@ def resolve_statement(node, scope):
 
 
 def resolve_expression(node, scope):
+    if isinstance(node, ast.Phrase):
+        node = node.resolved
+    if isinstance(node, ast.Word):
+        node = node.value
     if isinstance(node, ast.BinOp):
         return resolve_bin_op(node, scope)
     if isinstance(node, ast.UnaryOp):
@@ -181,11 +210,36 @@ def resolve_or(node, scope):
     resolve_expression(node.left, scope)
     resolve_expression(node.right, scope)
 
+def fun_scope_for_lemmas_set(lemmas_set):
+    global fun_scopes
+    for f in fun_scopes:
+        name = f[0]
+        fun_scope = f[1]
+        print(name)
+        for l in lemmas_set:
+            if l in name:
+                return fun_scope
+    raise "scope not found"
+
+def fun_decl_for_lemmas_set(lemmas_set):
+    global module
+    for node in module.body:
+        if isinstance(node, ast.FunctionDef):
+            fun_name = node.name.lemmas_set
+            if fun_name == lemmas_set:
+                return node
+    raise "decl not found"
+
 
 def resolve_function_call(node, scope):
     print("FunctionCall")
+    fun_scope = fun_scope_for_lemmas_set(node.name.lemmas_set)
+    fun_decl = fun_decl_for_lemmas_set(node.name.lemmas_set)
+    i = 0
     for p in node.params:
-        resolve_expression(p, scope)
+        t = resolve_expression(p, scope)
+        scope.unify_other(fun_scope, t, fun_scope.get_type(fun_decl.params[i].name))
+        i += 1
 
 
 def resolve_getter_chain(node, scope):
