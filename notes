@@ -5,8 +5,9 @@ hindley milner
     v literały
     v zmienne
     v argumenty function calli
+    v explicite podane typy w ciele funkcji
+    v explicite podane typy w parametrach funkcji
     wartość zwracana function calli
-    explicite podane typy
     customowe typy
     typy parametryzowane (Lista, Mapa)
 

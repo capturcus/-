@@ -27,6 +27,8 @@ class Scope:
 
 
     def unify(self, t0, t1):
+        if t0 == t1:
+            return
         global type_regex
         if not type_regex.match(t0) and not type_regex.match(t1):
             print(f"cannot unify {t0} with {t1}")
@@ -45,9 +47,11 @@ class Scope:
 
 
     def unify_other(self, other, my_t, other_t):
+        if my_t == other_t:
+            return
         global type_regex
         if not type_regex.match(my_t) and not type_regex.match(other_t):
-            print(f"cannot unify {my_t} with {other_t}")
+            print(f"cannot unify_other {my_t} with {other_t}")
             raise
         concrete = other_t if type_regex.match(my_t) else my_t
         new_types = []
@@ -83,7 +87,7 @@ def resolve_module(node):
             fun_name = decl.name.lemmas_set
             scope = Scope()
             for p in decl.params:
-                scope.types.append((p.name, new_type()))
+                scope.types.append((p.name, new_type() if p.type is None else "".join(p.type)))
             fun_scopes.append((fun_name, scope))
     i = 0
     for decl in node.body:

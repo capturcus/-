@@ -7,7 +7,7 @@ definicja UżytkownikaSerwisu:
     flaga_blokady (Przełącznik)
     liczba_obserwujących (Liczba)
 
-aby robić_części dla argumentu z innym_argumentem:
+aby robić_części dla argumentu (Liczba) z innym_argumentem:
     zwróć
 
 aby działać:
