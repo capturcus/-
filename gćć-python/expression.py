@@ -888,10 +888,11 @@ class ExpressionParser:
 
 # ---------- module-level resolver ----------
 
+builtin_types = [("Tekst",), ("Liczba",), ("Przełącznik",), ("Znak",), ("Nic",)]
 
 def _build_ctx(module):
     function_defs = {}
-    types = set()
+    types = set(builtin_types)
     fields_by_type = {}
     field_lemmas = set()
     for node in module.body:

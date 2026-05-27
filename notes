@@ -2,6 +2,13 @@ do zrobienia:
 
 semantyka:
 hindley milner
+    v literały
+    v zmienne
+    v argumenty function calli
+    wartość zwracana function calli
+    explicite podane typy
+    customowe typy
+    typy parametryzowane (Lista, Mapa)
 
 uruchamianie:
 gramatyczne resolvowanie argumentów funkcji

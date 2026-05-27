@@ -1,7 +1,17 @@
+
+definicja UżytkownikaSerwisu:
+    identyfikator (Tekst)
+    nazwa (Tekst)
+    email (Tekst)
+    hasło (Tekst)
+    flaga_blokady (Przełącznik)
+    liczba_obserwujących (Liczba)
+
 aby robić_części dla argumentu z innym_argumentem:
     zwróć
 
 aby działać:
-    rzecz to jeden
+    rzecz (Tekst) to jeden
+    użytkownik (UżytkownikSerwisu) to pięć
     inna_rzecz to dwa
     rób_części dla rzeczy z inną_rzeczą

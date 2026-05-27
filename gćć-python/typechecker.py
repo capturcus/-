@@ -28,6 +28,9 @@ class Scope:
 
     def unify(self, t0, t1):
         global type_regex
+        if not type_regex.match(t0) and not type_regex.match(t1):
+            print(f"cannot unify {t0} with {t1}")
+            raise
         concrete = t1 if type_regex.match(t0) else t0
         new_types = []
         for k in self.types:
@@ -41,6 +44,10 @@ class Scope:
 
 
     def unify_other(self, other, my_t, other_t):
+        global type_regex
+        if not type_regex.match(my_t) and not type_regex.match(other_t):
+            print(f"cannot unify {my_t} with {other_t}")
+            raise
         concrete = other_t if type_regex.match(my_t) else my_t
         new_types = []
         for i in self.types:
@@ -110,6 +117,11 @@ def resolve_expression(node, scope):
         node = node.resolved
     if isinstance(node, ast.Word):
         node = node.value
+    if isinstance(node, ast.Typed):
+        expr_t = resolve_expression(node.expr, scope)
+        explicit_t = "".join(node.type)
+        print("typpppp", explicit_t)
+        return expr_t
     if isinstance(node, ast.BinOp):
         return resolve_bin_op(node, scope)
     if isinstance(node, ast.UnaryOp):
