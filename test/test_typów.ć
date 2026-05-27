@@ -11,7 +11,6 @@ aby robić_części dla argumentu z innym_argumentem:
     zwróć
 
 aby działać:
-    rzecz (Tekst) to jeden
-    użytkownik (UżytkownikSerwisu) to pięć
+    rzecz to jeden
     czerwona_inna_rzecz_z_warszawy to dwa
     rób_części dla rzeczy z czerwoną_inną_rzeczą_z_warszawy

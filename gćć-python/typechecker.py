@@ -41,6 +41,7 @@ class Scope:
             else:
                 new_types.append((v, t))
         self.types = new_types
+        return concrete
 
 
     def unify_other(self, other, my_t, other_t):
@@ -67,6 +68,7 @@ class Scope:
             else:
                 new_types.append((v, t))
         other.types = new_types
+        return concrete
 
 fun_scopes = []
 module = None
@@ -120,8 +122,7 @@ def resolve_expression(node, scope):
     if isinstance(node, ast.Typed):
         expr_t = resolve_expression(node.expr, scope)
         explicit_t = "".join(node.type)
-        print("typpppp", explicit_t)
-        return expr_t
+        return scope.unify(expr_t, explicit_t)
     if isinstance(node, ast.BinOp):
         return resolve_bin_op(node, scope)
     if isinstance(node, ast.UnaryOp):
