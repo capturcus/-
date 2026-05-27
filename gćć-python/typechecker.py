@@ -88,6 +88,16 @@ def resolve_module(node):
             scope = Scope()
             for p in decl.params:
                 scope.types.append((p.name, new_type() if p.type is None else "".join(p.type)))
+            scope.types.append((
+                ast.Identifier(
+                    surface=("__return_type",),
+                    variants=(ast.Variant(
+                        lemmas=("__return_type",), case=frozenset(),
+                        number=None, gender=None, rest_length=0,
+                    ),),
+                ),
+                new_type() if decl.return_type is None else "".join(decl.return_type)
+            ))
             fun_scopes.append((fun_name, scope))
     i = 0
     for decl in node.body:
