@@ -150,63 +150,29 @@ def _cap_lemma(lemma, surface_seg):
     return lemma
 
 
-_CASE_NAMES_LOC = {
-    "nom": "mianowniku",
-    "gen": "dopełniaczu",
-}
+def canonical(token):
+    """Kanonikalizacja tokenu do tuple lemm per segment (tryb lenient).
 
-
-def canonical(token, *, required_case=None):
-    """Kanonikalizacja tokenu do tuple lemm per segment.
-
-    Tryb lenient (`required_case=None`, default): per-segment preferuj
-    analizy adj-like, matchuj citation form (`a.lemma == seg.lower()`),
-    inaczej fallback do `pool[0]`. Używane dla keywordów (`canonical(t) ==
-    ("aby",)`) i prepów — surface zwykle citation, fallback rzadko odpala.
-
-    Tryb strict (`required_case="nom"` lub `"gen"`): per-segment filtruj
-    analizy po `required_case in case`. Każdy segment z analizami musi mieć
-    ≥1 takich analiz i wszystkie muszą mieć tę samą lemmę — inaczej
-    `InterpreterError`. Używane dla nazw typów (`nom`) i nazwy struktury
-    po `definicja` (`gen`).
+    Per-segment preferuj analizy adj-like, matchuj citation form
+    (`a.lemma == seg.lower()`), inaczej fallback do `pool[0]`. Używane dla
+    keywordów (`canonical(t) == ("aby",)`) i prepów — surface zwykle
+    citation, fallback rzadko odpala.
 
     Segmenty bez analiz (non-Polish, single-letter) → użyj surface.
-    Kapitalizacja: `_cap_lemma` aplikowane per-segment na finalny lemmat —
-    typy pisane capitalized (`(Tekst)` → `("Tekst",)`) odróżniają się od
-    zmiennych (`tekst`) w przestrzeni lemm."""
-    from ast_nodes import InterpreterError
+    Kapitalizacja: `_cap_lemma` per-segment na finalny lemmat.
+
+    Walidacja nazw typów (głowa-rzeczownik w wymaganym przypadku, reszta
+    passthrough, min-rest tie-break) jest w `identifier.canonical_type` —
+    używa tej samej logiki co identyfikatory zmiennych/pól."""
     _, value, analyses = token[0], token[1], token[2]
-    line = getattr(token, "line", None)
     out = []
     for seg, anas in zip(value, analyses):
         if not anas or len(seg) == 1:
             out.append(seg)  # zachowaj oryginalny case (np. single-letter "X")
             continue
-        if required_case is None:
-            # Lenient: adj-priority + citation match + pool[0] fallback.
-            # seg.lower() chroni przed pułapką homograficzną dla capital
-            # surface (`Pora` → "pora", nie pool[0]="por").
-            pool = [a for a in anas if a.pos in _ADJ_LIKE_POS] or anas
-            chosen = next((a for a in pool if a.lemma == seg.lower()), pool[0])
-            out.append(_cap_lemma(chosen.lemma, seg))
-            continue
-        # Strict: case-filter + uniqueness.
-        case_anas = [a for a in anas if a.case and required_case in a.case]
-        case_name = _CASE_NAMES_LOC.get(required_case, required_case)
-        if not case_anas:
-            raise InterpreterError(
-                f"nazwa typu '{'_'.join(value)}' musi być w {case_name}; "
-                f"segment '{seg}' nie ma formy {case_name}",
-                line=line,
-            )
-        lemmas = {a.lemma for a in case_anas}
-        if len(lemmas) > 1:
-            opts = ", ".join(sorted(lemmas))
-            raise InterpreterError(
-                f"nazwa typu '{'_'.join(value)}' jest niejednoznaczna w "
-                f"{case_name} — pasuje do wielu lemm: {opts}. "
-                f"Użyj jednoznacznej formy.",
-                line=line,
-            )
-        out.append(_cap_lemma(next(iter(lemmas)), seg))
+        # adj-priority + citation match + pool[0] fallback. seg.lower() chroni
+        # przed pułapką homograficzną dla capital surface (`Pora` → "pora").
+        pool = [a for a in anas if a.pos in _ADJ_LIKE_POS] or anas
+        chosen = next((a for a in pool if a.lemma == seg.lower()), pool[0])
+        out.append(_cap_lemma(chosen.lemma, seg))
     return tuple(out)

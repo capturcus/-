@@ -16,7 +16,9 @@ bez analiz). Multi-seg z brakiem valid prefiksu jest błędem syntaktycznym.
 
 import lexer
 from morph_anal import canonical, VERB_POS
-from ast_nodes import Identifier, IdentifierError, Variant
+from ast_nodes import (
+    Identifier, IdentifierError, Variant, InterpreterError, ResolveError,
+)
 
 
 _NOUN_LIKE = {"subst", "adj", "pact", "ppas"}
@@ -219,4 +221,145 @@ def _ident_err(surface, reason):
         f"Niepoprawny identyfikator '{'_'.join(surface)}': {reason}. "
         f"Oczekiwana forma: [przymiotnik...] [rzeczownik] [reszta], "
         f"gdzie przymiotniki i rzeczownik zgadzają się w przypadku."
+    )
+
+
+# ---------- rozstrzyganie kanonicznego wariantu (wspólne dla zmiennych / pól / typów) ----------
+
+_CASE_NAMES_LOC = {
+    "nom": "mianowniku",
+    "gen": "dopełniaczu",
+}
+
+
+def _prefer_subst(variants):
+    """Jeśli istnieje wariant z subst-głową, odrzuć pure-adj variants.
+
+    Pure-adj readings (np. `częsty` dla surface `części`) to typowo
+    fałszywi przyjaciele — w Polskim nazwy zmiennych/pól/typów to rzeczowniki,
+    nie przymiotniki. Pure-adj pozostają wybierane TYLKO gdy nie ma żadnego
+    subst-readingu (np. `obserwującego` jest tylko ppas, brak subst)."""
+    subst_variants = [v for v in variants if v.had_subst]
+    return subst_variants if subst_variants else variants
+
+
+def _prefer_mainstream(variants):
+    """Preferuj warianty mainstream (specialized=False) nad qualified.
+
+    SGJP oznacza specjalistyczne/regionalne/przestarzałe znaczenia
+    qualifierami (np. `wiersza` "ryb."). Fallback do specialized tylko gdy
+    nie ma żadnego mainstream-readingu."""
+    mainstream = [v for v in variants if not v.specialized]
+    return mainstream if mainstream else variants
+
+
+def _canonical_priority(key):
+    """Priorytet wyboru kanonicznego klucza spośród same-lemma wariantów:
+    sg m > sg f > sg n > pl m > pl f > pl n (sg m to typowa lemma-citation)."""
+    lemmas, number, gender = key
+    return (
+        number != "sg",
+        gender != "m",
+        gender != "f",
+        gender != "n",
+        number or "",
+        gender or "",
+        lemmas,
+    )
+
+
+def _collapse_same_lemma(keys):
+    """Jeśli wszystkie klucze (lemmas, num, gender) mają tę samą lemmę,
+    zwróć jeden kanoniczny (preferuje sg m). Inaczej zwróć oryginalne keys.
+
+    Pure-adj surface jak `zebrane` produkuje wiele nom wariantów
+    `(zebrany, *, *)` (po splitcie gender-frozensetu) — to ta sama "rzecz"
+    (nominalizacja). Subst-only ambiguity (`kotki`: kotek vs kotka) NIE jest
+    collapsed — różne lematy oznaczają różne rzeczy."""
+    if len(keys) <= 1:
+        return keys
+    lemmas = {k[0] for k in keys}
+    if len(lemmas) == 1:
+        return {min(keys, key=_canonical_priority)}
+    return keys
+
+
+def _format_scope_key(key):
+    """Czytelny opis klucza (lemmas, number, gender) do komunikatów błędów."""
+    lemmas, number, gender = key
+    name = "_".join(lemmas)
+    parts = [p for p in (number, gender) if p is not None]
+    return f"{name} ({', '.join(parts)})" if parts else name
+
+
+def canonical_identity(ident, *, required_case, label,
+                       error_cls=ResolveError, missing_hint=""):
+    """Jeden kanoniczny klucz (lemmas, number, gender) z wariantów identyfikatora.
+
+    Wspólny pipeline dla zmiennych, pól i typów: głowa-rzeczownik (rdzeń
+    `[przymiotnik*] rzeczownik`) musi być w `required_case`, reszta jest
+    passthrough w dowolnym przypadku; przy niejednoznaczności wygrywa rozkład
+    z najkrótszą resztą (`rest_length`).
+
+      1. warianty z `required_case in v.case`; pusto → error (brak formy),
+      2. _prefer_subst, 3. _prefer_mainstream,
+      4. min(rest_length), zostaw remisy,
+      5. _collapse_same_lemma nad {(lemmas, number, gender)},
+      6. >1 → error (niejednoznaczne); inaczej jedyny klucz.
+
+    `label` + `required_case` parametryzują polski komunikat; `error_cls`
+    pozwala typom rzucać InterpreterError (faza parse), a zmiennym/polom
+    ResolveError (faza resolve). `missing_hint` to opcjonalny suffix komunikatu
+    o braku przypadku. Zakłada niepustą `ident.variants` (caller obsługuje atom)."""
+    case_name = _CASE_NAMES_LOC.get(required_case, required_case)
+    surface = "_".join(ident.surface)
+    matching = [v for v in ident.variants if required_case in v.case]
+    if not matching:
+        raise error_cls(
+            f"{label} '{surface}' musi być w {case_name}{missing_hint}",
+            line=ident.line,
+        )
+    matching = _prefer_subst(matching)
+    matching = _prefer_mainstream(matching)
+    min_rest = min(v.rest_length for v in matching)
+    keys = _collapse_same_lemma({
+        (v.lemmas, v.number, v.gender)
+        for v in matching if v.rest_length == min_rest
+    })
+    if len(keys) > 1:
+        opts = ", ".join(sorted(_format_scope_key(k) for k in keys))
+        raise error_cls(
+            f"{label} '{surface}' jest niejednoznaczna w {case_name} — "
+            f"pasuje do wielu opcji: {opts}",
+            line=ident.line,
+        )
+    return next(iter(keys))
+
+
+def canonical_type(token, *, required_case, label="nazwa typu"):
+    """Tożsamość typu (krotka lemm) z tokenu — ta sama logika co dla zmiennych.
+
+    Buduje warianty (`make_identifier`), rozstrzyga `canonical_identity`
+    (głowa-rzeczownik w `required_case`, reszta passthrough, min-rest tie-break)
+    i rzutuje klucz do samej krotki lemm — liczba/rodzaj nie różnicują typów,
+    a deklaracja (gen) i referencja (nom) tego samego typu dają tę samą lemmę.
+
+    Brak wariantów: czysty atom bez analiz (obcy/single-letter token) →
+    zachowaj surface; inaczej (czasownik / kształt funkcji, np. `JedzieSamochodem`)
+    → błąd, bo nazwa typu musi mieć głowę nominalną."""
+    ident = make_identifier(token)
+    if ident.variants:
+        key = canonical_identity(
+            ident, required_case=required_case, label=label,
+            error_cls=InterpreterError,
+        )
+        return key[0]
+    if all(not a for a in ident.analyses):
+        return tuple(ident.surface)  # obcy/single-letter atom — zachowaj surface
+    case_name = _CASE_NAMES_LOC.get(required_case, required_case)
+    raise InterpreterError(
+        f"{label} '{'_'.join(ident.surface)}' musi zaczynać się rzeczownikiem "
+        f"lub przymiotnikiem (w {case_name}); '{ident.surface[0]}' wygląda jak "
+        f"identyfikator funkcji",
+        line=ident.line,
     )

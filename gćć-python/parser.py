@@ -48,7 +48,7 @@ from ast_nodes import (
     StructDef, Field, Phrase, Assignment, If, While, For, Break, Continue,
     Return, InterpreterError,
 )
-from identifier import make_identifier, is_prep
+from identifier import make_identifier, is_prep, canonical_type
 
 
 _PHRASE_END_KINDS = frozenset({
@@ -262,7 +262,7 @@ class Parser:
         return_type = None
         if self.peek() and self.peek()[0] is lexer.Token.ARROW:
             self.advance()
-            return_type = canonical(self.expect(lexer.Token.WORD), required_case="nom")
+            return_type = canonical_type(self.expect(lexer.Token.WORD), required_case="nom")
         self.expect(lexer.Token.COLON)
         self._skip_newlines()
         self.expect(lexer.Token.INDENT)
@@ -289,7 +289,7 @@ class Parser:
         return_type = None
         if self.peek() and self.peek()[0] is lexer.Token.ARROW:
             self.advance()
-            return_type = canonical(self.expect(lexer.Token.WORD), required_case="nom")
+            return_type = canonical_type(self.expect(lexer.Token.WORD), required_case="nom")
         nxt = self.peek()
         if nxt is not None and nxt[0] not in (lexer.Token.NEWLINE, lexer.Token.DEDENT):
             raise InterpreterError(
@@ -315,14 +315,15 @@ class Parser:
             self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
         return StructDef(
-            name=canonical(name_tok, required_case="gen"), fields=fields,
+            name=canonical_type(name_tok, required_case="gen", label="nazwa struktury"),
+            fields=fields,
             line=getattr(definicja_tok, "line", None),
         )
 
     def parse_field(self):
         name_tok = self.expect(lexer.Token.WORD)
         self.expect(lexer.Token.LPAREN)
-        type_ = canonical(self.expect(lexer.Token.WORD), required_case="nom")
+        type_ = canonical_type(self.expect(lexer.Token.WORD), required_case="nom")
         self.expect(lexer.Token.RPAREN)
         return Field(
             name=make_identifier(name_tok), type=type_,
@@ -337,7 +338,7 @@ class Parser:
         type_ = None
         if self.peek() and self.peek()[0] is lexer.Token.LPAREN:
             self.advance()
-            type_ = canonical(self.expect(lexer.Token.WORD), required_case="nom")
+            type_ = canonical_type(self.expect(lexer.Token.WORD), required_case="nom")
             self.expect(lexer.Token.RPAREN)
         name = make_identifier(name_tok)
         return Param(prep=prep, name=name, case=name.case, type=type_)

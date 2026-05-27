@@ -45,7 +45,10 @@ from ast_nodes import (
     Typed, ResolveError, Word, LOGICAL_OPS,
     Assignment, If, While, For, Return, Phrase,
 )
-from identifier import make_identifier, is_prep
+from identifier import (
+    make_identifier, is_prep, canonical_type, canonical_identity,
+    _format_scope_key,
+)
 
 
 _ADJ_LIKE_POS = ("adj", "pact", "ppas")
@@ -182,73 +185,6 @@ def _starts_chain(head_ident, next_token, field_lemmas, preps):
     return _ident_is_field(head_ident, field_lemmas) and _is_gen_word(next_token, preps)
 
 
-def _format_scope_key(key):
-    """Czytelny opis klucza scope (lemmas, number, gender) do błędów."""
-    lemmas, number, gender = key
-    name = "_".join(lemmas)
-    parts = [p for p in (number, gender) if p is not None]
-    return f"{name} ({', '.join(parts)})" if parts else name
-
-
-def _prefer_subst(variants):
-    """Jeśli istnieje wariant z subst-głową, odrzuć pure-adj variants.
-
-    Pure-adj readings (np. `częsty` dla surface `części`) to typowo
-    fałszywi przyjaciele — w Polskim nazwy zmiennych/pól to rzeczowniki,
-    nie przymiotniki. Bez tej preferencji `części` jako LHS byłoby
-    niejednoznaczne `(częsty, pl, m)` vs `(część, pl, f)`. Pure-adj
-    pozostają wybierane TYLKO gdy nie ma żadnego subst-readingu (np.
-    `obserwującego` jest tylko ppas, brak subst)."""
-    subst_variants = [v for v in variants if v.had_subst]
-    return subst_variants if subst_variants else variants
-
-
-def _prefer_mainstream(variants):
-    """Preferuj warianty mainstream (specialized=False) nad qualified.
-
-    SGJP oznacza specjalistyczne/regionalne/przestarzałe znaczenia
-    qualifierami (np. `wiersza` "ryb." dla rybackiego określenia ryby).
-    Te warianty istnieją w wynikach (nie są filtrowane całkowicie — wciąż
-    są w `ident.variants` dla downstream resolution), ale przy walidacji
-    jednoznaczności LHS/pola wybieramy mainstream. Fallback do specialized
-    tylko gdy nie ma żadnego mainstream-readingu."""
-    mainstream = [v for v in variants if not v.specialized]
-    return mainstream if mainstream else variants
-
-
-def _canonical_priority(key):
-    """Priorytet dla wyboru kanonicznego klucza spośród same-lemma wariantów.
-    Najbardziej naturalna forma to sg m (l.poj. r. męski) — typowa lemma-citation.
-    Kolejno: sg m > sg f > sg n > pl m > pl f > pl n."""
-    lemmas, number, gender = key
-    return (
-        number != "sg",
-        gender != "m",
-        gender != "f",
-        gender != "n",
-        number or "",
-        gender or "",
-        lemmas,
-    )
-
-
-def _collapse_same_lemma(keys):
-    """Jeśli wszystkie klucze (lemmas, num, gender) mają tę samą lemmę,
-    zwróć jeden kanoniczny (preferuje sg m). Inaczej zwróć oryginalne keys.
-
-    Pure-adj surface jak `zebrane` produkuje wiele nom wariantów
-    `(zebrany, *, *)` (po splitcie gender-frozensetu) — to ta sama "rzecz"
-    w intencji użytkownika (nominalizacja). Subst-only ambiguity
-    (np. `kotki`: kotek vs kotka) NIE jest collapsed — różne lematy
-    oznaczają różne zmienne."""
-    if len(keys) <= 1:
-        return keys
-    lemmas = {k[0] for k in keys}
-    if len(lemmas) == 1:
-        return {min(keys, key=_canonical_priority)}
-    return keys
-
-
 def _field_canonical_lemma(field_name):
     """Kanoniczny klucz pola (lemmas, number, gender).
 
@@ -272,28 +208,10 @@ def _field_canonical_lemma(field_name):
                 line=field_name.line,
             )
         return (next(iter(ls)), None, None)
-    nom_variants = [v for v in field_name.variants if "nom" in v.case]
-    if not nom_variants:
-        raise ResolveError(
-            f"pole struct-a '{'_'.join(field_name.surface)}' nie ma formy "
-            f"mianownika; pola deklaruj w nom",
-            line=field_name.line,
-        )
-    nom_variants = _prefer_subst(nom_variants)
-    nom_variants = _prefer_mainstream(nom_variants)
-    min_rest = min(v.rest_length for v in nom_variants)
-    candidates = _collapse_same_lemma({
-        (v.lemmas, v.number, v.gender)
-        for v in nom_variants if v.rest_length == min_rest
-    })
-    if len(candidates) > 1:
-        opts = ", ".join(sorted(_format_scope_key(k) for k in candidates))
-        raise ResolveError(
-            f"nazwa pola '{'_'.join(field_name.surface)}' jest niejednoznaczna "
-            f"w mianowniku — pasuje do wielu opcji: {opts}",
-            line=field_name.line,
-        )
-    return next(iter(candidates))
+    return canonical_identity(
+        field_name, required_case="nom", label="nazwa pola",
+        missing_hint="; pola deklaruj w mianowniku",
+    )
 
 
 def _collect_target_var(target_phrase, scope, field_lemmas, preps):
@@ -310,32 +228,14 @@ def _collect_target_var(target_phrase, scope, field_lemmas, preps):
     if not head_ident.variants:
         scope.add(head_ident)
         return
-    nom_variants = [v for v in head_ident.variants if "nom" in v.case]
-    if not nom_variants:
-        raise ResolveError(
-            f"lewa strona przypisania '{'_'.join(head_ident.surface)}' nie "
-            f"ma formy mianownika; zmienne deklaruj w mianowniku",
-            line=head_ident.line,
-        )
-    nom_variants = _prefer_subst(nom_variants)
-    nom_variants = _prefer_mainstream(nom_variants)
-    # Min-rest preferencja: `[adj+][subst]` (rest=0) bije `[subst][rest...]`
-    # (rest≥1) — np. `nowa_analiza` parsuje się jako adj `nowy`+subst `analiza`,
-    # nie subst `nowa`+passthrough `analiza`.
-    min_rest = min(v.rest_length for v in nom_variants)
-    nom_variants = [v for v in nom_variants if v.rest_length == min_rest]
-    nom_keys = _collapse_same_lemma(
-        {(v.lemmas, v.number, v.gender) for v in nom_variants}
+    # Ten sam pipeline co dla pól i typów: głowa w mianowniku, reszta
+    # passthrough, min-rest tie-break (`nowa_analiza` → adj `nowy`+subst
+    # `analiza`, nie subst `nowa`+passthrough `analiza`).
+    key = canonical_identity(
+        head_ident, required_case="nom", label="lewa strona przypisania",
+        missing_hint="; zmienne deklaruj w mianowniku",
     )
-    if len(nom_keys) > 1:
-        opts = ", ".join(sorted(_format_scope_key(k) for k in nom_keys))
-        raise ResolveError(
-            f"lewa strona przypisania '{'_'.join(head_ident.surface)}' "
-            f"jest niejednoznaczna w mianowniku — pasuje do wielu opcji: "
-            f"{opts}. Użyj jednoznacznej formy.",
-            line=head_ident.line,
-        )
-    scope.add_key(next(iter(nom_keys)))
+    scope.add_key(key)
 
 
 def _collect_bindings_in_stmt(stmt, scope, field_lemmas, preps):
@@ -528,7 +428,7 @@ class ExpressionParser:
         if not first_seg or not first_seg[0].isupper():
             return node
         lparen_line = getattr(self.peek(), "line", None)
-        type_tuple = canonical(inner, required_case="nom")
+        type_tuple = canonical_type(inner, required_case="nom")
         if type_tuple not in self.ctx.types:
             known = ", ".join(sorted("_".join(t) for t in self.ctx.types)) or "(brak)"
             raise ResolveError(

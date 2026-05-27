@@ -721,7 +721,8 @@ def test_struct_decl_gen_rejects_nom(parse):
 
 def test_struct_decl_gen_ambiguous():
     """Syntetyczny: token z 2 gen-analizami i różnymi lematami → SyntaxError."""
-    from morph_anal import canonical, MorphAnalysis
+    from morph_anal import MorphAnalysis
+    from identifier import canonical_type
     token = (
         lexer.Token.WORD,
         ("xyz",),
@@ -731,7 +732,7 @@ def test_struct_decl_gen_ambiguous():
         ]],
     )
     with pytest.raises(SyntaxError, match="niejednoznaczna"):
-        canonical(token, required_case="gen")
+        canonical_type(token, required_case="gen")
 
 
 # ---------- Strict nom dla nazw typów ----------
@@ -753,7 +754,8 @@ def test_canonical_nom_disambiguates_listy_field_type(parse):
 
 def test_canonical_nom_ambiguous_synthetic():
     """Syntetyczny: token z 2 nom-analizami i różnymi lematami → SyntaxError."""
-    from morph_anal import canonical, MorphAnalysis
+    from morph_anal import MorphAnalysis
+    from identifier import canonical_type
     token = (
         lexer.Token.WORD,
         ("xyz",),
@@ -763,7 +765,7 @@ def test_canonical_nom_ambiguous_synthetic():
         ]],
     )
     with pytest.raises(SyntaxError, match="niejednoznaczna w mianowniku"):
-        canonical(token, required_case="nom")
+        canonical_type(token, required_case="nom")
 
 
 # ---------- Capitalization: rozróżnienie typu od zmiennej przez caps ----------
