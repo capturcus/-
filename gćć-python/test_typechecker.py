@@ -224,20 +224,126 @@ def test_scope_different_lemmas_get_distinct_types():
     assert t1 != t2
 
 
-def test_scope_overlapping_lemma_variants_match():
-    # identyfikator z wieloma wariantami matchuje istniejący po przecięciu lemm
+def test_scope_matches_on_shared_full_key():
+    # identyfikator z wieloma wariantami matchuje istniejący, gdy któryś
+    # wariant dzieli PEŁNY klucz scope (lemma, number, gender) — kanoniczna
+    # semantyka, ta sama co w expression._Scope.
     scope = typechecker.Scope()
-    t1 = scope.get_type(make_ident("rzecz"))
+    t1 = scope.get_type(make_ident("rzecz"))  # (rzecz, sg, m)
     multi = ast.Identifier(
         surface=("rzecz",),
         variants=(
             ast.Variant(lemmas=("rzecz",), case=frozenset({"nom"}),
-                        number="sg", gender="f", rest_length=0),
+                        number="sg", gender="m", rest_length=0),  # ten sam klucz
             ast.Variant(lemmas=("rzec",), case=frozenset({"nom"}),
-                        number="sg", gender="m", rest_length=0),
+                        number="sg", gender="f", rest_length=0),
         ),
     )
     assert scope.get_type(multi) == t1
+
+
+def test_scope_distinguishes_by_gender():
+    # rozjazd rodzaju przy tej samej lemmie → osobne zmienne (np. kotek m vs
+    # kotka f). Spójne z rozróżnieniem w expression._Scope.
+    scope = typechecker.Scope()
+    t_m = scope.get_type(make_ident("kotek", gender="m"))
+    t_f = scope.get_type(make_ident("kotek", gender="f"))
+    assert t_m != t_f
+
+
+# =====================================================================
+# scope_key_matches — kanoniczny predykat (ast_nodes), reużywany przez
+# resolver i typechecker (single source of truth)
+# =====================================================================
+
+def test_scope_key_matches_identical():
+    k = (("rzecz",), "sg", "f")
+    assert ast.scope_key_matches(k, k)
+
+
+def test_scope_key_matches_atom_against_full_either_direction():
+    atom = (("x",), None, None)
+    full = (("x",), "sg", "m")
+    assert ast.scope_key_matches(atom, full)
+    assert ast.scope_key_matches(full, atom)
+
+
+def test_scope_key_matches_rejects_gender_mismatch():
+    assert not ast.scope_key_matches((("kotek",), "sg", "m"),
+                                     (("kotek",), "sg", "f"))
+
+
+def test_scope_key_matches_rejects_lemma_mismatch():
+    assert not ast.scope_key_matches((("rzecz",), None, None),
+                                     (("wynik",), None, None))
+
+
+# =====================================================================
+# atomy (single-letter) w scope — jądro buga A
+# =====================================================================
+
+def atom_ident(letter):
+    """Atom: single-letter, brak analiz → variants=(), scope_keys via fallback."""
+    return ast.Identifier(surface=(letter,), analyses=((),))
+
+
+def test_scope_atom_get_type_is_stable():
+    # przed fixem: atomy nigdy się nie matchowały (variants=() → pusty zbiór),
+    # więc każde get_type zwracało NOWĄ zmienną. Teraz scope_keys daje
+    # (letter, None, None) i atomy się sklejają.
+    scope = typechecker.Scope()
+    t1 = scope.get_type(atom_ident("x"))
+    t2 = scope.get_type(atom_ident("x"))
+    assert t1 == t2
+
+
+def test_scope_declare_binds_atom():
+    scope = typechecker.Scope()
+    scope.declare(atom_ident("x"), "Liczba")
+    assert typechecker.find_type(scope.get_type(atom_ident("x"))) == "Liczba"
+
+
+def test_scope_declare_is_idempotent():
+    scope = typechecker.Scope()
+    scope.declare(atom_ident("x"), "Liczba")
+    scope.declare(atom_ident("x"), "Tekst")  # już zadeklarowane → ignorowane
+    assert typechecker.find_type(scope.get_type(atom_ident("x"))) == "Liczba"
+
+
+# =====================================================================
+# resolve_function_def — seed parametrów do scope
+# =====================================================================
+
+def test_resolve_function_def_binds_param_type():
+    # param 'x' (atom, nietypowany w AST) związany z arg_types[0]=Liczba;
+    # użycie x w ciele (przypisanie do wynik) musi dać wynik:Liczba.
+    scope = typechecker.Scope()
+    scope.root_fdt = typechecker.FunDefTypes(
+        name=make_fid("przetwarzać"), arg_types=["Liczba"], ret_type=typechecker.new_type()
+    )
+    x = atom_ident("x")
+    param = ast.Param(prep=None, name=x, case=frozenset({"nom"}), type=None)
+    body = [ast.Assignment(target=phrase(make_ident("wynik")), value=phrase(x))]
+    node = ast.FunctionDef(name=make_fid("przetwarzać"), params=[param], body=body)
+    typechecker.resolve_function_def(node, scope)
+    assert typechecker.find_type(scope.get_type(x)) == "Liczba"
+    assert typechecker.find_type(scope.get_type(make_ident("wynik"))) == "Liczba"
+
+
+def test_resolve_function_def_param_usage_constrains_signature():
+    # param nietypowany; użycie w ciele (przypisanie liczby) wpływa NA
+    # sygnaturę, bo param i arg_types[0] to ta sama zmienna.
+    scope = typechecker.Scope()
+    arg = typechecker.new_type()
+    scope.root_fdt = typechecker.FunDefTypes(
+        name=make_fid("przetwarzać"), arg_types=[arg], ret_type=typechecker.new_type()
+    )
+    x = atom_ident("x")
+    param = ast.Param(prep=None, name=x, case=frozenset({"nom"}), type=None)
+    body = [ast.Assignment(target=phrase(x), value=phrase(ast.IntLit(1)))]
+    node = ast.FunctionDef(name=make_fid("przetwarzać"), params=[param], body=body)
+    typechecker.resolve_function_def(node, scope)
+    assert typechecker.find_type(arg) == "Liczba"  # sygnatura nauczyła się z ciała
 
 
 # =====================================================================
@@ -506,3 +612,62 @@ def test_module_struct_creation_infers_struct_type(parse, capsys):
     typechecker.resolve_module(module)
     out = capsys.readouterr().out
     assert "UżytkownikSerwis" in out
+
+
+def _fdt_by_surface(surface):
+    """Znajduje FunDefTypes po powierzchni nazwy w globalnym fun_decls."""
+    for (name, fdt) in typechecker.fun_decls:
+        if name.surface == surface:
+            return fdt
+    return None
+
+
+@pytest.mark.integration
+def test_explicit_param_type_reaches_body(parse):
+    """A1: jawny typ parametru (Liczba) dociera do ciała — `wynik = x` jest
+    Liczbą, więc zwracany typ funkcji to Liczba (przed fixem: wolna zmienna)."""
+    src = (
+        "aby przetwarzać dla x (Liczba):\n"
+        "    wynik to x\n"
+        "    zwróć wynik\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    fdt = _fdt_by_surface(("przetwarzać",))
+    assert typechecker.find_type(fdt.ret_type) == "Liczba"
+
+
+@pytest.mark.integration
+def test_param_usage_constrains_signature(parse):
+    """A2 (positive): użycie parametru w ciele (przekazanie do funkcji
+    wymagającej Liczby) wnioskuje typ argumentu W SYGNATURZE."""
+    src = (
+        "aby wymagać_liczby dla n (Liczba):\n"
+        "    zwróć n\n"
+        "\n"
+        "aby opakować dla x:\n"
+        "    zwróć wymagać_liczby dla x\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    fdt = _fdt_by_surface(("opakować",))
+    assert typechecker.find_type(fdt.arg_types[0]) == "Liczba"
+
+
+@pytest.mark.integration
+def test_bad_call_after_inferred_param_raises(parse):
+    """A2 (negative): skoro `opakować` ma teraz sygnaturę Liczba→…, wywołanie
+    go na tekście jest błędem typu (przed fixem: cicho akceptowane)."""
+    src = (
+        "aby wymagać_liczby dla n (Liczba):\n"
+        "    zwróć n\n"
+        "\n"
+        "aby opakować dla x:\n"
+        "    zwróć wymagać_liczby dla x\n"
+        "\n"
+        "aby działać:\n"
+        "    wynik to opakuj dla \"tekst\"\n"
+    )
+    module = parse(src)
+    with pytest.raises(RuntimeError):
+        typechecker.resolve_module(module)

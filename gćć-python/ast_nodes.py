@@ -105,6 +105,23 @@ class Identifier:
         return frozenset().union(*(v.case for v in self.variants))
 
 
+def scope_key_matches(a, b):
+    """Czy dwa scope-keys (lemmas, number, gender) wskazują tę samą zmienną.
+
+    Kanoniczny predykat dopasowania zmiennych — używany przez resolver
+    (`expression._Scope.has_var`) oraz typechecker (`typechecker.Scope`).
+    Atom-compat: klucz z (number=None, gender=None) matchuje po samej lemmie
+    (atomy / single-letter nie niosą liczby ani rodzaju)."""
+    if a == b:
+        return True
+    (la, na, ga), (lb, nb, gb) = a, b
+    if na is None and ga is None and la == lb:
+        return True
+    if nb is None and gb is None and la == lb:
+        return True
+    return False
+
+
 class InterpreterError(SyntaxError):
     """Bazowa klasa błędów interpretera. Niesie `line` (1-based numer linii
     w pliku źródłowym) oraz `extra_context` (opcjonalny block tekstu z

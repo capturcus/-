@@ -47,14 +47,22 @@ class Scope:
         self.types = []
         self.root_fdt = None
 
-    def get_type(self, identifier):
-        id_lemmas = set([variant.lemmas for variant in identifier.variants])
-        for i in self.types:
-            v = i[0]
-            t = i[1]
-            variable_lemmas = set([variant.lemmas for variant in v.variants])
-            if id_lemmas & variable_lemmas:
+    def _find(self, identifier):
+        keys = identifier.scope_keys
+        for (v, t) in self.types:
+            if any(ast.scope_key_matches(a, b) for a in keys for b in v.scope_keys):
                 return t
+        return None
+
+    def declare(self, identifier, t):
+        # wiąże identyfikator z istniejącą zmienną typową (np. typ parametru)
+        if self._find(identifier) is None:
+            self.types.append((identifier, t))
+
+    def get_type(self, identifier):
+        t = self._find(identifier)
+        if t is not None:
+            return t
         new_t = new_type()
         self.types.append((identifier, new_t))
         return new_t
@@ -122,6 +130,8 @@ def resolve_module(node):
 
 def resolve_function_def(node, scope):
     print("FunctionDef")
+    for i, p in enumerate(node.params):
+        scope.declare(p.name, scope.root_fdt.arg_types[i])
     for stmt in node.body:
         resolve_statement(stmt, scope)
 

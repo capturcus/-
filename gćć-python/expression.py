@@ -44,6 +44,7 @@ from ast_nodes import (
     FunctionCall, GetterChain, Subscript, StructCreation, StructArg, StructCtx,
     Typed, ResolveError, Word, LOGICAL_OPS,
     Assignment, If, While, For, Return, Phrase,
+    scope_key_matches,
 )
 from identifier import (
     make_identifier, is_prep, canonical_type, canonical_identity,
@@ -140,18 +141,8 @@ class _Scope:
         self.variables.add(key)
 
     def has_var(self, key):
-        if key in self.variables:
+        if any(scope_key_matches(key, k) for k in self.variables):
             return True
-        # Atom-compat: klucz z None matchuje dowolny scope-key o tej samej lemmie.
-        lemmas, number, gender = key
-        if number is None and gender is None:
-            for k in self.variables:
-                if k[0] == lemmas:
-                    return True
-        else:
-            # Symetrycznie: jeśli scope ma wpis atomowy (None, None), też matchuj.
-            if (lemmas, None, None) in self.variables:
-                return True
         return self.parent.has_var(key) if self.parent else False
 
 
