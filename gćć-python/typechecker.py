@@ -94,9 +94,13 @@ def instantiate(fdt):
         return subst[t]
     return [fresh(a) for a in fdt.arg_types], fresh(fdt.ret_type)
 
+module = None
+
 def resolve_module(node):
     print("Module")
     global fun_decls
+    global module
+    module = node
     # PASS 1 (raz): zadeklaruj schematy funkcji. module_funcs to lokalna lista
     # (decl, fdt) — używana w pass 2 zamiast kruchego indeksowania globalnego
     # fun_decls; fun_decls.append zostaje, bo find_fdt po nim chodzi.
@@ -152,18 +156,11 @@ def _scheme_signature(module_funcs):
 
 
 def _infer_to_fixpoint(module_funcs):
-    """Iteruje inferencję ciał aż konkretyzacje schematów się ustabilizują.
-    unify jest monotoniczne (free→konkret, nigdy odwrotnie), więc zbieżność
-    jest gwarantowana; cap to tylko backstop."""
     cap = 2 * len(module_funcs) + 5
     prev = None
     scopes = []
     for _ in range(cap):
-        # Przebiegi inferencji są wyciszone — inaczej ślady debug (FunctionDef,
-        # Assignment, …) powtarzałyby się N razy. Końcowy scope-dump robi
-        # resolve_module. Wyjątek (konflikt typów) propaguje normalnie.
-        with contextlib.redirect_stdout(io.StringIO()):
-            scopes = _infer_bodies(module_funcs)
+        scopes = _infer_bodies(module_funcs)
         sig = _scheme_signature(module_funcs)
         if sig == prev:
             return scopes
@@ -222,7 +219,7 @@ def resolve_expression(node, scope):
     if isinstance(node, ast.StructCreation):
         return resolve_struct_creation(node, scope)
     if isinstance(node, ast.StructArg):
-        return resolve_struct_arg(node, scope)
+        raise
     if isinstance(node, ast.Identifier):
         return resolve_identifier(node, scope)
     if isinstance(node, ast.IntLit):
@@ -334,17 +331,36 @@ def resolve_subscript(node, scope):
     resolve_expression(node.index, scope)
 
 
+def find_struct_def(type_name):
+    for decl in module.body:
+        if isinstance(decl, ast.StructDef) and decl.name == type_name:
+            return decl
+    raise
+
+
+def find_field(struct_def, field_key):
+    for f in struct_def.fields:
+        if any(ast.scope_key_matches(field_key, k) for k in f.name.scope_keys):
+            return f
+    raise
+
+
 def resolve_struct_creation(node, scope):
     print("StructCreation")
     for a in node.args:
-        resolve_expression(a, scope)
+        resolve_struct_arg(a, scope, node)
     return "".join(node.type_name)
 
 
-def resolve_struct_arg(node, scope):
+def resolve_struct_arg(node, scope, struct_creation):
     print("StructArg")
+    struct_def = find_struct_def(struct_creation.type_name)
+    field = find_field(struct_def, node.field_name)
+    field_t = "".join(field.type)
     if node.value is not None:
-        resolve_expression(node.value, scope)
+        unify_types(field_t, resolve_expression(node.value, scope))
+    else:
+        unify_types(field_t, scope.get_type(field.name))
 
 
 def resolve_identifier(node, scope):

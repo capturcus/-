@@ -44,10 +44,12 @@ def _reset_typechecker():
     typechecker.last_type = 0
     typechecker.all_types = {}
     typechecker.fun_decls = []
+    typechecker.module = None
     yield
     typechecker.last_type = 0
     typechecker.all_types = {}
     typechecker.fun_decls = []
+    typechecker.module = None
 
 
 # ---------- helpery do budowy AST ----------
@@ -756,3 +758,96 @@ def test_fixpoint_is_deterministic(parse):
                 typechecker.find_type(_fdt_by_surface(("generować",)).ret_type))
 
     assert run() == run() == ("Liczba", "Liczba")
+
+
+# =====================================================================
+# Typecheck struct creation — wyszukiwanie pól + unifikacja typu pola
+# =====================================================================
+
+def test_find_struct_def_by_name():
+    sd = ast.StructDef(
+        name=("Użytkownik",),
+        fields=[
+            ast.Field(name=make_ident("imię", gender="n"), type=("Tekst",)),
+            ast.Field(name=make_ident("wiek"), type=("Liczba",)),
+        ],
+    )
+    typechecker.module = ast.Module(body=[sd])
+    assert typechecker.find_struct_def(("Użytkownik",)) is sd
+    assert typechecker.find_struct_def(("Nieznany",)) is None
+
+
+def test_find_field_by_key_and_type():
+    sd = ast.StructDef(
+        name=("Użytkownik",),
+        fields=[
+            ast.Field(name=make_ident("imię", gender="n"), type=("Tekst",)),
+            ast.Field(name=make_ident("wiek"), type=("Liczba",)),
+        ],
+    )
+    imie = typechecker.find_field(sd, (("imię",), "sg", "n"))
+    assert imie is not None and "".join(imie.type) == "Tekst"
+    wiek = typechecker.find_field(sd, (("wiek",), "sg", "m"))
+    assert wiek is not None and "".join(wiek.type) == "Liczba"
+    assert typechecker.find_field(sd, (("brak",), "sg", "m")) is None
+
+
+_STRUCT_DEF = (
+    "definicja UżytkownikaSerwisu:\n"
+    "    imię (Tekst)\n"
+    "    identyfikator (Liczba)\n"
+    "\n"
+)
+
+
+@pytest.mark.integration
+def test_struct_explicit_values_typecheck(parse):
+    src = _STRUCT_DEF + (
+        "aby działać:\n"
+        "    u to nowy UżytkownikSerwisu o imieniu \"Marcin\" o identyfikatorze cztery\n"
+    )
+    typechecker.resolve_module(parse(src))  # bez błędu
+
+
+@pytest.mark.integration
+def test_struct_out_of_order_typechecks(parse):
+    # odwrócona kolejność pól: gdyby match był pozycyjny, imię dostałoby Liczbę
+    # → błąd. Brak błędu dowodzi dopasowania po nazwie i unifikacji per pole.
+    src = _STRUCT_DEF + (
+        "aby działać:\n"
+        "    u to nowy UżytkownikSerwisu o identyfikatorze cztery o imieniu \"Marcin\"\n"
+    )
+    typechecker.resolve_module(parse(src))  # bez błędu
+
+
+@pytest.mark.integration
+def test_struct_field_type_mismatch_raises(parse):
+    src = _STRUCT_DEF + (
+        "aby działać:\n"
+        "    u to nowy UżytkownikSerwisu o imieniu cztery\n"  # Liczba w pole Tekst
+    )
+    with pytest.raises(RuntimeError):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_struct_shorthand_typechecks(parse):
+    # odwzorowanie test_typów.ć: pole imię:Tekst wypełniane zmienną imię:Tekst
+    src = _STRUCT_DEF + (
+        "aby działać:\n"
+        "    imię to \"Marcin\"\n"
+        "    użytkownik to nowy UżytkownikSerwisu z imieniem\n"
+    )
+    typechecker.resolve_module(parse(src))  # bez błędu
+
+
+@pytest.mark.integration
+def test_struct_shorthand_type_mismatch_raises(parse):
+    # zmienna imię:Liczba vs pole imię:Tekst → konflikt
+    src = _STRUCT_DEF + (
+        "aby działać:\n"
+        "    imię to pięć\n"
+        "    użytkownik to nowy UżytkownikSerwisu z imieniem\n"
+    )
+    with pytest.raises(RuntimeError):
+        typechecker.resolve_module(parse(src))

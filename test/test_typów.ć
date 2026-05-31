@@ -10,4 +10,7 @@ aby działać:
     czerwona_inna_rzecz_z_warszawy to dwa
     wynik to rób_części dla rzeczy z czerwoną_inną_rzeczą_z_warszawy
     imię to "Marcin"
-    użytkownik to nowy UżytkownikSerwisu z imieniem
+    wynik_jeden to nowy UżytkownikSerwisu z imieniem z identyfikatorem
+    wynik_dwa to nowy UżytkownikSerwisu z identyfikatorem z imieniem
+    wynik_trzy to nowy UżytkownikSerwisu o imieniu "Marcin" o identyfikatorze cztery
+    wynik_cztery to nowy UżytkownikSerwisu o identyfikatorze cztery o imieniu "Marcin"
