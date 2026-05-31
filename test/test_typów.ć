@@ -1,7 +1,7 @@
 aby robić_części dla argumentu (Liczba) z innym_argumentem:
-    zwróć
+    zwróć pięć
 
 aby działać:
     rzecz to jeden
     czerwona_inna_rzecz_z_warszawy to dwa
-    rób_części dla rzeczy z czerwoną_inną_rzeczą_z_warszawy
+    wynik to rób_części dla rzeczy z czerwoną_inną_rzeczą_z_warszawy

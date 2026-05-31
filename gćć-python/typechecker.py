@@ -45,6 +45,7 @@ def unify_types(t0, t1):
 class Scope:
     def __init__(self):
         self.types = []
+        self.root_fdt = None
 
     def get_type(self, identifier):
         id_lemmas = set([variant.lemmas for variant in identifier.variants])
@@ -91,11 +92,14 @@ def resolve_module(node):
             if not decl.return_type is None:
                 unify_types(fdt.ret_type, "".join(decl.return_type))
             fun_decls.append((decl.name, fdt))
+    fun_i = 0
     for decl in node.body:
         if isinstance(decl, ast.FunctionDef):
             scope = Scope()
+            scope.root_fdt = fun_decls[fun_i][1]
             fun_scopes.append(scope)
             resolve_function_def(decl, scope)
+            fun_i += 1
     for scope in fun_scopes:
         print("===")
         for i in scope.types:
@@ -215,7 +219,10 @@ def resolve_for(node, scope):
 def resolve_return(node, scope):
     print("Return")
     if node.value is not None:
-        resolve_expression(node.value, scope)
+        t = resolve_expression(node.value, scope)
+        unify_types(scope.root_fdt.ret_type, t)
+    else:
+        unify_types(scope.root_fdt.ret_type, "Nic")
 
 
 def resolve_not(node, scope):
