@@ -12,6 +12,8 @@ hindley milner
         v zmienne pokazują na siebie nawzajem a nie są usuwane
         v rzecz -> t0 -> t5 -> t11 -> Liczba
     customowe typy
+        getter chainy
+        struct creation
     typy parametryzowane (Lista, Mapa)
 
 uruchamianie

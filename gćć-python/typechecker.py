@@ -272,6 +272,7 @@ def resolve_struct_creation(node, scope):
     print("StructCreation")
     for a in node.args:
         resolve_expression(a, scope)
+    return "".join(node.type_name)
 
 
 def resolve_struct_arg(node, scope):
