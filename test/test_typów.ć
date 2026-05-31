@@ -1,12 +1,3 @@
-
-definicja UżytkownikaSerwisu:
-    identyfikator (Tekst)
-    nazwa (Tekst)
-    email (Tekst)
-    hasło (Tekst)
-    flaga_blokady (Przełącznik)
-    liczba_obserwujących (Liczba)
-
 aby robić_części dla argumentu (Liczba) z innym_argumentem:
     zwróć
 

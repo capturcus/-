@@ -8,6 +8,10 @@ hindley milner
     v explicite podane typy w ciele funkcji
     v explicite podane typy w parametrach funkcji
     wartość zwracana function calli
+        refactor hindleya milnera na prawdziwe zmienne typowe
+        globalne środowisko
+        zmienne pokazują na siebie nawzajem a nie są usuwane
+        rzecz -> t0 -> t5 -> t11 -> Liczba
     customowe typy
     typy parametryzowane (Lista, Mapa)
 
