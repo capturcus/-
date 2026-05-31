@@ -73,6 +73,17 @@ def find_fdt(func_id):
         if name.lemmas_set & func_id.lemmas_set:
             return fdt
 
+def instantiate(fdt):
+    subst = {}
+    def fresh(t):
+        t = find_type(t)
+        if not type_regex.match(t):
+            return t
+        if t not in subst:
+            subst[t] = new_type()
+        return subst[t]
+    return [fresh(a) for a in fdt.arg_types], fresh(fdt.ret_type)
+
 def resolve_module(node):
     print("Module")
     global fun_decls
@@ -245,10 +256,11 @@ def resolve_or(node, scope):
 def resolve_function_call(node, scope):
     print("FunctionCall")
     fdt = find_fdt(node.name)
-    for (t0, p) in zip(fdt.arg_types, node.params):
+    arg_types, ret_type = instantiate(fdt)
+    for (t0, p) in zip(arg_types, node.params):
         t1 = resolve_expression(p, scope)
         unify_types(t0, t1)
-    return fdt.ret_type
+    return ret_type
     # fun_scope = fun_scope_for_lemmas_set(node.name.lemmas_set)
     # fun_decl = fun_decl_for_lemmas_set(node.name.lemmas_set)
     # i = 0
