@@ -1,5 +1,7 @@
 import ast_nodes as ast
 import re
+import contextlib
+import io
 from dataclasses import dataclass, field
 
 last_type = 0
@@ -95,7 +97,10 @@ def instantiate(fdt):
 def resolve_module(node):
     print("Module")
     global fun_decls
-    fun_scopes = []
+    # PASS 1 (raz): zadeklaruj schematy funkcji. module_funcs to lokalna lista
+    # (decl, fdt) — używana w pass 2 zamiast kruchego indeksowania globalnego
+    # fun_decls; fun_decls.append zostaje, bo find_fdt po nim chodzi.
+    module_funcs = []
     for decl in node.body:
         if isinstance(decl, ast.FunctionDef):
             fdt = FunDefTypes(
@@ -103,29 +108,68 @@ def resolve_module(node):
                 arg_types=[new_type() for _ in range(len(decl.params))],
                 ret_type=new_type()
             )
-            i = 0
-            for p in decl.params:
-                if not p.type is None:
+            for i, p in enumerate(decl.params):
+                if p.type is not None:
                     unify_types(fdt.arg_types[i], "".join(p.type))
-                i += 1
-            if not decl.return_type is None:
+            if decl.return_type is not None:
                 unify_types(fdt.ret_type, "".join(decl.return_type))
             fun_decls.append((decl.name, fdt))
-    fun_i = 0
-    for decl in node.body:
-        if isinstance(decl, ast.FunctionDef):
-            scope = Scope()
-            scope.root_fdt = fun_decls[fun_i][1]
-            fun_scopes.append(scope)
-            resolve_function_def(decl, scope)
-            fun_i += 1
+            module_funcs.append((decl, fdt))
+
+    # PASS 2 (do fixpointu): inferuj ciała, reużywając schematów + all_types.
+    fun_scopes = _infer_to_fixpoint(module_funcs)
+
     for scope in fun_scopes:
         print("===")
-        for i in scope.types:
-            v = i[0]
-            t = i[1]
+        for (v, t) in scope.types:
             print("")
             print(v, find_type(t))
+
+
+def _infer_bodies(module_funcs):
+    """Jeden przebieg inferencji ciał. Świeży Scope per funkcja, ten sam
+    fdt (zmienne schematu współdzielone między przebiegami)."""
+    scopes = []
+    for (decl, fdt) in module_funcs:
+        scope = Scope()
+        scope.root_fdt = fdt
+        resolve_function_def(decl, scope)
+        scopes.append(scope)
+    return scopes
+
+
+def _scheme_signature(module_funcs):
+    """Konkretyzacje wszystkich zmiennych schematów; wolne zmienne
+    znormalizowane do '?'. Reprezentant wolnej zmiennej dryfuje przez
+    instantiate (świeże zmienne co przebieg), więc porównujemy TYLKO
+    konkrety — równa sygnatura dwóch kolejnych przebiegów = realny fixpoint."""
+    sig = []
+    for (_, fdt) in module_funcs:
+        for t in list(fdt.arg_types) + [fdt.ret_type]:
+            r = find_type(t)
+            sig.append("?" if type_regex.match(r) else r)
+    return tuple(sig)
+
+
+def _infer_to_fixpoint(module_funcs):
+    """Iteruje inferencję ciał aż konkretyzacje schematów się ustabilizują.
+    unify jest monotoniczne (free→konkret, nigdy odwrotnie), więc zbieżność
+    jest gwarantowana; cap to tylko backstop."""
+    cap = 2 * len(module_funcs) + 5
+    prev = None
+    scopes = []
+    for _ in range(cap):
+        # Przebiegi inferencji są wyciszone — inaczej ślady debug (FunctionDef,
+        # Assignment, …) powtarzałyby się N razy. Końcowy scope-dump robi
+        # resolve_module. Wyjątek (konflikt typów) propaguje normalnie.
+        with contextlib.redirect_stdout(io.StringIO()):
+            scopes = _infer_bodies(module_funcs)
+        sig = _scheme_signature(module_funcs)
+        if sig == prev:
+            return scopes
+        prev = sig
+    print(f"OSTRZEŻENIE: typecheck nie osiągnął fixpointu po {cap} przebiegach")
+    return scopes
 
 
 def resolve_function_def(node, scope):

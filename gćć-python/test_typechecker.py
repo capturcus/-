@@ -671,3 +671,88 @@ def test_bad_call_after_inferred_param_raises(parse):
     module = parse(src)
     with pytest.raises(RuntimeError):
         typechecker.resolve_module(module)
+
+
+# =====================================================================
+# Fixpoint — inferencja ciał iterowana do zbieżności (Problem B, część)
+# =====================================================================
+
+@pytest.mark.integration
+def test_fixpoint_resolves_forward_reference(parse):
+    """`przygotować` woła `generować` zdefiniowane NIŻEJ. Pojedynczy przebieg
+    łapałby kopię wolnego ret-typu; iteracja domyka go do Liczby."""
+    src = (
+        "aby przygotować dla x:\n"
+        "    zwróć generować dla x\n"
+        "\n"
+        "aby generować dla y:\n"
+        "    zwróć pięć\n"
+        "\n"
+        "aby działać:\n"
+        "    a to przygotuj dla jeden\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    assert typechecker.find_type(_fdt_by_surface(("przygotować",)).ret_type) == "Liczba"
+    assert typechecker.find_type(_fdt_by_surface(("generować",)).ret_type) == "Liczba"
+
+
+@pytest.mark.integration
+def test_fixpoint_propagates_through_chain(parse):
+    """Łańcuch przygotować→generować→produkować→pięć. Single-pass rozwiązałby
+    tylko ostatnią; fixpoint propaguje Liczbę przez cały łańcuch (≥3 przebiegi)."""
+    src = (
+        "aby przygotować dla x:\n"
+        "    zwróć generować dla x\n"
+        "\n"
+        "aby generować dla y:\n"
+        "    zwróć produkować dla y\n"
+        "\n"
+        "aby produkować dla z:\n"
+        "    zwróć pięć\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    for surface in (("przygotować",), ("generować",), ("produkować",)):
+        assert typechecker.find_type(_fdt_by_surface(surface).ret_type) == "Liczba"
+
+
+@pytest.mark.integration
+def test_fixpoint_preserves_polymorphism_and_terminates(parse):
+    """Funkcja generyczna wołana raz na liczbie, raz na tekście. resolve_module
+    kończy bez zawieszenia (fixpoint), a argument zostaje WOLNY — czyli nadal
+    polimorficzny, nie sklejony do jednego typu przez iterację."""
+    src = (
+        "aby przetwarzać dla x:\n"
+        "    zwróć x\n"
+        "\n"
+        "aby działać:\n"
+        "    a to przetwarzać dla jeden\n"
+        "    b to przetwarzać dla \"tekst\"\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)  # nie zawiesza się
+    arg = typechecker.find_type(_fdt_by_surface(("przetwarzać",)).arg_types[0])
+    assert typechecker.type_regex.match(arg)  # wciąż wolna zmienna = polimorfizm
+
+
+@pytest.mark.integration
+def test_fixpoint_is_deterministic(parse):
+    """Dwa przebiegi (z resetem stanu) dają tę samą konkretyzację schematów."""
+    src = (
+        "aby przygotować dla x:\n"
+        "    zwróć generować dla x\n"
+        "\n"
+        "aby generować dla y:\n"
+        "    zwróć pięć\n"
+    )
+
+    def run():
+        typechecker.last_type = 0
+        typechecker.all_types = {}
+        typechecker.fun_decls = []
+        typechecker.resolve_module(parse(src))
+        return (typechecker.find_type(_fdt_by_surface(("przygotować",)).ret_type),
+                typechecker.find_type(_fdt_by_surface(("generować",)).ret_type))
+
+    assert run() == run() == ("Liczba", "Liczba")
