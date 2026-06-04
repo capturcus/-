@@ -146,38 +146,46 @@ def resolve_module(node):
             print(v, find_type(t))
 
 
-def _infer_bodies(module_funcs):
-    """Jeden przebieg inferencji ciał. Świeży Scope per funkcja, ten sam
-    fdt (zmienne schematu współdzielone między przebiegami)."""
-    scopes = []
-    for (decl, fdt) in module_funcs:
-        scope = Scope()
-        scope.root_fdt = fdt
+def _infer_bodies(module_funcs, scopes):
+    """Jeden przebieg inferencji ciał na TRWAŁYCH scope'ach. Lokalne zmienne
+    przeżywają między przebiegami, więc zawężenia (np. twoja_stara → Człowiek)
+    propagują się do fixpointu. declare/get_type są idempotentne, a unifikacje
+    monotoniczne (tylko przecinają/wiążą), więc ponowne przejście jest bezpieczne."""
+    for (decl, _), scope in zip(module_funcs, scopes):
         resolve_function_def(decl, scope)
-        scopes.append(scope)
-    return scopes
 
 
-def _scheme_signature(module_funcs):
-    """Konkretyzacje wszystkich zmiennych schematów; wolne zmienne
-    znormalizowane do '?'. Reprezentant wolnej zmiennej dryfuje przez
-    instantiate (świeże zmienne co przebieg), więc porównujemy TYLKO
-    konkrety — równa sygnatura dwóch kolejnych przebiegów = realny fixpoint."""
+def _type_sig(r):
+    return "?" if isinstance(r, TypeVar) else tuple(sorted(r.variants))
+
+
+def _signature(module_funcs, scopes):
+    """Sygnatura całego stanu: schematy funkcji + typy WSZYSTKICH zmiennych
+    lokalnych. Wolne zmienne znormalizowane do '?'. Lokale muszą tu być, bo
+    inaczej pętla zatrzyma się gdy ustabilizują się same schematy — zanim
+    zawężenia lokalne dojdą do fixpointu. Równość dwóch kolejnych = fixpoint."""
     sig = []
     for (_, fdt) in module_funcs:
         for t in list(fdt.arg_types) + [fdt.ret_type]:
-            r = find_type(t)
-            sig.append("?" if isinstance(r, TypeVar) else tuple(sorted(r.variants)))
+            sig.append(_type_sig(find_type(t)))
+    for scope in scopes:
+        for (_, t) in scope.types:
+            sig.append(_type_sig(find_type(t)))
     return tuple(sig)
 
 
 def _infer_to_fixpoint(module_funcs):
     cap = 2 * len(module_funcs) + 5
-    prev = None
+    # Trwałe scope per funkcja — tworzone RAZ, reużywane co przebieg.
     scopes = []
+    for (_, fdt) in module_funcs:
+        scope = Scope()
+        scope.root_fdt = fdt
+        scopes.append(scope)
+    prev = None
     for _ in range(cap):
-        scopes = _infer_bodies(module_funcs)
-        sig = _scheme_signature(module_funcs)
+        _infer_bodies(module_funcs, scopes)
+        sig = _signature(module_funcs, scopes)
         if sig == prev:
             return scopes
         prev = sig
@@ -382,19 +390,29 @@ def resolve_getter_chain(node, scope):
     # na typ ostatniego słowa to wszystkie struktury mające to pole.
     penultimate_word = node.chain[-2]
     structs = find_struct_defs_by_field(penultimate_word)
-    last_word_types = []  # możliwe typy ostatniego słowa (kandydujące struktury)
-    chain_types = []      # odpowiadające im typy całego łańcucha
+    # pary (nazwa structu = możliwy typ ostatniego słowa, typ całego łańcucha)
+    candidates = []
     for s in structs:
         result_type = can_resolve_chain_with_struct(node.chain[:-1], s)
         if result_type is not None:
-            last_word_types.append("".join(s.name))
-            chain_types.append(result_type)
-    if not chain_types:
+            candidates.append(("".join(s.name), result_type))
+    if not candidates:
         surfaces = " ".join("_".join(w.surface) for w in node.chain)
         print(f"nie można zresolvować łańcucha dopełniaczowego '{surfaces}'")
         raise
-    unify_types(scope.get_type(node.chain[-1]), VariantVar(variants=set(last_word_types)))
-    return VariantVar(variants=set(chain_types))
+    # Zawęź ostatnie słowo do wariantu kandydujących struktur — przecina się
+    # z ograniczeniami z innych statementów (np. drugi getter na tej zmiennej).
+    last_word_t = unify_types(
+        scope.get_type(node.chain[-1]),
+        variant(name for name, _ in candidates),
+    )
+    # Typ zwracany liczymy z AKTUALNIE zresolwowanego typu ostatniego słowa:
+    # zostaw tylko kandydatów zgodnych z jego wariantem (gdy wolny — wszystkich).
+    if isinstance(last_word_t, VariantVar):
+        surviving = [rt for name, rt in candidates if name in last_word_t.variants]
+    else:
+        surviving = [rt for _, rt in candidates]
+    return variant(surviving)
 
 
 def resolve_subscript(node, scope):
