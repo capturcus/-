@@ -329,8 +329,9 @@ def resolve_bin_op(node, scope):
     t1 = resolve_expression(node.right, scope)
     unify_types(t0, t1)
     if node.op in _COMPARISON_OPS:
-        return variant(["Przełącznik"])   # porównanie → Przełącznik
-    return t0                             # arytmetyka → Liczba
+        return variant(["Przełącznik"])
+    unify_types(t0, variant(["Liczba"]))
+    return t0
 
 
 def resolve_unary_op(node, scope):

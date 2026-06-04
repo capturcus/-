@@ -1,0 +1,53 @@
+# Przykładowy system bankowy w Ć — testuje struktury, getter chainy,
+# tworzenie struktur, rekurencyjne pola (lista kont) i konstrukcje sterujące.
+
+definicja Kwoty:
+    wartość (Liczba)
+    waluta (Tekst)
+
+definicja Konta:
+    numer (Liczba)
+    właściciel (Tekst)
+    saldo (Kwota)
+    następnik (Konto)
+
+definicja Klienta:
+    konto (Konto)
+
+definicja Przelewu:
+    źródło (Konto)
+    cel (Konto)
+    kwota (Kwota)
+
+aby utworzyć_kwotę dla wartości (Liczba) z walutą (Tekst) -> Kwota:
+    zwróć nowa Kwota z wartością z walutą
+
+aby utworzyć_przelew dla źródła (Konto) do celu (Konto) z kwotą (Kwota) -> Przelew:
+    zwróć nowy Przelew z źródłem z celem z kwotą
+
+aby odczytać_saldo dla konta (Konto) -> Kwota:
+    zwróć saldo konta
+
+aby odczytać_saldo_klienta dla klienta (Klient) -> Kwota:
+    zwróć saldo konta klienta
+
+aby naliczyć_opłatę dla konta (Konto) z opłatą (Liczba) -> Liczba:
+    zwróć wartość salda konta plus opłata
+
+aby przejść_do_następnego dla konta (Konto) -> Konto:
+    zwróć następnik konta
+
+aby znaleźć_ostatnie dla konta (Konto) -> Konto:
+    jeśli numer następnika konta większe od zero:
+        zwróć znajdź_ostatnie dla następnika konta
+    zwróć konto
+
+aby obsłużyć_klienta:
+    pierwsza_kwota to nowa Kwota o wartości pięć o walucie "PLN"
+    drugie_konto to nowe Konto o numerze dwa o właścicielu "Anna"
+    pierwsze_konto to nowe Konto o numerze jeden o właścicielu "Jan" o saldzie pierwsza_kwota o następniku drugie_konto
+    klient to nowy Klient o koncie pierwsze_konto
+    saldo_klienta to odczytaj_saldo_klienta dla klienta
+    ostatnie_konto to znajdź_ostatnie dla pierwszego_konta
+    opłata to trzy
+    nowe_saldo to nalicz_opłatę dla pierwszego_konta z opłatą
