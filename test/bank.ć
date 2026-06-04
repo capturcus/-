@@ -1,5 +1,7 @@
 # Przykładowy system bankowy w Ć — testuje struktury, getter chainy,
 # tworzenie struktur, rekurencyjne pola (lista kont) i konstrukcje sterujące.
+# Adnotacje typów tylko tam, gdzie konieczne (pola struktur) — typy funkcji
+# (parametry i wartości zwracane) inferują się z ciał.
 
 definicja Kwoty:
     wartość (Liczba)
@@ -19,25 +21,25 @@ definicja Przelewu:
     cel (Konto)
     kwota (Kwota)
 
-aby utworzyć_kwotę dla wartości (Liczba) z walutą (Tekst) -> Kwota:
+aby utworzyć_kwotę dla wartości z walutą:
     zwróć nowa Kwota z wartością z walutą
 
-aby utworzyć_przelew dla źródła (Konto) do celu (Konto) z kwotą (Kwota) -> Przelew:
+aby utworzyć_przelew dla źródła do celu z kwotą:
     zwróć nowy Przelew z źródłem z celem z kwotą
 
-aby odczytać_saldo dla konta (Konto) -> Kwota:
+aby odczytać_saldo dla konta:
     zwróć saldo konta
 
-aby odczytać_saldo_klienta dla klienta (Klient) -> Kwota:
+aby odczytać_saldo_klienta dla klienta:
     zwróć saldo konta klienta
 
-aby naliczyć_opłatę dla konta (Konto) z opłatą (Liczba) -> Liczba:
+aby naliczyć_opłatę dla konta z opłatą:
     zwróć wartość salda konta plus opłata
 
-aby przejść_do_następnego dla konta (Konto) -> Konto:
+aby przejść_do_następnego dla konta:
     zwróć następnik konta
 
-aby znaleźć_ostatnie dla konta (Konto) -> Konto:
+aby znaleźć_ostatnie dla konta:
     jeśli numer następnika konta większe od zero:
         zwróć znajdź_ostatnie dla następnika konta
     zwróć konto
