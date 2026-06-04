@@ -7,15 +7,27 @@ from dataclasses import dataclass, field
 last_type = 0
 type_regex = re.compile(r"t[0-9]+")
 
-@dataclass
+# Węzły union-find. eq=False → tożsamość obiektu jest kluczem (hashowalne,
+# porównywane po identyczności), bo łączymy je przez wskaźnik `next`.
+@dataclass(eq=False, repr=False)
 class TypeVar:
     number: int
     next: object = None
 
-@dataclass
+    def __repr__(self):
+        return f"t{self.number}"
+
+@dataclass(eq=False, repr=False)
 class VariantVar:
-    variants: set = set()
+    variants: set = field(default_factory=set)
     next: object = None
+
+    def __repr__(self):
+        return "|".join(sorted(self.variants)) if self.variants else "⊥"
+
+def variant(names):
+    # Typ konkretny/wariantowy z iterowalnej kolekcji nazw.
+    return VariantVar(variants=set(names))
 
 def new_type():
     global last_type
@@ -24,25 +36,26 @@ def new_type():
     return ret
 
 def find_type(t):
-    if not t.next is None:
-        return find_type(t)
-    if isinstance(t, VariantVar):
-        return t
-    return t # abstract
+    # Reprezentant: idź po `next` aż do końca łańcucha union-find.
+    while t.next is not None:
+        t = t.next
+    return t
 
 def unify_types(t0, t1):
     ft0 = find_type(t0)
     ft1 = find_type(t1)
+    if ft0 is ft1:
+        return ft0
     if isinstance(ft0, VariantVar) and isinstance(ft1, VariantVar):
         common = ft0.variants & ft1.variants
         if len(common) == 0:
-            print(f"cannot unify {ft0} with {ft1}")
-            raise
+            raise Exception(f"cannot unify {ft0} with {ft1}")
         new_variant = VariantVar(variants=common)
         ft0.next = new_variant
         ft1.next = new_variant
         return new_variant
-    concrete, abstract = (ft0, ft1) if isinstance(VariantVar, ft0) else (ft1, ft0)
+    # Co najmniej jedna strona to wolna zmienna — przepnij ją na drugą.
+    concrete, abstract = (ft0, ft1) if isinstance(ft0, VariantVar) else (ft1, ft0)
     abstract.next = concrete
     return concrete
 
@@ -89,8 +102,9 @@ def instantiate(fdt):
     subst = {}
     def fresh(t):
         t = find_type(t)
-        if not type_regex.match(t):
-            return t
+        if isinstance(t, VariantVar):
+            # Konkret — świeża kopia, by unifikacja w call-site nie mutowała schematu.
+            return variant(t.variants)
         if t not in subst:
             subst[t] = new_type()
         return subst[t]
@@ -153,7 +167,7 @@ def _scheme_signature(module_funcs):
     for (_, fdt) in module_funcs:
         for t in list(fdt.arg_types) + [fdt.ret_type]:
             r = find_type(t)
-            sig.append("?" if type_regex.match(r) else r)
+            sig.append("?" if isinstance(r, TypeVar) else tuple(sorted(r.variants)))
     return tuple(sig)
 
 
@@ -410,14 +424,14 @@ def resolve_struct_creation(node, scope):
     print("StructCreation")
     for a in node.args:
         resolve_struct_arg(a, scope, node)
-    return "".join(node.type_name)
+    return variant(["".join(node.type_name)])
 
 
 def resolve_struct_arg(node, scope, struct_creation):
     print("StructArg")
     struct_def = find_struct_def(struct_creation.type_name)
     field = find_field(struct_def, node.field_name)
-    field_t = "".join(field.type)
+    field_t = variant(["".join(field.type)])
     if node.value is not None:
         unify_types(field_t, resolve_expression(node.value, scope))
     else:
