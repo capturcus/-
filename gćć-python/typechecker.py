@@ -79,35 +79,61 @@ def unify_types(t0, t1):
     return concrete
 
 class Scope:
-    def __init__(self):
+    """Węzeł drzewa scope'ów. Korzeń = ciało funkcji; dzieci = ciała bloków
+    (`then`/`else`/`body`). Dzieci są trwałe (cache na węźle AST), więc żyją
+    między przebiegami fixpointu, a zmienne wprowadzone w gałęzi są lokalne —
+    ta sama nazwa w `then` i `else` to różne zmienne."""
+    def __init__(self, parent=None):
         self.types = []
-        self.root_fdt = None
+        self.parent = parent
+        self.children = []
+        self.root_fdt = parent.root_fdt if parent else None
+        if parent is not None:
+            parent.children.append(self)
 
-    def _find(self, identifier):
+    def _find_local(self, identifier):
         keys = identifier.scope_keys
         for (v, t) in self.types:
             if any(ast.scope_key_matches(a, b) for a in keys for b in v.scope_keys):
                 return t
         return None
 
+    def _find(self, identifier):
+        # Czytanie: idź w górę drzewa — widać zmienne z przodków.
+        s = self
+        while s is not None:
+            t = s._find_local(identifier)
+            if t is not None:
+                return t
+            s = s.parent
+        return None
+
     def declare(self, identifier, t):
-        # wiąże identyfikator z istniejącą zmienną typową (np. typ parametru)
-        if self._find(identifier) is None:
+        # Deklaracja zawsze lokalna (np. typ parametru w korzeniu funkcji).
+        if self._find_local(identifier) is None:
             self.types.append((identifier, t))
 
     def get_type(self, identifier):
-        t = self._find(identifier)
+        t = self._find(identifier)   # widoczna w przodku → reużyj
         if t is not None:
             return t
-        new_t = new_type()
+        new_t = new_type()           # inaczej → nowa, lokalna w tym węźle
         self.types.append((identifier, new_t))
         return new_t
 
-    def copy(self):
-        ret = Scope()
-        ret.types = list(self.types)
-        ret.root_fdt = self.root_fdt
-        return ret
+    def child_for(self, node, role):
+        # Trwałe dziecko per blok: cache trzymany NA WĘŹLE AST (identyczność
+        # z węzła, slot z roli), więc sąsiednie bloki się nie zlewają i nie
+        # trzeba id(node). Tworzone raz, reużywane co przebieg.
+        slots = node.__dict__.setdefault("_scopes", {})
+        if role not in slots:
+            slots[role] = Scope(self)
+        return slots[role]
+
+    def walk(self):
+        yield self
+        for c in self.children:
+            yield from c.walk()
 
 @dataclass
 class FunDefTypes:
@@ -166,9 +192,10 @@ def resolve_module(node):
 
     for scope in fun_scopes:
         print("===")
-        for (v, t) in scope.types:
-            print("")
-            print(v, find_type(t))
+        for s in scope.walk():
+            for (v, t) in s.types:
+                print("")
+                print(v, find_type(t))
 
 
 def _infer_bodies(module_funcs, scopes):
@@ -193,9 +220,10 @@ def _signature(module_funcs, scopes):
     for (_, fdt) in module_funcs:
         for t in list(fdt.arg_types) + [fdt.ret_type]:
             sig.append(_type_sig(find_type(t)))
-    for scope in scopes:
-        for (_, t) in scope.types:
-            sig.append(_type_sig(find_type(t)))
+    for root in scopes:
+        for s in root.walk():
+            for (_, t) in s.types:
+                sig.append(_type_sig(find_type(t)))
     return tuple(sig)
 
 
@@ -316,30 +344,30 @@ def resolve_if(node, scope):
     print("If")
     t = resolve_expression(node.cond, scope)
     unify_types(t, variant(["Przełącznik"]))
-    new_scope = scope.copy()
+    then_scope = scope.child_for(node, "then")
     for stmt in node.then_body:
-        resolve_statement(stmt, new_scope)
-    new_scope = scope.copy()
+        resolve_statement(stmt, then_scope)
+    else_scope = scope.child_for(node, "else")
     for stmt in node.else_body:
-        resolve_statement(stmt, new_scope)
+        resolve_statement(stmt, else_scope)
 
 
 def resolve_while(node, scope):
     print("While")
     t = resolve_expression(node.cond, scope)
     unify_types(t, variant(["Przełącznik"]))
-    new_scope = scope.copy()
+    body_scope = scope.child_for(node, "body")
     for stmt in node.body:
-        resolve_statement(stmt, new_scope)
+        resolve_statement(stmt, body_scope)
 
 
 def resolve_for(node, scope):
     print("For")
     resolve_expression(node.collection, scope)
-    new_scope = scope.copy()
-    new_scope.get_type(node.var)
+    body_scope = scope.child_for(node, "body")
+    body_scope.get_type(node.var)
     for stmt in node.body:
-        resolve_statement(stmt, new_scope)
+        resolve_statement(stmt, body_scope)
 
 
 def resolve_return(node, scope):

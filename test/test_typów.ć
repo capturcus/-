@@ -48,8 +48,15 @@ aby pokazać_warunek:
         licznik to trzy
 
 aby pokazać_porównanie:
+    koszt to jeden
     jeśli koszt większe od budżet:
-        ostrzeżenie to jeden
+        ostrzeżenie to dwa
+
+aby pokazać_gałęzie:
+    jeśli flaga:
+        wspólna to jeden
+    inaczej:
+        wspólna to "tekst"
 
 aby pokazać_pętlę:
     akumulator to jeden
