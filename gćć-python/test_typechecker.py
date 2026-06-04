@@ -13,14 +13,15 @@ Dwa poziomy:
   typecheck) na realnym źródle Ć — wymagają załadowania SGJP (session
   fixture).
 
-Typechecker trzyma stan w globalach modułu (`last_type`, `all_types`,
-`fun_decls`), więc autouse-fixture `_reset_typechecker` izoluje każdy test.
+Reprezentacja typów: union-find po obiektach. `new_type()` daje `TypeVar`
+(wolna zmienna), konkrety/warianty to `VariantVar(variants=set(nazw))`,
+połączone wskaźnikiem `next`. `find_type` zwraca reprezentanta (obiekt, nie
+string), a `unify_types` przecina warianty; pusty wynik → `TypeCheckError`.
+Helper `ty(t)` renderuje zresolwowany typ jako '?' (wolna zmienna) lub
+'A|B' (posortowane warianty) do wygodnych asercji.
 
-Kontrakty utrwalone tutaj odzwierciedlają OBECNE zachowanie (m.in. to, że
-kolizja typów jest sygnalizowana `RuntimeError` przez `raise` bez aktywnego
-wyjątku w `unify_types`, oraz że parametry funkcji nie są wiązane do scope
-ciała). To testy charakteryzacyjne istniejącej funkcjonalności, nie
-specyfikacja docelowa.
+Typechecker trzyma stan w globalach modułu (`last_type`, `fun_decls`), więc
+autouse-fixture `_reset_typechecker` izoluje każdy test.
 """
 
 import os
@@ -40,16 +41,32 @@ import typechecker
 
 @pytest.fixture(autouse=True)
 def _reset_typechecker():
-    """Każdy test startuje z czystym licznikiem typów i pustymi tablicami."""
+    """Każdy test startuje z czystym licznikiem typów i pustym fun_decls.
+    Stan union-find żyje w obiektach TypeVar/VariantVar (per test świeże),
+    więc nie ma globalnej tablicy do czyszczenia."""
     typechecker.last_type = 0
-    typechecker.all_types = {}
     typechecker.fun_decls = []
     typechecker.module = None
     yield
     typechecker.last_type = 0
-    typechecker.all_types = {}
     typechecker.fun_decls = []
     typechecker.module = None
+
+
+# ---------- helpery ----------
+
+def ty(t):
+    """Zresolwowany typ jako wartość porównywalna: '?' dla wolnej zmiennej,
+    'A|B' (posortowane warianty) dla konkretu/wariantu."""
+    r = typechecker.find_type(t)
+    if isinstance(r, typechecker.TypeVar):
+        return "?"
+    return "|".join(sorted(r.variants))
+
+
+def conc(*names):
+    """Konkret/wariant z podanych nazw (skrót na typechecker.variant)."""
+    return typechecker.variant(set(names))
 
 
 # ---------- helpery do budowy AST ----------
@@ -85,33 +102,33 @@ def phrase(resolved):
 def test_new_type_is_fresh_and_sequential():
     a = typechecker.new_type()
     b = typechecker.new_type()
-    assert a == "t0"
-    assert b == "t1"
-    assert a != b
-    assert typechecker.type_regex.match(a)
+    assert a.number == 0
+    assert b.number == 1
+    assert a is not b
+    assert isinstance(a, typechecker.TypeVar)
 
 
 def test_find_type_concrete_is_identity():
-    # Typ konkretny (nie pasujący do tNN) zwracany bez zmian.
-    assert typechecker.find_type("Liczba") == "Liczba"
-    assert typechecker.find_type("UżytkownikSerwis") == "UżytkownikSerwis"
+    # Konkret (VariantVar bez next) zwracany bez zmian.
+    c = conc("Liczba")
+    assert typechecker.find_type(c) is c
+    assert ty(c) == "Liczba"
 
 
-def test_find_type_fresh_var_registers_itself():
+def test_find_type_fresh_var_is_its_own_representative():
     t = typechecker.new_type()
-    assert typechecker.find_type(t) == t
-    # po pierwszym find_type zmienna wskazuje na siebie
-    assert typechecker.all_types[t] == t
+    assert typechecker.find_type(t) is t
+    # świeża zmienna nie wskazuje na nic
+    assert t.next is None
 
 
 def test_find_type_follows_union_chain():
     a, b, c = typechecker.new_type(), typechecker.new_type(), typechecker.new_type()
     # ręcznie zbudowany łańcuch a -> b -> c
-    typechecker.all_types[a] = b
-    typechecker.all_types[b] = c
-    typechecker.all_types[c] = c
-    assert typechecker.find_type(a) == c
-    assert typechecker.find_type(b) == c
+    a.next = b
+    b.next = c
+    assert typechecker.find_type(a) is c
+    assert typechecker.find_type(b) is c
 
 
 # =====================================================================
@@ -121,50 +138,50 @@ def test_find_type_follows_union_chain():
 def test_unify_two_abstract_links_them():
     a, b = typechecker.new_type(), typechecker.new_type()
     typechecker.unify_types(a, b)
-    assert typechecker.find_type(a) == typechecker.find_type(b)
+    assert typechecker.find_type(a) is typechecker.find_type(b)
 
 
 def test_unify_abstract_with_concrete_resolves_to_concrete():
     a = typechecker.new_type()
-    result = typechecker.unify_types(a, "Liczba")
-    assert result == "Liczba"
-    assert typechecker.find_type(a) == "Liczba"
+    result = typechecker.unify_types(a, conc("Liczba"))
+    assert ty(result) == "Liczba"
+    assert ty(a) == "Liczba"
 
 
 def test_unify_concrete_with_abstract_order_independent():
     a = typechecker.new_type()
-    result = typechecker.unify_types("Tekst", a)
-    assert result == "Tekst"
-    assert typechecker.find_type(a) == "Tekst"
+    result = typechecker.unify_types(conc("Tekst"), a)
+    assert ty(result) == "Tekst"
+    assert ty(a) == "Tekst"
 
 
 def test_unify_equal_concrete_returns_concrete():
-    assert typechecker.unify_types("Liczba", "Liczba") == "Liczba"
+    assert ty(typechecker.unify_types(conc("Liczba"), conc("Liczba"))) == "Liczba"
 
 
 def test_unify_conflicting_concrete_raises():
-    # kolizja konkretów: print + bare `raise` → RuntimeError
-    with pytest.raises(RuntimeError):
-        typechecker.unify_types("Liczba", "Tekst")
+    # kolizja konkretów: puste przecięcie wariantów → TypeCheckError
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.unify_types(conc("Liczba"), conc("Tekst"))
 
 
 def test_unify_is_transitive_through_var():
     a, b = typechecker.new_type(), typechecker.new_type()
     typechecker.unify_types(a, b)
-    typechecker.unify_types(b, "Liczba")
+    typechecker.unify_types(b, conc("Liczba"))
     # a powiązane z b, b z Liczba → a też Liczba
-    assert typechecker.find_type(a) == "Liczba"
-    assert typechecker.find_type(b) == "Liczba"
+    assert ty(a) == "Liczba"
+    assert ty(b) == "Liczba"
 
 
 def test_unify_propagates_to_already_linked_vars():
     a, b, c = (typechecker.new_type() for _ in range(3))
     typechecker.unify_types(a, b)
     typechecker.unify_types(b, c)
-    typechecker.unify_types(c, "Tekst")
-    assert typechecker.find_type(a) == "Tekst"
-    assert typechecker.find_type(b) == "Tekst"
-    assert typechecker.find_type(c) == "Tekst"
+    typechecker.unify_types(c, conc("Tekst"))
+    assert ty(a) == "Tekst"
+    assert ty(b) == "Tekst"
+    assert ty(c) == "Tekst"
 
 
 # =====================================================================
@@ -175,10 +192,10 @@ def test_instantiate_freshens_type_vars():
     t0 = typechecker.new_type()
     fdt = typechecker.FunDefTypes(name=make_fid("robić"), arg_types=[t0], ret_type=t0)
     args, ret = typechecker.instantiate(fdt)
-    # świeże zmienne — różne od oryginału schematu
-    assert args[0] != t0
-    assert ret != t0
-    assert typechecker.type_regex.match(args[0])
+    # świeże zmienne — różne obiekty niż oryginał schematu
+    assert args[0] is not t0
+    assert ret is not t0
+    assert isinstance(args[0], typechecker.TypeVar)
 
 
 def test_instantiate_shares_vars_within_one_instance():
@@ -186,18 +203,18 @@ def test_instantiate_shares_vars_within_one_instance():
     t0 = typechecker.new_type()
     fdt = typechecker.FunDefTypes(name=make_fid("robić"), arg_types=[t0, t0], ret_type=t0)
     args, ret = typechecker.instantiate(fdt)
-    assert args[0] == args[1] == ret
+    assert args[0] is args[1] is ret
 
 
 def test_instantiate_keeps_concrete_types():
     t0 = typechecker.new_type()
     fdt = typechecker.FunDefTypes(
-        name=make_fid("robić"), arg_types=["Liczba", t0], ret_type="Tekst"
+        name=make_fid("robić"), arg_types=[conc("Liczba"), t0], ret_type=conc("Tekst")
     )
     args, ret = typechecker.instantiate(fdt)
-    assert args[0] == "Liczba"
-    assert ret == "Tekst"
-    assert args[1] != t0  # zmienna nadal świeżona
+    assert ty(args[0]) == "Liczba"
+    assert ty(ret) == "Tekst"
+    assert args[1] is not t0  # zmienna nadal świeżona
 
 
 def test_instantiate_two_calls_are_independent():
@@ -205,7 +222,7 @@ def test_instantiate_two_calls_are_independent():
     fdt = typechecker.FunDefTypes(name=make_fid("robić"), arg_types=[t0], ret_type=t0)
     a1, _ = typechecker.instantiate(fdt)
     a2, _ = typechecker.instantiate(fdt)
-    assert a1[0] != a2[0]  # każde wywołanie dostaje własne zmienne
+    assert a1[0] is not a2[0]  # każde wywołanie dostaje własne zmienne
 
 
 # =====================================================================
@@ -301,15 +318,15 @@ def test_scope_atom_get_type_is_stable():
 
 def test_scope_declare_binds_atom():
     scope = typechecker.Scope()
-    scope.declare(atom_ident("x"), "Liczba")
-    assert typechecker.find_type(scope.get_type(atom_ident("x"))) == "Liczba"
+    scope.declare(atom_ident("x"), conc("Liczba"))
+    assert ty(scope.get_type(atom_ident("x"))) == "Liczba"
 
 
 def test_scope_declare_is_idempotent():
     scope = typechecker.Scope()
-    scope.declare(atom_ident("x"), "Liczba")
-    scope.declare(atom_ident("x"), "Tekst")  # już zadeklarowane → ignorowane
-    assert typechecker.find_type(scope.get_type(atom_ident("x"))) == "Liczba"
+    scope.declare(atom_ident("x"), conc("Liczba"))
+    scope.declare(atom_ident("x"), conc("Tekst"))  # już zadeklarowane → ignorowane
+    assert ty(scope.get_type(atom_ident("x"))) == "Liczba"
 
 
 # =====================================================================
@@ -321,15 +338,15 @@ def test_resolve_function_def_binds_param_type():
     # użycie x w ciele (przypisanie do wynik) musi dać wynik:Liczba.
     scope = typechecker.Scope()
     scope.root_fdt = typechecker.FunDefTypes(
-        name=make_fid("przetwarzać"), arg_types=["Liczba"], ret_type=typechecker.new_type()
+        name=make_fid("przetwarzać"), arg_types=[conc("Liczba")], ret_type=typechecker.new_type()
     )
     x = atom_ident("x")
     param = ast.Param(prep=None, name=x, case=frozenset({"nom"}), type=None)
     body = [ast.Assignment(target=phrase(make_ident("wynik")), value=phrase(x))]
     node = ast.FunctionDef(name=make_fid("przetwarzać"), params=[param], body=body)
     typechecker.resolve_function_def(node, scope)
-    assert typechecker.find_type(scope.get_type(x)) == "Liczba"
-    assert typechecker.find_type(scope.get_type(make_ident("wynik"))) == "Liczba"
+    assert ty(scope.get_type(x)) == "Liczba"
+    assert ty(scope.get_type(make_ident("wynik"))) == "Liczba"
 
 
 def test_resolve_function_def_param_usage_constrains_signature():
@@ -345,7 +362,7 @@ def test_resolve_function_def_param_usage_constrains_signature():
     body = [ast.Assignment(target=phrase(x), value=phrase(ast.IntLit(1)))]
     node = ast.FunctionDef(name=make_fid("przetwarzać"), params=[param], body=body)
     typechecker.resolve_function_def(node, scope)
-    assert typechecker.find_type(arg) == "Liczba"  # sygnatura nauczyła się z ciała
+    assert ty(arg) == "Liczba"  # sygnatura nauczyła się z ciała
 
 
 # =====================================================================
@@ -375,27 +392,27 @@ def test_find_fdt_returns_none_when_no_match():
 # =====================================================================
 
 def test_resolve_int_literal():
-    assert typechecker.resolve_expression(ast.IntLit(5), typechecker.Scope()) == "Liczba"
+    assert ty(typechecker.resolve_expression(ast.IntLit(5), typechecker.Scope())) == "Liczba"
 
 
 def test_resolve_str_literal():
-    assert typechecker.resolve_expression(ast.StrLit("x"), typechecker.Scope()) == "Tekst"
+    assert ty(typechecker.resolve_expression(ast.StrLit("x"), typechecker.Scope())) == "Tekst"
 
 
 def test_resolve_unwraps_phrase_and_word():
     inner = ast.Word(prep=(), value=ast.IntLit(1), case="nom")
     node = phrase(inner)
-    assert typechecker.resolve_expression(node, typechecker.Scope()) == "Liczba"
+    assert ty(typechecker.resolve_expression(node, typechecker.Scope())) == "Liczba"
 
 
 def test_resolve_typed_unifies_matching():
     node = ast.Typed(expr=ast.IntLit(1), type=("Liczba",))
-    assert typechecker.resolve_expression(node, typechecker.Scope()) == "Liczba"
+    assert ty(typechecker.resolve_expression(node, typechecker.Scope())) == "Liczba"
 
 
 def test_resolve_typed_conflict_raises():
     node = ast.Typed(expr=ast.IntLit(1), type=("Tekst",))
-    with pytest.raises(RuntimeError):
+    with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_expression(node, typechecker.Scope())
 
 
@@ -408,7 +425,7 @@ def test_assignment_unifies_target_with_value():
     target = make_ident("rzecz")
     node = ast.Assignment(target=phrase(target), value=phrase(ast.IntLit(1)))
     typechecker.resolve_assignment(node, scope)
-    assert typechecker.find_type(scope.get_type(target)) == "Liczba"
+    assert ty(scope.get_type(target)) == "Liczba"
 
 
 def test_assignment_conflict_raises():
@@ -417,7 +434,7 @@ def test_assignment_conflict_raises():
     typechecker.resolve_assignment(
         ast.Assignment(target=phrase(target), value=phrase(ast.IntLit(1))), scope
     )
-    with pytest.raises(RuntimeError):
+    with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_assignment(
             ast.Assignment(target=phrase(target), value=phrase(ast.StrLit("x"))), scope
         )
@@ -429,7 +446,7 @@ def test_return_unifies_ret_type_with_value():
         name=make_fid("robić"), arg_types=[], ret_type=typechecker.new_type()
     )
     typechecker.resolve_return(ast.Return(value=ast.IntLit(5)), scope)
-    assert typechecker.find_type(scope.root_fdt.ret_type) == "Liczba"
+    assert ty(scope.root_fdt.ret_type) == "Liczba"
 
 
 def test_return_without_value_is_nic():
@@ -438,7 +455,7 @@ def test_return_without_value_is_nic():
         name=make_fid("robić"), arg_types=[], ret_type=typechecker.new_type()
     )
     typechecker.resolve_return(ast.Return(value=None), scope)
-    assert typechecker.find_type(scope.root_fdt.ret_type) == "Nic"
+    assert ty(scope.root_fdt.ret_type) == "Nic"
 
 
 # =====================================================================
@@ -458,7 +475,7 @@ def test_function_call_propagates_arg_type_to_return():
     fid, fdt, t = _register_identity_like()
     call = ast.FunctionCall(name=fid, params=[ast.IntLit(1)])
     ret = typechecker.resolve_function_call(call, typechecker.Scope())
-    assert typechecker.find_type(ret) == "Liczba"
+    assert ty(ret) == "Liczba"
 
 
 def test_polymorphic_calls_do_not_interfere():
@@ -475,10 +492,10 @@ def test_polymorphic_calls_do_not_interfere():
         ast.FunctionCall(name=fid, params=[ast.StrLit("x")]), scope
     )
 
-    assert typechecker.find_type(r1) == "Liczba"
-    assert typechecker.find_type(r2) == "Tekst"
+    assert ty(r1) == "Liczba"
+    assert ty(r2) == "Tekst"
     # schemat (generalizacja) NIE jest skażony przez żadne wywołanie
-    assert typechecker.find_type(fdt.ret_type) == t
+    assert typechecker.find_type(fdt.ret_type) is t
 
 
 def test_shared_type_var_enforced_within_single_call():
@@ -489,7 +506,7 @@ def test_shared_type_var_enforced_within_single_call():
     fdt = typechecker.FunDefTypes(name=fid, arg_types=[t, t], ret_type=t)
     typechecker.fun_decls.append((fid, fdt))
     call = ast.FunctionCall(name=fid, params=[ast.IntLit(1), ast.StrLit("x")])
-    with pytest.raises(RuntimeError):
+    with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_function_call(call, typechecker.Scope())
 
 
@@ -500,7 +517,7 @@ def test_same_var_two_matching_args_ok():
     typechecker.fun_decls.append((fid, fdt))
     call = ast.FunctionCall(name=fid, params=[ast.IntLit(1), ast.IntLit(2)])
     ret = typechecker.resolve_function_call(call, typechecker.Scope())
-    assert typechecker.find_type(ret) == "Liczba"
+    assert ty(ret) == "Liczba"
 
 
 # =====================================================================
@@ -510,7 +527,7 @@ def test_same_var_two_matching_args_ok():
 def test_struct_creation_returns_type_name():
     node = ast.StructCreation(type_name=("Użytkownik", "Serwis"), args=[])
     result = typechecker.resolve_struct_creation(node, typechecker.Scope())
-    assert result == "UżytkownikSerwis"
+    assert ty(result) == "UżytkownikSerwis"
 
 
 # =====================================================================
@@ -577,7 +594,7 @@ def test_module_detects_type_conflict(parse):
         "    rzecz to \"tekst\"\n"
     )
     module = parse(src)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(module)
 
 
@@ -636,7 +653,7 @@ def test_explicit_param_type_reaches_body(parse):
     module = parse(src)
     typechecker.resolve_module(module)
     fdt = _fdt_by_surface(("przetwarzać",))
-    assert typechecker.find_type(fdt.ret_type) == "Liczba"
+    assert ty(fdt.ret_type) == "Liczba"
 
 
 @pytest.mark.integration
@@ -653,7 +670,7 @@ def test_param_usage_constrains_signature(parse):
     module = parse(src)
     typechecker.resolve_module(module)
     fdt = _fdt_by_surface(("opakować",))
-    assert typechecker.find_type(fdt.arg_types[0]) == "Liczba"
+    assert ty(fdt.arg_types[0]) == "Liczba"
 
 
 @pytest.mark.integration
@@ -671,7 +688,7 @@ def test_bad_call_after_inferred_param_raises(parse):
         "    wynik to opakuj dla \"tekst\"\n"
     )
     module = parse(src)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(module)
 
 
@@ -695,8 +712,8 @@ def test_fixpoint_resolves_forward_reference(parse):
     )
     module = parse(src)
     typechecker.resolve_module(module)
-    assert typechecker.find_type(_fdt_by_surface(("przygotować",)).ret_type) == "Liczba"
-    assert typechecker.find_type(_fdt_by_surface(("generować",)).ret_type) == "Liczba"
+    assert ty(_fdt_by_surface(("przygotować",)).ret_type) == "Liczba"
+    assert ty(_fdt_by_surface(("generować",)).ret_type) == "Liczba"
 
 
 @pytest.mark.integration
@@ -716,7 +733,7 @@ def test_fixpoint_propagates_through_chain(parse):
     module = parse(src)
     typechecker.resolve_module(module)
     for surface in (("przygotować",), ("generować",), ("produkować",)):
-        assert typechecker.find_type(_fdt_by_surface(surface).ret_type) == "Liczba"
+        assert ty(_fdt_by_surface(surface).ret_type) == "Liczba"
 
 
 @pytest.mark.integration
@@ -735,7 +752,7 @@ def test_fixpoint_preserves_polymorphism_and_terminates(parse):
     module = parse(src)
     typechecker.resolve_module(module)  # nie zawiesza się
     arg = typechecker.find_type(_fdt_by_surface(("przetwarzać",)).arg_types[0])
-    assert typechecker.type_regex.match(arg)  # wciąż wolna zmienna = polimorfizm
+    assert isinstance(arg, typechecker.TypeVar)  # wciąż wolna zmienna = polimorfizm
 
 
 @pytest.mark.integration
@@ -751,11 +768,10 @@ def test_fixpoint_is_deterministic(parse):
 
     def run():
         typechecker.last_type = 0
-        typechecker.all_types = {}
         typechecker.fun_decls = []
         typechecker.resolve_module(parse(src))
-        return (typechecker.find_type(_fdt_by_surface(("przygotować",)).ret_type),
-                typechecker.find_type(_fdt_by_surface(("generować",)).ret_type))
+        return (ty(_fdt_by_surface(("przygotować",)).ret_type),
+                ty(_fdt_by_surface(("generować",)).ret_type))
 
     assert run() == run() == ("Liczba", "Liczba")
 
@@ -826,7 +842,7 @@ def test_struct_field_type_mismatch_raises(parse):
         "aby działać:\n"
         "    u to nowy UżytkownikSerwisu o imieniu cztery\n"  # Liczba w pole Tekst
     )
-    with pytest.raises(RuntimeError):
+    with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(parse(src))
 
 
@@ -849,5 +865,5 @@ def test_struct_shorthand_type_mismatch_raises(parse):
         "    imię to pięć\n"
         "    użytkownik to nowy UżytkownikSerwisu z imieniem\n"
     )
-    with pytest.raises(RuntimeError):
+    with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(parse(src))

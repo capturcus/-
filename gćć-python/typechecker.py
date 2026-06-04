@@ -25,6 +25,9 @@ class VariantVar:
     def __repr__(self):
         return "|".join(sorted(self.variants)) if self.variants else "⊥"
 
+class TypeCheckError(Exception):
+    """Konflikt typów — np. unifikacja dwóch konkretów o pustym przecięciu."""
+
 def variant(names):
     # Typ konkretny/wariantowy z iterowalnej kolekcji nazw.
     return VariantVar(variants=set(names))
@@ -37,9 +40,15 @@ def new_type():
 
 def find_type(t):
     # Reprezentant: idź po `next` aż do końca łańcucha union-find.
-    while t.next is not None:
-        t = t.next
-    return t
+    root = t
+    while root.next is not None:
+        root = root.next
+    # Kompresja ścieżki — węzły po drodze wskazują wprost na root, więc
+    # żywa ścieżka od zmiennej zostaje krótka, a stare węzły pośrednie
+    # przestają być osiągalne (GC). Bez tego łańcuchy rosną co przebieg.
+    while t is not root:
+        t.next, t = root, t.next
+    return root
 
 def unify_types(t0, t1):
     ft0 = find_type(t0)
@@ -49,7 +58,17 @@ def unify_types(t0, t1):
     if isinstance(ft0, VariantVar) and isinstance(ft1, VariantVar):
         common = ft0.variants & ft1.variants
         if len(common) == 0:
-            raise Exception(f"cannot unify {ft0} with {ft1}")
+            raise TypeCheckError(f"cannot unify {ft0} with {ft1}")
+        # Reużyj istniejący węzeł, gdy przecięcie równa się jednej ze stron —
+        # w stanie ustalonym (fixpoint) przecięcia są co przebieg równe, więc
+        # to całkowicie zatrzymuje rośnięcie łańcuchów .next (zero śmieci).
+        if common == ft0.variants:
+            ft1.next = ft0
+            return ft0
+        if common == ft1.variants:
+            ft0.next = ft1
+            return ft1
+        # Przecięcie ściśle mniejsze od obu — dopiero teraz nowy węzeł.
         new_variant = VariantVar(variants=common)
         ft0.next = new_variant
         ft1.next = new_variant

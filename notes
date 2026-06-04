@@ -12,7 +12,7 @@ hindley milner
         v zmienne pokazują na siebie nawzajem a nie są usuwane
         v rzecz -> t0 -> t5 -> t11 -> Liczba
     customowe typy
-        getter chainy
+        v getter chainy
             zacznij od końca
             ustal warianty n-tego elementu
             dla każdego wariantu:
@@ -22,6 +22,7 @@ hindley milner
             update logiki unifikacji: Pies|Człowiek ^ Pies|Żyrafa = Pies
         v struct creation
     typy parametryzowane (Lista, Mapa)
+    subscript
 
 uruchamianie
 
