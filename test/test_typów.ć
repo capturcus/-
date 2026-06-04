@@ -2,6 +2,16 @@ definicja UżytkownikaSerwisu:
     imię (Tekst)
     identyfikator (Liczba)
 
+definicja Psa:
+    imię (Tekst)
+
+definicja Człowieka:
+    imię (Liczba)
+    wiek (Liczba)
+
+definicja Komentarza:
+    autor (Człowiek)
+
 aby robić_części dla argumentu (Liczba) z innym_argumentem:
     zwróć pięć
 
@@ -14,3 +24,5 @@ aby działać:
     wynik_dwa to nowy UżytkownikSerwisu z identyfikatorem z imieniem
     wynik_trzy to nowy UżytkownikSerwisu o imieniu "Marcin" o identyfikatorze cztery
     wynik_cztery to nowy UżytkownikSerwisu o identyfikatorze cztery o imieniu "Marcin"
+    komentarz to nowy Komentarz
+    wynik_pięć to imię twojej_starej

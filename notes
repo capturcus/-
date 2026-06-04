@@ -13,7 +13,14 @@ hindley milner
         v rzecz -> t0 -> t5 -> t11 -> Liczba
     customowe typy
         getter chainy
-        struct creation
+            zacznij od końca
+            ustal warianty n-tego elementu
+            dla każdego wariantu:
+                cofaj się po 1 elemencie getter chaina
+                patrz czy da się stypować
+            potrzebujemy 1 lub więcej poprawnych możliwości, ale nie konkretyzacji
+            update logiki unifikacji: Pies|Człowiek ^ Pies|Żyrafa = Pies
+        v struct creation
     typy parametryzowane (Lista, Mapa)
 
 uruchamianie

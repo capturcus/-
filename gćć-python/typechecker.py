@@ -321,8 +321,33 @@ def resolve_function_call(node, scope):
     #     i += 1
 
 
+def find_field_for_ident(struct_def, ident):
+    for key in ident.scope_keys:
+        f = find_field(struct_def, key)
+        if f is not None:
+            return f
+    return None
+
+def find_struct_defs_by_field(field_name):
+    ret = []
+    for decl in module.body:
+        if isinstance(decl, ast.StructDef):
+            if not find_field_for_ident(decl, field_name) is None:
+                ret.append(decl)
+    return ret
+
+def can_resolve_chain_with_struct(chain, struct):
+    pass
+
 def resolve_getter_chain(node, scope):
-    print("GetterChain", node)
+    print("GetterChain")
+    penultimate_word = node.chain[-2]
+    structs = find_struct_defs_by_field(penultimate_word)
+    types = []
+    for s in structs:
+        if can_resolve_chain_with_struct(node.chain[:-2], s):
+            types.append("".join(s.name))
+    return "|".join(types)
 
 
 def resolve_subscript(node, scope):
@@ -332,17 +357,20 @@ def resolve_subscript(node, scope):
 
 
 def find_struct_def(type_name):
+    # type_name bywa krotką lemm (z StructCreation) albo sklejonym stringiem
+    # (typ ze scope) — "".join normalizuje oba do tej samej postaci.
+    target = "".join(type_name)
     for decl in module.body:
-        if isinstance(decl, ast.StructDef) and decl.name == type_name:
+        if isinstance(decl, ast.StructDef) and "".join(decl.name) == target:
             return decl
-    raise
+    return None
 
 
 def find_field(struct_def, field_key):
     for f in struct_def.fields:
         if any(ast.scope_key_matches(field_key, k) for k in f.name.scope_keys):
             return f
-    raise
+    return None
 
 
 def resolve_struct_creation(node, scope):
