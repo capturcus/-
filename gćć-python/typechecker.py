@@ -103,6 +103,12 @@ class Scope:
         self.types.append((identifier, new_t))
         return new_t
 
+    def copy(self):
+        ret = Scope()
+        ret.types = list(self.types)
+        ret.root_fdt = self.root_fdt
+        return ret
+
 @dataclass
 class FunDefTypes:
     name: ast.FunctionIdentifier
@@ -286,39 +292,54 @@ def resolve_assignment(node, scope):
     # check(node.value)
 
 
+# Operatory porównania (CMP_OP) zwracają Przełącznik; arytmetyczne — Liczbę.
+_COMPARISON_OPS = {"<", ">", "<=", ">=", "=", "!="}
+
 def resolve_bin_op(node, scope):
     print("BinOp")
-    resolve_expression(node.left, scope)
-    resolve_expression(node.right, scope)
+    t0 = resolve_expression(node.left, scope)
+    t1 = resolve_expression(node.right, scope)
+    unify_types(t0, t1)
+    if node.op in _COMPARISON_OPS:
+        return variant(["Przełącznik"])   # porównanie → Przełącznik
+    return t0                             # arytmetyka → Liczba
 
 
 def resolve_unary_op(node, scope):
     print("UnaryOp")
-    resolve_expression(node.operand, scope)
+    t = resolve_expression(node.operand, scope)
+    unify_types(t, variant(["Liczba"]))
+    return t
 
 
 def resolve_if(node, scope):
     print("If")
-    resolve_expression(node.cond, scope)
+    t = resolve_expression(node.cond, scope)
+    unify_types(t, variant(["Przełącznik"]))
+    new_scope = scope.copy()
     for stmt in node.then_body:
-        resolve_statement(stmt, scope)
+        resolve_statement(stmt, new_scope)
+    new_scope = scope.copy()
     for stmt in node.else_body:
-        resolve_statement(stmt, scope)
+        resolve_statement(stmt, new_scope)
 
 
 def resolve_while(node, scope):
     print("While")
-    resolve_expression(node.cond, scope)
+    t = resolve_expression(node.cond, scope)
+    unify_types(t, variant(["Przełącznik"]))
+    new_scope = scope.copy()
     for stmt in node.body:
-        resolve_statement(stmt, scope)
+        resolve_statement(stmt, new_scope)
 
 
 def resolve_for(node, scope):
     print("For")
-    # node.var
     resolve_expression(node.collection, scope)
+    new_scope = scope.copy()
+    new_scope.get_type(node.var)
     for stmt in node.body:
-        resolve_statement(stmt, scope)
+        resolve_statement(stmt, new_scope)
 
 
 def resolve_return(node, scope):
@@ -332,19 +353,27 @@ def resolve_return(node, scope):
 
 def resolve_not(node, scope):
     print("Not")
-    resolve_expression(node.operand, scope)
+    t = resolve_expression(node.operand, scope)
+    unify_types(t, variant(["Przełącznik"]))
+    return t
 
 
 def resolve_and(node, scope):
     print("And")
-    resolve_expression(node.left, scope)
-    resolve_expression(node.right, scope)
+    t0 = resolve_expression(node.left, scope)
+    t1 = resolve_expression(node.right, scope)
+    unify_types(t0, t1)
+    unify_types(t0, variant(["Przełącznik"]))
+    return t0
 
 
 def resolve_or(node, scope):
     print("Or")
-    resolve_expression(node.left, scope)
-    resolve_expression(node.right, scope)
+    t0 = resolve_expression(node.left, scope)
+    t1 = resolve_expression(node.right, scope)
+    unify_types(t0, t1)
+    unify_types(t0, variant(["Przełącznik"]))
+    return t0
 
 
 def resolve_function_call(node, scope):
@@ -355,13 +384,6 @@ def resolve_function_call(node, scope):
         t1 = resolve_expression(p, scope)
         unify_types(t0, t1)
     return ret_type
-    # fun_scope = fun_scope_for_lemmas_set(node.name.lemmas_set)
-    # fun_decl = fun_decl_for_lemmas_set(node.name.lemmas_set)
-    # i = 0
-    # for p in node.params:
-    #     t = resolve_expression(p, scope)
-    #     scope.unify_other(fun_scope, t, fun_scope.get_type(fun_decl.params[i].name))
-    #     i += 1
 
 
 def find_field_for_ident(struct_def, ident):

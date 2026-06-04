@@ -27,3 +27,36 @@ aby działać:
     komentarz to nowy Komentarz
     wynik_pięć to imię twojej_starej
     wynik_sześć to wiek twojej_starej
+
+aby pokazać_arytmetykę:
+    suma to lewy plus prawy
+    różnica to lewy minus prawy
+    iloczyn to lewy razy prawy
+    przeciwny to minus lewy
+    koszt większe od budżet
+
+aby pokazać_logikę:
+    aktywny to pierwsza_flaga i druga_flaga
+    gotowy to trzecia_flaga lub czwarta_flaga
+    zatrzymany to nie piąta_flaga
+
+aby pokazać_warunek:
+    licznik to jeden
+    jeśli flaga:
+        licznik to dwa
+    inaczej:
+        licznik to trzy
+
+aby pokazać_porównanie:
+    jeśli koszt większe od budżet:
+        ostrzeżenie to jeden
+
+aby pokazać_pętlę:
+    akumulator to jeden
+    dopóki flaga:
+        akumulator to cztery
+
+aby pokazać_iterację:
+    suma to jeden
+    dla element w kolekcja:
+        suma to element
