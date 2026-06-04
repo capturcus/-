@@ -38,8 +38,14 @@ def unify_types(t0, t1):
     if not type_regex.match(ft0) and not type_regex.match(ft1):
         if ft0 == ft1:
             return ft0
-        print(f"cannot unify {ft0} with {ft1}")
-        raise
+        # variant types?
+        s0 = set(ft0.split("|"))
+        s1 = set(ft1.split("|"))
+        common = s0 & s1
+        if common is None:
+            print(f"cannot unify {ft0} with {ft1}")
+            raise
+        return "|".join(common)
     concrete, abstract = (ft0, ft1) if type_regex.match(ft1) else (ft1, ft0)
     all_types[abstract] = concrete
     return concrete
@@ -337,17 +343,52 @@ def find_struct_defs_by_field(field_name):
     return ret
 
 def can_resolve_chain_with_struct(chain, struct):
-    pass
+    """Czy `chain` (ogniwa łańcucha dopełniaczowego BEZ ostatniego słowa,
+    w kolejności od tyłu do przodu) daje się zresolvować, gdy ostatnie słowo ma typ
+    `struct`? Zwraca typ całego łańcucha (typ pola ogniwa chain[0]) jeśli się
+    udało, inaczej None.
+
+    Idziemy od najpóźniejszego ogniwa (chain[-1] — pole `struct`) ku
+    najwcześniejszemu (chain[0]). Typ każdego pola wyznacza strukturę,
+    w której szukamy ogniwa poprzedzającego; gdy pole nie jest strukturą,
+    a łańcuch chce iść dalej — nie pasuje (None)."""
+    cur_struct = struct
+    result_type = None
+    for ident in reversed(chain):
+        if cur_struct is None:
+            return None
+        field = find_field_for_ident(cur_struct, ident)
+        if field is None:
+            return None
+        result_type = "".join(field.type)
+        cur_struct = find_struct_def(result_type)
+    return result_type
+
+
+def variant_type_str(types):
+    return "|".join(set(types))
+
 
 def resolve_getter_chain(node, scope):
     print("GetterChain")
+    # Najmniej wiemy o ostatnim słowie — jego typ inferujemy z łańcucha.
+    # Przedostatnie słowo musi być polem struktury ostatniego, więc kandydaci
+    # na typ ostatniego słowa to wszystkie struktury mające to pole.
     penultimate_word = node.chain[-2]
     structs = find_struct_defs_by_field(penultimate_word)
-    types = []
+    last_word_types = []  # możliwe typy ostatniego słowa (kandydujące struktury)
+    chain_types = []      # odpowiadające im typy całego łańcucha
     for s in structs:
-        if can_resolve_chain_with_struct(node.chain[:-2], s):
-            types.append("".join(s.name))
-    return "|".join(types)
+        result_type = can_resolve_chain_with_struct(node.chain[:-1], s)
+        if result_type is not None:
+            last_word_types.append("".join(s.name))
+            chain_types.append(result_type)
+    if not chain_types:
+        surfaces = " ".join("_".join(w.surface) for w in node.chain)
+        print(f"nie można zresolvować łańcucha dopełniaczowego '{surfaces}'")
+        raise
+    unify_types(scope.get_type(node.chain[-1]), variant_type_str(last_word_types))
+    return variant_type_str(chain_types)
 
 
 def resolve_subscript(node, scope):

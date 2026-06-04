@@ -1,0 +1,23 @@
+definicja UżytkownikaSerwisu:
+    imię (Tekst)
+    identyfikator (Liczba)
+
+definicja Psa:
+    imię (Tekst)
+
+definicja Człowieka:
+    imię (Liczba)
+    wiek (Liczba)
+
+definicja Komentarza:
+    autor (Człowiek)
+
+aby badać_warianty:
+    wynik to imię obiektu
+
+aby badać_jednoznaczność:
+    wiek to wiek obiektu
+
+aby badać_łańcuch:
+    komentarz to nowy Komentarz
+    wynik to imię autora komentarza
