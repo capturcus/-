@@ -7,47 +7,43 @@ from dataclasses import dataclass, field
 last_type = 0
 type_regex = re.compile(r"t[0-9]+")
 
+@dataclass
+class TypeVar:
+    number: int
+    next: object = None
+
+@dataclass
+class VariantVar:
+    variants: set = set()
+    next: object = None
+
 def new_type():
     global last_type
-    ret = "t"+str(last_type)
+    ret = TypeVar(number=last_type, next=None)
     last_type += 1
     return ret
 
-all_types = {}
-
 def find_type(t):
-    global all_types
-    global type_regex
-    if not type_regex.match(t):
-        # concrete type
+    if not t.next is None:
+        return find_type(t)
+    if isinstance(t, VariantVar):
         return t
-    if not t in all_types.keys():
-        all_types[t] = t
-        return t
-    v = all_types[t]
-    if v == t:
-        # end of tree
-        return v
-    return find_type(v)
+    return t # abstract
 
 def unify_types(t0, t1):
-    global type_regex
-    global all_types
     ft0 = find_type(t0)
     ft1 = find_type(t1)
-    if not type_regex.match(ft0) and not type_regex.match(ft1):
-        if ft0 == ft1:
-            return ft0
-        # variant types?
-        s0 = set(ft0.split("|"))
-        s1 = set(ft1.split("|"))
-        common = s0 & s1
-        if common is None:
+    if isinstance(ft0, VariantVar) and isinstance(ft1, VariantVar):
+        common = ft0.variants & ft1.variants
+        if len(common) == 0:
             print(f"cannot unify {ft0} with {ft1}")
             raise
-        return "|".join(common)
-    concrete, abstract = (ft0, ft1) if type_regex.match(ft1) else (ft1, ft0)
-    all_types[abstract] = concrete
+        new_variant = VariantVar(variants=common)
+        ft0.next = new_variant
+        ft1.next = new_variant
+        return new_variant
+    concrete, abstract = (ft0, ft1) if isinstance(VariantVar, ft0) else (ft1, ft0)
+    abstract.next = concrete
     return concrete
 
 class Scope:
@@ -120,9 +116,9 @@ def resolve_module(node):
             )
             for i, p in enumerate(decl.params):
                 if p.type is not None:
-                    unify_types(fdt.arg_types[i], "".join(p.type))
+                    unify_types(fdt.arg_types[i], VariantVar(variants=set(["".join(p.type)])))
             if decl.return_type is not None:
-                unify_types(fdt.ret_type, "".join(decl.return_type))
+                unify_types(fdt.ret_type, VariantVar(variants=set(["".join(decl.return_type)])))
             fun_decls.append((decl.name, fdt))
             module_funcs.append((decl, fdt))
 
@@ -204,7 +200,7 @@ def resolve_expression(node, scope):
         node = node.value
     if isinstance(node, ast.Typed):
         expr_t = resolve_expression(node.expr, scope)
-        explicit_t = "".join(node.type)
+        explicit_t = VariantVar(variants=set(["".join(node.type)]))
         return unify_types(expr_t, explicit_t)
     if isinstance(node, ast.BinOp):
         return resolve_bin_op(node, scope)
@@ -230,10 +226,10 @@ def resolve_expression(node, scope):
         return resolve_identifier(node, scope)
     if isinstance(node, ast.IntLit):
         print("IntLit")
-        return "Liczba"
+        return VariantVar(variants=set(["Liczba"]))
     if isinstance(node, ast.StrLit):
         print("StrLit")
-        return "Tekst"
+        return VariantVar(variants=set(["Tekst"]))
 
 def resolve_assignment(node, scope):
     print("Assignment")
@@ -290,7 +286,7 @@ def resolve_return(node, scope):
         t = resolve_expression(node.value, scope)
         unify_types(scope.root_fdt.ret_type, t)
     else:
-        unify_types(scope.root_fdt.ret_type, "Nic")
+        unify_types(scope.root_fdt.ret_type, VariantVar(variants=set(["Nic"])))
 
 
 def resolve_not(node, scope):
@@ -365,10 +361,6 @@ def can_resolve_chain_with_struct(chain, struct):
     return result_type
 
 
-def variant_type_str(types):
-    return "|".join(set(types))
-
-
 def resolve_getter_chain(node, scope):
     print("GetterChain")
     # Najmniej wiemy o ostatnim słowie — jego typ inferujemy z łańcucha.
@@ -387,8 +379,8 @@ def resolve_getter_chain(node, scope):
         surfaces = " ".join("_".join(w.surface) for w in node.chain)
         print(f"nie można zresolvować łańcucha dopełniaczowego '{surfaces}'")
         raise
-    unify_types(scope.get_type(node.chain[-1]), variant_type_str(last_word_types))
-    return variant_type_str(chain_types)
+    unify_types(scope.get_type(node.chain[-1]), VariantVar(variants=set(last_word_types)))
+    return VariantVar(variants=set(chain_types))
 
 
 def resolve_subscript(node, scope):
