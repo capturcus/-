@@ -17,22 +17,7 @@ import expression
 import ast_nodes as ast
 
 
-SGJP_PATH = os.path.join(os.path.dirname(__file__), "..", "sgjp.tab")
-
-
-@pytest.fixture(scope="session")
-def loaded():
-    return morph_anal.load(SGJP_PATH)
-
-
-@pytest.fixture(scope="session")
-def db(loaded):
-    return loaded[0]
-
-
-@pytest.fixture(scope="session")
-def preps(loaded):
-    return loaded[1]
+# SGJP (db/preps) pochodzi ze współdzielonej fixturki sesyjnej w conftest.py.
 
 
 @pytest.fixture(scope="session")
@@ -880,14 +865,13 @@ def test_field_decl_ambiguous_nom_kotki_raises(parse):
         parse(src)
 
 
-def test_variant_carries_number_gender(parse):
+def test_variant_carries_number_gender(db):
     """`make_identifier('formy')` produkuje 2 warianty: (forma, pl, f) i
     (forma, sg, f). Sprawdzenie struktury Variant z polami number/gender."""
     from morph_anal import analyze
     from identifier import make_identifier
     toks = list(lexer.lex("formy"))
     word_tok = next(t for t in toks if t[0] is lexer.Token.WORD)
-    db = _load_db()
     analyzed = analyze([word_tok], db)
     ident = make_identifier(analyzed[0])
     keys = {(v.number, v.gender, "nom" in v.case) for v in ident.variants}
@@ -895,7 +879,7 @@ def test_variant_carries_number_gender(parse):
     assert ("sg", "f", False) in keys  # sg variant jest w gen
 
 
-def test_pure_adj_splits_by_gender(parse):
+def test_pure_adj_splits_by_gender(db):
     """`obserwującego` to ppas sg gen z gender m.n — po normalizacji 2
     osobne warianty (gender='m' i gender='n'). Pure-adj variants — bez
     subst-głowy — dziedziczą number/gender z adj segmentu."""
@@ -903,7 +887,6 @@ def test_pure_adj_splits_by_gender(parse):
     from identifier import make_identifier
     toks = list(lexer.lex("obserwującego"))
     word_tok = next(t for t in toks if t[0] is lexer.Token.WORD)
-    db = _load_db()
     analyzed = analyze([word_tok], db)
     ident = make_identifier(analyzed[0])
     genders = {v.gender for v in ident.variants}
@@ -922,15 +905,3 @@ def test_field_decl_field_with_distinct_number_coexist(parse):
     m = parse(src)
     sd = m.body[0]
     assert len(sd.fields) == 2
-
-
-_DB_CACHE = []
-
-
-def _load_db():
-    """Lazy-loader dla SGJP — bez fixturki, używamy w testach poza fixtured scope."""
-    if not _DB_CACHE:
-        import morph_anal
-        db, _ = morph_anal.load(SGJP_PATH)
-        _DB_CACHE.append(db)
-    return _DB_CACHE[0]

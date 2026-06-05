@@ -534,22 +534,7 @@ def test_struct_creation_returns_type_name():
 # Integracja: pełny pipeline (wymaga SGJP)
 # =====================================================================
 
-SGJP_PATH = os.path.join(os.path.dirname(__file__), "..", "sgjp.tab")
-
-
-@pytest.fixture(scope="session")
-def loaded():
-    return morph_anal.load(SGJP_PATH)
-
-
-@pytest.fixture(scope="session")
-def db(loaded):
-    return loaded[0]
-
-
-@pytest.fixture(scope="session")
-def preps(loaded):
-    return loaded[1]
+# SGJP (db) i preps pochodzą ze współdzielonej fixturki w conftest.py.
 
 
 @pytest.fixture

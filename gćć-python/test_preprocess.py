@@ -7,17 +7,7 @@ import morph_anal
 import preprocess
 
 
-SGJP_PATH = os.path.join(os.path.dirname(__file__), "..", "sgjp.tab")
-
-
-@pytest.fixture(scope="session")
-def loaded():
-    return morph_anal.load(SGJP_PATH)
-
-
-@pytest.fixture(scope="session")
-def db(loaded):
-    return loaded[0]
+# SGJP (db) pochodzi ze współdzielonej fixturki w conftest.py.
 
 
 @pytest.fixture(scope="session")
