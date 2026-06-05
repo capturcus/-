@@ -406,12 +406,12 @@ def test_resolve_unwraps_phrase_and_word():
 
 
 def test_resolve_typed_unifies_matching():
-    node = ast.Typed(expr=ast.IntLit(1), type_ref=ast.TypeRef(head=("Liczba",)))
+    node = ast.Typed(expr=ast.IntLit(1), type=ast.TypeRef(head=("Liczba",)))
     assert ty(typechecker.resolve_expression(node, typechecker.Scope())) == "Liczba"
 
 
 def test_resolve_typed_conflict_raises():
-    node = ast.Typed(expr=ast.IntLit(1), type_ref=ast.TypeRef(head=("Tekst",)))
+    node = ast.Typed(expr=ast.IntLit(1), type=ast.TypeRef(head=("Tekst",)))
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_expression(node, typechecker.Scope())
 
@@ -784,8 +784,8 @@ def test_find_struct_def_by_name():
     sd = ast.StructDef(
         name=("Użytkownik",),
         fields=[
-            ast.Field(name=make_ident("imię", gender="n"), type_ref=ast.TypeRef(head=("Tekst",))),
-            ast.Field(name=make_ident("wiek"), type_ref=ast.TypeRef(head=("Liczba",))),
+            ast.Field(name=make_ident("imię", gender="n"), type=ast.TypeRef(head=("Tekst",))),
+            ast.Field(name=make_ident("wiek"), type=ast.TypeRef(head=("Liczba",))),
         ],
     )
     typechecker.module = ast.Module(body=[sd])
@@ -797,14 +797,14 @@ def test_find_field_by_key_and_type():
     sd = ast.StructDef(
         name=("Użytkownik",),
         fields=[
-            ast.Field(name=make_ident("imię", gender="n"), type_ref=ast.TypeRef(head=("Tekst",))),
-            ast.Field(name=make_ident("wiek"), type_ref=ast.TypeRef(head=("Liczba",))),
+            ast.Field(name=make_ident("imię", gender="n"), type=ast.TypeRef(head=("Tekst",))),
+            ast.Field(name=make_ident("wiek"), type=ast.TypeRef(head=("Liczba",))),
         ],
     )
     imie = typechecker.find_field(sd, (("imię",), "sg", "n"))
-    assert imie is not None and "".join(imie.type_ref.head) == "Tekst"
+    assert imie is not None and "".join(imie.type.head) == "Tekst"
     wiek = typechecker.find_field(sd, (("wiek",), "sg", "m"))
-    assert wiek is not None and "".join(wiek.type_ref.head) == "Liczba"
+    assert wiek is not None and "".join(wiek.type.head) == "Liczba"
     assert typechecker.find_field(sd, (("brak",), "sg", "m")) is None
 
 

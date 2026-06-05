@@ -50,7 +50,7 @@ from identifier import (
     make_identifier, is_prep, canonical_type, canonical_identity,
     _format_scope_key,
 )
-from type_parser import parse_type_ref
+from type_parser import parse_type
 
 
 _ADJ_LIKE_POS = ("adj", "pact", "ppas")
@@ -407,7 +407,7 @@ class ExpressionParser:
         segmentem wielką literą — tak odróżniamy adnotację typu od zwykłego
         wyrażenia w nawiasach (zmienne są małą literą). Typ może być
         parametryzowany (`(Mapa z klucza na wartość)`) i zagnieżdżony —
-        parsuje go współdzielony `parse_type_ref` aż do RPAREN. Walidujemy
+        parsuje go współdzielony `parse_type` aż do RPAREN. Walidujemy
         tylko GŁOWĘ wobec ctx.types (wiązanie argumentów odroczone do
         typecheckera). Lowercase WORD zostawiamy — to nie sufiks-typ.
         """
@@ -421,17 +421,17 @@ class ExpressionParser:
             return node
         lparen_line = getattr(self.peek(), "line", None)
         self.advance()  # LPAREN
-        type_ref = parse_type_ref(self, self.preps, terminator=lexer.Token.RPAREN)
+        type = parse_type(self, self.preps, terminator=lexer.Token.RPAREN)
         self.expect(lexer.Token.RPAREN)
-        if type_ref.head not in self.ctx.types:
+        if type.head not in self.ctx.types:
             known = ", ".join(sorted("_".join(t) for t in self.ctx.types)) or "(brak)"
             raise ResolveError(
                 f"sufiks typu '({'_'.join(inner[1])})' odnosi się do nieznanego "
-                f"typu '{'_'.join(type_ref.head)}'; znane typy: {known}",
+                f"typu '{'_'.join(type.head)}'; znane typy: {known}",
                 line=getattr(inner, "line", None),
             )
-        self.last_production = {"kind": "type_suffix", "type": type_ref.head}
-        return Typed(expr=node, line=lparen_line, type_ref=type_ref)
+        self.last_production = {"kind": "type_suffix", "type": type.head}
+        return Typed(expr=node, line=lparen_line, type=type)
 
     # ---------- WORD-primary dispatcher ----------
 

@@ -235,7 +235,7 @@ class FunctionDef:
     params: list
     body: list
     line: int = None
-    return_type_ref: object = None
+    return_type: object = None
 
 
 @dataclass
@@ -243,7 +243,7 @@ class ExternFunctionDef:
     name: "FunctionIdentifier"
     params: list
     line: int = None
-    return_type_ref: object = None
+    return_type: object = None
 
 
 @dataclass
@@ -251,7 +251,7 @@ class Param:
     prep: tuple
     name: Identifier
     case: frozenset
-    type_ref: object = None
+    type: object = None
 
 
 @dataclass
@@ -266,7 +266,7 @@ class StructDef:
 class Field:
     name: Identifier
     line: int = None
-    type_ref: object = None
+    type: object = None
 
 
 @dataclass
@@ -398,7 +398,7 @@ class StructCreation:
 class Typed:
     expr: object
     line: int = None
-    type_ref: object = None
+    type: object = None
 
 
 @dataclass

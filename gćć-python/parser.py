@@ -49,7 +49,7 @@ from ast_nodes import (
     Return, InterpreterError,
 )
 from identifier import make_identifier, is_prep, canonical_type
-from type_parser import read_prep, parse_type_ref
+from type_parser import read_prep, parse_type
 
 
 _PHRASE_END_KINDS = frozenset({
@@ -260,10 +260,10 @@ class Parser:
         params = []
         while self.peek() and self.peek()[0] not in (lexer.Token.COLON, lexer.Token.ARROW):
             params.append(self.parse_param())
-        return_type_ref = None
+        return_type = None
         if self.peek() and self.peek()[0] is lexer.Token.ARROW:
             self.advance()
-            return_type_ref = parse_type_ref(self, self.preps, terminator=lexer.Token.COLON)
+            return_type = parse_type(self, self.preps, terminator=lexer.Token.COLON)
         self.expect(lexer.Token.COLON)
         self._skip_newlines()
         self.expect(lexer.Token.INDENT)
@@ -275,7 +275,7 @@ class Parser:
         self.expect(lexer.Token.DEDENT)
         return FunctionDef(
             name=name, params=params, body=body,
-            line=getattr(aby_tok, "line", None), return_type_ref=return_type_ref,
+            line=getattr(aby_tok, "line", None), return_type=return_type,
         )
 
     def parse_extern_def(self):
@@ -287,10 +287,10 @@ class Parser:
             lexer.Token.NEWLINE, lexer.Token.ARROW, lexer.Token.DEDENT,
         ):
             params.append(self.parse_param())
-        return_type_ref = None
+        return_type = None
         if self.peek() and self.peek()[0] is lexer.Token.ARROW:
             self.advance()
-            return_type_ref = parse_type_ref(self, self.preps, terminator=lexer.Token.NEWLINE)
+            return_type = parse_type(self, self.preps, terminator=lexer.Token.NEWLINE)
         nxt = self.peek()
         if nxt is not None and nxt[0] not in (lexer.Token.NEWLINE, lexer.Token.DEDENT):
             raise InterpreterError(
@@ -300,7 +300,7 @@ class Parser:
             )
         return ExternFunctionDef(
             name=name, params=params,
-            line=name.line, return_type_ref=return_type_ref,
+            line=name.line, return_type=return_type,
         )
 
     def parse_struct_def(self):
@@ -330,23 +330,23 @@ class Parser:
     def parse_field(self):
         name_tok = self.expect(lexer.Token.WORD)
         self.expect(lexer.Token.LPAREN)
-        type_ref = parse_type_ref(self, self.preps, terminator=lexer.Token.RPAREN)
+        type = parse_type(self, self.preps, terminator=lexer.Token.RPAREN)
         self.expect(lexer.Token.RPAREN)
         return Field(
-            name=make_identifier(name_tok), type_ref=type_ref,
+            name=make_identifier(name_tok), type=type,
             line=getattr(name_tok, "line", None),
         )
 
     def parse_param(self):
         prep = read_prep(self, self.preps)
         name_tok = self.expect(lexer.Token.WORD)
-        type_ref = None
+        type = None
         if self.peek() and self.peek()[0] is lexer.Token.LPAREN:
             self.advance()
-            type_ref = parse_type_ref(self, self.preps, terminator=lexer.Token.RPAREN)
+            type = parse_type(self, self.preps, terminator=lexer.Token.RPAREN)
             self.expect(lexer.Token.RPAREN)
         name = make_identifier(name_tok)
-        return Param(prep=prep, name=name, case=name.case, type_ref=type_ref)
+        return Param(prep=prep, name=name, case=name.case, type=type)
 
 
 def parse(tokens, preps=None):

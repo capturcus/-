@@ -22,7 +22,7 @@ def read_prep(cursor, preps):
     return None
 
 
-def parse_type_ref(cursor, preps, *, terminator, head_case="nom"):
+def parse_type(cursor, preps, *, terminator, head_case="nom"):
     """Sparsuj  HEAD ([prep] arg)*  aż do (nie konsumując) `terminator`
     (rodzaj tokenu lexer.Token; COLON dla nagłówka/typu zwracanego, RPAREN dla
     pola/parametru/adnotacji). GŁOWA kanonizowana wg `head_case` (mianownik w
@@ -37,7 +37,7 @@ def parse_type_ref(cursor, preps, *, terminator, head_case="nom"):
         prep = read_prep(cursor, preps)
         if cursor.peek() is not None and cursor.peek()[0] is lexer.Token.LPAREN:
             cursor.advance()  # zagnieżdżony argument: (
-            arg = parse_type_ref(cursor, preps, terminator=lexer.Token.RPAREN,
+            arg = parse_type(cursor, preps, terminator=lexer.Token.RPAREN,
                                  head_case=None)
             cursor.expect(lexer.Token.RPAREN)
         else:

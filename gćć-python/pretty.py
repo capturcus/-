@@ -93,13 +93,13 @@ def _label(node):
         return "Module"
     if isinstance(node, ast.FunctionDef):
         s = f"FunctionDef {'_'.join(node.name.surface)}"
-        if node.return_type_ref is not None:
-            s += f" -> {_fmt_tref(node.return_type_ref)}"
+        if node.return_type is not None:
+            s += f" -> {_fmt_tref(node.return_type)}"
         return s
     if isinstance(node, ast.StructDef):
         return f"StructDef {'_'.join(node.name)}"
     if isinstance(node, ast.Field):
-        return f"Field {'_'.join(node.name.surface)} : {_fmt_tref(node.type_ref)}"
+        return f"Field {'_'.join(node.name.surface)} : {_fmt_tref(node.type)}"
     if isinstance(node, ast.Param):
         parts = ["Param"]
         if node.prep:
@@ -107,8 +107,8 @@ def _label(node):
         parts.append("_".join(node.name.surface))
         if node.case:
             parts.append(f"({_format_case(node.case)})")
-        if node.type_ref is not None:
-            parts.append(f": {_fmt_tref(node.type_ref)}")
+        if node.type is not None:
+            parts.append(f": {_fmt_tref(node.type)}")
         return " ".join(parts)
     if isinstance(node, ast.Phrase):
         if node.resolved is not None:
@@ -123,7 +123,7 @@ def _label(node):
     if isinstance(node, ast.StructCreation):
         return f"StructCreation {'_'.join(node.type_name)}"
     if isinstance(node, ast.Typed):
-        return f"Typed : {_fmt_tref(node.type_ref)}"
+        return f"Typed : {_fmt_tref(node.type)}"
     if isinstance(node, ast.StructArg):
         suffix = " (shorthand)" if node.value is None else ""
         # field_name to teraz pełen klucz (lemmas, number, gender);
