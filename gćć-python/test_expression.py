@@ -1364,7 +1364,10 @@ def test_type_suffix_on_str_lit(parse):
     src = _TYPE_PREAMBLE + 'aby działać:\n    wynik to "abc" (Tekst)\n'
     m = parse(src)
     val = m.body[2].body[0].value.resolved
-    assert val == ast.Typed(expr=ast.StrLit("abc"), type=("Tekst",), line=val.line)
+    assert isinstance(val, ast.Typed)
+    assert val.expr == ast.StrLit("abc")
+    assert val.type == ("Tekst",)
+    assert val.type_ref.head == ("Tekst",) and val.type_ref.args == []
 
 
 def test_type_suffix_on_int_lit(parse):
@@ -1539,3 +1542,63 @@ def test_parens_grouping_regression(parse):
     assert expr == ast.BinOp(
         "*", ast.BinOp("+", ast.IntLit(2), ast.IntLit(3)), ast.IntLit(4)
     )
+
+
+# ---------- Typy parametryzowane (parser) ----------
+
+def _struct_by_name(m, head):
+    return next(n for n in m.body if isinstance(n, ast.StructDef) and n.name == head)
+
+
+def test_param_struct_header_binders(parse):
+    """Nagłówek `definicja Mapy z klucza na wartość:` — głowa w dopełniaczu,
+    bindery po przyimkach w dowolnym przypadku (silnik parametrów funkcji)."""
+    m = parse("definicja Mapy z klucza na wartość:\n    klucz (klucz)\n    wartość (wartość)\n")
+    sd = _struct_by_name(m, ("Mapa",))
+    assert [(p.prep, p.name.surface) for p in sd.params] == [
+        (("z",), ("klucza",)), (("na",), ("wartość",))
+    ]
+
+
+def test_param_field_type_ref_case_agnostic(parse):
+    """Pole `następnik (Lista z elementem)` — `type` to goła głowa (typechecker),
+    a `type_ref` niesie argument bezprzypadkowo (`elementem` → lemma `element`)."""
+    m = parse("definicja Listy z elementem:\n    wartość (element)\n    następnik (Lista z elementem)\n")
+    sd = _struct_by_name(m, ("Lista",))
+    nast = next(f for f in sd.fields if f.name.surface == ("następnik",))
+    assert nast.type == ("Lista",)                      # głowa — czyta ją typechecker
+    assert nast.type_ref.head == ("Lista",)
+    assert len(nast.type_ref.args) == 1
+    arg = nast.type_ref.args[0]
+    assert arg.prep == ("z",)
+    assert arg.type.head == ("element",) and arg.type.args == []
+
+
+def test_param_func_param_annotation(parse):
+    """Parametr funkcji z typem parametryzowanym: `do kolejki (Lista z elementem)`."""
+    m = parse(
+        "definicja Listy z elementem:\n    wartość (element)\n"
+        "aby dodać do kolejki (Lista z elementem) element:\n    zwróć element\n"
+    )
+    fn = next(n for n in m.body if isinstance(n, ast.FunctionDef))
+    kolejka = fn.params[0]
+    assert kolejka.prep == ("do",)
+    assert kolejka.type == ("Lista",) and kolejka.type_ref.head == ("Lista",)
+    assert kolejka.type_ref.args[0].type.head == ("element",)
+
+
+def test_param_nested_type_annotation(parse):
+    """Zagnieżdżony typ w adnotacji wyrażenia: `(Lista z (Mapa z klucza na wartość))`."""
+    src = (
+        "definicja Listy z elementem:\n    wartość (element)\n"
+        "definicja Mapy z klucza na wartość:\n    klucz (klucz)\n    wartość (wartość)\n"
+        "aby działać:\n    x (Lista z (Mapa z klucza na wartość)) to nowa Lista\n"
+    )
+    m = parse(src)
+    fn = next(n for n in m.body if isinstance(n, ast.FunctionDef))
+    typed = fn.body[0].target.resolved
+    assert isinstance(typed, ast.Typed)
+    assert typed.type == ("Lista",)                     # głowa
+    inner = typed.type_ref.args[0].type               # zagnieżdżony Mapa
+    assert inner.head == ("Mapa",)
+    assert [a.prep for a in inner.args] == [("z",), ("na",)]

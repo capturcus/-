@@ -24,6 +24,8 @@ hindley milner
     typy parametryzowane (Lista, Mapa)
     subscript
 
+    typy wariantowe
+
 uruchamianie
 
 stdlib:

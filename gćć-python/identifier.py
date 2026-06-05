@@ -307,13 +307,20 @@ def canonical_identity(ident, *, required_case, label,
       5. _collapse_same_lemma nad {(lemmas, number, gender)},
       6. >1 → error (niejednoznaczne); inaczej jedyny klucz.
 
+    `required_case=None` → tryb bezprzypadkowy: nie filtruj po przypadku, użyj
+    wszystkich wariantów (argumenty typów parametryzowanych identyfikujemy po
+    lemmie, niezależnie od przypadku — `z elementem`, `na wartość`, `dla rzeczy`).
+
     `label` + `required_case` parametryzują polski komunikat; `error_cls`
     pozwala typom rzucać InterpreterError (faza parse), a zmiennym/polom
     ResolveError (faza resolve). `missing_hint` to opcjonalny suffix komunikatu
     o braku przypadku. Zakłada niepustą `ident.variants` (caller obsługuje atom)."""
     case_name = _CASE_NAMES_LOC.get(required_case, required_case)
     surface = "_".join(ident.surface)
-    matching = [v for v in ident.variants if required_case in v.case]
+    if required_case is None:
+        matching = list(ident.variants)
+    else:
+        matching = [v for v in ident.variants if required_case in v.case]
     if not matching:
         raise error_cls(
             f"{label} '{surface}' musi być w {case_name}{missing_hint}",

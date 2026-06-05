@@ -178,7 +178,7 @@ aby ładuj_bazę x (Tekst) -> Bazy:
 # Dla każdego tokenu typu WORD dopinamy listę analiz per segment.
 # Pozostałe tokeny przechodzą bez analiz.
 
-aby przeanalizuj_tokeny x (Lista) z bazą (Bazy) -> Lista:
+aby przeanalizować_tokeny x (Lista) z bazą (Bazy) -> Lista:
     wynik to stwórz_pustą_listę
     dla wyraz w x:
         rodzaj_wyrazu to rodzaj wyrazu

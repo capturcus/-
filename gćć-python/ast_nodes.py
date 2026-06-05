@@ -210,12 +210,33 @@ class FunctionIdentifier:
 
 
 @dataclass
+class TypeRef:
+    """Wyrażenie typu (potencjalnie parametryzowane).
+
+    `head` — krotka lemm konstruktora (np. ("mapa",)); ta sama postać, którą
+    czyta typechecker. `args` — lista `TypeArg` w kolejności źródłowej (puste
+    dla typów nieparametryzowanych). Argumenty są NIEZWIĄZANE z parametrami
+    struktury — wiązanie (po prep/case) jest odroczone do fazy typecheckera."""
+    head: tuple
+    args: list = field(default_factory=list)
+    line: int = None
+
+
+@dataclass
+class TypeArg:
+    """Jeden argument aplikacji typu: opcjonalny przyimek + (rekurencyjny) TypeRef."""
+    prep: tuple
+    type: "TypeRef"
+
+
+@dataclass
 class FunctionDef:
     name: "FunctionIdentifier"
     params: list
     body: list
     return_type: tuple = None
     line: int = None
+    return_type_ref: object = None
 
 
 @dataclass
@@ -224,6 +245,7 @@ class ExternFunctionDef:
     params: list
     return_type: tuple = None
     line: int = None
+    return_type_ref: object = None
 
 
 @dataclass
@@ -232,6 +254,7 @@ class Param:
     name: Identifier
     case: frozenset
     type: tuple = None
+    type_ref: object = None
 
 
 @dataclass
@@ -239,6 +262,7 @@ class StructDef:
     name: tuple
     fields: list
     line: int = None
+    params: list = field(default_factory=list)
 
 
 @dataclass
@@ -246,6 +270,7 @@ class Field:
     name: Identifier
     type: tuple
     line: int = None
+    type_ref: object = None
 
 
 @dataclass
@@ -378,6 +403,7 @@ class Typed:
     expr: object
     type: tuple
     line: int = None
+    type_ref: object = None
 
 
 @dataclass

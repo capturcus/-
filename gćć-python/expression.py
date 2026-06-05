@@ -50,6 +50,7 @@ from identifier import (
     make_identifier, is_prep, canonical_type, canonical_identity,
     _format_scope_key,
 )
+from type_parser import parse_type_ref
 
 
 _ADJ_LIKE_POS = ("adj", "pact", "ppas")
@@ -400,38 +401,37 @@ class ExpressionParser:
         )
 
     def _maybe_typed(self, node):
-        """Opcjonalny sufiks typu `(Typ)` przyklejający się do atomu.
+        """Opcjonalny sufiks typu `(Typ ...)` przyklejający się do atomu.
 
-        Aktywuje się GDY: kolejne tokeny to LPAREN WORD RPAREN i WORD ma
-        pierwszy segment z wielką literą. Dla capitalized WORD rzuca
-        ResolveError jeśli lemma ∉ ctx.types (nie ma legalnego znaczenia
-        capitalized identyfikatora w samotnych parens poza nazwą typu).
-        Lowercase WORD zostawia bez konsumpcji — to nie sufiks-typ.
+        Aktywuje się GDY: kolejny token to LPAREN, a po nim WORD z pierwszym
+        segmentem wielką literą — tak odróżniamy adnotację typu od zwykłego
+        wyrażenia w nawiasach (zmienne są małą literą). Typ może być
+        parametryzowany (`(Mapa z klucza na wartość)`) i zagnieżdżony —
+        parsuje go współdzielony `parse_type_ref` aż do RPAREN. Walidujemy
+        tylko GŁOWĘ wobec ctx.types (wiązanie argumentów odroczone do
+        typecheckera). Lowercase WORD zostawiamy — to nie sufiks-typ.
         """
         if self.peek() is None or self.peek()[0] is not lexer.Token.LPAREN:
             return node
         inner = self.peek(1)
-        closer = self.peek(2)
-        if (inner is None or inner[0] is not lexer.Token.WORD
-                or closer is None or closer[0] is not lexer.Token.RPAREN):
+        if inner is None or inner[0] is not lexer.Token.WORD:
             return node
         first_seg = inner[1][0] if inner[1] else ""
         if not first_seg or not first_seg[0].isupper():
             return node
         lparen_line = getattr(self.peek(), "line", None)
-        type_tuple = canonical_type(inner, required_case="nom")
-        if type_tuple not in self.ctx.types:
+        self.advance()  # LPAREN
+        type_ref = parse_type_ref(self, self.preps, terminator=lexer.Token.RPAREN)
+        self.expect(lexer.Token.RPAREN)
+        if type_ref.head not in self.ctx.types:
             known = ", ".join(sorted("_".join(t) for t in self.ctx.types)) or "(brak)"
             raise ResolveError(
                 f"sufiks typu '({'_'.join(inner[1])})' odnosi się do nieznanego "
-                f"typu '{'_'.join(type_tuple)}'; znane typy: {known}",
+                f"typu '{'_'.join(type_ref.head)}'; znane typy: {known}",
                 line=getattr(inner, "line", None),
             )
-        self.advance()  # LPAREN
-        self.advance()  # WORD
-        self.advance()  # RPAREN
-        self.last_production = {"kind": "type_suffix", "type": type_tuple}
-        return Typed(expr=node, type=type_tuple, line=lparen_line)
+        self.last_production = {"kind": "type_suffix", "type": type_ref.head}
+        return Typed(expr=node, type=type_ref.head, line=lparen_line, type_ref=type_ref)
 
     # ---------- WORD-primary dispatcher ----------
 

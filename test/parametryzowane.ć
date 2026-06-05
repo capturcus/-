@@ -1,0 +1,23 @@
+# Typy parametryzowane — test parsera (typechecker czyta tylko głowy typów).
+
+definicja Listy z elementem:
+    wartość (element)
+    następnik (Lista z elementem)
+
+definicja Mapy z klucza na wartość:
+    klucz (klucz)
+    wartość (wartość)
+
+definicja Drzewa dla rzeczy:
+    wartość (rzecz)
+    lewy_syn (Drzewo dla rzeczy)
+    prawy_syn (Drzewo dla rzeczy)
+
+aby zbudować_mapę:
+    moja_mapa (Mapa z klucza na wartość) to nowa Mapa
+    lista_map (Lista z (Mapa z klucza na wartość)) to nowa Lista
+    zwróć moja_mapa
+
+aby dodać do szeregu (Lista z elementem) element:
+    nowy_węzeł to nowa Lista
+    zwróć nowy_węzeł
