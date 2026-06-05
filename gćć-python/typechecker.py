@@ -180,10 +180,10 @@ def resolve_module(node):
                 ret_type=new_type()
             )
             for i, p in enumerate(decl.params):
-                if p.type is not None:
-                    unify_types(fdt.arg_types[i], VariantVar(variants=set(["".join(p.type)])))
-            if decl.return_type is not None:
-                unify_types(fdt.ret_type, VariantVar(variants=set(["".join(decl.return_type)])))
+                if p.type_ref is not None:
+                    unify_types(fdt.arg_types[i], VariantVar(variants=set(["".join(p.type_ref.head)])))
+            if decl.return_type_ref is not None:
+                unify_types(fdt.ret_type, VariantVar(variants=set(["".join(decl.return_type_ref.head)])))
             fun_decls.append((decl.name, fdt))
             module_funcs.append((decl, fdt))
 
@@ -275,7 +275,7 @@ def resolve_expression(node, scope):
         node = node.value
     if isinstance(node, ast.Typed):
         expr_t = resolve_expression(node.expr, scope)
-        explicit_t = VariantVar(variants=set(["".join(node.type)]))
+        explicit_t = VariantVar(variants=set(["".join(node.type_ref.head)]))
         return unify_types(expr_t, explicit_t)
     if isinstance(node, ast.BinOp):
         return resolve_bin_op(node, scope)
@@ -448,7 +448,7 @@ def can_resolve_chain_with_struct(chain, struct):
         field = find_field_for_ident(cur_struct, ident)
         if field is None:
             return None
-        result_type = "".join(field.type)
+        result_type = "".join(field.type_ref.head)
         cur_struct = find_struct_def(result_type)
     return result_type
 
@@ -519,7 +519,7 @@ def resolve_struct_arg(node, scope, struct_creation):
     print("StructArg")
     struct_def = find_struct_def(struct_creation.type_name)
     field = find_field(struct_def, node.field_name)
-    field_t = variant(["".join(field.type)])
+    field_t = variant(["".join(field.type_ref.head)])
     if node.value is not None:
         unify_types(field_t, resolve_expression(node.value, scope))
     else:

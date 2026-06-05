@@ -301,13 +301,13 @@ def test_parse_func_decl_multiple_params(parse):
 def test_parse_func_decl_param_with_type(parse):
     m = parse("aby pisać x (Tekst):\n    zwrócić\n")
     fd = m.body[0]
-    assert fd.params[0].type == ("Tekst",)
+    assert fd.params[0].type_ref.head == ("Tekst",)
 
 
 def test_parse_func_decl_return_type(parse):
     m = parse("aby działać -> wynik:\n    zwrócić\n")
     fd = m.body[0]
-    assert fd.return_type == ("wynik",)
+    assert fd.return_type_ref.head == ("wynik",)
 
 
 def test_parse_func_decl_full_types(parse):
@@ -316,9 +316,9 @@ def test_parse_func_decl_full_types(parse):
         "    zwrócić\n"
     )
     fd = m.body[0]
-    assert fd.params[0].type == ("Tekst",)
-    assert fd.params[1].type == ("Tekst",)
-    assert fd.return_type == ("wynik",)
+    assert fd.params[0].type_ref.head == ("Tekst",)
+    assert fd.params[1].type_ref.head == ("Tekst",)
+    assert fd.return_type_ref.head == ("wynik",)
 
 
 def test_parse_multiple_function_definitions(parse):
@@ -338,7 +338,7 @@ def test_parse_extern_no_params(parse):
     assert isinstance(e, ast.ExternFunctionDef)
     assert ("działać",) in e.name.lemmas_set
     assert e.params == []
-    assert e.return_type is None
+    assert e.return_type_ref is None
 
 
 def test_parse_extern_one_param_no_prep(parse):
@@ -381,7 +381,7 @@ def test_parse_extern_multiple_prep_params_with_types(parse):
     e = m.body[0]
     assert isinstance(e, ast.ExternFunctionDef)
     assert len(e.params) == 3
-    types_by_prep = {p.prep: p.type for p in e.params}
+    types_by_prep = {p.prep: p.type_ref.head for p in e.params}
     assert types_by_prep[("na",)] == ("Miejsce",)
     assert types_by_prep[("w",)] == ("Miejsce",)
     assert types_by_prep[("przy",)] == ("Liczba",)
@@ -392,7 +392,7 @@ def test_parse_extern_with_return_type(parse):
     m = parse("można policzyć x -> liczba\n")
     e = m.body[0]
     assert isinstance(e, ast.ExternFunctionDef)
-    assert e.return_type == ("liczba",)
+    assert e.return_type_ref.head == ("liczba",)
 
 
 def test_parse_extern_rejects_colon_body(parse):
@@ -780,7 +780,7 @@ def test_canonical_disambiguates_pora_homograph_in_field_type(parse):
     Test używa "Pora" jako typu pola (parse_field wywołuje canonical())."""
     src = "definicja Pory:\n    x (Pora)\n"
     m = parse(src)
-    assert m.body[0].fields[0].type == ("Pora",)
+    assert m.body[0].fields[0].type_ref.head == ("Pora",)
 
 
 def test_canonical_disambiguates_marka_homograph_in_field_type(parse):
@@ -789,7 +789,7 @@ def test_canonical_disambiguates_marka_homograph_in_field_type(parse):
     w fallback → `("Marek",)`. Z `.lower()` → `("Marka",)`."""
     src = "definicja Marki:\n    x (Marka)\n"
     m = parse(src)
-    assert m.body[0].fields[0].type == ("Marka",)
+    assert m.body[0].fields[0].type_ref.head == ("Marka",)
 
 
 def test_canonical_preserves_case_distinction_type_vs_variable(parse):

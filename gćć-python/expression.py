@@ -431,7 +431,7 @@ class ExpressionParser:
                 line=getattr(inner, "line", None),
             )
         self.last_production = {"kind": "type_suffix", "type": type_ref.head}
-        return Typed(expr=node, type=type_ref.head, line=lparen_line, type_ref=type_ref)
+        return Typed(expr=node, line=lparen_line, type_ref=type_ref)
 
     # ---------- WORD-primary dispatcher ----------
 

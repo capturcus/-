@@ -1366,7 +1366,7 @@ def test_type_suffix_on_str_lit(parse):
     val = m.body[2].body[0].value.resolved
     assert isinstance(val, ast.Typed)
     assert val.expr == ast.StrLit("abc")
-    assert val.type == ("Tekst",)
+    assert val.type_ref.head == ("Tekst",)
     assert val.type_ref.head == ("Tekst",) and val.type_ref.args == []
 
 
@@ -1375,7 +1375,7 @@ def test_type_suffix_on_int_lit(parse):
     m = parse(src)
     val = m.body[2].body[0].value.resolved
     assert isinstance(val, ast.Typed)
-    assert val.type == ("Liczba",)
+    assert val.type_ref.head == ("Liczba",)
     assert val.expr == ast.IntLit(5)
 
 
@@ -1387,7 +1387,7 @@ def test_type_suffix_on_identifier(parse):
     m = parse(src)
     val = m.body[2].body[1].value.resolved
     assert isinstance(val, ast.Typed)
-    assert val.type == ("Tekst",)
+    assert val.type_ref.head == ("Tekst",)
     assert isinstance(val.expr, ast.Identifier)
     assert ("zmienna",) in val.expr.lemmas_set
 
@@ -1398,7 +1398,7 @@ def test_type_suffix_on_lhs_assignment(parse):
     asn = m.body[2].body[0]
     target = asn.target.resolved
     assert isinstance(target, ast.Typed)
-    assert target.type == ("Tekst",)
+    assert target.type_ref.head == ("Tekst",)
     assert isinstance(target.expr, ast.Identifier)
     assert ("wynik",) in target.expr.lemmas_set
     assert asn.value.resolved == ast.StrLit("abc")
@@ -1413,9 +1413,9 @@ def test_type_suffix_on_both_sides(parse):
     m = parse(src)
     asn = m.body[2].body[1]
     assert isinstance(asn.target.resolved, ast.Typed)
-    assert asn.target.resolved.type == ("Tekst",)
+    assert asn.target.resolved.type_ref.head == ("Tekst",)
     assert isinstance(asn.value.resolved, ast.Typed)
-    assert asn.value.resolved.type == ("Tekst",)
+    assert asn.value.resolved.type_ref.head == ("Tekst",)
 
 
 def test_type_suffix_binds_to_atom_not_call(parse):
@@ -1431,7 +1431,7 @@ def test_type_suffix_binds_to_atom_not_call(parse):
     assert len(val.params) == 1
     arg_value = val.params[0].value
     assert isinstance(arg_value, ast.Typed)
-    assert arg_value.type == ("Tekst",)
+    assert arg_value.type_ref.head == ("Tekst",)
 
 
 def test_type_suffix_on_parens_expr_wraps_whole(parse):
@@ -1444,7 +1444,7 @@ def test_type_suffix_on_parens_expr_wraps_whole(parse):
     m = parse(src)
     val = m.body[3].body[1].value.resolved
     assert isinstance(val, ast.Typed)
-    assert val.type == ("Tekst",)
+    assert val.type_ref.head == ("Tekst",)
     assert isinstance(val.expr, ast.FunctionCall)
 
 
@@ -1459,7 +1459,7 @@ def test_type_suffix_on_subscript_index(parse):
     val = m.body[2].body[2].value.resolved
     assert isinstance(val, ast.Subscript)
     assert isinstance(val.index, ast.Typed)
-    assert val.index.type == ("Liczba",)
+    assert val.index.type_ref.head == ("Liczba",)
     assert isinstance(val.index.expr, ast.Identifier)
     assert ("indeks",) in val.index.expr.lemmas_set
 
@@ -1474,7 +1474,7 @@ def test_type_suffix_on_subscript_target_requires_parens(parse):
     m = parse(src)
     val = m.body[2].body[2].value.resolved
     assert isinstance(val, ast.Typed)
-    assert val.type == ("Liczba",)
+    assert val.type_ref.head == ("Liczba",)
     assert isinstance(val.expr, ast.Subscript)
 
 
@@ -1488,7 +1488,7 @@ def test_type_suffix_on_getter_chain(parse):
     m = parse(src)
     val = m.body[3].body[0].value.resolved
     assert isinstance(val, ast.Typed)
-    assert val.type == ("Tekst",)
+    assert val.type_ref.head == ("Tekst",)
     assert isinstance(val.expr, ast.GetterChain)
 
 
@@ -1521,7 +1521,7 @@ def test_type_suffix_multi_segment_type(parse):
     m = parse(src)
     val = m.body[3].body[0].value.resolved
     assert isinstance(val, ast.Typed)
-    assert val.type == ("Numer", "Telefon")
+    assert val.type_ref.head == ("Numer", "Telefon")
 
 
 def test_type_suffix_pretty_print(parse, capsys):
@@ -1566,7 +1566,7 @@ def test_param_field_type_ref_case_agnostic(parse):
     m = parse("definicja Listy z elementem:\n    wartość (element)\n    następnik (Lista z elementem)\n")
     sd = _struct_by_name(m, ("Lista",))
     nast = next(f for f in sd.fields if f.name.surface == ("następnik",))
-    assert nast.type == ("Lista",)                      # głowa — czyta ją typechecker
+    assert nast.type_ref.head == ("Lista",)                      # głowa — czyta ją typechecker
     assert nast.type_ref.head == ("Lista",)
     assert len(nast.type_ref.args) == 1
     arg = nast.type_ref.args[0]
@@ -1583,7 +1583,7 @@ def test_param_func_param_annotation(parse):
     fn = next(n for n in m.body if isinstance(n, ast.FunctionDef))
     kolejka = fn.params[0]
     assert kolejka.prep == ("do",)
-    assert kolejka.type == ("Lista",) and kolejka.type_ref.head == ("Lista",)
+    assert kolejka.type_ref.head == ("Lista",) and kolejka.type_ref.head == ("Lista",)
     assert kolejka.type_ref.args[0].type.head == ("element",)
 
 
@@ -1598,7 +1598,7 @@ def test_param_nested_type_annotation(parse):
     fn = next(n for n in m.body if isinstance(n, ast.FunctionDef))
     typed = fn.body[0].target.resolved
     assert isinstance(typed, ast.Typed)
-    assert typed.type == ("Lista",)                     # głowa
+    assert typed.type_ref.head == ("Lista",)                     # głowa
     inner = typed.type_ref.args[0].type               # zagnieżdżony Mapa
     assert inner.head == ("Mapa",)
     assert [a.prep for a in inner.args] == [("z",), ("na",)]
