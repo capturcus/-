@@ -1,0 +1,20 @@
+definicja Listy z elementem:
+    węzeł (Węzeł z elementem)
+
+definicja Węzła z elementem:
+    wartość (element)
+    następnik (Węzeł z elementem)
+
+aby sprawdzić_niepustą głowę:
+    zwróć Prawda
+
+aby dodać do listy wartość:
+    głowa to węzeł listy
+    dopóki sprawdź_niepustą głowę:
+        głowa to następnik głowy
+    następnik głowy to nowy Węzeł z wartością
+
+aby działać:
+    test to nowa Lista
+    dodaj do testu pięć
+    dodaj do testu sześć

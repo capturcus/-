@@ -21,3 +21,45 @@ aby zbudować_mapę:
 aby dodać do szeregu (Lista z elementem) element:
     nowy_węzeł to nowa Lista
     zwróć nowy_węzeł
+
+
+# --- Drzewo AVL (samobalansujące BST), parametryzowane elementem ---
+
+definicja DrzewaZbalansowanego z elementem:
+    wartość (element)
+    wysokość (Liczba)
+    lewy_syn (DrzewoZbalansowane z elementem)
+    prawy_syn (DrzewoZbalansowane z elementem)
+
+aby utworzyć_liść dla elementu -> DrzewoZbalansowane z elementem:
+    zwróć nowe DrzewoZbalansowane o wartości element o wysokości jeden
+
+aby obliczyć_równowagę dla drzewa (DrzewoZbalansowane z elementem) -> Liczba:
+    zwróć wysokość lewego_syna drzewa minus wysokość prawego_syna drzewa
+
+aby obrócić_lewo drzewo (DrzewoZbalansowane z elementem) -> DrzewoZbalansowane z elementem:
+    nowy_korzeń to prawy_syn drzewa
+    prawy_syn drzewa to lewy_syn nowego_korzenia
+    lewy_syn nowego_korzenia to drzewo
+    zwróć nowy_korzeń
+
+aby obrócić_prawo drzewo (DrzewoZbalansowane z elementem) -> DrzewoZbalansowane z elementem:
+    nowy_korzeń to lewy_syn drzewa
+    lewy_syn drzewa to prawy_syn nowego_korzenia
+    prawy_syn nowego_korzenia to drzewo
+    zwróć nowy_korzeń
+
+aby zbalansować drzewo (DrzewoZbalansowane z elementem) -> DrzewoZbalansowane z elementem:
+    równowaga to oblicz_równowagę dla drzewa
+    jeśli równowaga większe od jeden:
+        zwróć obróć_prawo drzewo
+    jeśli równowaga mniejsze od minus jeden:
+        zwróć obróć_lewo drzewo
+    zwróć drzewo
+
+aby wstawić element do drzewa (DrzewoZbalansowane z elementem) -> DrzewoZbalansowane z elementem:
+    jeśli element mniejsze od wartość drzewa:
+        lewy_syn drzewa to wstaw element do lewego_syna drzewa
+    inaczej:
+        prawy_syn drzewa to wstaw element do prawego_syna drzewa
+    zwróć zbalansuj drzewo

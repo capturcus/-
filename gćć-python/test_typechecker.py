@@ -61,7 +61,7 @@ def ty(t):
     r = typechecker.find_type(t)
     if isinstance(r, typechecker.TypeVar):
         return "?"
-    return "|".join(sorted(r.variants))
+    return "|".join(sorted(a.head for a in r.variants))
 
 
 def conc(*names):

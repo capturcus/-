@@ -17,20 +17,37 @@ class TypeVar:
     def __repr__(self):
         return f"t{self.number}"
 
+@dataclass(frozen=True)
+class AppliedType:
+    """Typ konstruktora zaaplikowany do argumentów (zinstancjonowany generyk).
+
+    `head` — nazwa konstruktora (np. "Liczba", "Lista"). `args` — krotka
+    argumentów typu (na razie zawsze pusta; parametryzacja dojdzie później).
+    frozen=True → hashowalne i porównywane po wartości, więc `AppliedType`
+    może być elementem zbioru `VariantVar.variants` i działa przecięcie."""
+    head: str
+    args: tuple = ()
+
+    def __repr__(self):
+        if not self.args:
+            return self.head
+        return f"{self.head}[{', '.join(map(repr, self.args))}]"
+
+
 @dataclass(eq=False, repr=False)
 class VariantVar:
-    variants: set = field(default_factory=set)
+    variants: set = field(default_factory=set)  # set[AppliedType]
     next: object = None
 
     def __repr__(self):
-        return "|".join(sorted(self.variants)) if self.variants else "⊥"
+        return "|".join(sorted(repr(a) for a in self.variants)) if self.variants else "⊥"
 
 class TypeCheckError(Exception):
     """Konflikt typów — np. unifikacja dwóch konkretów o pustym przecięciu."""
 
-def variant(names):
-    # Typ konkretny/wariantowy z iterowalnej kolekcji nazw.
-    return VariantVar(variants=set(names))
+def variant(heads):
+    # Typ konkretny/wariantowy z iterowalnej kolekcji nazw-głów (stringów).
+    return VariantVar(variants={AppliedType(h) for h in heads})
 
 def new_type():
     global last_type
@@ -155,7 +172,8 @@ def instantiate(fdt):
         t = find_type(t)
         if isinstance(t, VariantVar):
             # Konkret — świeża kopia, by unifikacja w call-site nie mutowała schematu.
-            return variant(t.variants)
+            # AppliedType są niemutowalne (frozen), więc kopiujemy sam zbiór.
+            return VariantVar(variants=set(t.variants))
         if t not in subst:
             subst[t] = new_type()
         return subst[t]
@@ -181,9 +199,9 @@ def resolve_module(node):
             )
             for i, p in enumerate(decl.params):
                 if p.type is not None:
-                    unify_types(fdt.arg_types[i], VariantVar(variants=set(["".join(p.type.head)])))
+                    unify_types(fdt.arg_types[i], variant(["".join(p.type.head)]))
             if decl.return_type is not None:
-                unify_types(fdt.ret_type, VariantVar(variants=set(["".join(decl.return_type.head)])))
+                unify_types(fdt.ret_type, variant(["".join(decl.return_type.head)]))
             fun_decls.append((decl.name, fdt))
             module_funcs.append((decl, fdt))
 
@@ -208,7 +226,7 @@ def _infer_bodies(module_funcs, scopes):
 
 
 def _type_sig(r):
-    return "?" if isinstance(r, TypeVar) else tuple(sorted(r.variants))
+    return "?" if isinstance(r, TypeVar) else tuple(sorted(repr(a) for a in r.variants))
 
 
 def _signature(module_funcs, scopes):
@@ -275,7 +293,7 @@ def resolve_expression(node, scope):
         node = node.value
     if isinstance(node, ast.Typed):
         expr_t = resolve_expression(node.expr, scope)
-        explicit_t = VariantVar(variants=set(["".join(node.type.head)]))
+        explicit_t = variant(["".join(node.type.head)])
         return unify_types(expr_t, explicit_t)
     if isinstance(node, ast.BinOp):
         return resolve_bin_op(node, scope)
@@ -301,10 +319,10 @@ def resolve_expression(node, scope):
         return resolve_identifier(node, scope)
     if isinstance(node, ast.IntLit):
         print("IntLit")
-        return VariantVar(variants=set(["Liczba"]))
+        return variant(["Liczba"])
     if isinstance(node, ast.StrLit):
         print("StrLit")
-        return VariantVar(variants=set(["Tekst"]))
+        return variant(["Tekst"])
 
 def resolve_assignment(node, scope):
     print("Assignment")
@@ -377,7 +395,7 @@ def resolve_return(node, scope):
         t = resolve_expression(node.value, scope)
         unify_types(scope.root_fdt.ret_type, t)
     else:
-        unify_types(scope.root_fdt.ret_type, VariantVar(variants=set(["Nic"])))
+        unify_types(scope.root_fdt.ret_type, variant(["Nic"]))
 
 
 def resolve_not(node, scope):
@@ -479,7 +497,8 @@ def resolve_getter_chain(node, scope):
     # Typ zwracany liczymy z AKTUALNIE zresolwowanego typu ostatniego słowa:
     # zostaw tylko kandydatów zgodnych z jego wariantem (gdy wolny — wszystkich).
     if isinstance(last_word_t, VariantVar):
-        surviving = [rt for name, rt in candidates if name in last_word_t.variants]
+        surviving_heads = {a.head for a in last_word_t.variants}
+        surviving = [rt for name, rt in candidates if name in surviving_heads]
     else:
         surviving = [rt for _, rt in candidates]
     return variant(surviving)
