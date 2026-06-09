@@ -21,10 +21,11 @@ hindley milner
             potrzebujemy 1 lub więcej poprawnych możliwości, ale nie konkretyzacji
             update logiki unifikacji: Pies|Człowiek ^ Pies|Żyrafa = Pies
         v struct creation
-    typy parametryzowane (Lista, Mapa)
-    subscript
+        v typy parametryzowane (Lista, Mapa)
+        subscript
 
-    typy wariantowe
+        typy wariantowe
+    double check fixpoint upper bound
 
 uruchamianie
 

@@ -218,6 +218,37 @@ def instantiate(fdt):
         })
     return [fresh(a) for a in fdt.arg_types], fresh(fdt.ret_type)
 
+
+def _is_concrete(t):
+    """Czy typ jest W PEŁNI skonkretyzowany: jedna głowa, argumenty rekurencyjnie
+    skonkretyzowane. Wolna zmienna (t27) → nie; niejednoznaczny wariant (A|B) → nie."""
+    t = find_type(t)
+    if isinstance(t, TypeVar):
+        return False
+    if len(t.variants) != 1:
+        return False
+    a = next(iter(t.variants))
+    return all(_is_concrete(x) for x in a.args)
+
+
+def _check_grounded(decl, scope):
+    """Punkt wejścia (działać) jest wykonywany na konkretnych wartościach, więc
+    KAŻDA jego zmienna musi mieć jeden w pełni skonkretyzowany typ — runtime nie
+    wie, jak reprezentować zmienną wolną (t27) ani niejednoznaczną (A|B). Funkcje
+    generyczne mają wolne zmienne w sygnaturze (to polimorfizm) i NIE są tu
+    sprawdzane — konkretyzują się przy wywołaniu, a niedookreślenie wychodzi
+    wtedy w scope'ie wołającego (tu)."""
+    for s in scope.walk():
+        for ident, t in s.types:
+            if not _is_concrete(t):
+                line = getattr(ident, "line", None)
+                raise TypeCheckError(
+                    f"nie można wywnioskować konkretnego typu zmiennej "
+                    f"'{'_'.join(ident.surface)}' (linia {line}); "
+                    f"pozostało {find_type(t)!r} — dodaj adnotację typu"
+                )
+
+
 module = None
 
 def resolve_module(node):
@@ -254,6 +285,12 @@ def resolve_module(node):
             for (v, t) in s.types:
                 print("")
                 print(v, find_type(t))
+
+    # Punkty wejścia (działać) są wykonywane — ich zmienne muszą być w pełni
+    # skonkretyzowane (HM "type annotations needed" / Rust E0282).
+    for (decl, _), scope in zip(module_funcs, fun_scopes):
+        if ("działać",) in decl.name.lemmas_set:
+            _check_grounded(decl, scope)
 
 
 def _infer_bodies(module_funcs, scopes):

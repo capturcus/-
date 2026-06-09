@@ -1,0 +1,13 @@
+# Subskrypt listy: pobranie elementu o danym indeksie (rekurencyjnie).
+# Sprawdza, czy Ć potrafi DZIŚ otypować polimorficzny, rekurencyjny subskrypt
+# zwracający element kontenera (bez wariantów — wersja "totalna" zwracająca element).
+
+definicja Listy z elementem:
+    głowa (element)
+    ogon (Lista z elementem)
+
+aby pobrać z listy o indeksie:
+    jeśli indeks większe od zero:
+        krok to indeks minus jeden
+        zwróć pobierz z ogona listy o kroku
+    zwróć głowa listy
