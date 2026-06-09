@@ -224,9 +224,13 @@ class TypeRef:
 
 @dataclass
 class TypeArg:
-    """Jeden argument aplikacji typu: opcjonalny przyimek + (rekurencyjny) TypeRef."""
+    """Jeden argument aplikacji typu: opcjonalny przyimek + (rekurencyjny) TypeRef.
+    `case` — przypadek gramatyczny argumentu (jak `Param.case`), do dopasowania
+    arg→param tym samym silnikiem (prep, case) co wywołania funkcji. None dla
+    argumentów zagnieżdżonych w nawiasach (brak pojedynczego słowa rządzącego)."""
     prep: tuple
     type: "TypeRef"
+    case: frozenset = None
 
 
 @dataclass

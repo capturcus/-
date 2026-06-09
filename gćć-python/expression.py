@@ -50,6 +50,7 @@ from identifier import (
     make_identifier, is_prep, canonical_type, canonical_identity,
     _format_scope_key,
 )
+import type_parser
 from type_parser import parse_type
 
 
@@ -564,46 +565,18 @@ class ExpressionParser:
         return None
 
     def _match_args_to_slots(self, arg_meta, sig, name):
-        n_slots = len(sig)
-        candidates = [
-            {si for si, p in enumerate(sig) if self._slot_matches(prep, case, p)}
-            for prep, case, _ in arg_meta
-        ]
-        assigned = {}
-        used = set()
-        while True:
-            progress = False
-            for ai in range(n_slots):
-                if ai in assigned:
-                    continue
-                cands = candidates[ai] - used
-                if len(cands) == 1:
-                    slot = next(iter(cands))
-                    assigned[ai] = slot
-                    used.add(slot)
-                    progress = True
-            if not progress:
-                break
-        remaining_args = [ai for ai in range(n_slots) if ai not in assigned]
-        free_slots = sorted(set(range(n_slots)) - used)
-        for ai, si in zip(remaining_args, free_slots):
-            if si not in candidates[ai]:
-                raise ResolveError(
-                    f"argument funkcji '{'_'.join(name.surface)}' "
-                    f"nie pasuje do żadnego wolnego parametru w trybie pozycyjnym",
-                    line=getattr(name, "line", None),
-                )
-            assigned[ai] = si
-            used.add(si)
-        return {assigned[ai]: ai for ai in range(n_slots)}
+        return type_parser.match_args_to_slots(
+            arg_meta, sig,
+            on_error=lambda: ResolveError(
+                f"argument funkcji '{'_'.join(name.surface)}' "
+                f"nie pasuje do żadnego wolnego parametru w trybie pozycyjnym",
+                line=getattr(name, "line", None),
+            ),
+        )
 
     @staticmethod
     def _slot_matches(tok_prep, tok_case, param):
-        if param.prep != tok_prep:
-            return False
-        if param.case is None or tok_case is None:
-            return True
-        return bool(param.case & tok_case)
+        return type_parser.slot_matches(tok_prep, tok_case, param)
 
     # ---------- helpery wariantów ----------
 

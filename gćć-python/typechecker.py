@@ -3,6 +3,7 @@ import re
 import contextlib
 import io
 from dataclasses import dataclass, field
+from type_parser import match_args_to_slots
 
 last_type = 0
 type_regex = re.compile(r"t[0-9]+")
@@ -31,7 +32,9 @@ class AppliedType:
     def __repr__(self):
         if not self.args:
             return self.head
-        return f"{self.head}[{', '.join(map(repr, self.args))}]"
+        # Pokazuj REPREZENTANTA argumentu (find_type), nie zapisaną zmienną —
+        # po unifikacji `t35` może już wskazywać np. na Liczbę.
+        return f"{self.head}[{', '.join(repr(find_type(x)) for x in self.args)}]"
 
 
 @dataclass(eq=False, repr=False)
@@ -67,31 +70,64 @@ def find_type(t):
         t.next, t = root, t.next
     return root
 
+def _occurs(var, t):
+    """Czy `var` (TypeVar) występuje wewnątrz `t` — zapobiega nieskończonym
+    typom (np. α = Lista[α]). Schodzi w argumenty AppliedType."""
+    t = find_type(t)
+    if t is var:
+        return True
+    if isinstance(t, VariantVar):
+        return any(_occurs(var, arg) for a in t.variants for arg in a.args)
+    return False
+
+
+def _unify_variants(ft0, ft1):
+    """Unifikacja dwóch konkretów: przecięcie po GŁOWIE, a dla wspólnych głów
+    rekurencyjna unifikacja argumentów (strukturalnie). Przy pustych args
+    redukuje się do przecięcia zbiorów (zachowanie sprzed generyków)."""
+    by0, by1 = {}, {}
+    for a in ft0.variants:
+        by0.setdefault(a.head, []).append(a)
+    for a in ft1.variants:
+        by1.setdefault(a.head, []).append(a)
+    common_heads = by0.keys() & by1.keys()
+    if not common_heads:
+        raise TypeCheckError(f"cannot unify {ft0} with {ft1}")
+    result = set()
+    for h in common_heads:
+        for a0 in by0[h]:
+            for a1 in by1[h]:
+                if len(a0.args) != len(a1.args):
+                    raise TypeCheckError(
+                        f"arity mismatch for {h}: {len(a0.args)} vs {len(a1.args)}")
+                for x, y in zip(a0.args, a1.args):
+                    unify_types(x, y)
+                result.add(AppliedType(h, a0.args))
+    # Reużyj istniejący węzeł, gdy wynik równa się jednej ze stron — przy
+    # pustych args to dokładnie stara optymalizacja (zero śmieci w fixpoincie).
+    if result == ft0.variants:
+        ft1.next = ft0
+        return ft0
+    if result == ft1.variants:
+        ft0.next = ft1
+        return ft1
+    new_variant = VariantVar(variants=result)
+    ft0.next = new_variant
+    ft1.next = new_variant
+    return new_variant
+
+
 def unify_types(t0, t1):
     ft0 = find_type(t0)
     ft1 = find_type(t1)
     if ft0 is ft1:
         return ft0
     if isinstance(ft0, VariantVar) and isinstance(ft1, VariantVar):
-        common = ft0.variants & ft1.variants
-        if len(common) == 0:
-            raise TypeCheckError(f"cannot unify {ft0} with {ft1}")
-        # Reużyj istniejący węzeł, gdy przecięcie równa się jednej ze stron —
-        # w stanie ustalonym (fixpoint) przecięcia są co przebieg równe, więc
-        # to całkowicie zatrzymuje rośnięcie łańcuchów .next (zero śmieci).
-        if common == ft0.variants:
-            ft1.next = ft0
-            return ft0
-        if common == ft1.variants:
-            ft0.next = ft1
-            return ft1
-        # Przecięcie ściśle mniejsze od obu — dopiero teraz nowy węzeł.
-        new_variant = VariantVar(variants=common)
-        ft0.next = new_variant
-        ft1.next = new_variant
-        return new_variant
+        return _unify_variants(ft0, ft1)
     # Co najmniej jedna strona to wolna zmienna — przepnij ją na drugą.
     concrete, abstract = (ft0, ft1) if isinstance(ft0, VariantVar) else (ft1, ft0)
+    if isinstance(concrete, VariantVar) and _occurs(abstract, concrete):
+        raise TypeCheckError(f"occurs check: {abstract} w {concrete}")
     abstract.next = concrete
     return concrete
 
@@ -170,13 +206,16 @@ def instantiate(fdt):
     subst = {}
     def fresh(t):
         t = find_type(t)
-        if isinstance(t, VariantVar):
-            # Konkret — świeża kopia, by unifikacja w call-site nie mutowała schematu.
-            # AppliedType są niemutowalne (frozen), więc kopiujemy sam zbiór.
-            return VariantVar(variants=set(t.variants))
-        if t not in subst:
-            subst[t] = new_type()
-        return subst[t]
+        if isinstance(t, TypeVar):
+            if t not in subst:
+                subst[t] = new_type()
+            return subst[t]
+        # VariantVar: świeża kopia z REKURENCYJNIE świeżonymi argumentami, żeby
+        # funkcja polimorficzna (∀W. (Lista[W], W)→…) dostała niezależne zmienne
+        # elementu per call-site. Przy pustych args = stara płytka kopia.
+        return VariantVar(variants={
+            AppliedType(a.head, tuple(fresh(x) for x in a.args)) for a in t.variants
+        })
     return [fresh(a) for a in fdt.arg_types], fresh(fdt.ret_type)
 
 module = None
@@ -197,11 +236,12 @@ def resolve_module(node):
                 arg_types=[new_type() for _ in range(len(decl.params))],
                 ret_type=new_type()
             )
+            fenv = {}  # niejawne parametry typu funkcji: nieznana mała-litera → świeża zmienna
             for i, p in enumerate(decl.params):
                 if p.type is not None:
-                    unify_types(fdt.arg_types[i], variant(["".join(p.type.head)]))
+                    unify_types(fdt.arg_types[i], elaborate(p.type, fenv, fresh_unknown=True))
             if decl.return_type is not None:
-                unify_types(fdt.ret_type, variant(["".join(decl.return_type.head)]))
+                unify_types(fdt.ret_type, elaborate(decl.return_type, fenv, fresh_unknown=True))
             fun_decls.append((decl.name, fdt))
             module_funcs.append((decl, fdt))
 
@@ -226,7 +266,16 @@ def _infer_bodies(module_funcs, scopes):
 
 
 def _type_sig(r):
-    return "?" if isinstance(r, TypeVar) else tuple(sorted(repr(a) for a in r.variants))
+    # Strukturalna sygnatura: wolne zmienne → '?' (normalizuje dryf numerów tN
+    # między przebiegami, żeby fixpoint dla typów parametryzowanych zbiegał),
+    # rekurencyjnie w argumenty AppliedType. Sortuj po głowie (unikalna w zbiorze).
+    r = find_type(r)
+    if isinstance(r, TypeVar):
+        return "?"
+    return tuple(sorted(
+        ((a.head, tuple(_type_sig(x) for x in a.args)) for a in r.variants),
+        key=lambda e: e[0],
+    ))
 
 
 def _signature(module_funcs, scopes):
@@ -293,7 +342,7 @@ def resolve_expression(node, scope):
         node = node.value
     if isinstance(node, ast.Typed):
         expr_t = resolve_expression(node.expr, scope)
-        explicit_t = variant(["".join(node.type.head)])
+        explicit_t = elaborate(node.type, {}, fresh_unknown=True)
         return unify_types(expr_t, explicit_t)
     if isinstance(node, ast.BinOp):
         return resolve_bin_op(node, scope)
@@ -458,17 +507,18 @@ def can_resolve_chain_with_struct(chain, struct):
     najwcześniejszemu (chain[0]). Typ każdego pola wyznacza strukturę,
     w której szukamy ogniwa poprzedzającego; gdy pole nie jest strukturą,
     a łańcuch chce iść dalej — nie pasuje (None)."""
+    base_inst, cur_env = instantiate_struct(struct)
     cur_struct = struct
-    result_type = None
+    result_t = None
     for ident in reversed(chain):
         if cur_struct is None:
             return None
         field = find_field_for_ident(cur_struct, ident)
         if field is None:
             return None
-        result_type = "".join(field.type.head)
-        cur_struct = find_struct_def(result_type)
-    return result_type
+        result_t = elaborate(field.type, cur_env)   # pole-parametr → zmienna instancji
+        cur_struct, cur_env = _as_struct(result_t)   # zejdź głębiej, jeśli pole to struktura
+    return base_inst, result_t
 
 
 def resolve_getter_chain(node, scope):
@@ -478,30 +528,38 @@ def resolve_getter_chain(node, scope):
     # na typ ostatniego słowa to wszystkie struktury mające to pole.
     penultimate_word = node.chain[-2]
     structs = find_struct_defs_by_field(penultimate_word)
-    # pary (nazwa structu = możliwy typ ostatniego słowa, typ całego łańcucha)
+    # trójki (struktura, jej świeża instancja, typ wynikowy całego łańcucha)
     candidates = []
     for s in structs:
-        result_type = can_resolve_chain_with_struct(node.chain[:-1], s)
-        if result_type is not None:
-            candidates.append(("".join(s.name), result_type))
+        res = can_resolve_chain_with_struct(node.chain[:-1], s)
+        if res is not None:
+            base_inst, result_t = res
+            candidates.append((s, base_inst, result_t))
     if not candidates:
         surfaces = " ".join("_".join(w.surface) for w in node.chain)
         print(f"nie można zresolvować łańcucha dopełniaczowego '{surfaces}'")
         raise
-    # Zawęź ostatnie słowo do wariantu kandydujących struktur — przecina się
-    # z ograniczeniami z innych statementów (np. drugi getter na tej zmiennej).
-    last_word_t = unify_types(
-        scope.get_type(node.chain[-1]),
-        variant(name for name, _ in candidates),
-    )
-    # Typ zwracany liczymy z AKTUALNIE zresolwowanego typu ostatniego słowa:
-    # zostaw tylko kandydatów zgodnych z jego wariantem (gdy wolny — wszystkich).
-    if isinstance(last_word_t, VariantVar):
-        surviving_heads = {a.head for a in last_word_t.variants}
-        surviving = [rt for name, rt in candidates if name in surviving_heads]
-    else:
-        surviving = [rt for _, rt in candidates]
-    return variant(surviving)
+    # Zawęź ostatnie słowo do unii instancji kandydatów — strukturalna unifikacja
+    # przecina po głowie I wiąże argumenty (np. drugi getter na tej zmiennej).
+    base_union = set()
+    for _, base_inst, _ in candidates:
+        base_union |= base_inst.variants
+    last_word_t = find_type(unify_types(
+        scope.get_type(node.chain[-1]), VariantVar(variants=base_union)))
+    surv_heads = ({a.head for a in last_word_t.variants}
+                  if isinstance(last_word_t, VariantVar) else None)
+    surviving = [rt for s, _, rt in candidates
+                 if surv_heads is None or "".join(s.name) in surv_heads]
+    if len(surviving) == 1:
+        return surviving[0]   # jednoznaczny kandydat — zachowaj parametr (zmienną)
+    # Wielu ocalałych → unia konkretnych głów ich typów wynikowych (jak dawniej:
+    # np. imię z UżytkownikSerwis|Pies → Tekst, z Człowiek → Liczba ⇒ Tekst|Liczba).
+    union = set()
+    for rt in surviving:
+        rt = find_type(rt)
+        if isinstance(rt, VariantVar):
+            union |= rt.variants
+    return VariantVar(variants=union) if union else surviving[0]
 
 
 def resolve_subscript(node, scope):
@@ -513,6 +571,8 @@ def resolve_subscript(node, scope):
 def find_struct_def(type_name):
     # type_name bywa krotką lemm (z StructCreation) albo sklejonym stringiem
     # (typ ze scope) — "".join normalizuje oba do tej samej postaci.
+    if module is None:
+        return None
     target = "".join(type_name)
     for decl in module.body:
         if isinstance(decl, ast.StructDef) and "".join(decl.name) == target:
@@ -527,18 +587,94 @@ def find_field(struct_def, field_key):
     return None
 
 
+BUILTINS = {"Liczba", "Tekst", "Przełącznik", "Nic", "Znak"}
+
+
+def _struct_env(struct_def, args):
+    """Mapa nazwa-parametru (lemma) → węzeł typu, z `args` (równoległe do params)."""
+    env = {}
+    for p, a in zip(struct_def.params, args):
+        for lemmas in p.name.lemmas_set:
+            env["".join(lemmas)] = a
+    return env
+
+
+def instantiate_struct(struct_def):
+    """Świeża instancja struktury: AppliedType(name, (α1..αn)) + env param→αi."""
+    fresh = [new_type() for _ in struct_def.params]
+    inst = VariantVar(variants={AppliedType("".join(struct_def.name), tuple(fresh))})
+    return inst, _struct_env(struct_def, fresh)
+
+
+def elaborate(tref, env, fresh_unknown=False):
+    """TypeRef (składnia) → węzeł typu (semantyka), względem `env` (nazwa
+    parametru → węzeł). Głowa będąca parametrem → jego węzeł. Głowa będąca
+    strukturą → AppliedType(name, args ułożone w kolejności parametrów przez
+    dopasowanie (prep, case)). Builtin/nieznana 0-arg → konkret. `fresh_unknown`
+    (sygnatury funkcji/adnotacje): nieznana mała-litera głowa → świeża zmienna
+    (niejawny parametr typu), memoizowana w `env`."""
+    h = "".join(tref.head)
+    if h in env:
+        return find_type(env[h])
+    sd = find_struct_def(tref.head)
+    if sd is None:
+        if fresh_unknown and h not in BUILTINS:
+            v = new_type()
+            env[h] = v
+            return v
+        return VariantVar(variants={AppliedType(h, ())})
+    # struktura: sloty per parametr, argumenty dopasowane (prep, case) i ułożone
+    slots = [new_type() for _ in sd.params]
+    if tref.args and len(tref.args) == len(sd.params):
+        arg_meta = [(ta.prep, ta.case, ta) for ta in tref.args]
+        slot_to_arg = match_args_to_slots(
+            arg_meta, sd.params,
+            on_error=lambda: TypeCheckError(
+                f"argumenty typu nie pasują do parametrów '{h}'"))
+        for slot_i, arg_i in slot_to_arg.items():
+            unify_types(slots[slot_i],
+                        elaborate(tref.args[arg_i].type, env, fresh_unknown))
+    return VariantVar(variants={AppliedType(h, tuple(slots))})
+
+
+def _as_struct(result_t):
+    """Jeśli `result_t` to pojedyncza struktura (AppliedType), zwróć
+    (struct_def, env) do zejścia głębiej w łańcuchu; inaczej (None, None).
+    env mapuje parametry struktury na jej AKTUALNE argumenty (nie świeże)."""
+    rt = find_type(result_t)
+    if isinstance(rt, VariantVar) and len(rt.variants) == 1:
+        at = next(iter(rt.variants))
+        sd = find_struct_def((at.head,))
+        if sd is not None:
+            return sd, _struct_env(sd, at.args)
+    return None, None
+
+
 def resolve_struct_creation(node, scope):
     print("StructCreation")
+    sd = find_struct_def(node.type_name)
+    if sd is None:
+        # Nieznana struktura (builtin / test bez `module`) — zachowanie sprzed generyków.
+        for a in node.args:
+            resolve_struct_arg(a, scope, node)
+        return variant(["".join(node.type_name)])
+    inst, env = instantiate_struct(sd)
+    node.__dict__["_struct_env"] = env   # env per instancja, dla resolve_struct_arg
     for a in node.args:
         resolve_struct_arg(a, scope, node)
-    return variant(["".join(node.type_name)])
+    return inst
 
 
 def resolve_struct_arg(node, scope, struct_creation):
     print("StructArg")
     struct_def = find_struct_def(struct_creation.type_name)
+    if struct_def is None:
+        if node.value is not None:
+            resolve_expression(node.value, scope)
+        return
     field = find_field(struct_def, node.field_name)
-    field_t = variant(["".join(field.type.head)])
+    env = struct_creation.__dict__.get("_struct_env", {})
+    field_t = elaborate(field.type, env)   # pole-parametr → współdzielona zmienna instancji
     if node.value is not None:
         unify_types(field_t, resolve_expression(node.value, scope))
     else:

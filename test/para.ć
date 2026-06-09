@@ -1,0 +1,19 @@
+# Generyczna para + zamiana, która PRZESTAWIA parametry typu.
+# Testuje: dwa parametry, nazwy pól różne od nazw parametrów, oraz to, że
+# strukturalna unifikacja poprawnie przerzuca typy między slotami (Para[a,b] -> Para[b,a]).
+
+definicja Pary z klucza z wartości:
+    przód (klucz)
+    tył (wartość)
+
+aby zbudować_parę z przodem z tyłem:
+    zwróć nowa Para z przodem z tyłem
+
+aby zamienić zestaw:
+    przód to tył zestawu
+    tył to przód zestawu
+    zwróć nowa Para z przodem z tyłem
+
+aby działać:
+    zestaw to zbuduj_parę z pięć z "tekst"
+    odwrócony to zamień zestaw

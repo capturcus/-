@@ -1,0 +1,22 @@
+# Generyczny wpis słownika (klucz → wartość) jako powiązanie.
+# Testuje: DWUparametrowy generyk, akcesory zwracające każdy z parametrów,
+# jedna funkcja użyta z dwoma różnymi typami konkretnymi naraz (Liczba, Tekst).
+
+definicja Wpisu z klucza z wartości:
+    klucz (klucz)
+    wartość (wartość)
+    następny (Wpis z klucza z wartości)
+
+aby utworzyć_wpis dla klucza z wartością -> Wpis z klucza z wartości:
+    zwróć nowy Wpis z kluczem z wartością
+
+aby odczytać_klucz dla wpisu (Wpis z klucza z wartości) -> klucz:
+    zwróć klucz wpisu
+
+aby odczytać_wartość dla wpisu (Wpis z klucza z wartości) -> wartość:
+    zwróć wartość wpisu
+
+aby działać:
+    wpis to utwórz_wpis dla jeden z "jeden"
+    mój_klucz to odczytaj_klucz dla wpisu
+    moja_wartość to odczytaj_wartość dla wpisu

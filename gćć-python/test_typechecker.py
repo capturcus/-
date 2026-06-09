@@ -185,6 +185,62 @@ def test_unify_propagates_to_already_linked_vars():
 
 
 # =====================================================================
+# Generyki: strukturalna unifikacja AppliedType, occurs-check, deep-fresh
+# =====================================================================
+
+def _applied(head, *args):
+    """VariantVar z jednym AppliedType(head, args) — args to węzły typów."""
+    return typechecker.VariantVar(variants={typechecker.AppliedType(head, tuple(args))})
+
+
+def test_unify_applied_links_args():
+    # Lista[a] z Lista[b] → a ≡ b (strukturalna unifikacja argumentów).
+    a, b = typechecker.new_type(), typechecker.new_type()
+    typechecker.unify_types(_applied("Lista", a), _applied("Lista", b))
+    assert typechecker.find_type(a) is typechecker.find_type(b)
+
+
+def test_unify_applied_propagates_concrete_to_arg():
+    # Lista[a] z Lista[Liczba] → a := Liczba.
+    a = typechecker.new_type()
+    typechecker.unify_types(_applied("Lista", a), _applied("Lista", conc("Liczba")))
+    assert ty(a) == "Liczba"
+
+
+def test_unify_applied_head_mismatch_raises():
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.unify_types(_applied("Lista", typechecker.new_type()),
+                                _applied("Mapa", typechecker.new_type()))
+
+
+def test_unify_applied_arity_mismatch_raises():
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.unify_types(_applied("Para", typechecker.new_type()),
+                                _applied("Para", typechecker.new_type(), typechecker.new_type()))
+
+
+def test_occurs_check_raises():
+    # a = Lista[a] → nieskończony typ → odrzucone.
+    a = typechecker.new_type()
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.unify_types(a, _applied("Lista", a))
+
+
+def test_instantiate_deep_fresh_args():
+    # Schemat (Lista[W], W); instancjonowanie ma: dzielić W w obrębie instancji,
+    # ale dawać niezależne W między instancjami (rdzeń polimorfizmu generyków).
+    w = typechecker.new_type()
+    fdt = typechecker.FunDefTypes(name=make_fid("robić"),
+                                  arg_types=[_applied("Lista", w)], ret_type=w)
+    (a1,), r1 = typechecker.instantiate(fdt)
+    (a2,), r2 = typechecker.instantiate(fdt)
+    e1 = next(iter(typechecker.find_type(a1).variants)).args[0]
+    e2 = next(iter(typechecker.find_type(a2).variants)).args[0]
+    assert typechecker.find_type(e1) is typechecker.find_type(r1)        # współdzielone w instancji
+    assert typechecker.find_type(e1) is not typechecker.find_type(e2)    # niezależne między instancjami
+
+
+# =====================================================================
 # instantiate — świeże kopie schematu (rdzeń polimorfizmu)
 # =====================================================================
 
