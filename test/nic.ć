@@ -1,10 +1,13 @@
 definicja Czegoś z elementem:
     wartość (element)
 
-Rezultat to Coś lub Nic
+Rezultat to Coś albo Nic
 
 aby testować_nic:
     zwróć Nic
 
 aby testować_nic_znów:
     zwróć
+
+aby testować_nic_jeszcze_raz:
+    wynik to pięć

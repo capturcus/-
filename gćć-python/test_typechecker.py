@@ -1505,3 +1505,120 @@ def test_fixpoint_converges_on_widening_relay(parse, capsys):
     out = capsys.readouterr().out
     assert "OSTRZEŻENIE" not in out
     assert ty(_fdt_by_surface(("robić", "a")).ret_type) == "Rezultat"
+
+
+# =====================================================================
+# Wbudowane `Nic` — w uniach i jako wnioskowany typ zwracany
+# =====================================================================
+
+_NIC_UNION = (
+    "definicja Czegoś z elementem:\n"
+    "    wartość (element)\n"
+    "\n"
+    "Rezultat to Coś albo Nic\n"
+    "\n"
+)
+
+
+@pytest.mark.integration
+def test_explicit_return_nic_types_as_nic(parse):
+    src = (
+        "aby testować_nic:\n"
+        "    zwróć Nic\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert ty(_fdt_by_surface(("testować", "nic")).ret_type) == "Nic"
+
+
+@pytest.mark.integration
+def test_bare_return_types_as_nic(parse):
+    src = (
+        "aby testować_nic:\n"
+        "    zwróć\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert ty(_fdt_by_surface(("testować", "nic")).ret_type) == "Nic"
+
+
+@pytest.mark.integration
+def test_no_return_in_body_types_as_nic(parse):
+    """Funkcja bez żadnego `zwróć` — typ zwracany Nic (dawniej: wolna
+    zmienna, więc „wynik" takiej funkcji przechodził typecheck)."""
+    src = (
+        "aby testować_nic:\n"
+        "    wynik to pięć\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert ty(_fdt_by_surface(("testować", "nic")).ret_type) == "Nic"
+
+
+@pytest.mark.integration
+def test_no_return_in_nested_blocks_types_as_nic(parse):
+    """Brak `zwróć` także w zagnieżdżonych blokach → Nic; `zwróć` ukryty
+    w gałęzi `jeśli` wystarcza, żeby reguła NIE zadziałała."""
+    src = (
+        "aby testować_nic flaga:\n"
+        "    jeśli flaga równe jeden:\n"
+        "        x to dwa\n"
+        "\n"
+        "aby badać flagę:\n"
+        "    jeśli flaga równe jeden:\n"
+        "        zwróć \"tekst\"\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert ty(_fdt_by_surface(("testować", "nic")).ret_type) == "Nic"
+    assert ty(_fdt_by_surface(("badać",)).ret_type) == "Tekst"
+
+
+@pytest.mark.integration
+def test_annotated_return_without_return_raises(parse):
+    """Jawna adnotacja `-> Tekst` przy ciele bez `zwróć` → konflikt z Nic."""
+    src = (
+        "aby testować_nic -> Tekst:\n"
+        "    wynik to pięć\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_union_with_nic_member_widens_returns(parse):
+    """`Nic` jako wariant unii: gałęzie zwracające `Coś` i `Nic` typują
+    funkcję unią Rezultat."""
+    src = _NIC_UNION + (
+        "aby próbować dla x:\n"
+        "    jeśli x równe zero:\n"
+        "        zwróć Coś o wartości x\n"
+        "    zwróć Nic\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert ty(_fdt_by_surface(("próbować",)).ret_type) == "Rezultat"
+
+
+@pytest.mark.integration
+def test_match_with_nic_branch_typechecks(parse):
+    """Gałąź `Niczym:` (narzędnik wbudowanego Nic) w dopasowaniu unii."""
+    src = _NIC_UNION + (
+        "aby opisywać rezultat -> Tekst:\n"
+        "    rezultat jest:\n"
+        "        Czymś z wartością:\n"
+        "            zwróć \"jest coś\"\n"
+        "        Niczym:\n"
+        "            zwróć \"pusto\"\n"
+    )
+    typechecker.resolve_module(parse(src))
+    fdt = _fdt_by_surface(("opisywać",))
+    assert ty(fdt.arg_types[0]) == "Rezultat"
+    assert ty(fdt.ret_type) == "Tekst"
+
+
+@pytest.mark.integration
+def test_match_missing_nic_branch_raises(parse):
+    src = _NIC_UNION + (
+        "aby opisywać rezultat (Rezultat) -> Tekst:\n"
+        "    rezultat jest:\n"
+        "        Czymś z wartością:\n"
+        "            zwróć \"jest coś\"\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError, match="brakuje gałęzi: Nic"):
+        typechecker.resolve_module(parse(src))

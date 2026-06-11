@@ -31,9 +31,9 @@ hindley milner
 
 literały Prawda/Fałsz
 gerundium (?) polubienie/polubić
-funkcje wyższego rzędu??
 funkcja bez zwróć ma typ zwracany wolny (nie Nic)
 tryb przypuszczający - usunąłbyś_komentarz dla usera z identyfikatorem?
+redis
 
 uruchamianie
 
@@ -45,3 +45,4 @@ konkatenacja stringów
 
 które
 kiedy
+x funkcje wyższego rzędu??

@@ -831,8 +831,10 @@ def _build_ctx(module):
 def _validate_unions(unions, fields_by_type):
     """Walidacja deklaracji typów wariantowych (po zebraniu całego modułu,
     więc niezależna od kolejności deklaracji): nazwa unii nie koliduje
-    z istniejącym typem, a każdy wariant to zdefiniowana struktura
-    (nie unia, nie builtin, bez duplikatów)."""
+    z istniejącym typem, a każdy wariant to zdefiniowana struktura albo
+    wbudowane `Nic` (nie unia, nie inny builtin, bez duplikatów). `Nic`
+    jest jedynym typem zero-argumentowym — zamiast deklarować własne puste
+    struktury, unie mogą brać wbudowane `Nic`."""
     for ud in unions.values():
         name = "_".join(ud.name)
         if ud.name in fields_by_type or ud.name in builtin_types:
@@ -851,6 +853,8 @@ def _validate_unions(unions, fields_by_type):
                     line=ud.line,
                 )
             seen.add(m)
+            if m == ("Nic",):
+                continue  # wbudowany wariant pusty — zawsze dozwolony
             if m in unions:
                 raise ResolveError(
                     f"wariant '{m_name}' typu wariantowego '{name}' sam "
@@ -1061,13 +1065,16 @@ def _resolve_match(stmt, ctx, preps, scope):
     _resolve(stmt.subject, ctx, preps, scope)
     for br in stmt.branches:
         type_str = "_".join(br.type_name)
-        if br.type_name not in ctx.fields_by_type:
+        if br.type_name == ("Nic",):
+            field_set = frozenset()  # wbudowane Nic — brak pól do związania
+        elif br.type_name not in ctx.fields_by_type:
             raise ResolveError(
                 f"wariant '{type_str}' w dopasowaniu 'jest:' nie jest zdefiniowaną "
                 f"strukturą",
                 line=br.line,
             )
-        field_set = ctx.fields_by_type[br.type_name]
+        else:
+            field_set = ctx.fields_by_type[br.type_name]
         br_scope = _Scope(parent=scope)
         bound = set()
         for i, fid in enumerate(br.fields):

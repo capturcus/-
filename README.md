@@ -493,9 +493,12 @@ Rezultat to Wynik albo Błąd
 
 Zasady:
 
-- Każdy wariant musi być **strukturą zdefiniowaną w module** (nie builtinem,
-  nie inną unią — zagnieżdżanie unii jest niedozwolone). Kolejność deklaracji
-  w module jest dowolna.
+- Każdy wariant musi być **strukturą zdefiniowaną w module** albo
+  wbudowanym **`Nic`** — jedynym typem zero-argumentowym (zamiast deklarować
+  własne puste struktury, unia bierze `Nic`: `Rezultat to Coś albo Nic`;
+  w dopasowaniu gałąź to `Niczym:`, bez pól). Inne builtiny i unie nie mogą
+  być wariantami — zagnieżdżanie unii jest niedozwolone. Kolejność
+  deklaracji w module jest dowolna.
 - Warianty wymienia się **bez parametrów typu** — parametryzacja to sprawa
   konkretnych struktur; unia tylko grupuje głowy. W konsekwencji unia
   „wymazuje" argumenty typów wariantów (`Wynik z Liczbą` → `Rezultat`).
@@ -639,6 +642,11 @@ zwrócić pięć
 zwrócić dwa plus trzy
 zwrócić użytkownik sesji
 ```
+
+Typ zwracany `Nic` wnioskowany jest w trzech przypadkach: jawnego
+`zwróć Nic`, `zwróć` bez wartości oraz **ciała bez żadnego `zwróć`**
+(także w zagnieżdżonych blokach). Jawna adnotacja `-> Typ` przy ciele
+bez returna daje konflikt typów.
 
 ---
 

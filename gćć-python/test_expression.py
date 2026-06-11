@@ -1738,3 +1738,44 @@ def test_pod_as_preposition_in_params_and_args(parse):
     assert isinstance(call, ast.FunctionCall)
     preps = [p.prep for p in call.params]
     assert ("pod",) in preps
+
+
+# =====================================================================
+# Wbudowane `Nic` w uniach — walidacja Pass 2
+# =====================================================================
+
+_NIC_UNION_BASE = (
+    "definicja Czegoś z elementem:\n"
+    "    wartość (element)\n"
+    "\n"
+)
+
+
+def test_union_with_nic_member_resolves(parse):
+    m = parse(_NIC_UNION_BASE + "Rezultat to Coś albo Nic\n")
+    ud = m.body[1]
+    assert isinstance(ud, ast.UnionDef)
+    assert ud.members == [("Coś",), ("Nic",)]
+
+
+def test_union_other_builtin_member_still_raises(parse):
+    # wyjątek dotyczy TYLKO Nic — pozostałe builtiny nie są wariantami
+    src = _NIC_UNION_BASE + "Rezultat to Coś albo Liczba\n"
+    with pytest.raises(ast.ResolveError, match="nie jest zdefiniowaną strukturą"):
+        parse(src)
+
+
+def test_match_nic_branch_cannot_bind_fields(parse):
+    src = (
+        _NIC_UNION_BASE
+        + "Rezultat to Coś albo Nic\n"
+        "\n"
+        "aby działać rezultat:\n"
+        "    rezultat jest:\n"
+        "        Czymś z wartością:\n"
+        "            x to wartość\n"
+        "        Niczym z wartością:\n"
+        "            x to wartość\n"
+    )
+    with pytest.raises(ast.ResolveError, match="nie pasuje do żadnego wolnego pola"):
+        parse(src)
