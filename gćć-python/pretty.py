@@ -49,6 +49,8 @@ def _groups(node):
         if node.params:
             return [("params", node.params)]
         return None
+    if isinstance(node, ast.TryCall):
+        return _groups(node.call)
     if isinstance(node, ast.FunctionDef):
         groups = []
         if node.params:
@@ -139,6 +141,8 @@ def _label(node):
         return "Phrase"
     if isinstance(node, ast.FunctionCall):
         return f"FunctionCall {'_'.join(node.name.surface)}"
+    if isinstance(node, ast.TryCall):
+        return f"TryCall {'_'.join(node.call.name.surface)}"
     if isinstance(node, ast.GetterChain):
         return "GetterChain"
     if isinstance(node, ast.StructCreation):

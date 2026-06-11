@@ -1,10 +1,10 @@
 # Backend aplikacji typu Instagram.
 #
 # Architektura:
-# - kontenery własne: Lista (Węzeł albo PustaLista) + Opcja (Trafienie albo
-#   Pudło) — jak w analizatorze morfologicznym,
-# - wynik operacji API: Skutek (Sukces albo Porażka) — dopasowanie `jest:`
-#   wymusza obsłużenie obu gałęzi,
+# - kontenery własne: Lista (Węzeł albo PustaLista) — jak w analizatorze,
+# - jedna unia Rezultat (Sukces albo Błąd) obsługuje i lookupy, i operacje
+#   API; wywołania z obsługą błędu (tryb przypuszczający + `?`) propagują
+#   Błąd z lookupów bez zagnieżdżonych dopasowań,
 # - stan aplikacji mutowany zapisami do pól (chain-LHS), identyfikatory
 #   nadaje licznik w stanie,
 # - IO (sieć, dziennik, zegar, operacje tekstowe) zadeklarowane przez
@@ -21,13 +21,13 @@ definicja PustejListy:
 
 Lista to Węzeł albo PustaLista
 
-definicja Trafienia z wartością:
-    wartość (wartość)
+definicja Sukcesu z elementem:
+    wartość (element)
 
-definicja Pudła:
-    powód (Tekst)
+definicja Błędu:
+    opis (Tekst)
 
-Opcja to Trafienie albo Pudło
+Rezultat to Sukces albo Błąd
 
 # ---------- model domeny ----------
 
@@ -52,14 +52,6 @@ definicja Stanu:
     użytkownicy (Lista)
     wpisy (Lista)
     licznik (Liczba)
-
-definicja Sukcesu:
-    opis (Tekst)
-
-definicja Porażki:
-    powód (Tekst)
-
-Skutek to Sukces albo Porażka
 
 # ---------- świat zewnętrzny ----------
 
@@ -100,70 +92,49 @@ aby należeć element do zbioru:
 aby wyszukiwać numer w rekordach:
     rekordy jest:
         PustąListą:
-            zwróć Pudło o powodzie "nie znaleziono rekordu"
+            zwróć Błąd o opisie "nie znaleziono rekordu"
         Węzłem z głową z ogonem:
             jeśli identyfikator głowy równe numer:
-                zwróć Trafienie o wartości głowa
+                zwróć Sukces o wartości głowa
             zwróć wyszukuj numer w ogonie
 
-# ---------- operacje API (mutują stan, zwracają Skutek) ----------
+# ---------- operacje API (mutują stan, zwracają Rezultat) ----------
 
 aby zarejestrować nazwę w stanie:
     użytkownik to Użytkownik o identyfikatorze licznik stanu o nazwie nazwa o obserwowanych utwórz_pustą
     użytkownicy stanu to dodaj użytkownika do użytkowników stanu
     licznik stanu to licznik stanu plus jeden
     zapisz_dziennik (sklej "nowe konto: " z nazwą)
-    zwróć Sukces o opisie "zarejestrowano"
+    zwróć Sukces o wartości "zarejestrowano"
 
 aby opublikować treść przez autora w stanie:
-    znalezisko to wyszukuj autora w użytkownikach stanu
-    znalezisko jest:
-        Pudłem z powodem:
-            zwróć Porażka o powodzie powód
-        Trafieniem:
-            post to Post o identyfikatorze licznik stanu o autorze autor o treści treść o chwili pobierz_czas o fanach utwórz_pustą o komentarzach utwórz_pustą
-            wpisy stanu to dodaj post do wpisów stanu
-            licznik stanu to licznik stanu plus jeden
-            zwróć Sukces o opisie "opublikowano"
+    twórca to wyszukiwałbyś autora w użytkownikach stanu?
+    post to Post o identyfikatorze licznik stanu o autorze autor o treści treść o chwili pobierz_czas o fanach utwórz_pustą o komentarzach utwórz_pustą
+    wpisy stanu to dodaj post do wpisów stanu
+    licznik stanu to licznik stanu plus jeden
+    zwróć Sukces o wartości "opublikowano"
 
 aby polubić wpis przez fana w stanie:
-    znalezisko to wyszukuj wpis we wpisach stanu
-    znalezisko jest:
-        Pudłem z powodem:
-            zwróć Porażka o powodzie powód
-        Trafieniem z wartością:
-            jeśli należy fan do fanów wartości:
-                zwróć Porażka o powodzie "już polubiono"
-            fani wartości to dodaj fana do fanów wartości
-            powiadamiaj autora wartości o "ktoś polubił twój post"
-            zwróć Sukces o opisie "polubiono"
+    rekord to wyszukiwałbyś wpis we wpisach stanu?
+    jeśli należy fan do fanów rekordu:
+        zwróć Błąd o opisie "już polubiono"
+    fani rekordu to dodaj fana do fanów rekordu
+    powiadamiaj autora rekordu o "ktoś polubił twój post"
+    zwróć Sukces o wartości "polubiono"
 
 aby skomentować wpis przez autora słowami w stanie:
-    znalezisko to wyszukuj wpis we wpisach stanu
-    znalezisko jest:
-        Pudłem z powodem:
-            zwróć Porażka o powodzie powód
-        Trafieniem z wartością:
-            komentarz to Komentarz o autorze autor o tekście słowa
-            komentarze wartości to dodaj komentarz do komentarzy wartości
-            zwróć Sukces o opisie "skomentowano"
+    rekord to wyszukiwałbyś wpis we wpisach stanu?
+    komentarz to Komentarz o autorze autor o tekście słowa
+    komentarze rekordu to dodaj komentarz do komentarzy rekordu
+    zwróć Sukces o wartości "skomentowano"
 
 aby obserwować cel przez fana w stanie:
-    znaleziony_fan to wyszukuj fana w użytkownikach stanu
-    znaleziony_fan jest:
-        Pudłem:
-            zwróć Porażka o powodzie "obserwujący nie istnieje"
-        Trafieniem z wartością:
-            obserwujący to wartość
-            znaleziony_cel to wyszukuj cel w użytkownikach stanu
-            znaleziony_cel jest:
-                Pudłem:
-                    zwróć Porażka o powodzie "cel nie istnieje"
-                Trafieniem z wartością:
-                    jeśli należy identyfikator wartości do obserwowanych obserwującego:
-                        zwróć Porażka o powodzie "już obserwuje"
-                    obserwowani obserwującego to dodaj identyfikator wartości do obserwowanych obserwującego
-                    zwróć Sukces o opisie "zaobserwowano"
+    obserwujący to wyszukiwałbyś fana w użytkownikach stanu?
+    rekord to wyszukiwałbyś cel w użytkownikach stanu?
+    jeśli należy identyfikator rekordu do obserwowanych obserwującego:
+        zwróć Błąd o opisie "już obserwuje"
+    obserwowani obserwującego to dodaj identyfikator rekordu do obserwowanych obserwującego
+    zwróć Sukces o wartości "zaobserwowano"
 
 # ---------- oś czasu ----------
 
@@ -186,13 +157,13 @@ aby opisywać posty:
 
 # ---------- obsługa odpowiedzi ----------
 
-aby zgłaszać skutek do klienta:
-    skutek jest:
-        Sukcesem z opisem:
+aby zgłaszać rezultat do klienta:
+    rezultat jest:
+        Sukcesem z wartością:
+            wyślij_odpowiedź wartość do klienta
+        Błędem z opisem:
+            zapisz_dziennik opis
             wyślij_odpowiedź opis do klienta
-        Porażką z powodem:
-            zapisz_dziennik powód
-            wyślij_odpowiedź powód do klienta
 
 # ---------- przykładowa sesja ----------
 
@@ -206,9 +177,9 @@ aby działać:
     zgłaszaj (obserwuj jeden przez dwa w stanie) do dwa
     obserwator to wyszukuj dwa w użytkownikach stanu
     obserwator jest:
-        Trafieniem z wartością:
+        Sukcesem z wartością:
             oś to zbieraj wpisy stanu dla obserwowanych wartości
             wyślij_odpowiedź (opisuj oś) do dwa
-        Pudłem z powodem:
-            zapisz_dziennik powód
+        Błędem z opisem:
+            zapisz_dziennik opis
     wyślij_odpowiedź (sklej "liczba rekordów: " z (zakoduj licz wpisy stanu)) do jeden

@@ -427,6 +427,16 @@ class StructCreation:
 
 
 @dataclass
+class TryCall:
+    """Wywołanie z obsługą błędu: tryb przypuszczający + '?' po argumentach
+    (`wybrałbyś zero z części?`). Semantyka jak `?` Rusta: wynik-Sukces
+    odpakowany do wartości, Błąd propagowany returnem z funkcji otaczającej.
+    Wymaga zadeklarowanej w module unii `Rezultat to Sukces albo Błąd`."""
+    call: FunctionCall
+    line: int = None
+
+
+@dataclass
 class Typed:
     expr: object
     line: int = None

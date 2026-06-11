@@ -37,7 +37,7 @@ from ast_nodes import (
     Identifier, FunctionIdentifier, FunctionIdentifierError,
     StructDef, FunctionDef, ExternFunctionDef, UnionDef, Match,
     IntLit, StrLit, BinOp, UnaryOp, And, Or, Not,
-    FunctionCall, GetterChain, StructCreation, StructArg, StructCtx,
+    FunctionCall, GetterChain, StructCreation, StructArg, StructCtx, TryCall,
     Typed, ResolveError, Word, LOGICAL_OPS,
     Assignment, If, While, For, Return, Phrase,
     scope_key_matches,
@@ -167,6 +167,14 @@ def _is_gen_word(token, preps):
 def _starts_chain(head_ident, next_token, field_lemmas, preps):
     """Ta sama logika co ExpressionParser._can_start_chain, ale bez self."""
     return _ident_is_field(head_ident, field_lemmas) and _is_gen_word(next_token, preps)
+
+
+def _has_cond_reading(ident):
+    """Czy którykolwiek segment identyfikatora ma analizę w trybie
+    przypuszczającym (`cond`) — znacznik wywołania z obsługą błędu."""
+    return any(
+        a.pos == "cond" for anas in ident.analyses for a in anas
+    )
 
 
 def find_in_set(ident, target_set, exclude=frozenset(),
@@ -489,7 +497,21 @@ class ExpressionParser:
         )
         if matched_lemma is None:
             return self._finish_as_ident_ref(head_ident)
-        return self._parse_function_call(name, matched_lemma)
+        call = self._parse_function_call(name, matched_lemma)
+        if _has_cond_reading(head_ident):
+            # Tryb przypuszczający otwiera wywołanie z obsługą błędu,
+            # a '?' je domyka — oba znaczniki są obowiązkowe.
+            nxt = self.peek()
+            if nxt is None or nxt[0] is not lexer.Token.QUESTION:
+                raise ResolveError(
+                    f"wywołanie w trybie przypuszczającym "
+                    f"'{'_'.join(head_ident.surface)}' wymaga '?' po "
+                    f"argumentach (wywołanie z obsługą błędu)",
+                    line=head_ident.line,
+                )
+            self.advance()  # '?' domyka wywołanie
+            return TryCall(call=call, line=head_ident.line)
+        return call
 
     def _ident_in_scope(self, ident):
         """Czy któryś wariant identyfikatora wskazuje zadeklarowaną zmienną
@@ -932,6 +954,12 @@ def _diagnose_leftover(parser, phrase):
             f"funkcja '{name}' przyjęła {lp['n_slots']} argument(ów); "
             f"po niej nie spodziewałem się więcej tokenów (oczekiwałem operatora lub końca wyrażenia)"
         )
+        first = leftover_tokens[0] if leftover_tokens else None
+        if first is not None and first[0] is lexer.Token.QUESTION:
+            bullets.append(
+                "'?' tworzy wywołanie z obsługą błędu tylko przy czasowniku "
+                "w trybie przypuszczającym (np. 'wybrałbyś' zamiast 'wybierz')"
+            )
 
     elif kind == "struct":
         type_str = "_".join(lp["type_name"])

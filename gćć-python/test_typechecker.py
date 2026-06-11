@@ -1622,3 +1622,128 @@ def test_match_missing_nic_branch_raises(parse):
     )
     with pytest.raises(typechecker.TypeCheckError, match="brakuje gałęzi: Nic"):
         typechecker.resolve_module(parse(src))
+
+
+# =====================================================================
+# Wywołania z obsługą błędu (tryb przypuszczający + `?`) — typowanie
+# =====================================================================
+
+_TRY_PRELUDE = (
+    "definicja Sukcesu z elementem:\n"
+    "    wartość (element)\n"
+    "\n"
+    "definicja Błędu:\n"
+    "    opis (Tekst)\n"
+    "\n"
+    "Rezultat to Sukces albo Błąd\n"
+    "\n"
+    "aby wybrać pozycję z listy:\n"
+    "    jeśli pozycja równe zero:\n"
+    "        zwróć Sukces o wartości \"głowa\"\n"
+    "    zwróć Błąd o opisie \"poza zakresem\"\n"
+    "\n"
+)
+
+
+@pytest.mark.integration
+def test_try_call_unwraps_and_widens_enclosing_return(parse):
+    """`?` odpakowuje Sukces (typ konkretyzuje się przez użycie), a ret
+    funkcji otaczającej rozszerza się o Błąd → z własnym Sukcesem daje
+    Rezultat. Odpowiednik desugaru z dopasowaniem `jest:`."""
+    src = _TRY_PRELUDE + (
+        "aby przetwarzać części:\n"
+        "    napis to wybrałbyś zero z części?\n"
+        "    zwróć Sukces o wartości napis\n"
+    )
+    typechecker.resolve_module(parse(src))
+    fdt = _fdt_by_surface(("przetwarzać",))
+    assert ty(fdt.ret_type) == "Rezultat"
+
+
+@pytest.mark.integration
+def test_try_call_unwrapped_value_concretizes_by_use(parse, capsys):
+    src = _TRY_PRELUDE + (
+        "aby przetwarzać części:\n"
+        "    liczba to wybrałbyś zero z części?\n"
+        "    suma to liczba plus jeden\n"
+        "    zwróć Sukces o wartości suma\n"
+    )
+    typechecker.resolve_module(parse(src))
+    out = capsys.readouterr().out
+    assert "Liczba" in out  # liczba/suma skonkretyzowane przez `plus`
+
+
+@pytest.mark.integration
+def test_try_call_on_non_rezultat_callee_raises(parse):
+    src = _TRY_PRELUDE + (
+        "aby liczyć x:\n"
+        "    zwróć pięć\n"
+        "\n"
+        "aby przetwarzać x:\n"
+        "    y to liczyłbyś x?\n"
+        "    zwróć Sukces o wartości y\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_try_call_without_rezultat_declaration_raises(parse):
+    src = (
+        "definicja Czegoś z elementem:\n"
+        "    wartość (element)\n"
+        "\n"
+        "aby brać coś:\n"
+        "    zwróć Coś o wartości coś\n"
+        "\n"
+        "aby przetwarzać x:\n"
+        "    y to brałbyś x?\n"
+        "    zwróć y\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError,
+                       match="Rezultat to Sukces albo Błąd"):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_try_call_with_wrong_rezultat_shape_raises(parse):
+    """Unia `Rezultat` o innym składzie (Coś albo Nic) nie wystarcza."""
+    src = (
+        "definicja Czegoś z elementem:\n"
+        "    wartość (element)\n"
+        "\n"
+        "Rezultat to Coś albo Nic\n"
+        "\n"
+        "aby brać coś:\n"
+        "    zwróć Coś o wartości coś\n"
+        "\n"
+        "aby przetwarzać x:\n"
+        "    y to brałbyś x?\n"
+        "    zwróć y\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError,
+                       match="Rezultat to Sukces albo Błąd"):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_try_call_in_function_without_return_raises(parse):
+    """Funkcja używająca `?` bez żadnego `zwróć` → ret Nic vs Błąd —
+    konflikt (jak Rust: `?` wymaga zwracania Rezultatu)."""
+    src = _TRY_PRELUDE + (
+        "aby przetwarzać części:\n"
+        "    napis to wybrałbyś zero z części?\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_try_call_with_conflicting_annotation_raises(parse):
+    src = _TRY_PRELUDE + (
+        "aby przetwarzać części -> Tekst:\n"
+        "    napis to wybrałbyś zero z części?\n"
+        "    zwróć napis\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))

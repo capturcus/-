@@ -498,6 +498,8 @@ def resolve_expression(node, scope):
         return resolve_or(node, scope)
     if isinstance(node, ast.FunctionCall):
         return resolve_function_call(node, scope)
+    if isinstance(node, ast.TryCall):
+        return resolve_try_call(node, scope)
     if isinstance(node, ast.GetterChain):
         return resolve_getter_chain(node, scope)
     if isinstance(node, ast.StructCreation):
@@ -711,6 +713,34 @@ def resolve_function_call(node, scope):
         t1 = resolve_expression(p, scope)
         unify_types(t0, t1, widen=True)
     return ret_type
+
+
+def _require_rezultat(line):
+    """Wywołanie z obsługą błędu wymaga zadeklarowanej w module unii
+    `Rezultat to Sukces albo Błąd` — dokładnie tych nazw i tego składu."""
+    ud = find_union_def(("Rezultat",))
+    if ud is None or {"".join(m) for m in ud.members} != {"Sukces", "Błąd"}:
+        raise TypeCheckError(
+            f"wywołanie z obsługą błędu '?' (linia {line}) wymaga "
+            f"zadeklarowanej unii 'Rezultat to Sukces albo Błąd'"
+        )
+
+
+def resolve_try_call(node, scope):
+    print("TryCall")
+    _require_rezultat(node.line)
+    if scope.root_fdt is None:
+        raise TypeCheckError(
+            f"wywołanie z obsługą błędu '?' (linia {node.line}) jest "
+            f"dozwolone tylko w ciele funkcji")
+    t = resolve_function_call(node.call, scope)
+    # Wołana funkcja musi dawać Rezultat (Sukces/Błąd też ujdą — widening).
+    unify_types(t, variant(["Rezultat"]), widen=True)
+    # Gałąź-Błąd propaguje się returnem z funkcji otaczającej.
+    unify_types(scope.root_fdt.ret_type, variant(["Błąd"]), widen=True)
+    # Odpakowana wartość Sukcesu — unia wymazuje parametry, więc typ jest
+    # wolny i konkretyzuje się przez użycie (jak pole wiązane w `jest:`).
+    return new_type()
 
 
 def find_field_for_ident(struct_def, ident):

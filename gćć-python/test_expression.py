@@ -1779,3 +1779,91 @@ def test_match_nic_branch_cannot_bind_fields(parse):
     )
     with pytest.raises(ast.ResolveError, match="nie pasuje do żadnego wolnego pola"):
         parse(src)
+
+
+# =====================================================================
+# Wywołania z obsługą błędu (tryb przypuszczający + `?`)
+# =====================================================================
+
+_TRY_BASE = (
+    "definicja Sukcesu z elementem:\n"
+    "    wartość (element)\n"
+    "\n"
+    "definicja Błędu:\n"
+    "    opis (Tekst)\n"
+    "\n"
+    "Rezultat to Sukces albo Błąd\n"
+    "\n"
+    "aby wybrać pozycję z listy:\n"
+    "    zwróć Sukces o wartości pozycja\n"
+    "\n"
+)
+
+
+def test_try_call_builds_trycall_node(parse):
+    src = _TRY_BASE + (
+        "aby przetwarzać części:\n"
+        "    napis to wybrałbyś zero z części?\n"
+    )
+    m = parse(src)
+    val = m.body[4].body[0].value.resolved
+    assert isinstance(val, ast.TryCall)
+    assert isinstance(val.call, ast.FunctionCall)
+    assert ("wybrać",) in val.call.name.lemmas_set
+    assert len(val.call.params) == 2
+
+
+def test_try_call_conditional_without_question_raises(parse):
+    src = _TRY_BASE + (
+        "aby przetwarzać części:\n"
+        "    napis to wybrałbyś zero z części\n"
+    )
+    with pytest.raises(ast.ResolveError, match="wymaga '\\?' po argumentach"):
+        parse(src)
+
+
+def test_question_without_conditional_raises_with_hint(parse):
+    src = _TRY_BASE + (
+        "aby przetwarzać części:\n"
+        "    napis to wybierz zero z części?\n"
+    )
+    with pytest.raises(ast.ResolveError) as ei:
+        parse(src)
+    assert "trybie przypuszczającym" in str(ei.value)
+
+
+def test_try_call_nested_without_parens(parse):
+    """Tryb przypuszczający otwiera wywołanie, '?' je domyka — zagnieżdżone
+    wywołanie z obsługą błędu nie potrzebuje nawiasów."""
+    src = _TRY_BASE + (
+        "aby wydobyć wartość z listy:\n"
+        "    zwróć Sukces o wartości wartość\n"
+        "\n"
+        "aby zapisać coś do bazy:\n"
+        "    zwróć Sukces o wartości \"zapisano\"\n"
+        "\n"
+        "aby przenosić wartość z listy do bazy:\n"
+        "    zwróć zapisz wydobyłbyś wartość z listy? do bazy\n"
+    )
+    m = parse(src)
+    outer = m.body[6].body[0].value.resolved
+    assert isinstance(outer, ast.FunctionCall)
+    assert ("zapisać",) in outer.name.lemmas_set
+    inner = outer.params[0].value
+    assert isinstance(inner, ast.TryCall)
+    assert ("wydobyć",) in inner.call.name.lemmas_set
+    assert outer.params[1].prep == ("do",)
+
+
+def test_try_call_zero_arg(parse):
+    src = _TRY_BASE + (
+        "aby pobrać_czas:\n"
+        "    zwróć Sukces o wartości pięć\n"
+        "\n"
+        "aby przetwarzać x:\n"
+        "    chwila to pobrałbyś_czas?\n"
+    )
+    m = parse(src)
+    val = m.body[5].body[0].value.resolved
+    assert isinstance(val, ast.TryCall)
+    assert val.call.params == []

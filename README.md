@@ -135,6 +135,7 @@ Token `WORD` niesie ze sobą krotkę segmentów, **nie** oryginalną pisownię.
 | `COLON` | `:` |
 | `LPAREN` / `RPAREN` | `(` / `)` |
 | `ARROW` | `->` |
+| `QUESTION` | `?` (poza literałami tekstowymi; domyka wywołanie z obsługą błędu) |
 | `ASSIGN` | słowo `to` (specjalnie wyróżnione przez lekser — gdy w treści linii pojawi się samo słowo `to`, staje się `ASSIGN`). Wewnątrz większego słowa `to` nadal jest zwykłym segmentem (`to_zrobic`). |
 
 ### Granice tokenów
@@ -844,6 +845,50 @@ zapisz_w_bazie weź_użytkownika_z_bazy o identyfikatorze
 #       Word(None, FunctionCall(weź_użytkownika_z_bazy, [Word(o, identyfikator)]))
 #   ])
 ```
+
+### Wywołanie z obsługą błędu (tryb przypuszczający + `?`)
+
+```
+wynik to wybrałbyś zero z części?
+```
+
+Semantyka jak operator `?` Rusta — powyższe to równoważnik:
+
+```
+tymczasowy to wybierz zero z części
+tymczasowy jest:
+    Sukcesem z wartością:
+        wynik to wartość
+    Błędem z opisem:
+        zwróć Błąd o opisie opis
+```
+
+- **Podwójne znakowanie, oba obowiązkowe**: czasownik w trybie
+  przypuszczającym (analiza `cond`; SGJP ma pełne pokrycie tych form,
+  lemma jest wspólna — `wybrałbyś` woła `wybrać`) **oraz** `?` po
+  argumentach. Tryb bez `?` i `?` bez trybu to błędy rezolucji.
+- Tryb przypuszczający otwiera wywołanie, `?` je **domyka** — zagnieżdżone
+  wywołanie z obsługą błędu nie potrzebuje nawiasów:
+  `zapisz wydobyłbyś wartość z listy? do bazy`.
+- Wymaga zadeklarowanej w module unii dokładnie tej postaci (typowanie
+  bierze ją po nazwach):
+
+  ```
+  definicja Sukcesu z elementem:
+      wartość (element)
+
+  definicja Błędu:
+      opis (Tekst)
+
+  Rezultat to Sukces albo Błąd
+  ```
+
+- Typowanie: wołana funkcja musi dawać `Rezultat` (lub jego wariant);
+  wynik wyrażenia to odpakowana `wartość` (typ wolny — unia wymazuje
+  parametry — konkretyzuje się przez użycie); typ zwracany funkcji
+  otaczającej rozszerza się o `Błąd`, więc z własnym `zwróć Sukces ...`
+  daje `Rezultat`. Funkcja używająca `?` bez żadnego `zwróć` to konflikt
+  `Nic`/`Błąd`.
 
 ### Operatory na zewnątrz wywołania
 

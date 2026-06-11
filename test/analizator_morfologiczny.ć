@@ -3,7 +3,7 @@
 # Brakujące elementy języka zastąpione konstrukcjami z typów
 # parametryzowanych i wariantowych:
 # - lista łączona:  Lista to Węzeł albo PustaLista  (zamiast list Pythona),
-# - opcja:          Opcja to Trafienie albo Pudło   (zamiast None),
+# - rezultat:       Rezultat to Sukces albo Błąd    (zamiast None/wyjątków),
 # - słownik:        lista Haseł (klucz, zawartość); wstawienie nowego Hasła
 #   przesłania stare (semantyka assoc-listy zamiast dict.setdefault+update).
 #
@@ -25,13 +25,13 @@ definicja PustejListy:
 
 Lista to Węzeł albo PustaLista
 
-definicja Trafienia z wartością:
-    wartość (wartość)
+definicja Sukcesu z elementem:
+    wartość (element)
 
-definicja Pudła:
-    powód (Tekst)
+definicja Błędu:
+    opis (Tekst)
 
-Opcja to Trafienie albo Pudło
+Rezultat to Sukces albo Błąd
 
 definicja Hasła z klucza na zawartość:
     klucz (klucz)
@@ -46,13 +46,13 @@ definicja Analizy:
     etykieta (Tekst)
     kwalifikator (Tekst)
     przypadki (Lista)
-    liczba (Opcja)
+    liczba (Rezultat)
     rodzaje (Lista)
 
 # Wynik _morpho_for_tag: (case, number, gender).
 definicja Morfologii:
     przypadki (Lista)
-    liczba (Opcja)
+    liczba (Rezultat)
     rodzaje (Lista)
 
 # Odpowiednik pary (db, preps) zwracanej przez load().
@@ -84,17 +84,17 @@ aby liczyć listę:
 aby brać_pierwszą z listy:
     lista jest:
         PustąListą:
-            zwróć Pudło o powodzie "lista jest pusta"
+            zwróć Błąd o opisie "lista jest pusta"
         Węzłem z głową:
-            zwróć Trafienie o wartości głowa
+            zwróć Sukces o wartości głowa
 
 aby wybrać pozycję z listy:
     lista jest:
         PustąListą:
-            zwróć Pudło o powodzie "pozycja poza listą"
+            zwróć Błąd o opisie "pozycja poza listą"
         Węzłem z głową z ogonem:
             jeśli pozycja równe zero:
-                zwróć Trafienie o wartości głowa
+                zwróć Sukces o wartości głowa
             zwróć wybierz (pozycja minus jeden) z ogona
 
 aby należeć element do zbioru:
@@ -125,9 +125,9 @@ aby ignorować rzecz:
 
 aby wydobyć opcję z awaryjną:
     opcja jest:
-        Trafieniem z wartością:
+        Sukcesem z wartością:
             zwróć wartość
-        Pudłem:
+        Błędem:
             zwróć awaryjną
 
 
@@ -136,10 +136,10 @@ aby wydobyć opcję z awaryjną:
 aby szukać klucza w słowniku:
     słownik jest:
         PustąListą:
-            zwróć Pudło o powodzie "nie znaleziono klucza"
+            zwróć Błąd o opisie "nie znaleziono klucza"
         Węzłem z głową z ogonem:
             jeśli klucz głowy równe klucz:
-                zwróć Trafienie o wartości zawartość głowy
+                zwróć Sukces o wartości zawartość głowy
             zwróć szukaj klucza w ogonie
 
 aby wstawić klucz z zawartością do słownika:
@@ -154,9 +154,9 @@ aby tłumaczyć atomy przez mapę:
             reszta to tłumacz ogon przez mapę
             znalezisko to szukaj głowy w mapie
             znalezisko jest:
-                Trafieniem z wartością:
+                Sukcesem z wartością:
                     zwróć dodaj wartość do reszty
-                Pudłem:
+                Błędem:
                     zwróć resztę
 
 
@@ -226,7 +226,7 @@ aby wymienić_klasy_czasownikowe:
 aby badać części:
     części jest:
         PustąListą:
-            zwróć Morfologia o przypadkach utwórz_pustą o liczbie (Pudło o powodzie "brak liczby w tagu") o rodzajach utwórz_pustą
+            zwróć Morfologia o przypadkach utwórz_pustą o liczbie (Błąd o opisie "brak liczby w tagu") o rodzajach utwórz_pustą
         Węzłem z głową z ogonem:
             morfologia to badaj ogon
             atomy to podziel głowę po "."
@@ -238,9 +238,9 @@ aby badać części:
                     liczby to filtruj atomy według wymień_liczby
                     możliwa_liczba to bierz_pierwszą z liczb
                     możliwa_liczba jest:
-                        Trafieniem:
+                        Sukcesem:
                             liczba morfologii to możliwa_liczba
-                        Pudłem:
+                        Błędem:
                             przetłumaczone to tłumacz atomy przez wymień_mapę_rodzajów
                             przetłumaczone jest:
                                 Węzłem:
@@ -252,39 +252,27 @@ aby badać części:
 
 # ---------- load() — wczytanie bazy ----------
 
-# Jeden wiersz sgjp.tab -> Analiza (albo Pudło dla za krótkich wierszy).
+# Jeden wiersz sgjp.tab -> Sukces z Analizą (albo Błąd dla za krótkich
+# wierszy — `?` propaguje go z wybrać).
 aby przetwarzać wiersz:
     części to podziel wiersz po "\t"
-    możliwy_napis to wybierz zero z części
-    możliwe_pole to wybierz jeden z części
-    możliwa_etykieta to wybierz dwa z części
+    napis to wybrałbyś zero z części?
+    pole to wybrałbyś jeden z części?
+    etykieta to wybrałbyś dwa z części?
     kwalifikator to wydobądź (wybierz cztery z części) z ""
-    możliwy_napis jest:
-        Pudłem z powodem:
-            zwróć Pudło o powodzie powód
-        Trafieniem z wartością:
-            napis to wartość
-            możliwe_pole jest:
-                Pudłem z powodem:
-                    zwróć Pudło o powodzie powód
-                Trafieniem z wartością:
-                    lemat to wydobądź (bierz_pierwszą z (podziel wartość po ":")) z wartością
-                    możliwa_etykieta jest:
-                        Pudłem z powodem:
-                            zwróć Pudło o powodzie powód
-                        Trafieniem z wartością:
-                            klasa to wydobądź (bierz_pierwszą z (podziel wartość po ":")) z wartością
-                            morfologia to badaj (podziel wartość po ":")
-                            analiza to Analiza o napisie napis o klasie klasa o lemacie lemat o etykiecie wartość o kwalifikatorze kwalifikator o przypadkach przypadki morfologii o liczbie liczba morfologii o rodzajach rodzaje morfologii
-                            zwróć Trafienie o wartości analiza
+    lemat to wydobądź (bierz_pierwszą z (podziel pole po ":")) z polem
+    klasa to wydobądź (bierz_pierwszą z (podziel etykieta po ":")) z etykietą
+    morfologia to badaj (podziel etykieta po ":")
+    analiza to Analiza o napisie napis o klasie klasa o lemacie lemat o etykiecie etykieta o kwalifikatorze kwalifikator o przypadkach przypadki morfologii o liczbie liczba morfologii o rodzajach rodzaje morfologii
+    zwróć Sukces o wartości analiza
 
 # db.setdefault(form, []).append(analiza) na assoc-liście.
 aby dopisać analizę w słowniku:
     dotychczasowe to szukaj napisu analizy w słowniku
     dotychczasowe jest:
-        Trafieniem z wartością:
+        Sukcesem z wartością:
             zwróć wstaw napis analizy z (dodaj analizę do wartości) do słownika
-        Pudłem:
+        Błędem:
             zwróć wstaw napis analizy z (dodaj analizę do utwórz_pustą) do słownika
 
 aby wczytywać wiersze:
@@ -295,9 +283,9 @@ aby wczytywać wiersze:
             baza to wczytuj ogon
             możliwa_analiza to przetwarzaj głowę
             możliwa_analiza jest:
-                Pudłem:
+                Błędem:
                     ignoruj możliwą_analizę
-                Trafieniem z wartością:
+                Sukcesem z wartością:
                     formy bazy to dopisz wartość w formach bazy
                     jeśli klasa wartości równe "prep":
                         przyimki bazy to wstaw lemat wartości z (przypadki wartości) do przyimków bazy
@@ -343,29 +331,29 @@ aby wybrać_pulę z analiz:
 aby wyszukiwać słowo w analizach:
     analizy jest:
         PustąListą:
-            zwróć Pudło o powodzie "żaden lemat nie pasuje"
+            zwróć Błąd o opisie "żaden lemat nie pasuje"
         Węzłem z głową z ogonem:
             jeśli lemat głowy równe słowo:
-                zwróć Trafienie o wartości głowa
+                zwróć Sukces o wartości głowa
             zwróć wyszukuj słowo w ogonie
 
 aby kanonizować słowo w słowniku:
     znalezisko to szukaj słowa w słowniku
     znalezisko jest:
-        Pudłem:
+        Błędem:
             zwróć słowo
-        Trafieniem z wartością:
+        Sukcesem z wartością:
             pula to wybierz_pulę z wartości
             dopasowanie to wyszukuj słowo w puli
             dopasowanie jest:
-                Trafieniem z wartością:
+                Sukcesem z wartością:
                     zwróć lemat wartości
-                Pudłem:
+                Błędem:
                     awaryjne to bierz_pierwszą z puli
                     awaryjne jest:
-                        Trafieniem z wartością:
+                        Sukcesem z wartością:
                             zwróć lemat wartości
-                        Pudłem:
+                        Błędem:
                             zwróć słowo
 
 
@@ -387,14 +375,14 @@ aby działać:
     morfologia to badaj (podziel "subst:sg:gen.acc:m2" po ":")
     liczba_przypadków to licz przypadki morfologii
     liczba morfologii jest:
-        Trafieniem z wartością:
+        Sukcesem z wartością:
             kanon to wartość
-        Pudłem z powodem:
-            kanon to powód
+        Błędem z opisem:
+            kanon to opis
     znalezisko to szukaj "kota" w formach bazy
     liczba_analiz to zero
     znalezisko jest:
-        Trafieniem z wartością:
+        Sukcesem z wartością:
             liczba_analiz to licz wartość
-        Pudłem:
+        Błędem:
             ignoruj znalezisko

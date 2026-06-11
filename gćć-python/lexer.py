@@ -12,6 +12,7 @@ class Token(Enum):
     LPAREN = auto()
     RPAREN = auto()
     ARROW = auto()
+    QUESTION = auto()
     # Produkowane wyłącznie przez preprocess.preprocess (nie przez lex).
     INT_LIT = auto()
     ARITH_OP = auto()
@@ -30,7 +31,7 @@ class Tok(tuple):
         return t
 
 
-_TOKEN_RE = re.compile(r'"((?:\\.|[^"\\])*)"|(->)|(:)|([()])|([^\s:"()]+)')
+_TOKEN_RE = re.compile(r'"((?:\\.|[^"\\])*)"|(->)|(:)|([()])|(\?)|([^\s:"()?]+)')
 
 
 _ESC_MAP = {
@@ -118,13 +119,15 @@ def lex(text):
         indent_level = line_indents
         before = len(ret)
         for m in _TOKEN_RE.finditer(stripped):
-            text_, arrow, colon, paren, word = m.groups()
+            text_, arrow, colon, paren, question, word = m.groups()
             if text_ is not None:
                 ret.append(Tok(Token.TEXT, _unescape_string(text_, line_no), line=line_no))
             elif arrow is not None:
                 ret.append(Tok(Token.ARROW, None, line=line_no))
             elif colon is not None:
                 ret.append(Tok(Token.COLON, None, line=line_no))
+            elif question is not None:
+                ret.append(Tok(Token.QUESTION, None, line=line_no))
             elif paren is not None:
                 ret.append(Tok(Token.LPAREN if paren == "(" else Token.RPAREN, None, line=line_no))
             else:

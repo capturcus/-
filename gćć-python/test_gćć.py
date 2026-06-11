@@ -1079,3 +1079,23 @@ def test_stray_overindented_block_raises(parse_struct_only):
     )
     with pytest.raises(ast.InterpreterError, match="nieoczekiwany token"):
         parse_struct_only(src)
+
+
+# ---------- Lexer: token QUESTION (wywołania z obsługą błędu) ----------
+
+
+def test_lex_question_mark_token():
+    toks = lexer.lex("wybrałbyś zero z części?\n")
+    kinds = [t[0] for t in toks]
+    assert lexer.Token.QUESTION in kinds
+    # `?` rozcina od sąsiedniego słowa
+    words = [t[1] for t in toks if t[0] is lexer.Token.WORD]
+    assert ("części",) in words
+
+
+def test_lex_question_mark_inside_string_is_text():
+    toks = lexer.lex('x to "czy na pewno?"\n')
+    kinds = [t[0] for t in toks]
+    assert lexer.Token.QUESTION not in kinds
+    text_values = [t[1] for t in toks if t[0] is lexer.Token.TEXT]
+    assert text_values == ["czy na pewno?"]
