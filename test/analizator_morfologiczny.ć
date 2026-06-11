@@ -75,43 +75,43 @@ aby dodać element do listy:
     zwróć Węzeł o głowie element o ogonie lista
 
 aby liczyć listę:
-    czym jest lista?
-        jeśli PustaLista:
+    lista jest:
+        PustąListą:
             zwróć zero
-        jeśli Węzeł z ogonem:
+        Węzłem z ogonem:
             zwróć jeden plus licz ogon
 
 aby brać_pierwszą z listy:
-    czym jest lista?
-        jeśli PustaLista:
+    lista jest:
+        PustąListą:
             zwróć Pudło o powodzie "lista jest pusta"
-        jeśli Węzeł z głową:
+        Węzłem z głową:
             zwróć Trafienie o wartości głowa
 
 aby wybrać pozycję z listy:
-    czym jest lista?
-        jeśli PustaLista:
+    lista jest:
+        PustąListą:
             zwróć Pudło o powodzie "pozycja poza listą"
-        jeśli Węzeł z głową z ogonem:
+        Węzłem z głową z ogonem:
             jeśli pozycja równe zero:
                 zwróć Trafienie o wartości głowa
             zwróć wybierz (pozycja minus jeden) z ogona
 
 aby należeć element do zbioru:
-    czym jest zbiór?
-        jeśli PustaLista:
+    zbiór jest:
+        PustąListą:
             zwróć zero równe jeden
-        jeśli Węzeł z głową z ogonem:
+        Węzłem z głową z ogonem:
             jeśli głowa równe element:
                 zwróć zero równe zero
             zwróć należy element do ogona
 
 # Przecięcie listy ze zbiorem (Python: frozenset(p for p in atoms if p in CASES)).
 aby filtrować atomy według zbioru:
-    czym jest atomy?
-        jeśli PustaLista:
+    atomy jest:
+        PustąListą:
             zwróć atomy
-        jeśli Węzeł z głową z ogonem:
+        Węzłem z głową z ogonem:
             reszta to filtruj ogon według zbioru
             jeśli należy głowa do zbioru:
                 zwróć dodaj głowę do reszty
@@ -124,20 +124,20 @@ aby ignorować rzecz:
 # ---------- opcja ----------
 
 aby wydobyć opcję z awaryjną:
-    czym jest opcja?
-        jeśli Trafienie z wartością:
+    opcja jest:
+        Trafieniem z wartością:
             zwróć wartość
-        jeśli Pudło:
+        Pudłem:
             zwróć awaryjną
 
 
 # ---------- słownik (assoc-lista Haseł) ----------
 
 aby szukać klucza w słowniku:
-    czym jest słownik?
-        jeśli PustaLista:
+    słownik jest:
+        PustąListą:
             zwróć Pudło o powodzie "nie znaleziono klucza"
-        jeśli Węzeł z głową z ogonem:
+        Węzłem z głową z ogonem:
             jeśli klucz głowy równe klucz:
                 zwróć Trafienie o wartości zawartość głowy
             zwróć szukaj klucza w ogonie
@@ -147,16 +147,16 @@ aby wstawić klucz z zawartością do słownika:
 
 # Mapowanie atomów rodzaju przez GENDER_MAP — zbiera tylko trafienia.
 aby tłumaczyć atomy przez mapę:
-    czym jest atomy?
-        jeśli PustaLista:
+    atomy jest:
+        PustąListą:
             zwróć atomy
-        jeśli Węzeł z głową z ogonem:
+        Węzłem z głową z ogonem:
             reszta to tłumacz ogon przez mapę
             znalezisko to szukaj głowy w mapie
-            czym jest znalezisko?
-                jeśli Trafienie z wartością:
+            znalezisko jest:
+                Trafieniem z wartością:
                     zwróć dodaj wartość do reszty
-                jeśli Pudło:
+                Pudłem:
                     zwróć resztę
 
 
@@ -224,28 +224,28 @@ aby wymienić_klasy_czasownikowe:
 # Rekursja od końca + nadpisanie wartością z głowy = "pierwsze trafienie
 # wygrywa" jak w pythonowej pętli z continue.
 aby badać części:
-    czym jest części?
-        jeśli PustaLista:
+    części jest:
+        PustąListą:
             zwróć Morfologia o przypadkach utwórz_pustą o liczbie (Pudło o powodzie "brak liczby w tagu") o rodzajach utwórz_pustą
-        jeśli Węzeł z głową z ogonem:
+        Węzłem z głową z ogonem:
             morfologia to badaj ogon
             atomy to podziel głowę po "."
             trafione to filtruj atomy według wymień_przypadki
-            czym jest trafione?
-                jeśli Węzeł:
+            trafione jest:
+                Węzłem:
                     przypadki morfologii to trafione
-                jeśli PustaLista:
+                PustąListą:
                     liczby to filtruj atomy według wymień_liczby
                     możliwa_liczba to bierz_pierwszą z liczb
-                    czym jest możliwa_liczba?
-                        jeśli Trafienie:
+                    możliwa_liczba jest:
+                        Trafieniem:
                             liczba morfologii to możliwa_liczba
-                        jeśli Pudło:
+                        Pudłem:
                             przetłumaczone to tłumacz atomy przez wymień_mapę_rodzajów
-                            czym jest przetłumaczone?
-                                jeśli Węzeł:
+                            przetłumaczone jest:
+                                Węzłem:
                                     rodzaje morfologii to przetłumaczone
-                                jeśli PustaLista:
+                                PustąListą:
                                     ignoruj atomy
             zwróć morfologię
 
@@ -259,20 +259,20 @@ aby przetwarzać wiersz:
     możliwe_pole to wybierz jeden z części
     możliwa_etykieta to wybierz dwa z części
     kwalifikator to wydobądź (wybierz cztery z części) z ""
-    czym jest możliwy_napis?
-        jeśli Pudło z powodem:
+    możliwy_napis jest:
+        Pudłem z powodem:
             zwróć Pudło o powodzie powód
-        jeśli Trafienie z wartością:
+        Trafieniem z wartością:
             napis to wartość
-            czym jest możliwe_pole?
-                jeśli Pudło z powodem:
+            możliwe_pole jest:
+                Pudłem z powodem:
                     zwróć Pudło o powodzie powód
-                jeśli Trafienie z wartością:
+                Trafieniem z wartością:
                     lemat to wydobądź (bierz_pierwszą z (podziel wartość po ":")) z wartością
-                    czym jest możliwa_etykieta?
-                        jeśli Pudło z powodem:
+                    możliwa_etykieta jest:
+                        Pudłem z powodem:
                             zwróć Pudło o powodzie powód
-                        jeśli Trafienie z wartością:
+                        Trafieniem z wartością:
                             klasa to wydobądź (bierz_pierwszą z (podziel wartość po ":")) z wartością
                             morfologia to badaj (podziel wartość po ":")
                             analiza to Analiza o napisie napis o klasie klasa o lemacie lemat o etykiecie wartość o kwalifikatorze kwalifikator o przypadkach przypadki morfologii o liczbie liczba morfologii o rodzajach rodzaje morfologii
@@ -281,23 +281,23 @@ aby przetwarzać wiersz:
 # db.setdefault(form, []).append(analiza) na assoc-liście.
 aby dopisać analizę w słowniku:
     dotychczasowe to szukaj napisu analizy w słowniku
-    czym jest dotychczasowe?
-        jeśli Trafienie z wartością:
+    dotychczasowe jest:
+        Trafieniem z wartością:
             zwróć wstaw napis analizy z (dodaj analizę do wartości) do słownika
-        jeśli Pudło:
+        Pudłem:
             zwróć wstaw napis analizy z (dodaj analizę do utwórz_pustą) do słownika
 
 aby wczytywać wiersze:
-    czym jest wiersze?
-        jeśli PustaLista:
+    wiersze jest:
+        PustąListą:
             zwróć Baza o formach utwórz_pustą o przyimkach utwórz_pustą
-        jeśli Węzeł z głową z ogonem:
+        Węzłem z głową z ogonem:
             baza to wczytuj ogon
             możliwa_analiza to przetwarzaj głowę
-            czym jest możliwa_analiza?
-                jeśli Pudło:
+            możliwa_analiza jest:
+                Pudłem:
                     ignoruj możliwą_analizę
-                jeśli Trafienie z wartością:
+                Trafieniem z wartością:
                     formy bazy to dopisz wartość w formach bazy
                     jeśli klasa wartości równe "prep":
                         przyimki bazy to wstaw lemat wartości z (przypadki wartości) do przyimków bazy
@@ -307,10 +307,10 @@ aby wczytywać wiersze:
 # ---------- analyze() ----------
 
 aby analizować słowa w słowniku:
-    czym jest słowa?
-        jeśli PustaLista:
+    słowa jest:
+        PustąListą:
             zwróć słowa
-        jeśli Węzeł z głową z ogonem:
+        Węzłem z głową z ogonem:
             reszta to analizuj ogon w słowniku
             znalezisko to szukaj głowy w słowniku
             analizy to wydobądź znalezisko z utwórz_pustą
@@ -321,10 +321,10 @@ aby analizować słowa w słowniku:
 
 # Analizy o klasie przymiotnikowej (adj/pact/ppas).
 aby przesiewać analizy według klas:
-    czym jest analizy?
-        jeśli PustaLista:
+    analizy jest:
+        PustąListą:
             zwróć analizy
-        jeśli Węzeł z głową z ogonem:
+        Węzłem z głową z ogonem:
             reszta to przesiewaj ogon według klas
             jeśli należy klasa głowy do klas:
                 zwróć dodaj głowę do reszty
@@ -333,39 +333,39 @@ aby przesiewać analizy według klas:
 # Pula kanonizacji: analizy przymiotnikowe, a gdy ich brak — wszystkie.
 aby wybrać_pulę z analiz:
     przymiotnikowe to przesiewaj analizy według wymień_klasy_przymiotnikowe
-    czym jest przymiotnikowe?
-        jeśli PustaLista:
+    przymiotnikowe jest:
+        PustąListą:
             zwróć analizy
-        jeśli Węzeł:
+        Węzłem:
             zwróć przymiotnikowe
 
 # Pierwsza analiza, której lemat równa się słowu (citation match).
 aby wyszukiwać słowo w analizach:
-    czym jest analizy?
-        jeśli PustaLista:
+    analizy jest:
+        PustąListą:
             zwróć Pudło o powodzie "żaden lemat nie pasuje"
-        jeśli Węzeł z głową z ogonem:
+        Węzłem z głową z ogonem:
             jeśli lemat głowy równe słowo:
                 zwróć Trafienie o wartości głowa
             zwróć wyszukuj słowo w ogonie
 
 aby kanonizować słowo w słowniku:
     znalezisko to szukaj słowa w słowniku
-    czym jest znalezisko?
-        jeśli Pudło:
+    znalezisko jest:
+        Pudłem:
             zwróć słowo
-        jeśli Trafienie z wartością:
+        Trafieniem z wartością:
             pula to wybierz_pulę z wartości
             dopasowanie to wyszukuj słowo w puli
-            czym jest dopasowanie?
-                jeśli Trafienie z wartością:
+            dopasowanie jest:
+                Trafieniem z wartością:
                     zwróć lemat wartości
-                jeśli Pudło:
+                Pudłem:
                     awaryjne to bierz_pierwszą z puli
-                    czym jest awaryjne?
-                        jeśli Trafienie z wartością:
+                    awaryjne jest:
+                        Trafieniem z wartością:
                             zwróć lemat wartości
-                        jeśli Pudło:
+                        Pudłem:
                             zwróć słowo
 
 
@@ -386,15 +386,15 @@ aby działać:
     kanon to kanonizuj "kota" w formach bazy
     morfologia to badaj (podziel "subst:sg:gen.acc:m2" po ":")
     liczba_przypadków to licz przypadki morfologii
-    czym jest liczba morfologii?
-        jeśli Trafienie z wartością:
+    liczba morfologii jest:
+        Trafieniem z wartością:
             kanon to wartość
-        jeśli Pudło z powodem:
+        Pudłem z powodem:
             kanon to powód
     znalezisko to szukaj "kota" w formach bazy
     liczba_analiz to zero
-    czym jest znalezisko?
-        jeśli Trafienie z wartością:
+    znalezisko jest:
+        Trafieniem z wartością:
             liczba_analiz to licz wartość
-        jeśli Pudło:
+        Pudłem:
             ignoruj znalezisko

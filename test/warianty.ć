@@ -1,8 +1,9 @@
 # Typy wariantowe:
 # - deklaracja unii: `Rezultat to Wynik albo Błąd` (warianty to istniejące
 #   struktury, bez parametrów typu),
-# - dopasowanie: `czym jest X?` z wyczerpującymi gałęziami
-#   `jeśli Wariant z polem [z polem...]:` dekonstruującymi wariant.
+# - dopasowanie: `X jest:` z wyczerpującymi gałęziami
+#   `Wariantem z polem [z polem...]:` (narzędnik orzecznika) dekonstruującymi
+#   wariant.
 
 definicja Błędu:
     opis (Tekst)
@@ -24,24 +25,24 @@ aby zapisać do bazy tekst -> Rezultat:
     inaczej:
         zwróć Błąd o opisie "nie udało się zapisać"
 
-# `czym jest` na nieotypowanym parametrze — unia wnioskowana z gałęzi
-# trafia do sygnatury funkcji. Gałąź nie musi wiązać wszystkich pól
-# wariantu (`jeśli Wynik:` bez `z wynikiem`).
+# Dopasowanie `jest:` na nieotypowanym parametrze — unia wnioskowana
+# z gałęzi trafia do sygnatury funkcji. Gałąź nie musi wiązać wszystkich
+# pól wariantu (`Wynikiem:` bez `z wynikiem`).
 aby opisywać rezultat -> Tekst:
-    czym jest rezultat?
-        jeśli Wynik:
+    rezultat jest:
+        Wynikiem:
             zwróć "powodzenie"
-        jeśli Błąd z opisem:
+        Błędem z opisem:
             zwróć opis
 
 aby działać:
     baza to siedem
     wynik to zapisz do bazy "test"
-    czym jest wynik?
-        jeśli Błąd z opisem:
+    wynik jest:
+        Błędem z opisem:
             wypisz "błąd"
             wypisz opis
-        jeśli Wynik z wynikiem:
+        Wynikiem z wynikiem:
             wypisz "ok"
             jeśli wynik równe zero:
                 wypisz "zero"

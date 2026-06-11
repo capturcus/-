@@ -18,8 +18,8 @@ Gramatyka Pass 1:
   extern_def := "można" function_name typed_param* "->" type NEWLINE
   struct_def := "definicja" type_name ":" INDENT field+ DEDENT
   union_def  := type_name "to" type_name ("albo" type_name)+
-  match_stmt := "czym" "jest" phrase "?" INDENT match_branch+ DEDENT
-  match_branch := "jeśli" type_name ("z" identifier)* ":" INDENT stmt+ DEDENT
+  match_stmt := phrase "jest" ":" INDENT match_branch+ DEDENT
+  match_branch := type_inst ("z" identifier)* ":" INDENT stmt+ DEDENT
   field      := identifier "(" type ")"
   param      := [prep] identifier ["(" type ")"]
   if_stmt    := "jeśli" phrase ":" INDENT stmt+ DEDENT
@@ -64,7 +64,6 @@ _PHRASE_END_KINDS = frozenset({
     lexer.Token.INDENT,
     lexer.Token.DEDENT,
     lexer.Token.ASSIGN,
-    lexer.Token.QUESTION,
 })
 
 
@@ -161,12 +160,6 @@ class Parser:
             # żeby parsowanie extern wyzwalały inne formy adj `możny`.
             if t[1] == ("można",):
                 return self.parse_extern_def()
-            # `czym jest X?` — dopasowanie po formach powierzchniowych,
-            # żeby inne formy `co`/`być` nie wyzwalały match-a.
-            nxt = self.peek(1)
-            if (t[1] == ("czym",) and nxt is not None
-                    and nxt[0] is lexer.Token.WORD and nxt[1] == ("jest",)):
-                return self.parse_match()
             if canon == ("jeśli",):
                 return self.parse_if()
             if canon == ("dopóki",):
@@ -194,7 +187,7 @@ class Parser:
                 return Return(value=self.collect_phrase())
         lhs = self.collect_phrase()
         if not lhs.tokens:
-            # Pusta fraza = bieżący token to granica frazy (QUESTION, COLON,
+            # Pusta fraza = bieżący token to granica frazy (COLON,
             # INDENT, stray RPAREN...). Bez raise parse_module kręciłby się
             # w nieskończoność na niekonsumowanym tokenie.
             nxt = self.peek()
@@ -204,6 +197,13 @@ class Parser:
                 line=getattr(nxt, "line", None) if nxt is not None
                 else self._last_seen_line(),
             )
+        # `X jest:` — dopasowanie wartości unii do wariantów; rozpoznawane
+        # po formie powierzchniowej 'jest' na końcu frazy przed ':' (fraza
+        # zakończona ':' nie jest poza tym poprawnym statementem).
+        if (self.peek() is not None and self.peek()[0] is lexer.Token.COLON
+                and lhs.tokens[-1][0] is lexer.Token.WORD
+                and lhs.tokens[-1][1] == ("jest",)):
+            return self.parse_match(lhs)
         if self.peek() and self.peek()[0] is lexer.Token.ASSIGN:
             self.advance()
             value = self.collect_phrase()
@@ -256,11 +256,17 @@ class Parser:
             )
         return UnionDef(name=name, members=members, line=line)
 
-    def parse_match(self):
-        czym_tok = self.expect(lexer.Token.WORD)  # czym
-        self.expect(lexer.Token.WORD)  # jest
-        subject = self.collect_phrase()
-        self.expect(lexer.Token.QUESTION)
+    def parse_match(self, header):
+        """`X jest:` — `header` to fraza zebrana w parse_stmt, zakończona
+        słowem 'jest' (orzecznik); subject = fraza bez tego 'jest'."""
+        jest_tok = header.tokens[-1]
+        subject = Phrase(tokens=header.tokens[:-1], line=header.line)
+        if not subject.tokens:
+            raise InterpreterError(
+                "dopasowanie 'X jest:' wymaga wyrażenia przed 'jest'",
+                line=getattr(jest_tok, "line", None),
+            )
+        self.expect(lexer.Token.COLON)
         self._skip_newlines()
         self.expect(lexer.Token.INDENT)
         branches = []
@@ -271,27 +277,21 @@ class Parser:
         self.expect(lexer.Token.DEDENT)
         return Match(
             subject=subject, branches=branches,
-            line=getattr(czym_tok, "line", None),
+            line=getattr(jest_tok, "line", None),
         )
 
     def parse_match_branch(self):
-        if_tok = self.expect(lexer.Token.WORD)
-        if canonical(if_tok) != ("jeśli",):
-            raise InterpreterError(
-                f"w 'czym jest' każda gałąź zaczyna się od 'jeśli', "
-                f"otrzymano {_describe_tok(if_tok)}",
-                line=getattr(if_tok, "line", None),
-            )
         type_tok = self.expect(lexer.Token.WORD)
+        # Narzędnik orzecznika: "wynik jest (czym?) Błędem".
         type_name = canonical_type(
-            type_tok, required_case="nom", label="nazwa wariantu",
+            type_tok, required_case="inst", label="nazwa wariantu",
         )
         fields = []
         while self.peek() is not None and self.peek()[0] is lexer.Token.WORD:
             z_tok = self.advance()
             if canonical(z_tok) != ("z",):
                 raise InterpreterError(
-                    f"w gałęzi 'jeśli {'_'.join(type_tok[1])} ...' pola "
+                    f"w gałęzi '{'_'.join(type_tok[1])} ...' pola "
                     f"wprowadza 'z', otrzymano {_describe_tok(z_tok)}",
                     line=getattr(z_tok, "line", None),
                 )
@@ -307,7 +307,7 @@ class Parser:
         self.expect(lexer.Token.DEDENT)
         return MatchBranch(
             type_name=type_name, fields=fields, body=body,
-            line=getattr(if_tok, "line", None),
+            line=getattr(type_tok, "line", None),
         )
 
     def parse_if(self):

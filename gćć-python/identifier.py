@@ -229,6 +229,11 @@ def _ident_err(surface, reason):
 _CASE_NAMES_LOC = {
     "nom": "mianowniku",
     "gen": "dopełniaczu",
+    "dat": "celowniku",
+    "acc": "bierniku",
+    "inst": "narzędniku",
+    "loc": "miejscowniku",
+    "voc": "wołaczu",
 }
 
 

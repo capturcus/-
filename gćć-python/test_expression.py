@@ -1680,7 +1680,7 @@ def test_union_inside_function_body_raises(parse):
 
 
 # =====================================================================
-# Typy wariantowe — rezolucja `czym jest` (match)
+# Typy wariantowe — rezolucja dopasowania `X jest:` (match)
 # =====================================================================
 
 _MATCH_BASE = (
@@ -1695,10 +1695,10 @@ def test_match_binds_branch_fields(parse):
         _MATCH_BASE
         + "aby działać:\n"
         "    rezultat to Wynik o wyniku zero\n"
-        "    czym jest rezultat?\n"
-        "        jeśli Błąd z opisem:\n"
+        "    rezultat jest:\n"
+        "        Błędem z opisem:\n"
         "            x to opis\n"
-        "        jeśli Wynik z wynikiem:\n"
+        "        Wynikiem z wynikiem:\n"
         "            y to wynik\n"
     )
     m = parse(src)
@@ -1718,8 +1718,8 @@ def test_match_branch_unknown_struct_raises(parse):
     src = (
         _MATCH_BASE
         + "aby działać rezultat:\n"
-        "    czym jest rezultat?\n"
-        "        jeśli Zguba z opisem:\n"
+        "    rezultat jest:\n"
+        "        Zgubą z opisem:\n"
         "            x to jeden\n"
     )
     with pytest.raises(ast.ResolveError, match="nie jest zdefiniowaną strukturą"):
@@ -1730,8 +1730,8 @@ def test_match_field_not_in_struct_raises(parse):
     src = (
         _MATCH_BASE
         + "aby działać rezultat:\n"
-        "    czym jest rezultat?\n"
-        "        jeśli Błąd z wynikiem:\n"
+        "    rezultat jest:\n"
+        "        Błędem z wynikiem:\n"
         "            x to jeden\n"
     )
     with pytest.raises(ast.ResolveError, match="nie pasuje do żadnego wolnego pola"):
@@ -1743,8 +1743,8 @@ def test_match_field_requires_inst_raises(parse):
     src = (
         _MATCH_BASE
         + "aby działać rezultat:\n"
-        "    czym jest rezultat?\n"
-        "        jeśli Błąd z opis:\n"
+        "    rezultat jest:\n"
+        "        Błędem z opis:\n"
         "            x to jeden\n"
     )
     with pytest.raises(ast.ResolveError, match="narzędnik"):
@@ -1755,8 +1755,8 @@ def test_match_field_bound_twice_raises(parse):
     src = (
         _MATCH_BASE
         + "aby działać rezultat:\n"
-        "    czym jest rezultat?\n"
-        "        jeśli Błąd z opisem z opisem:\n"
+        "    rezultat jest:\n"
+        "        Błędem z opisem z opisem:\n"
         "            x to jeden\n"
     )
     with pytest.raises(ast.ResolveError, match="nie pasuje do żadnego wolnego pola"):
@@ -1764,15 +1764,15 @@ def test_match_field_bound_twice_raises(parse):
 
 
 def test_match_branch_assignment_not_visible_after(parse):
-    """Block scoping: zmienna zadeklarowana w gałęzi `czym jest` jest
+    """Block scoping: zmienna zadeklarowana w gałęzi dopasowania `jest:` jest
     lokalna dla gałęzi — użycie po matchu to błąd rezolucji."""
     src = (
         _MATCH_BASE
         + "aby działać rezultat:\n"
-        "    czym jest rezultat?\n"
-        "        jeśli Błąd z opisem:\n"
+        "    rezultat jest:\n"
+        "        Błędem z opisem:\n"
         "            x to jeden\n"
-        "        jeśli Wynik z wynikiem:\n"
+        "        Wynikiem z wynikiem:\n"
         "            x to dwa\n"
         "    y to x\n"
     )

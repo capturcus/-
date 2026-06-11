@@ -112,7 +112,7 @@ class _Scope:
     """Symbol table dla zmiennych. Chain w górę przez `parent`.
 
     Block scoping: scope odpowiada blokowi (moduł → funkcja → ciało
-    `jeśli`/`dopóki`/`dla`/gałęzi `czym jest`). Zmienna trafia do scope'u
+    `jeśli`/`dopóki`/`dla`/gałęzi dopasowania `jest:`). Zmienna trafia do scope'u
     w momencie przypisania i jest widoczna do końca bloku; deklaracje
     z bloku-dziecka NIE są widoczne po bloku. Przypisanie do zmiennej
     widocznej z przodka to reasignacja (bez przesłaniania).
@@ -531,7 +531,7 @@ class ExpressionParser:
         """Fallback dispatcher — head nie jest struct creation, chain ani fcall.
         Block scoping: referencja MUSI wskazywać zadeklarowaną zmienną
         (przypisanie wcześniej w tym lub nadrzędnym bloku, parametr, zmienna
-        `dla`, pole związane w gałęzi `czym jest`) — inaczej ResolveError."""
+        `dla`, pole związane w gałęzi dopasowania `jest:`) — inaczej ResolveError."""
         if not self._ident_in_scope(head_ident):
             raise ResolveError(
                 self._describe_undeclared(head_ident),
@@ -558,7 +558,7 @@ class ExpressionParser:
         else:
             msg += (
                 "; zmienna jest widoczna od swojego przypisania do końca "
-                "bloku — przypisanie w gałęzi 'jeśli'/'czym jest' lub w ciele "
+                "bloku — przypisanie w gałęzi 'jeśli'/dopasowania 'jest:' lub w ciele "
                 "pętli nie jest widoczne po bloku (zadeklaruj ją przed blokiem)"
             )
         return msg
@@ -1035,7 +1035,7 @@ def _resolve_stmt(stmt, ctx, preps, scope):
     """Block scoping, sekwencyjnie: zmienna jest widoczna od swojego
     przypisania do końca bloku. RHS rezolwowany PRZED deklaracją LHS
     (`x to x` bez wcześniejszego `x` to błąd), ciała `jeśli`/`dopóki`/
-    `dla`/gałęzi `czym jest` dostają scope-dziecko — deklaracje z gałęzi
+    `dla`/gałęzi dopasowania `jest:` dostają scope-dziecko — deklaracje z gałęzi
     nie są widoczne po bloku. Przypisanie do zmiennej już widocznej
     (także z przodka) to reasignacja, nie nowa deklaracja."""
     if isinstance(stmt, Assignment):
@@ -1078,7 +1078,7 @@ def _resolve_stmt(stmt, ctx, preps, scope):
 
 
 def _resolve_match(stmt, ctx, preps, scope):
-    """Rezolucja `czym jest X?`: subject w bieżącym scope; każda gałąź
+    """Rezolucja dopasowania `X jest:`: subject w bieżącym scope; każda gałąź
     waliduje swój wariant (zdefiniowana struktura) i pola (narzędnik po `z`,
     pole tej struktury), wiąże je w scope gałęzi i rezolwuje body.
     Identyfikatory pól są zawężane in-place do dopasowanego klucza —
@@ -1088,7 +1088,7 @@ def _resolve_match(stmt, ctx, preps, scope):
         type_str = "_".join(br.type_name)
         if br.type_name not in ctx.fields_by_type:
             raise ResolveError(
-                f"wariant '{type_str}' w 'czym jest' nie jest zdefiniowaną "
+                f"wariant '{type_str}' w dopasowaniu 'jest:' nie jest zdefiniowaną "
                 f"strukturą",
                 line=br.line,
             )

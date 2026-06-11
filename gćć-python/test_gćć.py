@@ -919,23 +919,6 @@ def test_field_decl_field_with_distinct_number_coexist(parse):
 # ---------- Typy wariantowe: lexer (QUESTION) ----------
 
 
-def test_lex_question_mark_is_token():
-    toks = lexer.lex("czym jest wynik?\n")
-    kinds = [t[0] for t in toks]
-    assert lexer.Token.QUESTION in kinds
-    # `?` rozcina od sąsiedniego słowa — `wynik?` to WORD + QUESTION
-    words = [t[1] for t in toks if t[0] is lexer.Token.WORD]
-    assert ("wynik",) in words
-
-
-def test_lex_question_mark_inside_string_is_text():
-    toks = lexer.lex('x to "czy na pewno?"\n')
-    kinds = [t[0] for t in toks]
-    assert lexer.Token.QUESTION not in kinds
-    text_values = [t[1] for t in toks if t[0] is lexer.Token.TEXT]
-    assert text_values == ["czy na pewno?"]
-
-
 # ---------- Typy wariantowe: deklaracja unii (`X to A albo B`) ----------
 
 
@@ -994,7 +977,7 @@ def test_parse_assignment_without_albo_not_union(parse_struct_only):
     assert isinstance(m.body[0], ast.Assignment)
 
 
-# ---------- Typy wariantowe: `czym jest X?` (match) ----------
+# ---------- Typy wariantowe: `X jest:` (match) ----------
 
 
 _MATCH_SRC = (
@@ -1002,10 +985,10 @@ _MATCH_SRC = (
     + "Rezultat to Wynik albo Błąd\n"
     "\n"
     "aby działać:\n"
-    "    czym jest rezultat?\n"
-    "        jeśli Błąd z opisem:\n"
+    "    rezultat jest:\n"
+    "        Błędem z opisem:\n"
     "            x to jeden\n"
-    "        jeśli Wynik z wynikiem:\n"
+    "        Wynikiem z wynikiem:\n"
     "            x to dwa\n"
     "            y to trzy\n"
 )
@@ -1030,48 +1013,61 @@ def test_parse_match_branch_without_fields(parse_struct_only):
     src = (
         _UNION_STRUCTS
         + "aby działać:\n"
-        "    czym jest rezultat?\n"
-        "        jeśli Błąd:\n"
+        "    rezultat jest:\n"
+        "        Błędem:\n"
         "            x to jeden\n"
     )
     match = parse_struct_only(src).body[2].body[0]
     assert match.branches[0].fields == []
 
 
-def test_parse_match_branch_must_start_with_jeśli(parse_struct_only):
+def test_parse_match_branch_requires_instrumental(parse_struct_only):
+    # nazwa wariantu w mianowniku zamiast narzędnika ("jest Błąd") — błąd
     src = (
         "aby działać:\n"
-        "    czym jest rezultat?\n"
-        "        dopóki Błąd:\n"
+        "    rezultat jest:\n"
+        "        Błąd z opisem:\n"
         "            x to jeden\n"
     )
-    with pytest.raises(ast.InterpreterError, match="zaczyna się od 'jeśli'"):
+    with pytest.raises(ast.InterpreterError, match="musi być w narzędniku"):
+        parse_struct_only(src)
+
+
+def test_parse_match_requires_subject(parse_struct_only):
+    # samo `jest:` bez wyrażenia przed — błąd
+    src = (
+        "aby działać:\n"
+        "    jest:\n"
+        "        Błędem z opisem:\n"
+        "            x to jeden\n"
+    )
+    with pytest.raises(ast.InterpreterError, match="wymaga wyrażenia przed 'jest'"):
         parse_struct_only(src)
 
 
 def test_parse_match_fields_require_z(parse_struct_only):
     src = (
         "aby działać:\n"
-        "    czym jest rezultat?\n"
-        "        jeśli Błąd o opisie:\n"
+        "    rezultat jest:\n"
+        "        Błędem o opisie:\n"
         "            x to jeden\n"
     )
     with pytest.raises(ast.InterpreterError, match="wprowadza 'z'"):
         parse_struct_only(src)
 
 
-def test_parse_czym_without_jest_is_plain_phrase(parse_struct_only):
-    # samo `czym` bez `jest` nie wyzwala match-a — pozostaje frazą
-    m = parse_struct_only("czym była rzecz\n")
+def test_parse_jest_without_colon_is_plain_phrase(parse_struct_only):
+    # `jest` bez `:` po frazie nie wyzwala match-a — pozostaje frazą
+    m = parse_struct_only("wynik jest\n")
     assert isinstance(m.body[0], ast.Phrase)
 
 
 # ---------- Guard: pusta fraza na pozycji statementu (dawniej pętla ∞) ----------
 
 
-def test_stray_question_mark_statement_raises(parse_struct_only):
+def test_stray_colon_statement_raises(parse_struct_only):
     with pytest.raises(ast.InterpreterError, match="nieoczekiwany token"):
-        parse_struct_only("x to pięć\n?\n")
+        parse_struct_only("x to pięć\n:\n")
 
 
 def test_stray_overindented_block_raises(parse_struct_only):

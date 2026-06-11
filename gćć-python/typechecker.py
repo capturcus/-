@@ -400,7 +400,19 @@ def _signature(module_funcs, scopes):
 
 
 def _infer_to_fixpoint(module_funcs):
-    cap = 2 * len(module_funcs) + 5
+    # Górna granica przebiegów: informacja o typie przechodzi najwyżej jedną
+    # krawędź wywołania na przebieg, więc jedna "fala" zmian potrzebuje co
+    # najwyżej N przebiegów (N = długość najdłuższego łańcucha wywołań ≤
+    # liczba funkcji). Węzeł schematu ma trzy fazy: wolna zmienna →
+    # struktura/zbiór kandydatów → unia (widening) — każde przejście może
+    # wywołać osobną falę. Pesymistycznie (fale sekwencyjne, bez nakładania):
+    # 3 fazy × N + zapas na lokale i scope'y gałęzi. Externy nie wnoszą
+    # opóźnienia (sygnatury stałe od rejestracji) i słusznie nie są wliczane.
+    # Empirycznie (łańcuchy forward-ref, cykle rekurencyjne z dwiema bazami
+    # różnych wariantów, sztafeta wideningu) zbieżność następuje po ~N+1
+    # przebiegach, bo fale się nakładają — 3N+5 trzyma margines na wypadki,
+    # w których kolejność iteracji ciał psuje nakładanie.
+    cap = 3 * len(module_funcs) + 5
     # Trwałe scope per funkcja — tworzone RAZ, reużywane co przebieg.
     scopes = []
     for (_, fdt) in module_funcs:
@@ -557,7 +569,7 @@ def resolve_return(node, scope):
 
 
 def _union_for_match(subject_t, branch_heads, line):
-    """Unia, do której należy subject `czym jest`. Kandydaci: unie, których
+    """Unia, do której należy subject dopasowania `jest:`. Kandydaci: unie, których
     zbiór wariantów RÓWNA SIĘ zbiorowi gałęzi (każdy wariant unii musi mieć
     gałąź — wyczerpujące dopasowanie; gałąź spoza unii też dyskwalifikuje).
     Przy wielu kandydatach rozstrzyga znany typ subjectu. Gdy brak kandydata,
@@ -581,7 +593,7 @@ def _union_for_match(subject_t, branch_heads, line):
                 return c
         opts = ", ".join(sorted("".join(c.name) for c in cands))
         raise TypeCheckError(
-            f"gałęzie 'czym jest' (linia {line}) pasują do wielu typów "
+            f"gałęzie dopasowania 'jest:' (linia {line}) pasują do wielu typów "
             f"wariantowych: {opts} — dodaj adnotację typu")
     if subj_head is not None:
         ud = find_union_def((subj_head,))
@@ -596,10 +608,10 @@ def _union_for_match(subject_t, branch_heads, line):
                 problems.append(
                     f"gałęzie spoza unii: {', '.join(sorted(extra))}")
             raise TypeCheckError(
-                f"'czym jest' (linia {line}) na typie '{subj_head}': "
+                f"dopasowanie 'jest:' (linia {line}) na typie '{subj_head}': "
                 f"{'; '.join(problems)}")
     raise TypeCheckError(
-        f"gałęzie 'czym jest' (linia {line}) — "
+        f"gałęzie dopasowania 'jest:' (linia {line}) — "
         f"{', '.join(sorted(branch_set))} — nie odpowiadają wariantom "
         f"żadnego zadeklarowanego typu wariantowego")
 
@@ -612,7 +624,7 @@ def resolve_match(node, scope):
         h = "".join(br.type_name)
         if h in branch_heads:
             raise TypeCheckError(
-                f"powtórzona gałąź '{h}' w 'czym jest' (linia {node.line})")
+                f"powtórzona gałąź '{h}' w dopasowaniu 'jest:' (linia {node.line})")
         branch_heads.append(h)
     ud = _union_for_match(subject_t, branch_heads, node.line)
     unify_types(

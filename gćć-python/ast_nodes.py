@@ -280,7 +280,7 @@ class UnionDef:
 
 @dataclass
 class Match:
-    """Konstrukt `czym jest X?` — dopasowanie wartości unii do wariantów."""
+    """Konstrukt `X jest:` — dopasowanie wartości unii do wariantów."""
     subject: "Phrase"
     branches: list  # list[MatchBranch]
     line: int = None
@@ -288,8 +288,9 @@ class Match:
 
 @dataclass
 class MatchBranch:
-    """Gałąź `jeśli Wariant z polem [z polem...]:` wewnątrz `czym jest`.
+    """Gałąź `Wariantem z polem [z polem...]:` wewnątrz dopasowania `X jest:`.
 
+    `type_name` — nazwa wariantu w narzędniku ("wynik jest (czym?) Błędem").
     `fields` — identyfikatory pól do związania (forma narzędnika po `z`);
     może być podzbiorem pól struktury. Pass 2 zawęża każdy do wariantu
     pasującego do zadeklarowanego pola."""

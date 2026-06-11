@@ -25,7 +25,7 @@ gramatyka jest ostateczna.
 7. [Definicje funkcji (`aby`)](#definicje-funkcji-aby)
 8. [Funkcje zewnętrzne (`można`)](#funkcje-zewnętrzne-można)
 9. [Definicje typów (`definicja`)](#definicje-typów-definicja)
-10. [Typy wariantowe (`albo`, `czym jest`)](#typy-wariantowe-albo-czym-jest)
+10. [Typy wariantowe (`albo`, `jest`)](#typy-wariantowe-albo-jest)
 11. [Struktury sterujące](#struktury-sterujące)
 12. [Przypisanie (`to`)](#przypisanie-to)
 13. [Wyrażenia](#wyrażenia)
@@ -476,7 +476,7 @@ mianownika; pola deklaruj w nom")`.
 
 ---
 
-## Typy wariantowe (`albo`, `czym jest`)
+## Typy wariantowe (`albo`, `jest`)
 
 ### Deklaracja unii
 
@@ -522,39 +522,45 @@ różne warianty jednej unii jest typowana tą unią; gałęzie zwracające typy
 bez wspólnej unii to błąd (nie ma nienazwanych unii). Typy parametryzowane
 są **inwariantne**: `Lista z (Wynik)` nie unifikuje się z `Lista z (Rezultat)`.
 
-### Dopasowanie: `czym jest X?`
+### Dopasowanie: `X jest:`
 
 ```
-czym jest WYRAŻENIE?
-    jeśli WARIANT [z POLE]*:
+WYRAŻENIE jest:
+    WARIANT_NARZ [z POLE]*:
         BLOK
-    jeśli WARIANT [z POLE]*:
+    WARIANT_NARZ [z POLE]*:
         BLOK
 ```
 
-- `czym jest` rozpoznawane po formach powierzchniowych na początku
-  statementu; nagłówek kończy `?` (nowy token leksera, poza stringami).
+Polski orzecznik wymaga narzędnika — „wynik **jest** (czym?) **Błędem**" —
+i dokładnie ta fleksja niesie składnię dopasowania.
+
+- Nagłówek to fraza zakończona formą powierzchniową `jest` przed `:`
+  (fraza + `:` nie jest poza tym poprawnym statementem, więc nie ma
+  kolizji). Subject może być dowolnym wyrażeniem (zmienna, getter chain).
+- Każda gałąź zaczyna się **nazwą wariantu w narzędniku** (`Błędem:`,
+  `PustąListą:`) — mianownik to błąd parsowania („nazwa wariantu musi być
+  w narzędniku").
 - Unia subjectu jest wyznaczana inferencją: zbiór gałęzi musi **dokładnie**
   odpowiadać zbiorowi wariantów jednej zadeklarowanej unii (brak gałęzi
   dla wariantu → błąd z listą brakujących; gałąź spoza unii → błąd;
   duplikat gałęzi → błąd). Typ subjectu unifikuje się z tą unią — więc
-  `czym jest` na nieotypowanym parametrze typuje go unią w sygnaturze.
+  dopasowanie na nieotypowanym parametrze typuje go unią w sygnaturze.
 - `z POLE` dekonstruuje wariant: pole (w narzędniku, jak shorthand
-  konstruktora)
-  staje się zmienną w scope gałęzi, o typie z deklaracji struktury.
-  Można związać **podzbiór** pól (też żadne: `jeśli Wynik:`). Pola
-  o typie-parametrze struktury zaczynają jako wolne zmienne i konkretyzują
-  się przez użycie.
+  konstruktora) staje się zmienną w scope gałęzi, o typie z deklaracji
+  struktury. Można związać **podzbiór** pól (też żadne: `Wynikiem:`).
+  Pola o typie-parametrze struktury zaczynają jako wolne zmienne
+  i konkretyzują się przez użycie.
 - Gałąź to osobny blok (jak ciało `jeśli`): związane pola i zmienne
   zadeklarowane w gałęzi są dla niej lokalne; zmienną używaną po matchu
   zadeklaruj przed nim i reasygnuj w gałęziach.
 
 ```
 aby opisywać rezultat -> Tekst:
-    czym jest rezultat?
-        jeśli Wynik:
+    rezultat jest:
+        Wynikiem:
             zwróć "powodzenie"
-        jeśli Błąd z opisem:
+        Błędem z opisem:
             zwróć opis
 ```
 
@@ -679,7 +685,7 @@ to przypisanie jest **zapisem do pola** — `autor` **nie** staje się
 zmienną. Subscript-LHS (`lista pod indeksem to ...`) to zapis do elementu —
 `lista` musi już być zadeklarowana.
 
-Ciała `jeśli`/`inaczej`, `dopóki`, `dla` i gałęzi `czym jest` to **osobne
+Ciała `jeśli`/`inaczej`, `dopóki`, `dla` i gałęzi dopasowania `jest:` to **osobne
 bloki**: zmienna zadeklarowana w gałęzi NIE jest widoczna po bloku ani
 w sąsiedniej gałęzi. Przypisanie do zmiennej widocznej z bloku
 nadrzędnego to **reasignacja** tej zmiennej (nie nowa, lokalna kopia) —
@@ -1088,8 +1094,8 @@ p to Pudełko o wartości lista pod jeden
 ### Scope
 
 `Scope` to symbol table dla zmiennych. Łańcuch `parent` daje hierarchię
-**bloków**: moduł → funkcja → ciało `jeśli`/`dopóki`/`dla`/gałęzi `czym
-jest`. `variables` to `set` pełnych kluczy (lemmas, liczba, rodzaj)
+**bloków**: moduł → funkcja → ciało `jeśli`/`dopóki`/`dla`/gałęzi
+dopasowania `jest:`. `variables` to `set` pełnych kluczy (lemmas, liczba, rodzaj)
 zadeklarowanych zmiennych.
 
 Deklaracje (sekwencyjnie, w miejscu wystąpienia):
@@ -1099,7 +1105,7 @@ Deklaracje (sekwencyjnie, w miejscu wystąpienia):
 - W bloku: `Assignment` deklaruje zmienną w bloku, w którym stoi —
   chyba że zmienna jest już widoczna (także z bloku nadrzędnego); wtedy
   to reasignacja. Deklaracje z bloku-dziecka NIE są widoczne po bloku.
-- Zmienna pętli `dla` oraz pola związane w gałęzi `czym jest` żyją
+- Zmienna pętli `dla` oraz pola związane w gałęzi dopasowania `jest:` żyją
   w scope swojego bloku.
 
 **Każde użycie zmiennej wymaga wcześniejszej deklaracji** — dotyczy to

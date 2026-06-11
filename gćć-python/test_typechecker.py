@@ -1091,16 +1091,16 @@ def test_assigning_two_variants_widens_variable(parse, capsys):
 
 @pytest.mark.integration
 def test_match_exhaustive_typechecks_and_binds_field_types(parse, capsys):
-    """Pełny `czym jest`: pole `opis` związane jako Tekst (typ z deklaracji
+    """Pełne dopasowanie `jest:`: pole `opis` związane jako Tekst (typ z deklaracji
     struktury), pole `wynik` (parametr `element`) konkretyzuje się przez
     użycie (`plus jeden` → Liczba)."""
     src = _UNION_SRC + (
         "aby działać:\n"
         "    rezultat (Rezultat) to Wynik o wyniku zero\n"
-        "    czym jest rezultat?\n"
-        "        jeśli Błąd z opisem:\n"
+        "    rezultat jest:\n"
+        "        Błędem z opisem:\n"
         "            wiadomość to opis\n"
-        "        jeśli Wynik z wynikiem:\n"
+        "        Wynikiem z wynikiem:\n"
         "            liczba to wynik plus jeden\n"
     )
     typechecker.resolve_module(parse(src))
@@ -1114,8 +1114,8 @@ def test_match_missing_branch_raises(parse):
     src = _UNION_SRC + (
         "aby działać:\n"
         "    rezultat (Rezultat) to Wynik o wyniku zero\n"
-        "    czym jest rezultat?\n"
-        "        jeśli Wynik z wynikiem:\n"
+        "    rezultat jest:\n"
+        "        Wynikiem z wynikiem:\n"
         "            liczba to wynik\n"
     )
     with pytest.raises(typechecker.TypeCheckError, match="brakuje gałęzi: Błąd"):
@@ -1130,12 +1130,12 @@ def test_match_extra_branch_raises(parse):
         "\n"
         "aby działać:\n"
         "    rezultat (Rezultat) to Wynik o wyniku zero\n"
-        "    czym jest rezultat?\n"
-        "        jeśli Wynik z wynikiem:\n"
+        "    rezultat jest:\n"
+        "        Wynikiem z wynikiem:\n"
         "            liczba to wynik\n"
-        "        jeśli Błąd z opisem:\n"
+        "        Błędem z opisem:\n"
         "            wiadomość to opis\n"
-        "        jeśli Pustka:\n"
+        "        Pustką:\n"
         "            x to jeden\n"
     )
     with pytest.raises(typechecker.TypeCheckError, match="spoza unii: Pustka"):
@@ -1147,10 +1147,10 @@ def test_match_duplicate_branch_raises(parse):
     src = _UNION_SRC + (
         "aby działać:\n"
         "    rezultat (Rezultat) to Wynik o wyniku zero\n"
-        "    czym jest rezultat?\n"
-        "        jeśli Wynik z wynikiem:\n"
+        "    rezultat jest:\n"
+        "        Wynikiem z wynikiem:\n"
         "            liczba to wynik\n"
-        "        jeśli Wynik:\n"
+        "        Wynikiem:\n"
         "            x to jeden\n"
     )
     with pytest.raises(typechecker.TypeCheckError, match="powtórzona gałąź"):
@@ -1162,10 +1162,10 @@ def test_match_on_non_union_subject_raises(parse):
     src = _UNION_SRC + (
         "aby działać:\n"
         "    rezultat to pięć\n"
-        "    czym jest rezultat?\n"
-        "        jeśli Wynik z wynikiem:\n"
+        "    rezultat jest:\n"
+        "        Wynikiem z wynikiem:\n"
         "            liczba to wynik\n"
-        "        jeśli Błąd z opisem:\n"
+        "        Błędem z opisem:\n"
         "            wiadomość to opis\n"
     )
     with pytest.raises(typechecker.TypeCheckError):
@@ -1174,15 +1174,15 @@ def test_match_on_non_union_subject_raises(parse):
 
 @pytest.mark.integration
 def test_match_infers_union_type_of_free_param(parse):
-    """`czym jest` na nieotypowanym parametrze — gałęzie wyznaczają unię,
+    """dopasowanie `jest:` na nieotypowanym parametrze — gałęzie wyznaczają unię,
     która trafia DO SYGNATURY funkcji; wspólny typ zwrotny gałęzi (element
     Wyniku unifikowany z `zero`) daje Liczbę."""
     src = _UNION_SRC + (
         "aby obsługiwać rezultat:\n"
-        "    czym jest rezultat?\n"
-        "        jeśli Wynik z wynikiem:\n"
+        "    rezultat jest:\n"
+        "        Wynikiem z wynikiem:\n"
         "            zwróć wynik\n"
-        "        jeśli Błąd z opisem:\n"
+        "        Błędem z opisem:\n"
         "            zwróć zero\n"
     )
     typechecker.resolve_module(parse(src))
@@ -1198,10 +1198,10 @@ def test_match_subject_widens_struct_to_union(parse):
     src = _UNION_SRC + (
         "aby działać:\n"
         "    rezultat to Wynik o wyniku zero\n"
-        "    czym jest rezultat?\n"
-        "        jeśli Wynik z wynikiem:\n"
+        "    rezultat jest:\n"
+        "        Wynikiem z wynikiem:\n"
         "            liczba to wynik plus jeden\n"
-        "        jeśli Błąd z opisem:\n"
+        "        Błędem z opisem:\n"
         "            wiadomość to opis\n"
     )
     typechecker.resolve_module(parse(src))  # bez błędu
@@ -1315,10 +1315,10 @@ def test_match_branch_reassignment_unifies_with_outer_var(parse):
         "aby działać:\n"
         "    rezultat (Rezultat) to Wynik o wyniku zero\n"
         "    komunikat to \"\"\n"
-        "    czym jest rezultat?\n"
-        "        jeśli Błąd z opisem:\n"
+        "    rezultat jest:\n"
+        "        Błędem z opisem:\n"
         "            komunikat to opis\n"
-        "        jeśli Wynik:\n"
+        "        Wynikiem:\n"
         "            komunikat to \"ok\"\n"
         "    wiadomość to komunikat\n"
     )
@@ -1405,7 +1405,7 @@ def test_extern_unknown_type_consistent_call_typechecks(parse):
 
 @pytest.mark.integration
 def test_extern_returning_union_typechecks(parse):
-    """Extern może zwracać typ wariantowy — `czym jest` na wyniku działa."""
+    """Extern może zwracać typ wariantowy — dopasowanie `jest:` na wyniku działa."""
     src = (
         "definicja Błędu:\n"
         "    opis (Tekst)\n"
@@ -1420,10 +1420,88 @@ def test_extern_returning_union_typechecks(parse):
         "aby działać:\n"
         "    rezultat to zapisz \"abc\"\n"
         "    komunikat to \"\"\n"
-        "    czym jest rezultat?\n"
-        "        jeśli Wynik:\n"
+        "    rezultat jest:\n"
+        "        Wynikiem:\n"
         "            komunikat to \"ok\"\n"
-        "        jeśli Błąd z opisem:\n"
+        "        Błędem z opisem:\n"
         "            komunikat to opis\n"
     )
     typechecker.resolve_module(parse(src))
+
+
+# =====================================================================
+# Fixpoint — górna granica przebiegów (3N+5) pokrywa widening
+# =====================================================================
+
+_FIXPOINT_PRELUDE = (
+    "definicja Błędu:\n"
+    "    opis (Tekst)\n"
+    "\n"
+    "definicja Wyniku z elementem:\n"
+    "    wynik (element)\n"
+    "\n"
+    "Rezultat to Wynik albo Błąd\n"
+    "\n"
+)
+
+# 12 funkcji w cyklu rekurencyjnym; dwie bazy zwracają RÓŻNE warianty unii,
+# więc każdy ret musi przejść pełną sekwencję faz: wolna → Wynik → Rezultat.
+_CYCLE_FUNCS = "abcdefghijkl"
+
+
+def _widening_cycle_src():
+    parts = [_FIXPOINT_PRELUDE]
+    n = len(_CYCLE_FUNCS)
+    for i, c in enumerate(_CYCLE_FUNCS):
+        nxt = _CYCLE_FUNCS[(i + 1) % n]
+        base = ""
+        if i == 0:
+            base = "    jeśli x równe zero:\n        zwróć Wynik o wyniku zero\n"
+        if i == n // 2:
+            base = "    jeśli x równe jeden:\n        zwróć Błąd o opisie \"e\"\n"
+        parts.append(
+            f"aby robić_{c} dla x:\n{base}    zwróć rób_{nxt} dla x\n"
+        )
+    return "\n".join(parts)
+
+
+@pytest.mark.integration
+def test_fixpoint_converges_on_widening_cycle(parse, capsys):
+    """Cykl wzajemnej rekursji, w którym typ zwracany każdej funkcji
+    przechodzi wszystkie fazy (wolna → Wynik → Rezultat po wideningu).
+    Cap przebiegów musi to pokrywać — brak ostrzeżenia o niedobiegnięciu
+    i każdy ret skonkretyzowany do unii."""
+    module = parse(_widening_cycle_src())
+    typechecker.resolve_module(module)
+    out = capsys.readouterr().out
+    assert "OSTRZEŻENIE" not in out
+    for c in _CYCLE_FUNCS:
+        assert ty(_fdt_by_surface((f"robić_{c}".split("_")[0], c)).ret_type) \
+            == "Rezultat"
+
+
+@pytest.mark.integration
+def test_fixpoint_converges_on_widening_relay(parse, capsys):
+    """Sztafeta wideningu: każdy poziom łańcucha ma własną bazę-Wynik,
+    a Błąd wspina się z dna — każdy ret najpierw stabilizuje się na Wynik,
+    potem musi przejść na Rezultat drugą falą."""
+    parts = [_FIXPOINT_PRELUDE]
+    n = len(_CYCLE_FUNCS)
+    for i, c in enumerate(_CYCLE_FUNCS):
+        if i < n - 1:
+            parts.append(
+                f"aby robić_{c} dla x:\n"
+                f"    jeśli x równe zero:\n"
+                f"        zwróć Wynik o wyniku zero\n"
+                f"    zwróć rób_{_CYCLE_FUNCS[i + 1]} dla x\n"
+            )
+        else:
+            parts.append(
+                f"aby robić_{c} dla x:\n"
+                f"    zwróć Błąd o opisie \"e\"\n"
+            )
+    module = parse("\n".join(parts))
+    typechecker.resolve_module(module)
+    out = capsys.readouterr().out
+    assert "OSTRZEŻENIE" not in out
+    assert ty(_fdt_by_surface(("robić", "a")).ret_type) == "Rezultat"
