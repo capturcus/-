@@ -405,24 +405,34 @@ dopasowuje argumenty do parametrów po (przyimku, przypadku) — patrz
 ## Funkcje zewnętrzne (`można`)
 
 ```
-można NAZWA [PARAM…] [-> TYP]
+można NAZWA [PARAM (TYP)…] -> TYP
 ```
 
 Deklaracja sygnatury funkcji bez ciała — analogia `extern` z C. Składnia
-nagłówka identyczna jak przy `aby`, ale **bez** dwukropka i bez bloku
-ciała. Cała deklaracja mieści się w jednej linii.
+nagłówka jak przy `aby`, ale **bez** dwukropka i bez bloku ciała. Cała
+deklaracja mieści się w jednej linii.
+
+Ponieważ extern nie ma ciała, z którego dałoby się wnioskować typy,
+**każdy parametr musi mieć jawny typ `(Typ)`, a typ zwracany `-> Typ`
+jest obowiązkowy** — brak któregokolwiek to błąd parsowania. Typechecker
+buduje sygnaturę wprost z adnotacji i traktuje wywołania externów tak
+samo jak wywołania funkcji z `aby`. Głowa niebędąca znanym typem (np.
+`Miejsce` bez `definicja`) działa jak parametr typu współdzielony
+w obrębie sygnatury.
 
 Próba dodania `:` lub ciała rzuca `SyntaxError`.
 
 Przykłady:
 
 ```
-można działać
-można wypisać tekst
-można zapisać do bazy dane
+można działać -> Nic
+można wypisać tekst (Tekst) -> Nic
+można zapisać do bazy (Baza) dane (Tekst) -> Nic
+można leżeć na polanie (Miejsce) w lesie (Miejsce) przy jeziorze (Liczba) -> Liczba
+można policzyć x (Tekst) -> liczba
+
+# błąd — parametry bez typów i brak typu zwracanego:
 można leżeć na polanie w lesie przy jeziorze
-można leżeć na polanie (Miejsce) w lesie (Miejsce) przy jeziorze (Liczba)
-można policzyć x -> liczba
 ```
 
 **Uwaga implementacyjna:** parser dopasowuje `można` po **formie powierzchniowej** segmentu, ponieważ kanonikalizacja w trybie adj-priority woli `możny` (przym.) niż predykatyw `można`. Inne formy `możny` nie wyzwolą extern-def.

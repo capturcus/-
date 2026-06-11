@@ -1323,3 +1323,107 @@ def test_match_branch_reassignment_unifies_with_outer_var(parse):
         "    wiadomość to komunikat\n"
     )
     typechecker.resolve_module(parse(src))  # komunikat/wiadomość: Tekst
+
+
+# =====================================================================
+# Extern (`można`) — rejestracja sygnatur w typecheckerze
+# =====================================================================
+
+
+@pytest.mark.integration
+def test_extern_call_typechecks_and_grounds(parse, capsys):
+    """Wywołanie externa w `działać`: typ zwracany z sygnatury dociera do
+    zmiennej, grounding przechodzi (dawniej: find_fdt zwracał None i
+    typechecker wywalał się AttributeError)."""
+    src = (
+        "można wysłać tekst (Tekst) do wtyczki (Liczba) -> Liczba\n"
+        "\n"
+        "aby działać:\n"
+        "    wtyczka to siedem\n"
+        "    wynik to wyślij \"abc\" do wtyczki\n"
+    )
+    typechecker.resolve_module(parse(src))
+    fdt = _fdt_by_surface(("wysłać",))
+    assert ty(fdt.arg_types[0]) == "Tekst"
+    assert ty(fdt.arg_types[1]) == "Liczba"
+    assert ty(fdt.ret_type) == "Liczba"
+
+
+@pytest.mark.integration
+def test_extern_arg_type_mismatch_raises(parse):
+    src = (
+        "można wypisać tekst (Tekst) -> Nic\n"
+        "\n"
+        "aby działać:\n"
+        "    wypisz pięć\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_extern_signature_constrains_caller_param(parse):
+    """Typ z sygnatury externa wnioskuje typ parametru funkcji wołającej."""
+    src = (
+        "można policzyć x (Tekst) -> Liczba\n"
+        "\n"
+        "aby opakować rzecz:\n"
+        "    zwróć policz rzecz\n"
+    )
+    typechecker.resolve_module(parse(src))
+    fdt = _fdt_by_surface(("opakować",))
+    assert ty(fdt.arg_types[0]) == "Tekst"
+    assert ty(fdt.ret_type) == "Liczba"
+
+
+@pytest.mark.integration
+def test_extern_unknown_type_shared_within_signature(parse):
+    """Niezdefiniowana głowa (Miejsce) działa jak parametr typu sygnatury —
+    oba wystąpienia muszą dostać TEN SAM typ; konflikt Liczba/Tekst rzuca."""
+    src = (
+        "można leżeć na polanie (Miejsce) w lesie (Miejsce) "
+        "przy jeziorze (Liczba) -> Liczba\n"
+        "\n"
+        "aby działać:\n"
+        "    n to leż na pięć w \"las\" przy siedem\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_extern_unknown_type_consistent_call_typechecks(parse):
+    src = (
+        "można leżeć na polanie (Miejsce) w lesie (Miejsce) "
+        "przy jeziorze (Liczba) -> Liczba\n"
+        "\n"
+        "aby działać:\n"
+        "    n to leż na pięć w sześć przy siedem\n"
+    )
+    typechecker.resolve_module(parse(src))  # Miejsce := Liczba w tej instancji
+
+
+@pytest.mark.integration
+def test_extern_returning_union_typechecks(parse):
+    """Extern może zwracać typ wariantowy — `czym jest` na wyniku działa."""
+    src = (
+        "definicja Błędu:\n"
+        "    opis (Tekst)\n"
+        "\n"
+        "definicja Wyniku z elementem:\n"
+        "    wynik (element)\n"
+        "\n"
+        "Rezultat to Wynik albo Błąd\n"
+        "\n"
+        "można zapisać dane (Tekst) -> Rezultat\n"
+        "\n"
+        "aby działać:\n"
+        "    rezultat to zapisz \"abc\"\n"
+        "    komunikat to \"\"\n"
+        "    czym jest rezultat?\n"
+        "        jeśli Wynik:\n"
+        "            komunikat to \"ok\"\n"
+        "        jeśli Błąd z opisem:\n"
+        "            komunikat to opis\n"
+    )
+    typechecker.resolve_module(parse(src))

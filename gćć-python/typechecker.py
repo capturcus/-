@@ -328,6 +328,21 @@ def resolve_module(node):
                 unify_types(fdt.ret_type, elaborate(decl.return_type, fenv, fresh_unknown=True))
             fun_decls.append((decl.name, fdt))
             module_funcs.append((decl, fdt))
+        elif isinstance(decl, ast.ExternFunctionDef):
+            # Extern: sygnatura w całości jawna (wymusza to parser), brak
+            # ciała do inferencji — schemat budowany wprost z adnotacji.
+            # Wspólny fenv: nieznana głowa (np. Miejsce) działa jak parametr
+            # typu współdzielony w obrębie sygnatury.
+            fenv = {}
+            fdt = FunDefTypes(
+                name=decl.name,
+                arg_types=[
+                    elaborate(p.type, fenv, fresh_unknown=True)
+                    for p in decl.params
+                ],
+                ret_type=elaborate(decl.return_type, fenv, fresh_unknown=True),
+            )
+            fun_decls.append((decl.name, fdt))
 
     # PASS 2 (do fixpointu): inferuj ciała, reużywając schematów + all_types.
     fun_scopes = _infer_to_fixpoint(module_funcs)

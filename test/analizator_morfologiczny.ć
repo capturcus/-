@@ -8,8 +8,8 @@
 #   przesłania stare (semantyka assoc-listy zamiast dict.setdefault+update).
 #
 # Świadome uproszczenia względem pierwowzoru (wymagałyby stdlib):
-# - podzielić to atrapa — prawdziwe dzielenie tekstu po separatorze wymaga
-#   operacji na znakach, których język jeszcze nie ma,
+# - podzielić to funkcja zewnętrzna (można) — dzielenie tekstu po separatorze
+#   wymaga operacji na znakach, których język jeszcze nie ma,
 # - kanonizować działa na pojedynczym słowie (segmentacja po "_" i wielkich
 #   literach to znów operacje tekstowe),
 # - pominięta poprawka lematów imiesłowów (cytaty) — wymaga kluczy złożonych,
@@ -160,12 +160,9 @@ aby tłumaczyć atomy przez mapę:
                     zwróć resztę
 
 
-# ---------- atrapa stdlib tekstu ----------
+# ---------- stdlib tekstu (funkcja zewnętrzna) ----------
 
-# ATRAPA: dzielenie tekstu po separatorze wymaga operacji na znakach.
-# Zwraca jednoelementową listę z całym tekstem.
-aby podzielić tekst po separatorze:
-    zwróć dodaj tekst do utwórz_pustą
+można podzielić tekst (Tekst) po separatorze (Tekst) -> Lista
 
 
 # ---------- stałe z morph_anal.py ----------

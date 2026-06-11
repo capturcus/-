@@ -55,6 +55,10 @@ def _groups(node):
             groups.append(("params", node.params))
         groups.append(("body", node.body))
         return groups
+    if isinstance(node, ast.ExternFunctionDef):
+        if node.params:
+            return [("params", node.params)]
+        return None
     if isinstance(node, ast.StructDef):
         return [("fields", node.fields)]
     if isinstance(node, ast.Match):
@@ -97,6 +101,11 @@ def _label(node):
         return "Module"
     if isinstance(node, ast.FunctionDef):
         s = f"FunctionDef {'_'.join(node.name.surface)}"
+        if node.return_type is not None:
+            s += f" -> {_fmt_tref(node.return_type)}"
+        return s
+    if isinstance(node, ast.ExternFunctionDef):
+        s = f"ExternFunctionDef {'_'.join(node.name.surface)}"
         if node.return_type is not None:
             s += f" -> {_fmt_tref(node.return_type)}"
         return s

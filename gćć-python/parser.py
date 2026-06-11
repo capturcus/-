@@ -15,7 +15,7 @@ Gramatyka Pass 1:
               | "stop" | "dalej" | "zwrócić" [phrase]
               | assignment | expr_stmt
   func_def   := "aby" function_name param* ["->" type] ":" INDENT stmt+ DEDENT
-  extern_def := "można" function_name param* ["->" type] NEWLINE
+  extern_def := "można" function_name typed_param* "->" type NEWLINE
   struct_def := "definicja" type_name ":" INDENT field+ DEDENT
   union_def  := type_name "to" type_name ("albo" type_name)+
   match_stmt := "czym" "jest" phrase "?" INDENT match_branch+ DEDENT
@@ -40,8 +40,10 @@ wewnątrz `phrase` (np. argumenty fcall: `weź dla użytkownika`) `dla`
 pozostaje zwykłym przyimkiem rozpoznawanym przez `expression.py`.
 
 `extern_def` deklaruje sygnaturę funkcji zewnętrznej (analog `extern` z C);
-nagłówek identyczny z `aby`, ale brak `:` i brak ciała — cała deklaracja
-mieści się w jednej linii.
+nagłówek jak w `aby`, ale brak `:` i brak ciała — cała deklaracja mieści
+się w jednej linii. Ponieważ nie ma ciała do inferencji, KAŻDY parametr
+musi mieć jawny typ `(Typ)` i wymagany jest typ zwracany `-> Typ`
+(typechecker buduje sygnaturę wprost z adnotacji).
 """
 
 import lexer
@@ -419,6 +421,23 @@ class Parser:
                 f"deklaracja 'można' nie przyjmuje ciała ani dwukropka; "
                 f"oczekiwano końca linii, otrzymano {_describe_tok(nxt)}",
                 line=getattr(nxt, "line", None),
+            )
+        # Extern nie ma ciała, więc typów nie da się wywnioskować —
+        # wszystkie muszą być jawne.
+        fname = "_".join(name.surface)
+        for p in params:
+            if p.type is None:
+                pname = "_".join(p.name.surface)
+                raise InterpreterError(
+                    f"deklaracja 'można {fname}' wymaga jawnego typu "
+                    f"parametru '{pname}' — np. {pname} (Tekst)",
+                    line=p.name.line,
+                )
+        if return_type is None:
+            raise InterpreterError(
+                f"deklaracja 'można {fname}' wymaga jawnego typu "
+                f"zwracanego — dodaj '-> Typ' (np. -> Nic)",
+                line=name.line,
             )
         return ExternFunctionDef(
             name=name, params=params,

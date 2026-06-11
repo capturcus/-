@@ -317,51 +317,59 @@ def test_parse_multiple_function_definitions(parse):
 # ---------- Parser strukturalny: deklaracje extern (`można`) ----------
 
 def test_parse_extern_no_params(parse):
-    """`można działać` — najprostsza deklaracja extern."""
-    m = parse("można działać\n")
+    """`można działać -> Nic` — najprostsza deklaracja extern."""
+    m = parse("można działać -> Nic\n")
     e = m.body[0]
     assert isinstance(e, ast.ExternFunctionDef)
     assert ("działać",) in e.name.lemmas_set
     assert e.params == []
-    assert e.return_type is None
+    assert e.return_type.head == ("Nic",)
 
 
 def test_parse_extern_one_param_no_prep(parse):
-    """`można wypisać tekst` — jeden parametr bez przyimka."""
-    m = parse("można wypisać tekst\n")
+    """`można wypisać tekst (Tekst) -> Nic` — jeden parametr bez przyimka."""
+    m = parse("można wypisać tekst (Tekst) -> Nic\n")
     e = m.body[0]
     assert isinstance(e, ast.ExternFunctionDef)
     assert ("wypisać",) in e.name.lemmas_set
     assert len(e.params) == 1
     assert e.params[0].prep is None
+    assert e.params[0].type.head == ("Tekst",)
 
 
 def test_parse_extern_with_prep_param(parse):
-    """`można zapisać do bazy dane` — parametr z przyimkiem."""
-    m = parse("można zapisać do bazy dane\n")
+    """`można zapisać do bazy (Baza) dane (Tekst) -> Nic` — parametr z przyimkiem."""
+    m = parse("można zapisać do bazy (Baza) dane (Tekst) -> Nic\n")
     e = m.body[0]
     assert isinstance(e, ast.ExternFunctionDef)
     preps_seen = [p.prep for p in e.params]
     assert ("do",) in preps_seen
+    assert all(p.type is not None for p in e.params)
 
 
-def test_parse_extern_multiple_prep_params(parse):
-    """`można leżeć na polanie w lesie przy jeziorze` — trzy parametry przyimkowe."""
-    m = parse("można leżeć na polanie w lesie przy jeziorze\n")
-    e = m.body[0]
-    assert isinstance(e, ast.ExternFunctionDef)
-    assert len(e.params) == 3
-    preps_seen = [p.prep for p in e.params]
-    assert ("na",) in preps_seen
-    assert ("w",) in preps_seen
-    assert ("przy",) in preps_seen
+def test_parse_extern_untyped_param_raises(parse):
+    """Extern nie ma ciała do inferencji — parametr bez jawnego typu to błąd."""
+    with pytest.raises(ast.InterpreterError, match="jawnego typu parametru"):
+        parse("można leżeć na polanie w lesie przy jeziorze\n")
+
+
+def test_parse_extern_partially_typed_raises(parse):
+    """Wszystkie parametry muszą mieć typ — jeden bez typu wystarczy do błędu."""
+    with pytest.raises(ast.InterpreterError, match="jawnego typu parametru 'jeziorze'"):
+        parse("można leżeć na polanie (Miejsce) w lesie (Miejsce) przy jeziorze -> Liczba\n")
+
+
+def test_parse_extern_missing_return_type_raises(parse):
+    with pytest.raises(ast.InterpreterError, match="typu zwracanego"):
+        parse("można wypisać tekst (Tekst)\n")
 
 
 def test_parse_extern_multiple_prep_params_with_types(parse):
-    """`można leżeć na polanie (Miejsce) w lesie (Miejsce) przy jeziorze (Liczba)` —
-    typy w nawiasach przy każdym parametrze."""
+    """`można leżeć na polanie (Miejsce) w lesie (Miejsce) przy jeziorze (Liczba)
+    -> Liczba` — typy w nawiasach przy każdym parametrze + typ zwracany."""
     m = parse(
-        "można leżeć na polanie (Miejsce) w lesie (Miejsce) przy jeziorze (Liczba)\n"
+        "można leżeć na polanie (Miejsce) w lesie (Miejsce) "
+        "przy jeziorze (Liczba) -> Liczba\n"
     )
     e = m.body[0]
     assert isinstance(e, ast.ExternFunctionDef)
@@ -370,11 +378,12 @@ def test_parse_extern_multiple_prep_params_with_types(parse):
     assert types_by_prep[("na",)] == ("Miejsce",)
     assert types_by_prep[("w",)] == ("Miejsce",)
     assert types_by_prep[("przy",)] == ("Liczba",)
+    assert e.return_type.head == ("Liczba",)
 
 
 def test_parse_extern_with_return_type(parse):
-    """`można policzyć x -> liczba` — z deklaracją typu zwracanego."""
-    m = parse("można policzyć x -> liczba\n")
+    """`można policzyć x (Tekst) -> liczba` — z deklaracją typu zwracanego."""
+    m = parse("można policzyć x (Tekst) -> liczba\n")
     e = m.body[0]
     assert isinstance(e, ast.ExternFunctionDef)
     assert e.return_type.head == ("liczba",)
@@ -389,7 +398,7 @@ def test_parse_extern_rejects_colon_body(parse):
 def test_parse_extern_alongside_function_def(parse):
     """Extern i zwykłą funkcję można mieszać w jednym module."""
     src = (
-        "można wypisać tekst\n"
+        "można wypisać tekst (Tekst) -> Nic\n"
         "aby działać:\n"
         "    zwrócić\n"
     )

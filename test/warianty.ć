@@ -12,11 +12,9 @@ definicja Wyniku z elementem:
 
 Rezultat to Wynik albo Błąd
 
-aby wypisać tekst:
-    zwróć
-
-aby wysłać tekst do wtyczki (Liczba) -> Liczba:
-    zwróć zero
+# Funkcje zewnętrzne — sygnatury w całości jawne (brak ciała do inferencji).
+można wypisać tekst (Tekst) -> Nic
+można wysłać tekst (Tekst) do wtyczki (Liczba) -> Liczba
 
 # Gałęzie zwracają różne warianty jednej unii — funkcja jest otypowana unią.
 aby zapisać do bazy tekst -> Rezultat:
