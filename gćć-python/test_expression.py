@@ -36,9 +36,13 @@ def _value_of_first_assignment(module):
     return module.body[0].body[0].value.resolved
 
 
-def _wrap(rhs_expr):
-    """Wzorzec: aby działać:\n    wynik to <expr>"""
-    return f"aby działać:\n    wynik to {rhs_expr}\n"
+def _wrap(rhs_expr, params=""):
+    """Wzorzec: aby działać [PARAMS]:\n    wynik to <expr>.
+
+    `params` deklaruje zmienne używane w wyrażeniu (block scoping wymaga
+    deklaracji przed użyciem; parametry nie przesuwają indeksów w body)."""
+    sig = f" {params}" if params else ""
+    return f"aby działać{sig}:\n    wynik to {rhs_expr}\n"
 
 
 # ---------- Liczby słowne (literały) ----------
@@ -141,7 +145,7 @@ def test_comparison_lower_precedence_than_arith(parse):
 
 def test_not_with_phrase(parse):
     # `nie inna_zmienna` → Not(Identifier(inna_zmienna))
-    expr = _value_of_first_assignment(parse(_wrap("nie inna_zmienna")))
+    expr = _value_of_first_assignment(parse(_wrap("nie inna_zmienna", "inna_zmienna")))
     assert isinstance(expr, ast.Not)
     assert isinstance(expr.operand, ast.Identifier)
     assert ("inny", "zmienny") in expr.operand.lemmas_set
@@ -155,20 +159,20 @@ def test_not_lower_precedence_than_comparison(parse):
 
 
 def test_and(parse):
-    expr = _value_of_first_assignment(parse(_wrap("warunek i inny_warunek")))
+    expr = _value_of_first_assignment(parse(_wrap("warunek i inny_warunek", "warunek inny_warunek")))
     assert isinstance(expr, ast.And)
     assert isinstance(expr.left, ast.Identifier)
     assert isinstance(expr.right, ast.Identifier)
 
 
 def test_or(parse):
-    expr = _value_of_first_assignment(parse(_wrap("warunek lub inny_warunek")))
+    expr = _value_of_first_assignment(parse(_wrap("warunek lub inny_warunek", "warunek inny_warunek")))
     assert isinstance(expr, ast.Or)
 
 
 def test_or_lower_precedence_than_and(parse):
     # `a i b lub c` → Or(And(a, b), c)
-    expr = _value_of_first_assignment(parse(_wrap("a i b lub c")))
+    expr = _value_of_first_assignment(parse(_wrap("p i q lub r", "p q r")))
     assert isinstance(expr, ast.Or)
     assert isinstance(expr.left, ast.And)
 
@@ -207,7 +211,7 @@ def test_function_call_followed_by_binop_left_binding(parse):
     BinOp(+, FCall(weź_wiek_z_bazy, [identyfikator]), IntLit(7))."""
     src = (
         "aby weź_wiek_z_bazy dla identyfikatora:\n    zwrócić\n"
-        "aby działać:\n    wynik to weź_wiek_z_bazy dla identyfikatora plus siedem\n"
+        "aby działać identyfikator:\n    wynik to weź_wiek_z_bazy dla identyfikatora plus siedem\n"
     )
     m = parse(src)
     expr = m.body[1].body[0].value.resolved
@@ -265,7 +269,7 @@ _ARGMATCH_DECLS = (
 def _argmatch_call(parse, call_line):
     """Parsuje deklaracje + jedno wywołanie `testuj_funkcję ...` w ciele
     `działać`; zwraca rozwiązany FunctionCall (3 sloty w kolejności sygnatury)."""
-    src = _ARGMATCH_DECLS + "aby działać:\n    " + call_line + "\n"
+    src = _ARGMATCH_DECLS + "aby działać domek samochód pies:\n    " + call_line + "\n"
     fc = parse(src).body[-1].body[0].resolved
     assert isinstance(fc, ast.FunctionCall)
     assert ("testować", "funkcja") in fc.name.lemmas_set
@@ -350,7 +354,7 @@ def test_missing_argument_fails(parse):
 def test_simple_chain(parse):
     src = (
         "definicja Postu:\n    autor (Tekst)\n    treść (Tekst)\n"
-        "aby działać:\n    wynik to autor postu\n"
+        "aby działać post:\n    wynik to autor postu\n"
     )
     m = parse(src)
     chain = m.body[1].body[0].value.resolved
@@ -365,7 +369,7 @@ def test_chain_with_arith_left_binding(parse):
     BinOp(+, GetterChain([liczba_polubień, post]), IntLit(28))."""
     src = (
         "definicja Postu:\n    liczba_polubień (Liczba)\n"
-        "aby działać:\n    wynik to liczba_polubień posta plus dwadzieścia osiem\n"
+        "aby działać post:\n    wynik to liczba_polubień posta plus dwadzieścia osiem\n"
     )
     m = parse(src)
     expr = m.body[1].body[0].value.resolved
@@ -395,7 +399,7 @@ def test_struct_creation_field_value_is_full_expr(parse):
     src = (
         "aby weź_wiek_z_bazy dla identyfikatora:\n    zwrócić\n"
         "definicja Użytkownika:\n    wiek (Liczba)\n    nazwa (Tekst)\n"
-        "aby działać:\n"
+        "aby działać identyfikator:\n"
         "    wynik to nowy Użytkownik o wieku weź_wiek_z_bazy dla identyfikatora plus siedem o nazwie \"Anna\"\n"
     )
     m = parse(src)
@@ -414,7 +418,7 @@ def test_struct_creation_field_value_is_full_expr(parse):
 def test_struct_creation_shorthand(parse):
     src = (
         "definicja Użytkownika:\n    nazwa (Tekst)\n    wiek (Liczba)\n"
-        "aby działać:\n    u to nowy Użytkownik z nazwą z wiekiem\n"
+        "aby działać nazwa wiek:\n    u to nowy Użytkownik z nazwą z wiekiem\n"
     )
     m = parse(src)
     sc = m.body[1].body[0].value.resolved
@@ -429,7 +433,7 @@ def test_struct_creation_shorthand(parse):
 # ---------- Identifier reference ----------
 
 def test_bare_identifier_single_letter(parse):
-    src = "aby działać:\n    x to y\n"
+    src = "aby działać y:\n    x to y\n"
     m = parse(src)
     expr = m.body[0].body[0].value.resolved
     assert isinstance(expr, ast.Identifier)
@@ -438,7 +442,7 @@ def test_bare_identifier_single_letter(parse):
 
 def test_bare_identifier_multiseg_no_verb(parse):
     """Multi-segment bez czasownika → identifier_ref (nie próba fcall)."""
-    src = "aby działać:\n    x to wielki_kot\n"
+    src = "aby działać wielki_kot:\n    x to wielki_kot\n"
     m = parse(src)
     expr = m.body[0].body[0].value.resolved
     assert isinstance(expr, ast.Identifier)
@@ -508,7 +512,7 @@ def test_chain_head_subst_variant_when_adj_variant_exists(parse):
     field-em, dispatcher znajduje subst-variant i startuje chain."""
     src = (
         "definicja Słowa:\n    część_mowy (Tekst)\n"
-        "aby działać:\n    wynik to części_mowy słowa\n"
+        "aby działać słowo:\n    wynik to części_mowy słowa\n"
     )
     m = parse(src)
     expr = m.body[1].body[0].value.resolved
@@ -562,7 +566,7 @@ def test_diag_leftover_after_chain_unfollowable(parse):
     że `komentarza` wygląda jak rozszerzenie ale `postu` nie jest polem."""
     src = (
         "definicja Posta:\n    autor (Tekst)\n"
-        "aby działać:\n    wynik to autor postu komentarza\n"
+        "aby działać post:\n    wynik to autor postu komentarza\n"
     )
     with pytest.raises(ast.ResolveError, match="chain.*autor postu") as ei:
         parse(src)
@@ -571,10 +575,9 @@ def test_diag_leftover_after_chain_unfollowable(parse):
     assert "komentarza" in msg
 
 
-def test_diag_leftover_after_ident_undeclared(parse):
-    """`nieznana_zmienna posta` — `nieznana_zmienna` nie jest niczym
-    znanym (zmienną/funkcją/polem/typem). Diagnostyka sugeruje literówkę
-    lub brakującą deklarację."""
+def test_undeclared_identifier_reference_raises(parse):
+    """Block scoping: referencja do niezadeklarowanej zmiennej to błąd
+    rezolucji (nie ciche tolerowanie jak dawniej)."""
     src = (
         "aby działać:\n    x to nieznana_zmienna posta\n"
     )
@@ -582,7 +585,7 @@ def test_diag_leftover_after_ident_undeclared(parse):
         parse(src)
     msg = str(ei.value)
     assert "nieznana_zmienna" in msg
-    assert "literówka" in msg or "brakująca deklaracja" in msg
+    assert "nie jest zadeklarowaną zmienną" in msg
 
 
 def test_diag_leftover_after_struct_field_missing(parse):
@@ -631,7 +634,7 @@ def test_diag_leftover_after_literal(parse):
 
 def test_subscript_atom_int_index(parse):
     """`lista pod jeden` → Subscript(Identifier(lista), IntLit(1))."""
-    expr = _value_of_first_assignment(parse(_wrap("lista pod jeden")))
+    expr = _value_of_first_assignment(parse(_wrap("lista pod jeden", "lista")))
     assert isinstance(expr, ast.Subscript)
     assert isinstance(expr.target, ast.Identifier)
     assert ("lista",) in expr.target.lemmas_set
@@ -640,7 +643,7 @@ def test_subscript_atom_int_index(parse):
 
 def test_subscript_atom_ident_index(parse):
     """`lista pod indeksem` → Subscript(Identifier, Identifier)."""
-    expr = _value_of_first_assignment(parse(_wrap("lista pod indeksem")))
+    expr = _value_of_first_assignment(parse(_wrap("lista pod indeksem", "lista indeks")))
     assert isinstance(expr, ast.Subscript)
     assert isinstance(expr.target, ast.Identifier)
     assert ("lista",) in expr.target.lemmas_set
@@ -651,7 +654,7 @@ def test_subscript_atom_ident_index(parse):
 def test_subscript_left_associative(parse):
     """`lista pod jeden pod dwa` → Subscript(Subscript(lista, 1), 2).
     Iteracja jak w arith — kolejne `pod` rozszerzają tylko lewy operand."""
-    expr = _value_of_first_assignment(parse(_wrap("lista pod jeden pod dwa")))
+    expr = _value_of_first_assignment(parse(_wrap("lista pod jeden pod dwa", "lista")))
     assert isinstance(expr, ast.Subscript)
     assert expr.index == ast.IntLit(2)
     assert isinstance(expr.target, ast.Subscript)
@@ -663,7 +666,7 @@ def test_subscript_left_associative(parse):
 def test_subscript_lower_precedence_than_arith(parse):
     """`lista pod indeksem plus jeden` → BinOp(+, Subscript(...), 1).
     Subscript w `factor`, plus w `arith`."""
-    expr = _value_of_first_assignment(parse(_wrap("lista pod indeksem plus jeden")))
+    expr = _value_of_first_assignment(parse(_wrap("lista pod indeksem plus jeden", "lista indeks")))
     assert isinstance(expr, ast.BinOp) and expr.op == "+"
     assert isinstance(expr.left, ast.Subscript)
     assert expr.right == ast.IntLit(1)
@@ -671,14 +674,14 @@ def test_subscript_lower_precedence_than_arith(parse):
 
 def test_subscript_inside_arith_via_parens(parse):
     """`lista pod (indeksem plus jeden)` → Subscript(lista, BinOp(+, indeksem, 1))."""
-    expr = _value_of_first_assignment(parse(_wrap("lista pod (indeksem plus jeden)")))
+    expr = _value_of_first_assignment(parse(_wrap("lista pod (indeksem plus jeden)", "lista indeks")))
     assert isinstance(expr, ast.Subscript)
     assert isinstance(expr.index, ast.BinOp) and expr.index.op == "+"
 
 
 def test_subscript_lower_precedence_than_not(parse):
     """`nie lista pod indeksem` → Not(Subscript(...))."""
-    expr = _value_of_first_assignment(parse(_wrap("nie lista pod indeksem")))
+    expr = _value_of_first_assignment(parse(_wrap("nie lista pod indeksem", "lista indeks")))
     assert isinstance(expr, ast.Not)
     assert isinstance(expr.operand, ast.Subscript)
 
@@ -689,7 +692,7 @@ def test_subscript_on_fcall_result(parse):
     fcall używają `primary`, nie `subscript`."""
     src = (
         "aby weź dla numeru:\n    zwrócić\n"
-        "aby działać:\n    wynik to weź dla numeru pod indeksem\n"
+        "aby działać numer indeks:\n    wynik to weź dla numeru pod indeksem\n"
     )
     m = parse(src)
     expr = m.body[1].body[0].value.resolved
@@ -704,7 +707,7 @@ def test_subscript_inside_fcall_arg_via_parens(parse):
     """`weź dla (numeru pod indeksem)` → FCall(weź, [Subscript(numer, indeks)])."""
     src = (
         "aby weź dla numeru:\n    zwrócić\n"
-        "aby działać:\n    wynik to weź dla (numeru pod indeksem)\n"
+        "aby działać numer indeks:\n    wynik to weź dla (numeru pod indeksem)\n"
     )
     m = parse(src)
     expr = m.body[1].body[0].value.resolved
@@ -720,7 +723,7 @@ def test_subscript_chain_as_index(parse):
     Prawy operand `pod` to primary, więc chain wewnątrz indeksu działa."""
     src = (
         "definicja Wpisu:\n    numer (Liczba)\n"
-        "aby działać:\n    wynik to lista pod numerem autora\n"
+        "aby działać lista autor:\n    wynik to lista pod numerem autora\n"
     )
     m = parse(src)
     expr = m.body[1].body[0].value.resolved
@@ -735,7 +738,7 @@ def test_subscript_chain_as_index(parse):
 
 def test_subscript_as_assignment_target(parse):
     """`lista pod indeksem to jeden` — LHS przypisania to Subscript."""
-    src = "aby działać:\n    lista pod indeksem to jeden\n"
+    src = "aby działać lista indeks:\n    lista pod indeksem to jeden\n"
     m = parse(src)
     asn = m.body[0].body[0]
     assert isinstance(asn, ast.Assignment)
@@ -751,7 +754,7 @@ def test_subscript_in_struct_field_value(parse):
     więc subscript naturalnie się stosuje."""
     src = (
         "definicja Pudełka:\n    wartość (Liczba)\n"
-        "aby działać:\n    p to nowe Pudełko o wartości lista pod jeden\n"
+        "aby działać lista:\n    p to nowe Pudełko o wartości lista pod jeden\n"
     )
     m = parse(src)
     sc = m.body[1].body[0].value.resolved
@@ -768,7 +771,7 @@ def test_subscript_after_fcall_with_two_args(parse):
     Subscript(FCall(z dwoma args), indeks)."""
     src = (
         "aby weź_z_bazy autora po listą:\n    zwrócić\n"
-        "aby działać:\n"
+        "aby działać autor lista indeks:\n"
         "    wynik to weź_z_bazy autora po listą pod indeksem\n"
     )
     m = parse(src)
@@ -786,7 +789,7 @@ def test_subscript_full_composition(parse):
         "definicja Postu:\n    treść (Tekst)\n"
         "definicja Autora:\n    lista_postów (Tekst)\n"
         "aby policz_index od liczby:\n    zwrócić\n"
-        "aby działać:\n"
+        "aby działać autor liczba lista_treści indeks:\n"
         "    lista_postów autora pod policz_index od liczby "
         "to nowy Post o treści lista_treści pod indeksem\n"
     )
@@ -819,7 +822,7 @@ def test_subscript_missing_right_operand(parse):
 def test_for_basic(parse):
     """`dla użytkownika w liście:` — podstawowa pętla."""
     src = (
-        "aby działać:\n"
+        "aby działać lista:\n"
         "    dla użytkownika w liście:\n"
         "        wynik to użytkownik\n"
     )
@@ -837,7 +840,7 @@ def test_for_var_multiseg_adj_subst(parse):
     """Var w foreach traktowany jak każdy identyfikator: adj+subst.
     `wielkiego_użytkownika` (gen sg masc) → segments ('wielki', 'użytkownik')."""
     src = (
-        "aby działać:\n"
+        "aby działać lista:\n"
         "    dla wielkiego_użytkownika w liście:\n"
         "        stop\n"
     )
@@ -850,7 +853,7 @@ def test_for_var_multiseg_adj_subst(parse):
 def test_for_body_with_stop(parse):
     """Body może zawierać `stop` (break)."""
     src = (
-        "aby działać:\n"
+        "aby działać lista:\n"
         "    dla x w liście:\n"
         "        stop\n"
     )
@@ -865,7 +868,7 @@ def test_for_nested(parse):
     """Zagnieżdżone foreach."""
     src = (
         "aby wypisać x:\n    zwrócić\n"
-        "aby działać:\n"
+        "aby działać listy:\n"
         "    dla x w listy:\n"
         "        dla y w x:\n"
         "            wypisz y\n"
@@ -884,7 +887,7 @@ def test_for_nested(parse):
 def test_for_collection_is_subscript(parse):
     """Złożona kolekcja: subscript `lista pod jeden`."""
     src = (
-        "aby działać:\n"
+        "aby działać lista:\n"
         "    dla x w lista pod jeden:\n"
         "        stop\n"
     )
@@ -901,7 +904,7 @@ def test_for_collection_is_function_call(parse):
     """Złożona kolekcja: function call."""
     src = (
         "aby weź_listę dla nazwy:\n    zwrócić\n"
-        "aby działać:\n"
+        "aby działać nazwa:\n"
         "    dla element w weź_listę dla nazwy:\n"
         "        stop\n"
     )
@@ -918,7 +921,7 @@ def test_for_collection_is_getter_chain(parse):
     """Złożona kolekcja: getter chain `lista_postów autora`."""
     src = (
         "definicja Autora:\n    lista_postów (Tekst)\n"
-        "aby działać:\n"
+        "aby działać autor:\n"
         "    dla post w liście_postów autora:\n"
         "        stop\n"
     )
@@ -934,7 +937,7 @@ def test_for_collection_composite_subscript_on_fcall(parse):
     """Bardzo złożone: subscript po fcall (`weź_listę dla nazwy pod jeden`)."""
     src = (
         "aby weź_listę dla nazwy:\n    zwrócić\n"
-        "aby działać:\n"
+        "aby działać nazwa:\n"
         "    dla x w weź_listę dla nazwy pod jeden:\n"
         "        stop\n"
     )
@@ -950,7 +953,7 @@ def test_for_collection_chain_with_subscript_index(parse):
     """Subscript z chainem jako indeksem w kolekcji."""
     src = (
         "definicja Wpisu:\n    numer (Liczba)\n"
-        "aby działać:\n"
+        "aby działać lista autor:\n"
         "    dla x w lista pod numerem autora:\n"
         "        stop\n"
     )
@@ -965,7 +968,7 @@ def test_for_collection_chain_with_subscript_index(parse):
 def test_for_collection_with_arith(parse):
     """Kolekcja z arytmetyką: `lista pod (indeksem plus jeden)`."""
     src = (
-        "aby działać:\n"
+        "aby działać lista indeks:\n"
         "    dla x w lista pod (indeksem plus jeden):\n"
         "        stop\n"
     )
@@ -982,7 +985,7 @@ def test_for_dla_as_prep_in_fcall_unchanged(parse):
     jako FunctionCall(weź_wiek, [Word(dla, użytkownik)]) — bez foreach."""
     src = (
         "aby weź_wiek dla użytkownika:\n    zwrócić\n"
-        "aby działać:\n"
+        "aby działać użytkownik:\n"
         "    wynik to weź_wiek dla użytkownika\n"
     )
     m = parse(src)
@@ -998,7 +1001,7 @@ def test_for_dla_as_prep_in_collection(parse):
     normalnie jako prep, bo to wewnątrz phrase."""
     src = (
         "aby weź_listę dla nazwy:\n    zwrócić\n"
-        "aby działać:\n"
+        "aby działać nazwa:\n"
         "    dla x w weź_listę dla nazwy:\n"
         "        stop\n"
     )
@@ -1035,7 +1038,7 @@ def test_for_var_referenced_in_body_by_segments(parse):
     """Zmienna zadeklarowana w gen (`użytkownika` po `dla`) jest tym samym
     identyfikatorem co `użytkownik` (nom) w body — match po segments."""
     src = (
-        "aby działać:\n"
+        "aby działać lista:\n"
         "    dla użytkownika w lista:\n"
         "        nazwa to użytkownik\n"
     )
@@ -1052,7 +1055,7 @@ def test_for_var_referenced_in_body_by_segments(parse):
 def test_for_collection_with_logical_op(parse):
     """Kolekcja z logical op (jak każda phrase) — `lista_a lub lista_b`."""
     src = (
-        "aby działać:\n"
+        "aby działać lista_a lista_b:\n"
         "    dla x w lista_a lub lista_b:\n"
         "        stop\n"
     )
@@ -1088,7 +1091,7 @@ def test_narrow_to_module_scope_var(parse):
     do wariantu `("lista",)` (loc sg). Inne lemmy wariantów `liście` (liść,
     liście-neutrum) NIE są w scope, więc są odfiltrowane."""
     src = (
-        "lista to coś\n"
+        "lista to zero\n"
         "aby działać:\n"
         "    dla użytkownika w liście:\n"
         "        stop\n"
@@ -1105,7 +1108,7 @@ def test_narrow_to_function_local_var(parse):
     """Var zadeklarowana lokalnie w funkcji — narrowing też działa."""
     src = (
         "aby działać:\n"
-        "    lista to coś\n"
+        "    lista to zero\n"
         "    dla użytkownika w liście:\n"
         "        stop\n"
     )
@@ -1163,28 +1166,23 @@ def test_narrow_keeps_multiple_when_multiple_in_scope():
     assert ("c",) not in seg_options  # odfiltrowane bo nie w scope
 
 
-def test_no_narrowing_when_var_not_in_scope(parse):
-    """Gdy odpowiednia zmienna nie jest zadeklarowana, narrowing jest no-op
-    — zostają wszystkie warianty oryginalnego identyfikatora."""
+def test_undeclared_collection_raises(parse):
+    """Block scoping: kolekcja pętli odwołująca się do niezadeklarowanej
+    zmiennej to błąd rezolucji (dawniej: tolerowana, wszystkie warianty)."""
     src = (
         "aby działać:\n"
         "    dla x w liście:\n"
         "        stop\n"
     )
-    m = parse(src)
-    for_node = m.body[0].body[0]
-    coll = for_node.collection.resolved
-    # Brak `lista`/`liść`/`liście` w scope → narrowing no-op, wszystkie warianty.
-    assert ("lista",) in coll.lemmas_set
-    assert ("liść",) in coll.lemmas_set
-    assert ("liście",) in coll.lemmas_set
+    with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
+        parse(src)
 
 
 def test_for_var_visible_in_nested_collection(parse):
     """For-var widoczna w body inner-for (jako enclosing scope dla inner's
     collection). `dla y w x:` w outer-for body — `x` widoczne."""
     src = (
-        "aby działać:\n"
+        "aby działać listy:\n"
         "    dla x w listy:\n"
         "        dla y w x:\n"
         "            stop\n"
@@ -1198,20 +1196,20 @@ def test_for_var_visible_in_nested_collection(parse):
     assert ("x",) in coll.lemmas_set
 
 
-def test_for_body_assignment_leaks_to_outer(parse):
-    """Body for'a może mutować zmienne z outer scope (Python-like).
-    `znalezione` zadeklarowane przed pętlą — przypisanie w body referuje
-    OUTER `znalezione`, nie tworzy for-lokalnej kopii."""
+def test_for_body_reassigns_outer_var(parse):
+    """Przypisanie w body pętli do zmiennej zadeklarowanej PRZED pętlą to
+    reasignacja zewnętrznej zmiennej (nie nowa, pętlowo-lokalna) — więc
+    `znaleziony` jest widoczny po pętli."""
     src = (
-        "aby działać:\n"
-        "    znaleziony to pusta\n"
+        "aby działać lista:\n"
+        "    znaleziony to zero\n"
         "    dla x w lista:\n"
         "        znaleziony to x\n"
         "    wynik to znaleziony\n"
     )
     m = parse(src)
     fn_body = m.body[0].body
-    # body[0] = znaleziony to pusta
+    # body[0] = znaleziony to zero
     # body[1] = for x in lista
     # body[2] = wynik to znaleziony
     znaleziony_ref = fn_body[2].value.resolved
@@ -1225,7 +1223,7 @@ def test_field_write_does_not_register_as_var(parse):
     jako chain (field interpretation)."""
     src = (
         "definicja Postu:\n    autor (Tekst)\n"
-        "aby działać:\n"
+        "aby działać post:\n"
         "    autor postu to \"X\"\n"
         "    wynik to autor postu\n"
     )
@@ -1243,7 +1241,7 @@ def test_field_lemmas_filtered_by_nom(parse):
     odrzuca warianty bez nom."""
     src = (
         "definicja Boxu:\n    lista (Tekst)\n"
-        "aby działać:\n    wartość to lista pudełka\n"
+        "aby działać pudełko:\n    wartość to lista pudełka\n"
     )
     m = parse(src)
     chain = m.body[1].body[0].value.resolved
@@ -1466,7 +1464,7 @@ def test_type_suffix_on_getter_chain(parse):
     src = (
         _TYPE_PREAMBLE
         + "definicja Postu:\n    autor (Tekst)\n"
-        + "aby działać:\n    wynik to autor postu (Tekst)\n"
+        + "aby działać post:\n    wynik to autor postu (Tekst)\n"
     )
     m = parse(src)
     val = m.body[3].body[0].value.resolved
@@ -1719,7 +1717,7 @@ def test_match_binds_branch_fields(parse):
 def test_match_branch_unknown_struct_raises(parse):
     src = (
         _MATCH_BASE
-        + "aby działać:\n"
+        + "aby działać rezultat:\n"
         "    czym jest rezultat?\n"
         "        jeśli Zguba z opisem:\n"
         "            x to jeden\n"
@@ -1731,7 +1729,7 @@ def test_match_branch_unknown_struct_raises(parse):
 def test_match_field_not_in_struct_raises(parse):
     src = (
         _MATCH_BASE
-        + "aby działać:\n"
+        + "aby działać rezultat:\n"
         "    czym jest rezultat?\n"
         "        jeśli Błąd z wynikiem:\n"
         "            x to jeden\n"
@@ -1744,7 +1742,7 @@ def test_match_field_requires_inst_raises(parse):
     # `z opis` — mianownik zamiast narzędnika
     src = (
         _MATCH_BASE
-        + "aby działać:\n"
+        + "aby działać rezultat:\n"
         "    czym jest rezultat?\n"
         "        jeśli Błąd z opis:\n"
         "            x to jeden\n"
@@ -1756,7 +1754,7 @@ def test_match_field_requires_inst_raises(parse):
 def test_match_field_bound_twice_raises(parse):
     src = (
         _MATCH_BASE
-        + "aby działać:\n"
+        + "aby działać rezultat:\n"
         "    czym jest rezultat?\n"
         "        jeśli Błąd z opisem z opisem:\n"
         "            x to jeden\n"
@@ -1765,11 +1763,12 @@ def test_match_field_bound_twice_raises(parse):
         parse(src)
 
 
-def test_match_assignments_in_branch_leak_to_function_scope(parse):
-    # przypisania w gałęziach wyciekają jak w If — `x` widoczny po matchu
+def test_match_branch_assignment_not_visible_after(parse):
+    """Block scoping: zmienna zadeklarowana w gałęzi `czym jest` jest
+    lokalna dla gałęzi — użycie po matchu to błąd rezolucji."""
     src = (
         _MATCH_BASE
-        + "aby działać:\n"
+        + "aby działać rezultat:\n"
         "    czym jest rezultat?\n"
         "        jeśli Błąd z opisem:\n"
         "            x to jeden\n"
@@ -1777,7 +1776,133 @@ def test_match_assignments_in_branch_leak_to_function_scope(parse):
         "            x to dwa\n"
         "    y to x\n"
     )
+    with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
+        parse(src)
+
+
+# =====================================================================
+# Block scoping — zmienna widoczna od przypisania do końca bloku
+# =====================================================================
+
+
+def test_use_before_assignment_raises(parse):
+    src = (
+        "aby działać:\n"
+        "    wynik to licznik\n"
+        "    licznik to pięć\n"
+    )
+    with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
+        parse(src)
+
+
+def test_self_referential_first_assignment_raises(parse):
+    # RHS rezolwowany przed deklaracją LHS — `rzecz to rzecz` bez
+    # wcześniejszej `rzeczy` to użycie przed przypisaniem
+    src = "aby działać:\n    rzecz to rzecz\n"
+    with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
+        parse(src)
+
+
+def test_module_level_use_before_assignment_raises(parse):
+    src = (
+        "wynik to rzecz\n"
+        "rzecz to pięć\n"
+    )
+    with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
+        parse(src)
+
+
+def test_if_branch_assignment_not_visible_after(parse):
+    src = (
+        "aby działać flaga:\n"
+        "    jeśli flaga równe jeden:\n"
+        "        licznik to pięć\n"
+        "    wynik to licznik\n"
+    )
+    with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
+        parse(src)
+
+
+def test_then_assignment_not_visible_in_else(parse):
+    src = (
+        "aby działać flaga:\n"
+        "    jeśli flaga równe jeden:\n"
+        "        licznik to pięć\n"
+        "    inaczej:\n"
+        "        wynik to licznik\n"
+    )
+    with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
+        parse(src)
+
+
+def test_while_body_assignment_not_visible_after(parse):
+    src = (
+        "aby działać flaga:\n"
+        "    dopóki flaga równe jeden:\n"
+        "        licznik to pięć\n"
+        "    wynik to licznik\n"
+    )
+    with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
+        parse(src)
+
+
+def test_for_var_not_visible_after_loop(parse):
+    src = (
+        "aby działać lista:\n"
+        "    dla element w liście:\n"
+        "        stop\n"
+        "    wynik to element\n"
+    )
+    with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
+        parse(src)
+
+
+def test_branch_reassigns_outer_var(parse):
+    """Zmienna zadeklarowana PRZED blokiem — przypisanie w gałęzi to
+    reasignacja zewnętrznej zmiennej, więc jest widoczna po bloku."""
+    src = (
+        "aby działać flaga:\n"
+        "    licznik to zero\n"
+        "    jeśli flaga równe jeden:\n"
+        "        licznik to pięć\n"
+        "    inaczej:\n"
+        "        licznik to dziesięć\n"
+        "    wynik to licznik\n"
+    )
     m = parse(src)
-    y_value = m.body[3].body[1].value.resolved
-    assert isinstance(y_value, ast.Identifier)
-    assert ("x",) in y_value.lemmas_set
+    ref = m.body[0].body[2].value.resolved
+    assert isinstance(ref, ast.Identifier)
+    assert ("licznik",) in ref.lemmas_set
+
+
+def test_same_name_independent_in_sibling_branches(parse):
+    """Ta sama nazwa zadeklarowana niezależnie w `then` i `else` — dwie
+    lokalne zmienne, żadna nie wycieka."""
+    src = (
+        "aby działać flaga:\n"
+        "    jeśli flaga równe jeden:\n"
+        "        rzecz to pięć\n"
+        "        wynik to rzecz\n"
+        "    inaczej:\n"
+        "        rzecz to \"tekst\"\n"
+        "        słowo to rzecz\n"
+    )
+    parse(src)  # bez błędu
+
+
+def test_chain_base_must_be_declared(parse):
+    src = (
+        "definicja Postu:\n    autor (Tekst)\n"
+        "aby działać:\n    wynik to autor postu\n"
+    )
+    with pytest.raises(ast.ResolveError, match="podstawa łańcucha"):
+        parse(src)
+
+
+def test_struct_shorthand_requires_declared_var(parse):
+    src = (
+        "definicja Użytkownika:\n    nazwa (Tekst)\n"
+        "aby działać:\n    u to nowy Użytkownik z nazwą\n"
+    )
+    with pytest.raises(ast.ResolveError, match="wymaga zadeklarowanej zmiennej"):
+        parse(src)

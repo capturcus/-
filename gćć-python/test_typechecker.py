@@ -1257,3 +1257,69 @@ def test_parameterized_types_invariant_over_union(parse):
     )
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(parse(src))
+
+
+# =====================================================================
+# Block scoping — spójność resolvera i typecheckera
+# =====================================================================
+
+
+@pytest.mark.integration
+def test_branch_reassignment_unifies_with_outer_var(parse):
+    """Zmienna zadeklarowana przed `jeśli`, reasygnowana w gałęziach, użyta
+    po bloku — resolver i typechecker widzą JEDNĄ zmienną, więc typ z gałęzi
+    (Liczba) dociera do użycia po bloku i grounding `działać` przechodzi.
+    (Dawniej: trzy rozłączne zmienne i błąd 'nie można wywnioskować typu'.)"""
+    src = (
+        "aby działać:\n"
+        "    flaga to jeden\n"
+        "    licznik to zero\n"
+        "    jeśli flaga równe jeden:\n"
+        "        licznik to pięć\n"
+        "    inaczej:\n"
+        "        licznik to dziesięć\n"
+        "    wynik to licznik\n"
+    )
+    typechecker.resolve_module(parse(src))  # bez błędu — wynik ugruntowany
+
+
+@pytest.mark.integration
+def test_branch_reassignment_type_conflict_raises(parse):
+    """Reasignacja w gałęzi unifikuje się z zewnętrzną zmienną — konflikt
+    typów (Liczba vs Tekst) jest wykrywany. (Dawniej: gałęziowa zmienna była
+    osobna, konflikt przechodził bez błędu.)"""
+    src = (
+        "aby działać:\n"
+        "    flaga to jeden\n"
+        "    licznik to zero\n"
+        "    jeśli flaga równe jeden:\n"
+        "        licznik to \"tekst\"\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_match_branch_reassignment_unifies_with_outer_var(parse):
+    """Wzorzec 'zainicjalizuj przed matchem, przypisz w gałęziach' — jedna
+    zmienna w obu modelach, typ z gałęzi widoczny po matchu."""
+    src = (
+        "definicja Błędu:\n"
+        "    opis (Tekst)\n"
+        "\n"
+        "definicja Wyniku z elementem:\n"
+        "    wynik (element)\n"
+        "\n"
+        "Rezultat to Wynik albo Błąd\n"
+        "\n"
+        "aby działać:\n"
+        "    rezultat (Rezultat) to nowy Wynik o wyniku zero\n"
+        "    komunikat to \"\"\n"
+        "    czym jest rezultat?\n"
+        "        jeśli Błąd z opisem:\n"
+        "            komunikat to opis\n"
+        "        jeśli Wynik:\n"
+        "            komunikat to \"ok\"\n"
+        "    wiadomość to komunikat\n"
+    )
+    typechecker.resolve_module(parse(src))  # komunikat/wiadomość: Tekst

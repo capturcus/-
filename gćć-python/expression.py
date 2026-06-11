@@ -124,6 +124,12 @@ class _Ctx:
 class _Scope:
     """Symbol table dla zmiennych. Chain w górę przez `parent`.
 
+    Block scoping: scope odpowiada blokowi (moduł → funkcja → ciało
+    `jeśli`/`dopóki`/`dla`/gałęzi `czym jest`). Zmienna trafia do scope'u
+    w momencie przypisania i jest widoczna do końca bloku; deklaracje
+    z bloku-dziecka NIE są widoczne po bloku. Przypisanie do zmiennej
+    widocznej z przodka to reasignacja (bez przesłaniania).
+
     `variables` to set[(lemmas_tuple, number, gender)] — pełnych kluczy
     zadeklarowanych zmiennych. To rozróżnia np. "kotek" (sg, m) od "kotka"
     (sg, f) i "forma" (sg, f) od "formy" (pl, f). `add` dodaje
@@ -271,9 +277,17 @@ def _field_canonical_lemma(field_name):
     )
 
 
-def _collect_target_var(target_phrase, scope, field_lemmas, preps):
-    """Dodaje pierwsze WORD targetu jako zmienną w scope, walidując że LHS
-    jest w mianowniku i jednoznaczny w (lemmas, number, gender)."""
+def _declare_target_var(target_phrase, scope, field_lemmas, preps):
+    """Deklaruje LHS przypisania w bieżącym (blokowym) scope — wywoływane
+    SEKWENCYJNIE w miejscu przypisania (block scoping; zmienna jest widoczna
+    od przypisania do końca bloku). Waliduje, że LHS jest w mianowniku
+    i jednoznaczny w (lemmas, number, gender).
+
+    Nie deklaruje: chain-LHS (zapis do pola) ani subscript-LHS (zapis do
+    elementu — głowa musi już być zadeklarowana, co sprawdzi rezolucja
+    targetu). Jeśli zmienna jest już widoczna (w tym z przodka), to
+    reasignacja — bez nowej deklaracji, żeby gałąź nie przesłaniała
+    zmiennej z zewnątrz."""
     tokens = target_phrase.tokens
     if not tokens or tokens[0][0] is not lexer.Token.WORD:
         return
@@ -281,9 +295,12 @@ def _collect_target_var(target_phrase, scope, field_lemmas, preps):
     next_token = tokens[1] if len(tokens) > 1 else None
     if _starts_chain(head_ident, next_token, field_lemmas, preps):
         return  # chain LHS — to field write, nie deklaracja zmiennej
+    if next_token is not None and next_token[0] is lexer.Token.POD:
+        return  # subscript LHS — zapis do istniejącej kolekcji
     # Atom (single-letter, brak analiz) — bez nom validation, dodaj jak jest.
     if not head_ident.variants:
-        scope.add(head_ident)
+        if not any(scope.has_var(k) for k in head_ident.scope_keys):
+            scope.add(head_ident)
         return
     # Ten sam pipeline co dla pól i typów: głowa w mianowniku, reszta
     # passthrough, min-rest tie-break (`nowa_analiza` → adj `nowy`+subst
@@ -292,28 +309,8 @@ def _collect_target_var(target_phrase, scope, field_lemmas, preps):
         head_ident, required_case="nom", label="lewa strona przypisania",
         missing_hint="; zmienne deklaruj w mianowniku",
     )
-    scope.add_key(key)
-
-
-def _collect_bindings_in_stmt(stmt, scope, field_lemmas, preps):
-    """Bindings z While/If/For bodies leakują do enclosing scope (For-var
-    dodawany oddzielnie w _resolve_stmt do for-scope)."""
-    if isinstance(stmt, Assignment):
-        _collect_target_var(stmt.target, scope, field_lemmas, preps)
-    elif isinstance(stmt, (While, For)):
-        for sub in stmt.body:
-            _collect_bindings_in_stmt(sub, scope, field_lemmas, preps)
-    elif isinstance(stmt, If):
-        for sub in stmt.then_body:
-            _collect_bindings_in_stmt(sub, scope, field_lemmas, preps)
-        for sub in stmt.else_body:
-            _collect_bindings_in_stmt(sub, scope, field_lemmas, preps)
-    elif isinstance(stmt, Match):
-        # Przypisania w gałęziach wyciekają jak w If; pola związane przez
-        # `jeśli Wariant z polem` żyją w scope gałęzi (dodawane w _resolve_stmt).
-        for br in stmt.branches:
-            for sub in br.body:
-                _collect_bindings_in_stmt(sub, scope, field_lemmas, preps)
+    if not scope.has_var(key):
+        scope.add_key(key)
 
 
 class ExpressionParser:
@@ -531,36 +528,53 @@ class ExpressionParser:
             return self._finish_as_ident_ref(head_ident)
         return self._parse_function_call(name, matched_lemma)
 
+    def _ident_in_scope(self, ident):
+        """Czy któryś wariant identyfikatora wskazuje zadeklarowaną zmienną
+        (atomy porównywane lemma-only)."""
+        if not ident.variants:
+            return any(
+                self.scope.has_var((l, None, None)) for l in ident.lemmas_set
+            )
+        return any(
+            self.scope.has_var((v.lemmas, v.number, v.gender))
+            for v in ident.variants
+        )
+
     def _finish_as_ident_ref(self, head_ident):
         """Fallback dispatcher — head nie jest struct creation, chain ani fcall.
-        Zapisz produkcję jako ident_ref z metadanymi (czy w scope, czy field,
-        czy typ, czy funkcja-lemma) — używane przez _diagnose_leftover gdy
-        zostaną niesparsowane tokeny."""
-        narrowed = self._narrow_to_variable(head_ident)
-        in_scope = any(
-            self.scope.has_var((v.lemmas, v.number, v.gender))
-            for v in head_ident.variants
-        )
-        if not head_ident.variants:
-            # Atom — sprawdź lemma-only.
-            in_scope = any(
-                self.scope.has_var((l, None, None))
-                for l in head_ident.lemmas_set
+        Block scoping: referencja MUSI wskazywać zadeklarowaną zmienną
+        (przypisanie wcześniej w tym lub nadrzędnym bloku, parametr, zmienna
+        `dla`, pole związane w gałęzi `czym jest`) — inaczej ResolveError."""
+        if not self._ident_in_scope(head_ident):
+            raise ResolveError(
+                self._describe_undeclared(head_ident),
+                line=head_ident.line,
             )
-        is_field_lemma = bool(head_ident.lemmas_set & self.ctx.field_lemmas)
-        is_known_type = bool(head_ident.lemmas_set & self.ctx.types)
-        is_known_function = any(
-            l in self.ctx.function_defs for l in head_ident.lemmas_set
-        )
         self.last_production = {
             "kind": "ident_ref",
             "surface": head_ident.surface,
-            "in_scope": in_scope,
-            "is_field_lemma": is_field_lemma,
-            "is_known_type": is_known_type,
-            "is_known_function": is_known_function,
         }
-        return narrowed
+        return self._narrow_to_variable(head_ident)
+
+    def _describe_undeclared(self, head_ident):
+        """Komunikat o referencji do niezadeklarowanej zmiennej, z hintami
+        opartymi o ctx (pole? typ? zmienna widoczna tylko w innym bloku?)."""
+        surface = "_".join(head_ident.surface)
+        msg = f"'{surface}' nie jest zadeklarowaną zmienną w tym miejscu"
+        if head_ident.lemmas_set & self.ctx.field_lemmas:
+            msg += (
+                f"; '{surface}' jest polem struktury — odczyt pola to "
+                f"'{surface} <obiektu-w-dopełniaczu>'"
+            )
+        elif head_ident.lemmas_set & self.ctx.types:
+            msg += f"; '{surface}' jest typem, nie wartością"
+        else:
+            msg += (
+                "; zmienna jest widoczna od swojego przypisania do końca "
+                "bloku — przypisanie w gałęzi 'jeśli'/'czym jest' lub w ciele "
+                "pętli nie jest widoczne po bloku (zadeklaruj ją przed blokiem)"
+            )
+        return msg
 
     def _narrow_to_variable(self, ident):
         """Zostaw tylko warianty, których pełny klucz (lemmas, number, gender)
@@ -665,6 +679,17 @@ class ExpressionParser:
         chain = [head_ident, make_identifier(self.advance())]
         while self._is_gen_word(self.peek()) and self._ident_is_field(chain[-1]):
             chain.append(make_identifier(self.advance()))
+        # Block scoping: podstawa łańcucha (ostatnie ogniwo) to odczyt
+        # zmiennej — musi być zadeklarowana.
+        base = chain[-1]
+        if not self._ident_in_scope(base):
+            chain_str = _format_chain_surfaces([c.surface for c in chain])
+            raise ResolveError(
+                f"podstawa łańcucha '{chain_str}' — "
+                f"'{'_'.join(base.surface)}' — nie jest zadeklarowaną "
+                f"zmienną w tym miejscu",
+                line=base.line,
+            )
         # Diagnostyka leftover: rejestruj czy ostatnie ogniwo było polem
         # (czyli czy chain MOŻE iść dalej) — to rozróżnia "user pomyłka"
         # (last=value, leftover=gen-word) od "naturalny koniec chain'a".
@@ -713,9 +738,20 @@ class ExpressionParser:
                     break
                 prep_canon, field_name, is_shorthand = kind
                 self.advance()  # consume "o" / "z"
-                self.advance()  # consume field word
+                field_tok = self.advance()  # consume field word
                 ctx.assigned.add(field_name)
                 if is_shorthand:
+                    # Skrót `z polem` czyta zmienną o nazwie pola — block
+                    # scoping wymaga, żeby była zadeklarowana.
+                    if not self.scope.has_var(field_name):
+                        raise ResolveError(
+                            f"skrót 'z {'_'.join(field_tok[1])}' wymaga "
+                            f"zadeklarowanej zmiennej "
+                            f"'{_format_scope_key(field_name)}' — przypisz ją "
+                            f"przed użyciem albo podaj wartość jawnie: "
+                            f"'o polu wartość'",
+                            line=getattr(field_tok, "line", None),
+                        )
                     args.append(StructArg(field_name=field_name, value=None))
                 else:
                     if self.peek() is None:
@@ -978,24 +1014,13 @@ def _diagnose_leftover(parser, phrase):
                 )
 
     elif kind == "ident_ref":
+        # Referencja przeszła check zadeklarowania (inaczej _finish_as_ident_ref
+        # rzuciłby wcześniej) — leftover to nadmiarowe tokeny po niej.
         surface = "_".join(lp["surface"])
-        if not (lp["in_scope"] or lp["is_field_lemma"]
-                or lp["is_known_type"] or lp["is_known_function"]):
-            bullets.append(
-                f"'{surface}' nie jest zadeklarowaną zmienną, znaną funkcją, "
-                f"polem żadnej struktury, ani typem — czy to literówka albo "
-                f"brakująca deklaracja?"
-            )
-        elif lp["is_field_lemma"] and not lp["in_scope"]:
-            bullets.append(
-                f"'{surface}' jest polem struktury (nie zmienną w scope) — "
-                f"użyj go w getter chain: '<obiekt> {surface}_w_gen'"
-            )
-        else:
-            bullets.append(
-                f"po referencji do '{surface}' spodziewałem się operatora, "
-                f"'pod' lub końca wyrażenia"
-            )
+        bullets.append(
+            f"po referencji do '{surface}' spodziewałem się operatora, "
+            f"'pod' lub końca wyrażenia"
+        )
 
     elif kind in ("subscript", "parens", "literal"):
         bullets.append(
@@ -1038,9 +1063,16 @@ def _resolve(phrase, ctx, preps, scope):
 
 
 def _resolve_stmt(stmt, ctx, preps, scope):
+    """Block scoping, sekwencyjnie: zmienna jest widoczna od swojego
+    przypisania do końca bloku. RHS rezolwowany PRZED deklaracją LHS
+    (`x to x` bez wcześniejszego `x` to błąd), ciała `jeśli`/`dopóki`/
+    `dla`/gałęzi `czym jest` dostają scope-dziecko — deklaracje z gałęzi
+    nie są widoczne po bloku. Przypisanie do zmiennej już widocznej
+    (także z przodka) to reasignacja, nie nowa deklaracja."""
     if isinstance(stmt, Assignment):
-        _resolve(stmt.target, ctx, preps, scope)
         _resolve(stmt.value, ctx, preps, scope)
+        _declare_target_var(stmt.target, scope, ctx.field_lemmas, preps)
+        _resolve(stmt.target, ctx, preps, scope)
     elif isinstance(stmt, For):
         _resolve(stmt.collection, ctx, preps, scope)
         for_scope = _Scope(parent=scope)
@@ -1049,14 +1081,17 @@ def _resolve_stmt(stmt, ctx, preps, scope):
             _resolve_stmt(sub, ctx, preps, for_scope)
     elif isinstance(stmt, While):
         _resolve(stmt.cond, ctx, preps, scope)
+        body_scope = _Scope(parent=scope)
         for sub in stmt.body:
-            _resolve_stmt(sub, ctx, preps, scope)
+            _resolve_stmt(sub, ctx, preps, body_scope)
     elif isinstance(stmt, If):
         _resolve(stmt.cond, ctx, preps, scope)
+        then_scope = _Scope(parent=scope)
         for sub in stmt.then_body:
-            _resolve_stmt(sub, ctx, preps, scope)
+            _resolve_stmt(sub, ctx, preps, then_scope)
+        else_scope = _Scope(parent=scope)
         for sub in stmt.else_body:
-            _resolve_stmt(sub, ctx, preps, scope)
+            _resolve_stmt(sub, ctx, preps, else_scope)
     elif isinstance(stmt, Match):
         _resolve_match(stmt, ctx, preps, scope)
     elif isinstance(stmt, UnionDef):
@@ -1113,36 +1148,20 @@ def _resolve_match(stmt, ctx, preps, scope):
             _resolve_stmt(sub, ctx, preps, br_scope)
 
 
-def _resolve_body(body, ctx, preps, scope):
-    """Zbiera bindings (assignments w body + zagnieżdżonych If/While/For)
-    do obecnego scope'u, potem rezolwuje każdy statement."""
-    for stmt in body:
-        _collect_bindings_in_stmt(stmt, scope, ctx.field_lemmas, preps)
-    for stmt in body:
-        _resolve_stmt(stmt, ctx, preps, scope)
-
-
 def resolve_module(module, preps=None):
     ctx = _build_ctx(module)
     preps = preps or {}
     module_scope = _Scope()
-    # Pre-collect: top-level assignment targets
+    # Sekwencyjnie — top-level przypisania deklarują zmienne w miejscu
+    # wystąpienia (block scoping), bez pre-collectu.
     for node in module.body:
-        if isinstance(node, Assignment):
-            _collect_target_var(node.target, module_scope, ctx.field_lemmas, preps)
-    # Resolve module-level
-    for node in module.body:
-        if isinstance(node, Assignment):
-            _resolve(node.target, ctx, preps, module_scope)
-            _resolve(node.value, ctx, preps, module_scope)
+        if isinstance(node, (Assignment, Match, Phrase)):
+            _resolve_stmt(node, ctx, preps, module_scope)
         elif isinstance(node, FunctionDef):
             fn_scope = _Scope(parent=module_scope)
             for p in node.params:
                 fn_scope.add(p.name)
-            _resolve_body(node.body, ctx, preps, fn_scope)
-        elif isinstance(node, Match):
-            _resolve_match(node, ctx, preps, module_scope)
-        elif isinstance(node, Phrase):
-            _resolve(node, ctx, preps, module_scope)
-        # StructDef / UnionDef: brak fraz
+            for stmt in node.body:
+                _resolve_stmt(stmt, ctx, preps, fn_scope)
+        # StructDef / UnionDef / ExternFunctionDef: brak fraz
     return module

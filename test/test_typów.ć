@@ -20,50 +20,52 @@ aby działać:
     czerwona_inna_rzecz_z_warszawy to dwa
     wynik to rób_części dla rzeczy z czerwoną_inną_rzeczą_z_warszawy
     imię to "Marcin"
+    identyfikator to cztery
     wynik_jeden to nowy UżytkownikSerwisu z imieniem z identyfikatorem
     wynik_dwa to nowy UżytkownikSerwisu z identyfikatorem z imieniem
     wynik_trzy to nowy UżytkownikSerwisu o imieniu "Marcin" o identyfikatorze cztery
     wynik_cztery to nowy UżytkownikSerwisu o identyfikatorze cztery o imieniu "Marcin"
     komentarz to nowy Komentarz
+    twoja_stara to nowy Człowiek
     wynik_pięć to imię twojej_starej
     wynik_sześć to wiek twojej_starej
 
-aby pokazać_arytmetykę:
+aby pokazać_arytmetykę lewy prawy koszt budżet:
     suma to lewy plus prawy
     różnica to lewy minus prawy
     iloczyn to lewy razy prawy
     przeciwny to minus lewy
     koszt większe od budżet
 
-aby pokazać_logikę:
+aby pokazać_logikę pierwsza_flaga druga_flaga trzecia_flaga czwarta_flaga piąta_flaga:
     aktywny to pierwsza_flaga i druga_flaga
     gotowy to trzecia_flaga lub czwarta_flaga
     zatrzymany to nie piąta_flaga
 
-aby pokazać_warunek:
+aby pokazać_warunek flaga:
     licznik to jeden
     jeśli flaga:
         licznik to dwa
     inaczej:
         licznik to trzy
 
-aby pokazać_porównanie:
+aby pokazać_porównanie budżet:
     koszt to jeden
     jeśli koszt większe od budżet:
         ostrzeżenie to dwa
 
-aby pokazać_gałęzie:
+aby pokazać_gałęzie flaga:
     jeśli flaga:
         wspólna to jeden
     inaczej:
         wspólna to "tekst"
 
-aby pokazać_pętlę:
+aby pokazać_pętlę flaga:
     akumulator to jeden
     dopóki flaga:
         akumulator to cztery
 
-aby pokazać_iterację:
+aby pokazać_iterację kolekcja:
     suma to jeden
     dla element w kolekcja:
         suma to element

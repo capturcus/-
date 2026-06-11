@@ -534,8 +534,9 @@ czym jest WYRAŻENIE?
   Można związać **podzbiór** pól (też żadne: `jeśli Wynik:`). Pola
   o typie-parametrze struktury zaczynają jako wolne zmienne i konkretyzują
   się przez użycie.
-- Przypisania wewnątrz gałęzi wyciekają do otaczającego scope'u (jak w
-  `jeśli`); związane pola są lokalne dla gałęzi.
+- Gałąź to osobny blok (jak ciało `jeśli`): związane pola i zmienne
+  zadeklarowane w gałęzi są dla niej lokalne; zmienną używaną po matchu
+  zadeklaruj przed nim i reasygnuj w gałęziach.
 
 ```
 aby opisywać rezultat -> Tekst:
@@ -654,21 +655,33 @@ x to a równe b
 # → Assignment(target=Phrase[x], value=BinOp(=, a, b))
 ```
 
-### Reguła scope dla `to`
+### Reguła scope dla `to` (block scoping)
 
 Jeżeli lewa strona to **prosta zmienna** (pojedyncze WORD, niebędące
-chain'em po polu), to identyfikator dodawany jest do bieżącego scope'a
-(wszystkie warianty lematyzacji trafiają do `Scope.variables`).
+chain'em po polu ani subscriptem), to przypisanie **deklaruje** zmienną
+w bieżącym bloku — jest widoczna **od miejsca przypisania do końca
+bloku**. Prawa strona jest rozwiązywana PRZED deklaracją lewej, więc
+`x to x` bez wcześniejszego `x` to błąd (użycie przed przypisaniem).
 
 Jeżeli LHS to chain rozpoczynający się od pola struct-a (`autor postu to ...`),
 to przypisanie jest **zapisem do pola** — `autor` **nie** staje się
-zmienną. Tę zasadę wykorzystuje `_collect_target_var`.
+zmienną. Subscript-LHS (`lista pod indeksem to ...`) to zapis do elementu —
+`lista` musi już być zadeklarowana.
 
-Bindingi z bloków `dopóki`, `jeśli`, `dla` **wyciekają do otaczającego
-scope'a** (Python-like). Zmienna `licznik` zadeklarowana wewnątrz pętli
-jest widoczna po pętli. Wyjątkiem jest **zmienna pętli `dla`**, która
-żyje w osobnym for-scope (`_resolve_stmt`), ale wszystkie przypisania
-**wewnątrz** body wycieka na zewnątrz.
+Ciała `jeśli`/`inaczej`, `dopóki`, `dla` i gałęzi `czym jest` to **osobne
+bloki**: zmienna zadeklarowana w gałęzi NIE jest widoczna po bloku ani
+w sąsiedniej gałęzi. Przypisanie do zmiennej widocznej z bloku
+nadrzędnego to **reasignacja** tej zmiennej (nie nowa, lokalna kopia) —
+typechecker unifikuje typy na jednej zmiennej:
+
+```
+licznik to zero          # deklaracja przed blokiem
+jeśli flaga:
+    licznik to pięć      # reasignacja zewnętrznego licznika
+wynik to licznik         # OK — licznik widoczny, typ Liczba
+```
+
+Bez deklaracji przed blokiem `wynik to licznik` byłby błędem rezolucji.
 
 ---
 
@@ -943,7 +956,8 @@ nazwa typu rozpoczyna konstrukcję struct. Reszta tokenów to argumenty:
   (`StructCtx` — stos w parserze).
 - `z POLE` — shorthand. `POLE` musi być w `inst` w jakimś wariancie
   (`z jakim/z czym`). Wartość pola = `None` (semantycznie: weź wartość
-  z istniejącej zmiennej / z aktualnego scope'u o tej samej nazwie).
+  z istniejącej zmiennej / z aktualnego scope'u o tej samej nazwie —
+  zmienna musi być zadeklarowana, inaczej `ResolveError`).
 
 ### Zgodność `nowy` ↔ typ
 
@@ -1064,20 +1078,25 @@ p to nowe Pudełko o wartości lista pod jeden
 
 ### Scope
 
-`Scope` to symbol table dla zmiennych. Łańcuch `parent` daje hierarchię:
-moduł → funkcja → for-body. `variables` to `set[tuple[str, ...]]` —
-**wszystkie** możliwe lemma-krotki zadeklarowanej zmiennej (cała
-`lemmas_set` identyfikatora trafia do scope).
+`Scope` to symbol table dla zmiennych. Łańcuch `parent` daje hierarchię
+**bloków**: moduł → funkcja → ciało `jeśli`/`dopóki`/`dla`/gałęzi `czym
+jest`. `variables` to `set` pełnych kluczy (lemmas, liczba, rodzaj)
+zadeklarowanych zmiennych.
 
-Sources:
+Deklaracje (sekwencyjnie, w miejscu wystąpienia):
 
-- Top-level: każde `Assignment` na poziomie modułu (LHS, jeśli to nie chain).
+- Top-level: `Assignment` na poziomie modułu (LHS, jeśli to prosta zmienna).
 - W funkcji: każdy `Param` dodawany do function-scope.
-- W ciele funkcji / pętli / if: wszystkie `Assignment` LHS-y są
-  zbierane z całego body (zagnieżdżonych `if`/`while`/`for` też) do
-  bieżącego scope'a **przed** rozpoczęciem rozwiązywania.
-- Zmienna pętli `dla` żyje w osobnym for-scope, ale **przypisania w body
-  wyciekają na zewnątrz** (do enclosing scope).
+- W bloku: `Assignment` deklaruje zmienną w bloku, w którym stoi —
+  chyba że zmienna jest już widoczna (także z bloku nadrzędnego); wtedy
+  to reasignacja. Deklaracje z bloku-dziecka NIE są widoczne po bloku.
+- Zmienna pętli `dla` oraz pola związane w gałęzi `czym jest` żyją
+  w scope swojego bloku.
+
+**Każde użycie zmiennej wymaga wcześniejszej deklaracji** — dotyczy to
+referencji (`identifier_ref`), podstawy getter chaina (`autor postu` czyta
+zmienną `post`) i skrótu `z polem` w `nowy` (czyta zmienną o nazwie pola).
+Referencja do niezadeklarowanej zmiennej to `ResolveError` już w Pass 2.
 
 ### Narrowing wariantów do scope
 
@@ -1086,7 +1105,8 @@ struct creation — staje się referencją (`identifier_ref`). Wtedy parser
 sprawdza, które warianty (`segments` z `variants`) odpowiadają
 zadeklarowanym zmiennym w scope, i odfiltrowuje resztę:
 
-- Jeżeli **ŻADEN** wariant nie pasuje → no-op (zostają wszystkie warianty).
+- Jeżeli **ŻADEN** wariant nie pasuje → `ResolveError`
+  („nie jest zadeklarowaną zmienną w tym miejscu").
 - Jeżeli **wszystkie** warianty pasują → no-op (nie ma czego zawężać).
 - W przeciwnym razie → zostaje tylko te w scope.
 
@@ -1162,7 +1182,7 @@ aby stworzyć_użytkownika z nazwą (Tekst) z emailem (Tekst) z hasłem (Tekst):
     zwrócić
 
 
-aby zapisać w bazie x:
+aby zapisać_w_bazie x:
     zwrócić
 
 
@@ -1180,7 +1200,7 @@ aby zarejestrować z nazwą (Tekst) z emailem (Tekst) z hasłem (Tekst) -> Użyt
     nowy to stwórz_użytkownika z nazwą z emailem z hasłem
     identyfikator nowego to wygeneruj_id
     liczba_obserwujących nowego to zero
-    zapisz w bazie nowego
+    zapisz_w_bazie nowego
     zwróć nowego
 ```
 

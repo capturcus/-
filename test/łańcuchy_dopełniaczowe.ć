@@ -12,10 +12,10 @@ definicja Człowieka:
 definicja Komentarza:
     autor (Człowiek)
 
-aby badać_warianty:
+aby badać_warianty obiekt:
     wynik to imię obiektu
 
-aby badać_jednoznaczność:
+aby badać_jednoznaczność obiekt:
     wiek to wiek obiektu
 
 aby badać_łańcuch:

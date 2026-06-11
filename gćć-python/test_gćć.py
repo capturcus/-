@@ -443,8 +443,8 @@ def test_parse_struct_then_function(parse):
 
 def test_parse_if_no_else(parse):
     src = (
-        "aby działać:\n"
-        "    jeśli a mniejsze od b:\n        x to jeden\n"
+        "aby działać bok kres:\n"
+        "    jeśli bok mniejsze od kres:\n        x to jeden\n"
     )
     m = parse(src)
     if_node = m.body[0].body[0]
@@ -454,8 +454,8 @@ def test_parse_if_no_else(parse):
 
 def test_parse_if_else(parse):
     src = (
-        "aby działać:\n"
-        "    jeśli a mniejsze od b:\n        x to jeden\n"
+        "aby działać bok kres:\n"
+        "    jeśli bok mniejsze od kres:\n        x to jeden\n"
         "    inaczej:\n        x to dwa\n"
     )
     m = parse(src)
@@ -467,9 +467,9 @@ def test_parse_if_else(parse):
 
 def test_parse_nested_if(parse):
     src = (
-        "aby działać:\n"
-        "    jeśli a mniejsze od b:\n"
-        "        jeśli c większe od d:\n"
+        "aby działać bok kres próg szczyt:\n"
+        "    jeśli bok mniejsze od kres:\n"
+        "        jeśli próg większe od szczyt:\n"
         "            x to jeden\n"
         "        inaczej:\n"
         "            x to dwa\n"
@@ -484,8 +484,8 @@ def test_parse_nested_if(parse):
 
 def test_parse_while(parse):
     src = (
-        "aby działać:\n"
-        "    dopóki a mniejsze od dziesięć:\n        a to a plus jeden\n"
+        "aby działać bok:\n"
+        "    dopóki bok mniejsze od dziesięć:\n        bok to bok plus jeden\n"
     )
     m = parse(src)
     w = m.body[0].body[0]
@@ -496,7 +496,7 @@ def test_parse_while(parse):
 
 def test_parse_else_if_chain(parse):
     src = (
-        "aby działać:\n"
+        "aby działać x:\n"
         "    jeśli x mniejsze od jeden:\n        a to jeden\n"
         "    inaczej jeśli x mniejsze od dwa:\n        a to dwa\n"
         "    inaczej:\n        a to trzy\n"
@@ -512,10 +512,10 @@ def test_parse_else_if_chain(parse):
 
 def test_parse_break_inside_while(parse):
     src = (
-        "aby działać:\n"
-        "    dopóki a mniejsze od dziesięć:\n"
-        "        jeśli a równe pięć:\n            stop\n"
-        "        a to a plus jeden\n"
+        "aby działać bok:\n"
+        "    dopóki bok mniejsze od dziesięć:\n"
+        "        jeśli bok równe pięć:\n            stop\n"
+        "        bok to bok plus jeden\n"
     )
     m = parse(src)
     w = m.body[0].body[0]
@@ -537,7 +537,7 @@ def test_parse_continue_standalone(parse):
 
 def test_parse_continue_inside_for(parse):
     src = (
-        "aby działać:\n"
+        "aby działać lista:\n"
         "    dla użytkownika w liście:\n"
         "        jeśli użytkownik równe pięć:\n            dalej\n"
         "        wynik to użytkownik\n"
@@ -609,7 +609,7 @@ def test_parse_assignment_string_literal(parse):
 
 def test_parse_equality_is_comparison_not_assignment(parse):
     """`x to a równe b` — `to` to assignment, `równe` to porównanie."""
-    m = parse("aby działać:\n    x to a równe b\n")
+    m = parse("aby działać bok kres:\n    x to bok równe kres\n")
     a = m.body[0].body[0]
     assert isinstance(a, ast.Assignment)
     assert isinstance(a.value.resolved, ast.BinOp) and a.value.resolved.op == "="
@@ -823,7 +823,7 @@ def test_forma_formy_distinct_scope(parse):
     src = (
         "aby działać:\n"
         "    forma to \"x\"\n"
-        "    formy to 5\n"
+        "    formy to pięć\n"
     )
     m = parse(src)
     body = m.body[0].body
