@@ -905,3 +905,172 @@ def test_field_decl_field_with_distinct_number_coexist(parse):
     m = parse(src)
     sd = m.body[0]
     assert len(sd.fields) == 2
+
+
+# ---------- Typy wariantowe: lexer (QUESTION) ----------
+
+
+def test_lex_question_mark_is_token():
+    toks = lexer.lex("czym jest wynik?\n")
+    kinds = [t[0] for t in toks]
+    assert lexer.Token.QUESTION in kinds
+    # `?` rozcina od sąsiedniego słowa — `wynik?` to WORD + QUESTION
+    words = [t[1] for t in toks if t[0] is lexer.Token.WORD]
+    assert ("wynik",) in words
+
+
+def test_lex_question_mark_inside_string_is_text():
+    toks = lexer.lex('x to "czy na pewno?"\n')
+    kinds = [t[0] for t in toks]
+    assert lexer.Token.QUESTION not in kinds
+    text_values = [t[1] for t in toks if t[0] is lexer.Token.TEXT]
+    assert text_values == ["czy na pewno?"]
+
+
+# ---------- Typy wariantowe: deklaracja unii (`X to A albo B`) ----------
+
+
+_UNION_STRUCTS = (
+    "definicja Błędu:\n"
+    "    opis (Tekst)\n"
+    "\n"
+    "definicja Wyniku z elementem:\n"
+    "    wynik (element)\n"
+    "\n"
+)
+
+
+def test_parse_union_def_two_members(parse_struct_only):
+    m = parse_struct_only(_UNION_STRUCTS + "Rezultat to Wynik albo Błąd\n")
+    ud = m.body[2]
+    assert isinstance(ud, ast.UnionDef)
+    assert ud.name == ("Rezultat",)
+    assert ud.members == [("Wynik",), ("Błąd",)]
+
+
+def test_parse_union_def_three_members(parse_struct_only):
+    src = (
+        _UNION_STRUCTS
+        + "definicja Pustki:\n    nic (Liczba)\n\n"
+        + "Rezultat to Wynik albo Błąd albo Pustka\n"
+    )
+    ud = parse_struct_only(src).body[3]
+    assert isinstance(ud, ast.UnionDef)
+    assert ud.members == [("Wynik",), ("Błąd",), ("Pustka",)]
+
+
+def test_parse_union_def_requires_single_name_lhs(parse_struct_only):
+    with pytest.raises(ast.InterpreterError, match="pojedynczej nazwy"):
+        parse_struct_only("Rezultat dobry to Wynik albo Błąd\n")
+
+
+def test_parse_union_def_trailing_albo_raises(parse_struct_only):
+    with pytest.raises(ast.InterpreterError, match="co najmniej dwóch"):
+        parse_struct_only("Rezultat to Wynik albo\n")
+
+
+def test_parse_union_def_member_with_params_raises(parse_struct_only):
+    # warianty deklaruje się bez parametrów typu
+    with pytest.raises(ast.InterpreterError, match="bez parametrów typu"):
+        parse_struct_only("Rezultat to Wynik z elementem albo Błąd\n")
+
+
+def test_parse_union_def_double_albo_raises(parse_struct_only):
+    with pytest.raises(ast.InterpreterError, match="nieoczekiwany token"):
+        parse_struct_only("Rezultat to Wynik albo albo Błąd\n")
+
+
+def test_parse_assignment_without_albo_not_union(parse_struct_only):
+    m = parse_struct_only("rzecz to pięć\n")
+    assert isinstance(m.body[0], ast.Assignment)
+
+
+# ---------- Typy wariantowe: `czym jest X?` (match) ----------
+
+
+_MATCH_SRC = (
+    _UNION_STRUCTS
+    + "Rezultat to Wynik albo Błąd\n"
+    "\n"
+    "aby działać:\n"
+    "    czym jest rezultat?\n"
+    "        jeśli Błąd z opisem:\n"
+    "            x to jeden\n"
+    "        jeśli Wynik z wynikiem:\n"
+    "            x to dwa\n"
+    "            y to trzy\n"
+)
+
+
+def test_parse_match_structure(parse_struct_only):
+    m = parse_struct_only(_MATCH_SRC)
+    match = m.body[3].body[0]
+    assert isinstance(match, ast.Match)
+    assert isinstance(match.subject, ast.Phrase)
+    assert len(match.branches) == 2
+    b_err, b_wyn = match.branches
+    assert b_err.type_name == ("Błąd",)
+    assert [f.surface for f in b_err.fields] == [("opisem",)]
+    assert len(b_err.body) == 1
+    assert b_wyn.type_name == ("Wynik",)
+    assert [f.surface for f in b_wyn.fields] == [("wynikiem",)]
+    assert len(b_wyn.body) == 2
+
+
+def test_parse_match_branch_without_fields(parse_struct_only):
+    src = (
+        _UNION_STRUCTS
+        + "aby działać:\n"
+        "    czym jest rezultat?\n"
+        "        jeśli Błąd:\n"
+        "            x to jeden\n"
+    )
+    match = parse_struct_only(src).body[2].body[0]
+    assert match.branches[0].fields == []
+
+
+def test_parse_match_branch_must_start_with_jeśli(parse_struct_only):
+    src = (
+        "aby działać:\n"
+        "    czym jest rezultat?\n"
+        "        dopóki Błąd:\n"
+        "            x to jeden\n"
+    )
+    with pytest.raises(ast.InterpreterError, match="zaczyna się od 'jeśli'"):
+        parse_struct_only(src)
+
+
+def test_parse_match_fields_require_z(parse_struct_only):
+    src = (
+        "aby działać:\n"
+        "    czym jest rezultat?\n"
+        "        jeśli Błąd o opisie:\n"
+        "            x to jeden\n"
+    )
+    with pytest.raises(ast.InterpreterError, match="wprowadza 'z'"):
+        parse_struct_only(src)
+
+
+def test_parse_czym_without_jest_is_plain_phrase(parse_struct_only):
+    # samo `czym` bez `jest` nie wyzwala match-a — pozostaje frazą
+    m = parse_struct_only("czym była rzecz\n")
+    assert isinstance(m.body[0], ast.Phrase)
+
+
+# ---------- Guard: pusta fraza na pozycji statementu (dawniej pętla ∞) ----------
+
+
+def test_stray_question_mark_statement_raises(parse_struct_only):
+    with pytest.raises(ast.InterpreterError, match="nieoczekiwany token"):
+        parse_struct_only("x to pięć\n?\n")
+
+
+def test_stray_overindented_block_raises(parse_struct_only):
+    # przed guardem parser kręcił się w nieskończoność na INDENT
+    src = (
+        "aby działać:\n"
+        "    x to pięć\n"
+        "        y to dwa\n"
+    )
+    with pytest.raises(ast.InterpreterError, match="nieoczekiwany token"):
+        parse_struct_only(src)

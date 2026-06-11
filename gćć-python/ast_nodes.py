@@ -267,6 +267,39 @@ class StructDef:
 
 
 @dataclass
+class UnionDef:
+    """Typ wariantowy: `Rezultat to Wynik albo Błąd`.
+
+    `name`/`members` — krotki lemm (ta sama postać co `StructDef.name`).
+    Warianty są BEZ parametrów typu — parametryzacja to sprawa konkretnych
+    struktur (unia tylko grupuje głowy)."""
+    name: tuple
+    members: list  # list[tuple]
+    line: int = None
+
+
+@dataclass
+class Match:
+    """Konstrukt `czym jest X?` — dopasowanie wartości unii do wariantów."""
+    subject: "Phrase"
+    branches: list  # list[MatchBranch]
+    line: int = None
+
+
+@dataclass
+class MatchBranch:
+    """Gałąź `jeśli Wariant z polem [z polem...]:` wewnątrz `czym jest`.
+
+    `fields` — identyfikatory pól do związania (forma narzędnika po `z`);
+    może być podzbiorem pól struktury. Pass 2 zawęża każdy do wariantu
+    pasującego do zadeklarowanego pola."""
+    type_name: tuple
+    fields: list  # list[Identifier]
+    body: list
+    line: int = None
+
+
+@dataclass
 class Field:
     name: Identifier
     line: int = None

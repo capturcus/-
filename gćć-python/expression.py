@@ -39,7 +39,7 @@ import lexer
 from morph_anal import canonical
 from ast_nodes import (
     Identifier, FunctionIdentifier, FunctionIdentifierError,
-    StructDef, FunctionDef, ExternFunctionDef,
+    StructDef, FunctionDef, ExternFunctionDef, UnionDef, Match,
     IntLit, StrLit, BinOp, UnaryOp, And, Or, Not,
     FunctionCall, GetterChain, Subscript, StructCreation, StructArg, StructCtx,
     Typed, ResolveError, Word, LOGICAL_OPS,
@@ -58,12 +58,12 @@ _ADJ_LIKE_POS = ("adj", "pact", "ppas")
 
 
 def _lemma_key(v):
-    """Default key_fn dla _find_in_set — używane dla typów (lemma-only)."""
+    """Default key_fn dla find_in_set — używane dla typów (lemma-only)."""
     return v.lemmas
 
 
 def _full_key(v):
-    """key_fn dla _find_in_set wyciągający pełen klucz (lemmas, number, gender).
+    """key_fn dla find_in_set wyciągający pełen klucz (lemmas, number, gender).
     Używane dla pól struktur."""
     return (v.lemmas, v.number, v.gender)
 
@@ -106,12 +106,14 @@ class _Ctx:
 
     - `function_defs`: dict[lemma_tuple → FunctionDef] (funkcje keyed po
       lemma; rodzaj/liczba nie różnicują funkcji).
-    - `types`: set[lemma_tuple] (typy capitalized, lemma-only).
+    - `types`: set[lemma_tuple] (typy capitalized, lemma-only; struktury,
+      unie i builtins).
     - `fields_by_type`: dict[type_name → set[(lemmas, num, g)]] — pełne
-      klucze pól per struktura, służą do dopasowania referencji.
+      klucze pól per struktura, służą do dopasowania referencji. Klucze
+      tego dicta to wyłącznie STRUKTURY (unie/builtins nie mają pól).
     - `field_lemmas`: set[lemma_tuple] — projekcja `fields_by_type` po
       lemmie, do szybkiego "czy ten token to w ogóle field" w detekcji
-      chain. Konkretne dopasowanie (number/gender) robi `_find_in_set`."""
+      chain. Konkretne dopasowanie (number/gender) robi `find_in_set`."""
     def __init__(self, function_defs, types, fields_by_type, field_lemmas):
         self.function_defs = function_defs
         self.types = types
@@ -157,7 +159,7 @@ def _ident_is_field(ident, field_lemmas):
     Używa lemma-only comparison (nie pełnego klucza scope) — pozwala na
     detekcję "to jest field" niezależnie od liczby/rodzaju surface'u.
     Faktyczne dopasowanie do konkretnego pola (z liczbą i rodzajem) robi
-    `_find_in_set` z pełnym key_fn."""
+    `find_in_set` z pełnym key_fn."""
     return bool(ident.lemmas_set & field_lemmas)
 
 
@@ -176,6 +178,68 @@ def _is_gen_word(token, preps):
 def _starts_chain(head_ident, next_token, field_lemmas, preps):
     """Ta sama logika co ExpressionParser._can_start_chain, ale bez self."""
     return _ident_is_field(head_ident, field_lemmas) and _is_gen_word(next_token, preps)
+
+
+def find_in_set(ident, target_set, exclude=frozenset(),
+                required_case=None, key_fn=_lemma_key):
+    """Wyszukuje wariant którego klucz (`key_fn(v)`) jest w `target_set`
+    (i opcjonalnie ma `required_case in case`), wykluczając te w `exclude`.
+
+    `key_fn` (default = lemma-only) wyciąga klucz porównawczy z wariantu.
+    Dla typów używamy `_lemma_key`, dla pól `_full_key` (lemmas, number,
+    gender).
+
+    Po filtrach preferuje min `rest_length` (krótszy passthrough po
+    subst-głowie) — eliminuje fałszywe duplikaty z różnych ścieżek
+    backtrackowania. Jeśli po min-rest zostaje >1 unikalnych kluczy →
+    ResolveError (ambiguity). Zwraca dopasowany klucz lub None."""
+    matches = []
+    for v in ident.variants:
+        k = key_fn(v)
+        if k in exclude:
+            continue
+        if k not in target_set:
+            continue
+        if required_case is not None and required_case not in v.case:
+            continue
+        matches.append((k, v.case, v.rest_length))
+    # Fallback dla atomu (brak variants): porównuj lemma-tuple bezpośrednio
+    # z target_set. Sensowne tylko gdy key_fn jest lemma-only — pełne
+    # klucze pól mają number/gender, których atom nie ma.
+    if (not matches and not ident.variants and required_case is None
+            and key_fn is _lemma_key):
+        for segs in ident.lemmas_set:
+            if segs in target_set and segs not in exclude:
+                matches.append((segs, None, 0))
+    if not matches:
+        return None
+    # Preferuj wariant z najkrótszą "resztą" — np. dla `pierwszym polu`
+    # gałąź adj+subst (rest=0) bije gałąź subst-głowa+rest (rest=1).
+    min_rest = min(r for _, _, r in matches)
+    matches = [m for m in matches if m[2] == min_rest]
+    uniq_keys = list({m[0] for m in matches})
+    if len(uniq_keys) > 1:
+        opts = ", ".join(sorted(_describe_key(k) for k in uniq_keys))
+        raise ResolveError(
+            f"identyfikator '{'_'.join(ident.surface)}' jest niejednoznaczny "
+            f"w tym kontekście — pasuje do wielu opcji: {opts}",
+            line=getattr(ident, "line", None),
+        )
+    return uniq_keys[0]
+
+
+def _narrow_to_key(ident, key):
+    """Zawęża identyfikator do wariantów o pełnym kluczu == `key` (rezultat
+    dopasowania `find_in_set`). Atom (brak wariantów) wraca bez zmian."""
+    matches = tuple(
+        v for v in ident.variants if (v.lemmas, v.number, v.gender) == key
+    )
+    if not matches:
+        return ident
+    return Identifier(
+        surface=ident.surface, analyses=ident.analyses,
+        variants=matches, line=ident.line,
+    )
 
 
 def _field_canonical_lemma(field_name):
@@ -244,6 +308,12 @@ def _collect_bindings_in_stmt(stmt, scope, field_lemmas, preps):
             _collect_bindings_in_stmt(sub, scope, field_lemmas, preps)
         for sub in stmt.else_body:
             _collect_bindings_in_stmt(sub, scope, field_lemmas, preps)
+    elif isinstance(stmt, Match):
+        # Przypisania w gałęziach wyciekają jak w If; pola związane przez
+        # `jeśli Wariant z polem` żyją w scope gałęzi (dodawane w _resolve_stmt).
+        for br in stmt.branches:
+            for sub in br.body:
+                _collect_bindings_in_stmt(sub, scope, field_lemmas, preps)
 
 
 class ExpressionParser:
@@ -583,53 +653,6 @@ class ExpressionParser:
     def _ident_is_field(self, ident):
         return _ident_is_field(ident, self.ctx.field_lemmas)
 
-    def _find_in_set(self, ident, target_set, exclude=frozenset(),
-                     required_case=None, key_fn=_lemma_key):
-        """Wyszukuje wariant którego klucz (`key_fn(v)`) jest w `target_set`
-        (i opcjonalnie ma `required_case in case`), wykluczając te w `exclude`.
-
-        `key_fn` (default = lemma-only) wyciąga klucz porównawczy z wariantu.
-        Dla typów używamy `_lemma_key`, dla pól `_full_key` (lemmas, number,
-        gender).
-
-        Po filtrach preferuje min `rest_length` (krótszy passthrough po
-        subst-głowie) — eliminuje fałszywe duplikaty z różnych ścieżek
-        backtrackowania. Jeśli po min-rest zostaje >1 unikalnych kluczy →
-        ResolveError (ambiguity). Zwraca dopasowany klucz lub None."""
-        matches = []
-        for v in ident.variants:
-            k = key_fn(v)
-            if k in exclude:
-                continue
-            if k not in target_set:
-                continue
-            if required_case is not None and required_case not in v.case:
-                continue
-            matches.append((k, v.case, v.rest_length))
-        # Fallback dla atomu (brak variants): porównuj lemma-tuple bezpośrednio
-        # z target_set. Sensowne tylko gdy key_fn jest lemma-only — pełne
-        # klucze pól mają number/gender, których atom nie ma.
-        if (not matches and not ident.variants and required_case is None
-                and key_fn is _lemma_key):
-            for segs in ident.lemmas_set:
-                if segs in target_set and segs not in exclude:
-                    matches.append((segs, None, 0))
-        if not matches:
-            return None
-        # Preferuj wariant z najkrótszą "resztą" — np. dla `pierwszym polu`
-        # gałąź adj+subst (rest=0) bije gałąź subst-głowa+rest (rest=1).
-        min_rest = min(r for _, _, r in matches)
-        matches = [m for m in matches if m[2] == min_rest]
-        uniq_keys = list({m[0] for m in matches})
-        if len(uniq_keys) > 1:
-            opts = ", ".join(sorted(_describe_key(k) for k in uniq_keys))
-            raise ResolveError(
-                f"identyfikator '{'_'.join(ident.surface)}' jest niejednoznaczny "
-                f"w tym kontekście — pasuje do wielu opcji: {opts}",
-                line=getattr(ident, "line", None),
-            )
-        return uniq_keys[0]
-
     # ---------- getter chain ----------
 
     def _can_start_chain(self, head_ident):
@@ -663,7 +686,7 @@ class ExpressionParser:
         if nxt is None or nxt[0] is not lexer.Token.WORD:
             return None
         nxt_ident = make_identifier(nxt)
-        type_segs = self._find_in_set(nxt_ident, self.ctx.types)
+        type_segs = find_in_set(nxt_ident, self.ctx.types)
         if type_segs is None:
             return None
         if not self._cases_overlap(head_ident, nxt_ident):
@@ -738,8 +761,10 @@ class ExpressionParser:
         else:
             return None
         field_ident = make_identifier(p2)
-        field_set = self.ctx.fields_by_type[ctx.type_name]
-        matched = self._find_in_set(
+        # .get — typ bez pól (unia/builtin) nie ma wpisu; żadne pole nie
+        # zmatchuje i leftover-diagnostyka opisze problem.
+        field_set = self.ctx.fields_by_type.get(ctx.type_name, frozenset())
+        matched = find_in_set(
             field_ident, field_set,
             exclude=frozenset(ctx.assigned),
             required_case=required_case,
@@ -759,8 +784,18 @@ def _build_ctx(module):
     types = set(builtin_types)
     fields_by_type = {}
     field_lemmas = set()
+    unions = {}
     for node in module.body:
-        if isinstance(node, StructDef):
+        if isinstance(node, UnionDef):
+            if node.name in unions:
+                raise ResolveError(
+                    f"typ wariantowy '{'_'.join(node.name)}' zadeklarowany "
+                    f"dwukrotnie",
+                    line=node.line,
+                )
+            unions[node.name] = node
+            types.add(node.name)
+        elif isinstance(node, StructDef):
             types.add(node.name)
             fbt = fields_by_type.setdefault(node.name, set())
             for f in node.fields:
@@ -808,7 +843,47 @@ def _build_ctx(module):
             f"konflikt nazw: identyfikator nie może być jednocześnie "
             f"polem i funkcją: {names}"
         )
+    _validate_unions(unions, fields_by_type)
     return _Ctx(function_defs, types, fields_by_type, field_lemmas)
+
+
+def _validate_unions(unions, fields_by_type):
+    """Walidacja deklaracji typów wariantowych (po zebraniu całego modułu,
+    więc niezależna od kolejności deklaracji): nazwa unii nie koliduje
+    z istniejącym typem, a każdy wariant to zdefiniowana struktura
+    (nie unia, nie builtin, bez duplikatów)."""
+    for ud in unions.values():
+        name = "_".join(ud.name)
+        if ud.name in fields_by_type or ud.name in builtin_types:
+            raise ResolveError(
+                f"nazwa typu wariantowego '{name}' koliduje z istniejącym "
+                f"typem",
+                line=ud.line,
+            )
+        seen = set()
+        for m in ud.members:
+            m_name = "_".join(m)
+            if m in seen:
+                raise ResolveError(
+                    f"wariant '{m_name}' powtórzony w typie wariantowym "
+                    f"'{name}'",
+                    line=ud.line,
+                )
+            seen.add(m)
+            if m in unions:
+                raise ResolveError(
+                    f"wariant '{m_name}' typu wariantowego '{name}' sam "
+                    f"jest typem wariantowym — zagnieżdżanie unii jest "
+                    f"niedozwolone",
+                    line=ud.line,
+                )
+            if m not in fields_by_type:
+                raise ResolveError(
+                    f"wariant '{m_name}' typu wariantowego '{name}' nie "
+                    f"jest zdefiniowaną strukturą — wariantem może być "
+                    f"tylko struktura z 'definicja'",
+                    line=ud.line,
+                )
 
 
 def _describe_leftover(tokens, max_show=3):
@@ -982,12 +1057,60 @@ def _resolve_stmt(stmt, ctx, preps, scope):
             _resolve_stmt(sub, ctx, preps, scope)
         for sub in stmt.else_body:
             _resolve_stmt(sub, ctx, preps, scope)
+    elif isinstance(stmt, Match):
+        _resolve_match(stmt, ctx, preps, scope)
+    elif isinstance(stmt, UnionDef):
+        raise ResolveError(
+            f"typ wariantowy '{'_'.join(stmt.name)}' można zadeklarować "
+            f"tylko na poziomie modułu",
+            line=stmt.line,
+        )
     elif isinstance(stmt, Return):
         if stmt.value is not None:
             _resolve(stmt.value, ctx, preps, scope)
     elif isinstance(stmt, Phrase):
         _resolve(stmt, ctx, preps, scope)
     # Break: no phrase
+
+
+def _resolve_match(stmt, ctx, preps, scope):
+    """Rezolucja `czym jest X?`: subject w bieżącym scope; każda gałąź
+    waliduje swój wariant (zdefiniowana struktura) i pola (narzędnik po `z`,
+    pole tej struktury), wiąże je w scope gałęzi i rezolwuje body.
+    Identyfikatory pól są zawężane in-place do dopasowanego klucza —
+    typechecker czyta z nich jednoznaczny scope-key."""
+    _resolve(stmt.subject, ctx, preps, scope)
+    for br in stmt.branches:
+        type_str = "_".join(br.type_name)
+        if br.type_name not in ctx.fields_by_type:
+            raise ResolveError(
+                f"wariant '{type_str}' w 'czym jest' nie jest zdefiniowaną "
+                f"strukturą",
+                line=br.line,
+            )
+        field_set = ctx.fields_by_type[br.type_name]
+        br_scope = _Scope(parent=scope)
+        bound = set()
+        for i, fid in enumerate(br.fields):
+            key = find_in_set(
+                fid, field_set, exclude=frozenset(bound),
+                required_case="inst", key_fn=_full_key,
+            )
+            if key is None:
+                options = ", ".join(
+                    sorted(_format_scope_key(k) for k in field_set - bound)
+                ) or "(brak)"
+                raise ResolveError(
+                    f"'{'_'.join(fid.surface)}' nie pasuje do żadnego wolnego "
+                    f"pola struktury '{type_str}' (wymagany narzędnik po 'z'); "
+                    f"dostępne pola: {options}",
+                    line=fid.line,
+                )
+            br.fields[i] = _narrow_to_key(fid, key)
+            bound.add(key)
+            br_scope.add_key(key)
+        for sub in br.body:
+            _resolve_stmt(sub, ctx, preps, br_scope)
 
 
 def _resolve_body(body, ctx, preps, scope):
@@ -1017,7 +1140,9 @@ def resolve_module(module, preps=None):
             for p in node.params:
                 fn_scope.add(p.name)
             _resolve_body(node.body, ctx, preps, fn_scope)
+        elif isinstance(node, Match):
+            _resolve_match(node, ctx, preps, module_scope)
         elif isinstance(node, Phrase):
             _resolve(node, ctx, preps, module_scope)
-        # StructDef: brak fraz
+        # StructDef / UnionDef: brak fraz
     return module

@@ -10,13 +10,16 @@ subscript) jest parsowana w drugim przebiegu przez `expression.resolve_module`.
 Gramatyka Pass 1:
 
   module     := stmt*
-  stmt       := func_def | extern_def | struct_def
+  stmt       := func_def | extern_def | struct_def | union_def | match_stmt
               | if_stmt | while_stmt | for_stmt
               | "stop" | "dalej" | "zwrócić" [phrase]
               | assignment | expr_stmt
   func_def   := "aby" function_name param* ["->" type] ":" INDENT stmt+ DEDENT
   extern_def := "można" function_name param* ["->" type] NEWLINE
   struct_def := "definicja" type_name ":" INDENT field+ DEDENT
+  union_def  := type_name "to" type_name ("albo" type_name)+
+  match_stmt := "czym" "jest" phrase "?" INDENT match_branch+ DEDENT
+  match_branch := "jeśli" type_name ("z" identifier)* ":" INDENT stmt+ DEDENT
   field      := identifier "(" type ")"
   param      := [prep] identifier ["(" type ")"]
   if_stmt    := "jeśli" phrase ":" INDENT stmt+ DEDENT
@@ -46,7 +49,7 @@ from morph_anal import canonical
 from ast_nodes import (
     Module, FunctionIdentifier, FunctionDef, ExternFunctionDef, Param,
     StructDef, Field, Phrase, Assignment, If, While, For, Break, Continue,
-    Return, InterpreterError,
+    Return, InterpreterError, UnionDef, Match, MatchBranch,
 )
 from identifier import make_identifier, is_prep, canonical_type
 from type_parser import read_prep, parse_type
@@ -59,6 +62,7 @@ _PHRASE_END_KINDS = frozenset({
     lexer.Token.INDENT,
     lexer.Token.DEDENT,
     lexer.Token.ASSIGN,
+    lexer.Token.QUESTION,
 })
 
 
@@ -155,6 +159,12 @@ class Parser:
             # żeby parsowanie extern wyzwalały inne formy adj `możny`.
             if t[1] == ("można",):
                 return self.parse_extern_def()
+            # `czym jest X?` — dopasowanie po formach powierzchniowych,
+            # żeby inne formy `co`/`być` nie wyzwalały match-a.
+            nxt = self.peek(1)
+            if (t[1] == ("czym",) and nxt is not None
+                    and nxt[0] is lexer.Token.WORD and nxt[1] == ("jest",)):
+                return self.parse_match()
             if canon == ("jeśli",):
                 return self.parse_if()
             if canon == ("dopóki",):
@@ -181,10 +191,122 @@ class Parser:
                     return Return(value=None)
                 return Return(value=self.collect_phrase())
         lhs = self.collect_phrase()
+        if not lhs.tokens:
+            # Pusta fraza = bieżący token to granica frazy (QUESTION, COLON,
+            # INDENT, stray RPAREN...). Bez raise parse_module kręciłby się
+            # w nieskończoność na niekonsumowanym tokenie.
+            nxt = self.peek()
+            raise InterpreterError(
+                f"nieoczekiwany token na początku instrukcji: "
+                f"{_describe_tok(nxt)}",
+                line=getattr(nxt, "line", None) if nxt is not None
+                else self._last_seen_line(),
+            )
         if self.peek() and self.peek()[0] is lexer.Token.ASSIGN:
             self.advance()
-            return Assignment(target=lhs, value=self.collect_phrase())
+            value = self.collect_phrase()
+            # `Nazwa to Wariant albo Wariant [albo ...]` — deklaracja typu
+            # wariantowego. `albo` nie jest operatorem wyrażeń, więc samodzielne
+            # `albo` w wartości jednoznacznie wskazuje na union_def.
+            if any(self._is_albo(tok) for tok in value.tokens):
+                return self._build_union_def(lhs, value)
+            return Assignment(target=lhs, value=value)
         return lhs
+
+    @staticmethod
+    def _is_albo(tok):
+        return tok[0] is lexer.Token.WORD and canonical(tok) == ("albo",)
+
+    def _build_union_def(self, lhs, value):
+        """Buduje UnionDef z fraz `lhs to value`, walidując kształt
+        `NAZWA to WARIANT (albo WARIANT)+`. Wszystkie nazwy w mianowniku,
+        bez parametrów typu (parametryzacja to sprawa samych struktur)."""
+        line = lhs.line
+        if len(lhs.tokens) != 1 or lhs.tokens[0][0] is not lexer.Token.WORD:
+            raise InterpreterError(
+                "deklaracja typu wariantowego wymaga pojedynczej nazwy "
+                "po lewej stronie: 'Nazwa to Wariant albo Wariant'",
+                line=line,
+            )
+        name = canonical_type(
+            lhs.tokens[0], required_case="nom", label="nazwa typu wariantowego",
+        )
+        members = []
+        expect_name = True  # naprzemiennie: nazwa wariantu / 'albo'
+        for tok in value.tokens:
+            if expect_name == self._is_albo(tok):
+                raise InterpreterError(
+                    f"deklaracja typu wariantowego ma postać 'Nazwa to Wariant "
+                    f"albo Wariant [albo Wariant...]' (bez parametrów typu); "
+                    f"nieoczekiwany token {_describe_tok(tok)}",
+                    line=getattr(tok, "line", line),
+                )
+            if expect_name:
+                members.append(canonical_type(
+                    tok, required_case="nom", label="nazwa wariantu",
+                ))
+            expect_name = not expect_name
+        if expect_name or len(members) < 2:
+            raise InterpreterError(
+                "deklaracja typu wariantowego wymaga co najmniej dwóch "
+                "wariantów rozdzielonych 'albo'",
+                line=line,
+            )
+        return UnionDef(name=name, members=members, line=line)
+
+    def parse_match(self):
+        czym_tok = self.expect(lexer.Token.WORD)  # czym
+        self.expect(lexer.Token.WORD)  # jest
+        subject = self.collect_phrase()
+        self.expect(lexer.Token.QUESTION)
+        self._skip_newlines()
+        self.expect(lexer.Token.INDENT)
+        branches = []
+        self._skip_newlines()
+        while self.peek()[0] is not lexer.Token.DEDENT:
+            branches.append(self.parse_match_branch())
+            self._skip_newlines()
+        self.expect(lexer.Token.DEDENT)
+        return Match(
+            subject=subject, branches=branches,
+            line=getattr(czym_tok, "line", None),
+        )
+
+    def parse_match_branch(self):
+        if_tok = self.expect(lexer.Token.WORD)
+        if canonical(if_tok) != ("jeśli",):
+            raise InterpreterError(
+                f"w 'czym jest' każda gałąź zaczyna się od 'jeśli', "
+                f"otrzymano {_describe_tok(if_tok)}",
+                line=getattr(if_tok, "line", None),
+            )
+        type_tok = self.expect(lexer.Token.WORD)
+        type_name = canonical_type(
+            type_tok, required_case="nom", label="nazwa wariantu",
+        )
+        fields = []
+        while self.peek() is not None and self.peek()[0] is lexer.Token.WORD:
+            z_tok = self.advance()
+            if canonical(z_tok) != ("z",):
+                raise InterpreterError(
+                    f"w gałęzi 'jeśli {'_'.join(type_tok[1])} ...' pola "
+                    f"wprowadza 'z', otrzymano {_describe_tok(z_tok)}",
+                    line=getattr(z_tok, "line", None),
+                )
+            fields.append(make_identifier(self.expect(lexer.Token.WORD)))
+        self.expect(lexer.Token.COLON)
+        self._skip_newlines()
+        self.expect(lexer.Token.INDENT)
+        body = []
+        self._skip_newlines()
+        while self.peek()[0] is not lexer.Token.DEDENT:
+            body.append(self.parse_stmt())
+            self._skip_newlines()
+        self.expect(lexer.Token.DEDENT)
+        return MatchBranch(
+            type_name=type_name, fields=fields, body=body,
+            line=getattr(if_tok, "line", None),
+        )
 
     def parse_if(self):
         self.expect(lexer.Token.WORD)  # jeśli

@@ -25,16 +25,17 @@ gramatyka jest ostateczna.
 7. [Definicje funkcji (`aby`)](#definicje-funkcji-aby)
 8. [Funkcje zewnętrzne (`można`)](#funkcje-zewnętrzne-można)
 9. [Definicje typów (`definicja`)](#definicje-typów-definicja)
-10. [Struktury sterujące](#struktury-sterujące)
-11. [Przypisanie (`to`)](#przypisanie-to)
-12. [Wyrażenia](#wyrażenia)
-13. [Wywołania funkcji](#wywołania-funkcji)
-14. [Łańcuchy dostępu do pól (getter chain)](#łańcuchy-dostępu-do-pól-getter-chain)
-15. [Tworzenie struktur (`nowy`)](#tworzenie-struktur-nowy)
-16. [Subscript (`pod`)](#subscript-pod)
-17. [Zasięg i rozróżnianie wariantów](#zasięg-i-rozróżnianie-wariantów)
-18. [Konflikty nazw](#konflikty-nazw)
-19. [Komunikaty błędów](#komunikaty-błędów)
+10. [Typy wariantowe (`albo`, `czym jest`)](#typy-wariantowe-albo-czym-jest)
+11. [Struktury sterujące](#struktury-sterujące)
+12. [Przypisanie (`to`)](#przypisanie-to)
+13. [Wyrażenia](#wyrażenia)
+14. [Wywołania funkcji](#wywołania-funkcji)
+15. [Łańcuchy dostępu do pól (getter chain)](#łańcuchy-dostępu-do-pól-getter-chain)
+16. [Tworzenie struktur (`nowy`)](#tworzenie-struktur-nowy)
+17. [Subscript (`pod`)](#subscript-pod)
+18. [Zasięg i rozróżnianie wariantów](#zasięg-i-rozróżnianie-wariantów)
+19. [Konflikty nazw](#konflikty-nazw)
+20. [Komunikaty błędów](#komunikaty-błędów)
 
 ---
 
@@ -462,6 +463,90 @@ mianownika; pola deklaruj w nom")`.
 
 - Atom (single-letter / bez wariantów) jest przepuszczany jako jedyna lemma.
 - Multi-wariantowe pola (np. `liście`) dostają tylko warianty mianownika.
+
+---
+
+## Typy wariantowe (`albo`, `czym jest`)
+
+### Deklaracja unii
+
+```
+NAZWA to WARIANT albo WARIANT [albo WARIANT…]
+```
+
+Deklaracja na poziomie modułu, rozpoznawana po samodzielnym słowie `albo`
+po prawej stronie `to` (`albo` nie jest operatorem wyrażeń, więc nie
+koliduje z przypisaniami). Wszystkie nazwy w mianowniku.
+
+```
+definicja Błędu:
+    opis (Tekst)
+
+definicja Wyniku z elementem:
+    wynik (element)
+
+Rezultat to Wynik albo Błąd
+```
+
+Zasady:
+
+- Każdy wariant musi być **strukturą zdefiniowaną w module** (nie builtinem,
+  nie inną unią — zagnieżdżanie unii jest niedozwolone). Kolejność deklaracji
+  w module jest dowolna.
+- Warianty wymienia się **bez parametrów typu** — parametryzacja to sprawa
+  konkretnych struktur; unia tylko grupuje głowy. W konsekwencji unia
+  „wymazuje" argumenty typów wariantów (`Wynik z Liczbą` → `Rezultat`).
+- Nazwa unii działa wszędzie tam, gdzie nazwa typu: adnotacje parametrów,
+  typ zwracany, typy pól, sufiks `(Rezultat)`.
+- Nie można utworzyć wartości unii przez `nowy Rezultat` — tworzy się
+  konkretną strukturę.
+
+### Podtypowanie
+
+Jedyna dopuszczana relacja to **struktura < typ wariantowy**, stosowana na
+pozycjach top-level unifikacji: przypisanie, `zwrócić`, argument wywołania,
+wartość pola, adnotacja. Gdy dwie strony to różne warianty jednej unii (albo
+wariant i jego unia), typ rozszerza się do unii — przy wielu pasujących
+uniach wygrywa najmniejsza, remis to błąd. Funkcja zwracająca w gałęziach
+różne warianty jednej unii jest typowana tą unią; gałęzie zwracające typy
+bez wspólnej unii to błąd (nie ma nienazwanych unii). Typy parametryzowane
+są **inwariantne**: `Lista z (Wynik)` nie unifikuje się z `Lista z (Rezultat)`.
+
+### Dopasowanie: `czym jest X?`
+
+```
+czym jest WYRAŻENIE?
+    jeśli WARIANT [z POLE]*:
+        BLOK
+    jeśli WARIANT [z POLE]*:
+        BLOK
+```
+
+- `czym jest` rozpoznawane po formach powierzchniowych na początku
+  statementu; nagłówek kończy `?` (nowy token leksera, poza stringami).
+- Unia subjectu jest wyznaczana inferencją: zbiór gałęzi musi **dokładnie**
+  odpowiadać zbiorowi wariantów jednej zadeklarowanej unii (brak gałęzi
+  dla wariantu → błąd z listą brakujących; gałąź spoza unii → błąd;
+  duplikat gałęzi → błąd). Typ subjectu unifikuje się z tą unią — więc
+  `czym jest` na nieotypowanym parametrze typuje go unią w sygnaturze.
+- `z POLE` dekonstruuje wariant: pole (w narzędniku, jak shorthand `nowy`)
+  staje się zmienną w scope gałęzi, o typie z deklaracji struktury.
+  Można związać **podzbiór** pól (też żadne: `jeśli Wynik:`). Pola
+  o typie-parametrze struktury zaczynają jako wolne zmienne i konkretyzują
+  się przez użycie.
+- Przypisania wewnątrz gałęzi wyciekają do otaczającego scope'u (jak w
+  `jeśli`); związane pola są lokalne dla gałęzi.
+
+```
+aby opisywać rezultat -> Tekst:
+    czym jest rezultat?
+        jeśli Wynik:
+            zwróć "powodzenie"
+        jeśli Błąd z opisem:
+            zwróć opis
+```
+
+Pełny przykład: `test/warianty.ć`.
 
 ---
 

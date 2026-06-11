@@ -1252,12 +1252,12 @@ def test_field_lemmas_filtered_by_nom(parse):
 
 
 def test_find_in_set_ambiguity_error():
-    """Gdy `_find_in_set` po filtrach ma > 1 matchów — ResolveError.
+    """Gdy `find_in_set` po filtrach ma > 1 matchów — ResolveError.
     Test syntetyczny: konstruujemy Identifier z dwoma matchującymi
     wariantami i sprawdzamy że error się rzuca."""
     # Konstrukcja ręczna identyfikatora z dwoma wariantami pasującymi do
     # target_set bez `required_case` (rzadko spotykane w praktyce, ale możliwe).
-    from expression import ExpressionParser, _Ctx, _Scope
+    from expression import find_in_set
     target_set = {("a",), ("b",)}
     ident = ast.Identifier(
         surface=("x",),
@@ -1267,10 +1267,8 @@ def test_find_in_set_ambiguity_error():
             ast.Variant(("b",), frozenset({"nom"}), "sg", "f", 0),
         ),
     )
-    ctx = _Ctx(function_defs={}, types=set(), fields_by_type={}, field_lemmas=target_set)
-    parser = ExpressionParser(tokens=[], ctx=ctx, preps={}, scope=_Scope())
     with pytest.raises(ast.ResolveError, match="niejednoznaczny"):
-        parser._find_in_set(ident, target_set)
+        find_in_set(ident, target_set)
 
 
 def test_field_canonical_lemma_picks_min_rest_for_adj_noun(parse):
@@ -1587,3 +1585,199 @@ def test_param_nested_type_annotation(parse):
     inner = typed.type.args[0].type               # zagnieżdżony Mapa
     assert inner.head == ("Mapa",)
     assert [a.prep for a in inner.args] == [("z",), ("na",)]
+
+
+# =====================================================================
+# Typy wariantowe — walidacja deklaracji unii (_build_ctx)
+# =====================================================================
+
+_UNION_BASE = (
+    "definicja Błędu:\n"
+    "    opis (Tekst)\n"
+    "\n"
+    "definicja Wyniku z elementem:\n"
+    "    wynik (element)\n"
+    "\n"
+)
+
+
+def test_union_registers_as_type(parse):
+    # nazwa unii działa jako adnotacja typu (sufiks `(Rezultat)`)
+    src = (
+        _UNION_BASE
+        + "Rezultat to Wynik albo Błąd\n"
+        "\n"
+        "aby działać:\n"
+        "    rzecz (Rezultat) to nowy Wynik o wyniku zero\n"
+    )
+    m = parse(src)
+    typed = m.body[3].body[0].target.resolved
+    assert isinstance(typed, ast.Typed)
+    assert typed.type.head == ("Rezultat",)
+
+
+def test_union_unknown_member_raises(parse):
+    src = _UNION_BASE + "Rezultat to Wynik albo Zguba\n"
+    with pytest.raises(ast.ResolveError, match="nie jest zdefiniowaną strukturą"):
+        parse(src)
+
+
+def test_union_builtin_member_raises(parse):
+    src = _UNION_BASE + "Rezultat to Wynik albo Liczba\n"
+    with pytest.raises(ast.ResolveError, match="nie jest zdefiniowaną strukturą"):
+        parse(src)
+
+
+def test_union_member_being_union_raises(parse):
+    src = (
+        _UNION_BASE
+        + "definicja Pustki:\n    nic (Liczba)\n\n"
+        "Rezultat to Wynik albo Błąd\n"
+        "Wszystko to Rezultat albo Pustka\n"
+    )
+    with pytest.raises(ast.ResolveError, match="zagnieżdżanie unii"):
+        parse(src)
+
+
+def test_union_duplicate_member_raises(parse):
+    src = _UNION_BASE + "Rezultat to Wynik albo Wynik\n"
+    with pytest.raises(ast.ResolveError, match="powtórzony"):
+        parse(src)
+
+
+def test_union_declared_twice_raises(parse):
+    src = (
+        _UNION_BASE
+        + "Rezultat to Wynik albo Błąd\n"
+        "Rezultat to Błąd albo Wynik\n"
+    )
+    with pytest.raises(ast.ResolveError, match="dwukrotnie"):
+        parse(src)
+
+
+def test_union_name_colliding_with_struct_raises(parse):
+    src = _UNION_BASE + "Błąd to Wynik albo Błąd\n"
+    with pytest.raises(ast.ResolveError, match="koliduje"):
+        parse(src)
+
+
+def test_union_order_independent(parse):
+    # unia może być zadeklarowana PRZED strukturami, które wymienia
+    src = (
+        "Rezultat to Wynik albo Błąd\n"
+        "\n" + _UNION_BASE
+    )
+    m = parse(src)
+    assert isinstance(m.body[0], ast.UnionDef)
+
+
+def test_union_inside_function_body_raises(parse):
+    src = (
+        _UNION_BASE
+        + "aby działać:\n"
+        "    Rezultat to Wynik albo Błąd\n"
+    )
+    with pytest.raises(ast.ResolveError, match="poziomie modułu"):
+        parse(src)
+
+
+# =====================================================================
+# Typy wariantowe — rezolucja `czym jest` (match)
+# =====================================================================
+
+_MATCH_BASE = (
+    _UNION_BASE
+    + "Rezultat to Wynik albo Błąd\n"
+    "\n"
+)
+
+
+def test_match_binds_branch_fields(parse):
+    src = (
+        _MATCH_BASE
+        + "aby działać:\n"
+        "    rezultat to nowy Wynik o wyniku zero\n"
+        "    czym jest rezultat?\n"
+        "        jeśli Błąd z opisem:\n"
+        "            x to opis\n"
+        "        jeśli Wynik z wynikiem:\n"
+        "            y to wynik\n"
+    )
+    m = parse(src)
+    match = m.body[3].body[1]
+    b_err, b_wyn = match.branches
+    # pole związane → referencja w body rezolwuje się do Identifier
+    x_value = b_err.body[0].value.resolved
+    assert isinstance(x_value, ast.Identifier)
+    assert ("opis",) in x_value.lemmas_set
+    # identyfikator pola zawężony do jednego klucza (lemmas, number, gender)
+    assert len({(v.lemmas, v.number, v.gender) for v in b_err.fields[0].variants}) == 1
+    assert b_err.fields[0].variants[0].lemmas == ("opis",)
+    assert isinstance(b_wyn.body[0].value.resolved, ast.Identifier)
+
+
+def test_match_branch_unknown_struct_raises(parse):
+    src = (
+        _MATCH_BASE
+        + "aby działać:\n"
+        "    czym jest rezultat?\n"
+        "        jeśli Zguba z opisem:\n"
+        "            x to jeden\n"
+    )
+    with pytest.raises(ast.ResolveError, match="nie jest zdefiniowaną strukturą"):
+        parse(src)
+
+
+def test_match_field_not_in_struct_raises(parse):
+    src = (
+        _MATCH_BASE
+        + "aby działać:\n"
+        "    czym jest rezultat?\n"
+        "        jeśli Błąd z wynikiem:\n"
+        "            x to jeden\n"
+    )
+    with pytest.raises(ast.ResolveError, match="nie pasuje do żadnego wolnego pola"):
+        parse(src)
+
+
+def test_match_field_requires_inst_raises(parse):
+    # `z opis` — mianownik zamiast narzędnika
+    src = (
+        _MATCH_BASE
+        + "aby działać:\n"
+        "    czym jest rezultat?\n"
+        "        jeśli Błąd z opis:\n"
+        "            x to jeden\n"
+    )
+    with pytest.raises(ast.ResolveError, match="narzędnik"):
+        parse(src)
+
+
+def test_match_field_bound_twice_raises(parse):
+    src = (
+        _MATCH_BASE
+        + "aby działać:\n"
+        "    czym jest rezultat?\n"
+        "        jeśli Błąd z opisem z opisem:\n"
+        "            x to jeden\n"
+    )
+    with pytest.raises(ast.ResolveError, match="nie pasuje do żadnego wolnego pola"):
+        parse(src)
+
+
+def test_match_assignments_in_branch_leak_to_function_scope(parse):
+    # przypisania w gałęziach wyciekają jak w If — `x` widoczny po matchu
+    src = (
+        _MATCH_BASE
+        + "aby działać:\n"
+        "    czym jest rezultat?\n"
+        "        jeśli Błąd z opisem:\n"
+        "            x to jeden\n"
+        "        jeśli Wynik z wynikiem:\n"
+        "            x to dwa\n"
+        "    y to x\n"
+    )
+    m = parse(src)
+    y_value = m.body[3].body[1].value.resolved
+    assert isinstance(y_value, ast.Identifier)
+    assert ("x",) in y_value.lemmas_set

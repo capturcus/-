@@ -1,0 +1,51 @@
+# Typy wariantowe:
+# - deklaracja unii: `Rezultat to Wynik albo Błąd` (warianty to istniejące
+#   struktury, bez parametrów typu),
+# - dopasowanie: `czym jest X?` z wyczerpującymi gałęziami
+#   `jeśli Wariant z polem [z polem...]:` dekonstruującymi wariant.
+
+definicja Błędu:
+    opis (Tekst)
+
+definicja Wyniku z elementem:
+    wynik (element)
+
+Rezultat to Wynik albo Błąd
+
+aby wypisać tekst:
+    zwróć
+
+aby wysłać tekst do wtyczki (Liczba) -> Liczba:
+    zwróć zero
+
+# Gałęzie zwracają różne warianty jednej unii — funkcja jest otypowana unią.
+aby zapisać do bazy tekst -> Rezultat:
+    wynik to wyślij tekst do bazy
+    jeśli wynik równe zero:
+        zwróć nowy Wynik o wyniku zero
+    inaczej:
+        zwróć nowy Błąd o opisie "nie udało się zapisać"
+
+# `czym jest` na nieotypowanym parametrze — unia wnioskowana z gałęzi
+# trafia do sygnatury funkcji. Gałąź nie musi wiązać wszystkich pól
+# wariantu (`jeśli Wynik:` bez `z wynikiem`).
+aby opisywać rezultat -> Tekst:
+    czym jest rezultat?
+        jeśli Wynik:
+            zwróć "powodzenie"
+        jeśli Błąd z opisem:
+            zwróć opis
+
+aby działać:
+    baza to siedem
+    wynik to zapisz do bazy "test"
+    czym jest wynik?
+        jeśli Błąd z opisem:
+            wypisz "błąd"
+            wypisz opis
+        jeśli Wynik z wynikiem:
+            wypisz "ok"
+            jeśli wynik równe zero:
+                wypisz "zero"
+    komunikat to opisuj wynik
+    wypisz komunikat

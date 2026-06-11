@@ -81,10 +81,43 @@ def _occurs(var, t):
     return False
 
 
-def _unify_variants(ft0, ft1):
+def _widening_union(heads):
+    """Głowa zadeklarowanej unii pokrywającej wszystkie `heads` (każda głowa
+    jest tą unią albo jej wariantem-strukturą). To jedyna dopuszczana relacja
+    podtypowania: struktura < typ wariantowy. Przy wielu kandydatach wygrywa
+    najmniejsza (minimalne pokrycie); remis → TypeCheckError. None gdy żadna
+    unia nie pokrywa."""
+    if module is None:
+        return None
+    cands = []
+    for decl in module.body:
+        if not isinstance(decl, ast.UnionDef):
+            continue
+        uh = "".join(decl.name)
+        members = {"".join(m) for m in decl.members}
+        if all(h == uh or h in members for h in heads):
+            cands.append((len(members), uh))
+    if not cands:
+        return None
+    cands.sort()
+    if len(cands) > 1 and cands[0][0] == cands[1][0]:
+        opts = " i ".join(sorted(uh for _, uh in cands[:2]))
+        raise TypeCheckError(
+            f"niejednoznaczne rozszerzenie do typu wariantowego: "
+            f"{', '.join(sorted(heads))} pasuje do {opts}"
+        )
+    return cands[0][1]
+
+
+def _unify_variants(ft0, ft1, widen=False):
     """Unifikacja dwóch konkretów: przecięcie po GŁOWIE, a dla wspólnych głów
     rekurencyjna unifikacja argumentów (strukturalnie). Przy pustych args
-    redukuje się do przecięcia zbiorów (zachowanie sprzed generyków)."""
+    redukuje się do przecięcia zbiorów (zachowanie sprzed generyków).
+
+    `widen`: przy pustym przecięciu spróbuj rozszerzyć obie strony do
+    wspólnej zadeklarowanej unii (struktura < typ wariantowy). Unia nie
+    niesie parametrów typu (parametryzacja to sprawa struktur), więc
+    argumenty wariantów są przy rozszerzeniu porzucane."""
     by0, by1 = {}, {}
     for a in ft0.variants:
         by0.setdefault(a.head, []).append(a)
@@ -92,6 +125,22 @@ def _unify_variants(ft0, ft1):
         by1.setdefault(a.head, []).append(a)
     common_heads = by0.keys() & by1.keys()
     if not common_heads:
+        if widen:
+            u = _widening_union(by0.keys() | by1.keys())
+            if u is not None:
+                u_set = {AppliedType(u, ())}
+                # Reużyj stronę będącą już unią (jak optymalizacja niżej) —
+                # zero śmieci, gdy fixpoint trafia w ten sam widening co przebieg.
+                if u_set == ft0.variants:
+                    ft1.next = ft0
+                    return ft0
+                if u_set == ft1.variants:
+                    ft0.next = ft1
+                    return ft1
+                widened = VariantVar(variants=u_set)
+                ft0.next = widened
+                ft1.next = widened
+                return widened
         raise TypeCheckError(f"cannot unify {ft0} with {ft1}")
     result = set()
     for h in common_heads:
@@ -117,13 +166,17 @@ def _unify_variants(ft0, ft1):
     return new_variant
 
 
-def unify_types(t0, t1):
+def unify_types(t0, t1, widen=False):
+    """`widen=True` dopuszcza rozszerzenie struktura→unia przy konflikcie głów
+    — używane na POZYCJACH TOP-LEVEL (przypisanie, return, argument wywołania,
+    wartość pola, adnotacja). Rekurencyjna unifikacja argumentów typów jest
+    zawsze ścisła (typy parametryzowane są inwariantne)."""
     ft0 = find_type(t0)
     ft1 = find_type(t1)
     if ft0 is ft1:
         return ft0
     if isinstance(ft0, VariantVar) and isinstance(ft1, VariantVar):
-        return _unify_variants(ft0, ft1)
+        return _unify_variants(ft0, ft1, widen)
     # Co najmniej jedna strona to wolna zmienna — przepnij ją na drugą.
     concrete, abstract = (ft0, ft1) if isinstance(ft0, VariantVar) else (ft1, ft0)
     if isinstance(concrete, VariantVar) and _occurs(abstract, concrete):
@@ -367,6 +420,8 @@ def resolve_statement(node, scope):
         resolve_while(node, scope)
     if isinstance(node, ast.For):
         resolve_for(node, scope)
+    if isinstance(node, ast.Match):
+        resolve_match(node, scope)
     if isinstance(node, ast.Return):
         resolve_return(node, scope)
     resolve_expression(node, scope)
@@ -380,7 +435,7 @@ def resolve_expression(node, scope):
     if isinstance(node, ast.Typed):
         expr_t = resolve_expression(node.expr, scope)
         explicit_t = elaborate(node.type, {}, fresh_unknown=True)
-        return unify_types(expr_t, explicit_t)
+        return unify_types(expr_t, explicit_t, widen=True)
     if isinstance(node, ast.BinOp):
         return resolve_bin_op(node, scope)
     if isinstance(node, ast.UnaryOp):
@@ -414,7 +469,7 @@ def resolve_assignment(node, scope):
     print("Assignment")
     target_type = resolve_expression(node.target.resolved, scope)
     value_type = resolve_expression(node.value.resolved, scope)
-    unify_types(target_type, value_type)
+    unify_types(target_type, value_type, widen=True)
     # # target to krotka — element pojedynczy lub łańcuch getterów
     # if isinstance(node.target, tuple):
     #     for t in node.target:
@@ -479,9 +534,93 @@ def resolve_return(node, scope):
     print("Return")
     if node.value is not None:
         t = resolve_expression(node.value, scope)
-        unify_types(scope.root_fdt.ret_type, t)
+        # widen: gałęzie zwracające różne warianty jednej unii typują
+        # funkcję tą unią; warianty bez wspólnej unii → TypeCheckError.
+        unify_types(scope.root_fdt.ret_type, t, widen=True)
     else:
         unify_types(scope.root_fdt.ret_type, variant(["Nic"]))
+
+
+def _union_for_match(subject_t, branch_heads, line):
+    """Unia, do której należy subject `czym jest`. Kandydaci: unie, których
+    zbiór wariantów RÓWNA SIĘ zbiorowi gałęzi (każdy wariant unii musi mieć
+    gałąź — wyczerpujące dopasowanie; gałąź spoza unii też dyskwalifikuje).
+    Przy wielu kandydatach rozstrzyga znany typ subjectu. Gdy brak kandydata,
+    a typ subjectu to znana unia — komunikat wskazuje brakujące/nadmiarowe
+    gałęzie."""
+    branch_set = set(branch_heads)
+    ft = find_type(subject_t)
+    subj_head = None
+    if isinstance(ft, VariantVar) and len(ft.variants) == 1:
+        subj_head = next(iter(ft.variants)).head
+    cands = [
+        decl for decl in module.body
+        if isinstance(decl, ast.UnionDef)
+        and {"".join(m) for m in decl.members} == branch_set
+    ]
+    if len(cands) == 1:
+        return cands[0]
+    if len(cands) > 1:
+        for c in cands:
+            if "".join(c.name) == subj_head:
+                return c
+        opts = ", ".join(sorted("".join(c.name) for c in cands))
+        raise TypeCheckError(
+            f"gałęzie 'czym jest' (linia {line}) pasują do wielu typów "
+            f"wariantowych: {opts} — dodaj adnotację typu")
+    if subj_head is not None:
+        ud = find_union_def((subj_head,))
+        if ud is not None:
+            members = {"".join(m) for m in ud.members}
+            problems = []
+            missing = members - branch_set
+            if missing:
+                problems.append(f"brakuje gałęzi: {', '.join(sorted(missing))}")
+            extra = branch_set - members
+            if extra:
+                problems.append(
+                    f"gałęzie spoza unii: {', '.join(sorted(extra))}")
+            raise TypeCheckError(
+                f"'czym jest' (linia {line}) na typie '{subj_head}': "
+                f"{'; '.join(problems)}")
+    raise TypeCheckError(
+        f"gałęzie 'czym jest' (linia {line}) — "
+        f"{', '.join(sorted(branch_set))} — nie odpowiadają wariantom "
+        f"żadnego zadeklarowanego typu wariantowego")
+
+
+def resolve_match(node, scope):
+    print("Match")
+    subject_t = resolve_expression(node.subject, scope)
+    branch_heads = []
+    for br in node.branches:
+        h = "".join(br.type_name)
+        if h in branch_heads:
+            raise TypeCheckError(
+                f"powtórzona gałąź '{h}' w 'czym jest' (linia {node.line})")
+        branch_heads.append(h)
+    ud = _union_for_match(subject_t, branch_heads, node.line)
+    unify_types(
+        subject_t,
+        VariantVar(variants={AppliedType("".join(ud.name), ())}),
+        widen=True,
+    )
+    for br in node.branches:
+        sd = find_struct_def(br.type_name)
+        # Świeża instancja per gałąź: unia nie niesie parametrów typu, więc
+        # pola-parametry wariantu zaczynają jako wolne zmienne i konkretyzują
+        # się przez użycie w ciele gałęzi.
+        _, env = instantiate_struct(sd)
+        br_scope = scope.child_for(br, "body")
+        for fid in br.fields:
+            field = find_field_for_ident(sd, fid)
+            if field is None:
+                raise TypeCheckError(
+                    f"'{'_'.join(fid.surface)}' nie jest polem struktury "
+                    f"'{'_'.join(br.type_name)}' (linia {br.line})")
+            br_scope.declare(fid, elaborate(field.type, env))
+        for stmt in br.body:
+            resolve_statement(stmt, br_scope)
 
 
 def resolve_not(node, scope):
@@ -515,7 +654,7 @@ def resolve_function_call(node, scope):
     arg_types, ret_type = instantiate(fdt)
     for (t0, p) in zip(arg_types, node.params):
         t1 = resolve_expression(p, scope)
-        unify_types(t0, t1)
+        unify_types(t0, t1, widen=True)
     return ret_type
 
 
@@ -608,11 +747,19 @@ def resolve_subscript(node, scope):
 def find_struct_def(type_name):
     # type_name bywa krotką lemm (z StructCreation) albo sklejonym stringiem
     # (typ ze scope) — "".join normalizuje oba do tej samej postaci.
+    return _find_type_decl(type_name, ast.StructDef)
+
+
+def find_union_def(type_name):
+    return _find_type_decl(type_name, ast.UnionDef)
+
+
+def _find_type_decl(type_name, decl_cls):
     if module is None:
         return None
     target = "".join(type_name)
     for decl in module.body:
-        if isinstance(decl, ast.StructDef) and "".join(decl.name) == target:
+        if isinstance(decl, decl_cls) and "".join(decl.name) == target:
             return decl
     return None
 
@@ -655,6 +802,12 @@ def elaborate(tref, env, fresh_unknown=False):
         return find_type(env[h])
     sd = find_struct_def(tref.head)
     if sd is None:
+        if find_union_def(tref.head) is not None:
+            # Unia jest zawsze 0-arg — parametryzacja to sprawa struktur.
+            if tref.args:
+                raise TypeCheckError(
+                    f"typ wariantowy '{h}' nie przyjmuje argumentów typu")
+            return VariantVar(variants={AppliedType(h, ())})
         if fresh_unknown and h not in BUILTINS:
             v = new_type()
             env[h] = v
@@ -690,6 +843,10 @@ def _as_struct(result_t):
 def resolve_struct_creation(node, scope):
     print("StructCreation")
     sd = find_struct_def(node.type_name)
+    if sd is None and find_union_def(node.type_name) is not None:
+        raise TypeCheckError(
+            f"nie można utworzyć wartości typu wariantowego "
+            f"'{'_'.join(node.type_name)}' — utwórz jedną z jego struktur")
     if sd is None:
         # Nieznana struktura (builtin / test bez `module`) — zachowanie sprzed generyków.
         for a in node.args:
@@ -713,9 +870,9 @@ def resolve_struct_arg(node, scope, struct_creation):
     env = struct_creation.__dict__.get("_struct_env", {})
     field_t = elaborate(field.type, env)   # pole-parametr → współdzielona zmienna instancji
     if node.value is not None:
-        unify_types(field_t, resolve_expression(node.value, scope))
+        unify_types(field_t, resolve_expression(node.value, scope), widen=True)
     else:
-        unify_types(field_t, scope.get_type(field.name))
+        unify_types(field_t, scope.get_type(field.name), widen=True)
 
 
 def resolve_identifier(node, scope):

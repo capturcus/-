@@ -1,287 +1,403 @@
-# Analizator morfologiczny — przekład gćć-python/morph_anal.py na język Ć.
-# Wczytuje słownik SGJP, dopina analizy do tokenów, zwraca kanoniczną krotkę
-# lematów dla zadanego tokenu.
+# Przekład gćć-python/morph_anal.py na Ć.
+#
+# Brakujące elementy języka zastąpione konstrukcjami z typów
+# parametryzowanych i wariantowych:
+# - lista łączona:  Lista to Węzeł albo PustaLista  (zamiast list Pythona),
+# - opcja:          Opcja to Trafienie albo Pudło   (zamiast None),
+# - słownik:        lista Haseł (klucz, zawartość); wstawienie nowego Hasła
+#   przesłania stare (semantyka assoc-listy zamiast dict.setdefault+update).
+#
+# Świadome uproszczenia względem pierwowzoru (wymagałyby stdlib):
+# - podzielić to atrapa — prawdziwe dzielenie tekstu po separatorze wymaga
+#   operacji na znakach, których język jeszcze nie ma,
+# - kanonizować działa na pojedynczym słowie (segmentacja po "_" i wielkich
+#   literach to znów operacje tekstowe),
+# - pominięta poprawka lematów imiesłowów (cytaty) — wymaga kluczy złożonych,
+# - pominięty skrót "czasownik nie ma morfologii" oraz scalanie przypadków
+#   przyimków (wstawiamy nowsze hasło zamiast sumować zbiory).
 
+definicja Węzła z elementem:
+    głowa (element)
+    ogon (Lista)
 
-# === Funkcje wbudowane (do uzupełnienia przez przyszły runtime) ===
+definicja PustejListy:
+    znacznik (Liczba)
 
-# Wejście-wyjście, czas.
-można otwórz_plik x (Tekst) -> Lista
-można wypisz_na_stderr x (Tekst)
-można weź_obecny_czas -> Liczba
+Lista to Węzeł albo PustaLista
 
-# Operacje tekstowe.
-można rozdziel x (Tekst) z separatorem (Tekst) -> Lista
-można weź_przed_separatorem x (Tekst) z separatorem (Tekst) -> Tekst
-można obniż_litery x (Tekst) -> Tekst
-można podnieś_pierwszą_literę x (Tekst) -> Tekst
-można weź_pierwszy_znak x (Tekst) -> Tekst
-można sklej_dwa x (Tekst) z drugim (Tekst) -> Tekst
-można policz_długość_tekstu x (Tekst) -> Liczba
-można sprawdź_wielką_literę x (Tekst) -> Przełącznik
-można sprawdź_równość_tekstów x (Tekst) z drugim (Tekst) -> Przełącznik
+definicja Trafienia z wartością:
+    wartość (wartość)
 
-# Operacje listowe.
-można dopisz_na_koniec x (Lista) z elementem
-można policz_długość_listy x (Lista) -> Liczba
+definicja Pudła:
+    powód (Tekst)
 
-# Operacje mapowe.
-można ustaw_w_mapie x (Mapa) z kluczem z wartością
-można sprawdź_klucz_mapy x (Mapa) z kluczem -> Przełącznik
-można pobierz_lub_pustą_listę x (Mapa) z kluczem -> Lista
-można pobierz_klucze_mapy x (Mapa) -> Lista
+Opcja to Trafienie albo Pudło
 
-# Klasyfikacja oznaczeń SGJP.
-można sprawdź_czy_przypadek x (Tekst) -> Przełącznik
-można sprawdź_czy_imiesłów x (Tekst) -> Przełącznik
-można sprawdź_czy_czasownik x (Tekst) -> Przełącznik
-można sprawdź_czy_przymiotnikowate x (Tekst) -> Przełącznik
+definicja Hasła z klucza na zawartość:
+    klucz (klucz)
+    zawartość (zawartość)
 
-# Atrybuty tokenu — dostęp do struktury Token z lekser-a.
-można stwórz_nowy_token z rodzajem (Tekst) z segmentami (Lista) z analizami (Lista) -> Wyraz
-
-# Sygnalizowanie błędu.
-można rzuć_błąd x (Tekst)
-
-
-# === Definicje typów ===
-
+# Odpowiednik MorphAnalysis (NamedTuple); "napis" to forma powierzchniowa,
+# którą Python trzyma jako klucz w db — tu nosimy ją w analizie.
 definicja Analizy:
-    część_mowy (Tekst)
+    napis (Tekst)
+    klasa (Tekst)
     lemat (Tekst)
-    znacznik (Tekst)
-    przypadek (Lista)
+    etykieta (Tekst)
+    kwalifikator (Tekst)
+    przypadki (Lista)
+    liczba (Opcja)
+    rodzaje (Lista)
 
+# Wynik _morpho_for_tag: (case, number, gender).
+definicja Morfologii:
+    przypadki (Lista)
+    liczba (Opcja)
+    rodzaje (Lista)
 
-definicja Wyrazu:
-    rodzaj (Tekst)
-    segmenty (Lista)
+# Odpowiednik pary (db, preps) zwracanej przez load().
+definicja Bazy:
+    formy (Lista)
+    przyimki (Lista)
+
+# Odpowiednik tokenu po analyze(): słowo + analizy z bazy.
+definicja OpisanegoSłowa:
+    słowo (Tekst)
     analizy (Lista)
 
 
-definicja Bazy:
-    słownik_form (Mapa)
-    słownik_przyimków (Mapa)
+# ---------- operacje na listach ----------
+
+aby utworzyć_pustą:
+    zwróć nowa PustaLista o znaczniku zero
+
+aby dodać element do listy:
+    zwróć nowy Węzeł o głowie element o ogonie lista
+
+aby liczyć listę:
+    czym jest lista?
+        jeśli PustaLista:
+            zwróć zero
+        jeśli Węzeł z ogonem:
+            zwróć jeden plus licz ogon
+
+aby brać_pierwszą z listy:
+    czym jest lista?
+        jeśli PustaLista:
+            zwróć nowe Pudło o powodzie "lista jest pusta"
+        jeśli Węzeł z głową:
+            zwróć nowe Trafienie o wartości głowa
+
+aby wybrać pozycję z listy:
+    czym jest lista?
+        jeśli PustaLista:
+            zwróć nowe Pudło o powodzie "pozycja poza listą"
+        jeśli Węzeł z głową z ogonem:
+            jeśli pozycja równe zero:
+                zwróć nowe Trafienie o wartości głowa
+            zwróć wybierz (pozycja minus jeden) z ogona
+
+aby należeć element do zbioru:
+    czym jest zbiór?
+        jeśli PustaLista:
+            zwróć zero równe jeden
+        jeśli Węzeł z głową z ogonem:
+            jeśli głowa równe element:
+                zwróć zero równe zero
+            zwróć należy element do ogona
+
+# Przecięcie listy ze zbiorem (Python: frozenset(p for p in atoms if p in CASES)).
+aby filtrować atomy według zbioru:
+    czym jest atomy?
+        jeśli PustaLista:
+            zwróć atomy
+        jeśli Węzeł z głową z ogonem:
+            reszta to filtruj ogon według zbioru
+            jeśli należy głowa do zbioru:
+                zwróć dodaj głowę do reszty
+            zwróć resztę
+
+aby ignorować rzecz:
+    zwróć
 
 
-definicja Klucza:
-    część_mowy (Tekst)
-    lemat (Tekst)
+# ---------- opcja ----------
+
+aby wydobyć opcję z awaryjną:
+    czym jest opcja?
+        jeśli Trafienie z wartością:
+            zwróć wartość
+        jeśli Pudło:
+            zwróć awaryjną
 
 
-# Stuby typów wbudowanych — w docelowej formie języka będą dostępne
-# bez deklaracji. Pola są symboliczne; parser potrzebuje ich tylko po to,
-# żeby `nowa Lista` / `nowa Mapa` traktować jak konstrukcję struct.
+# ---------- słownik (assoc-lista Haseł) ----------
 
-definicja Listy:
-    rozmiar (Liczba)
+aby szukać klucza w słowniku:
+    czym jest słownik?
+        jeśli PustaLista:
+            zwróć nowe Pudło o powodzie "nie znaleziono klucza"
+        jeśli Węzeł z głową z ogonem:
+            jeśli klucz głowy równe klucz:
+                zwróć nowe Trafienie o wartości zawartość głowy
+            zwróć szukaj klucza w ogonie
 
+aby wstawić klucz z zawartością do słownika:
+    zwróć dodaj (nowe Hasło o kluczu klucz o zawartości zawartość) do słownika
 
-definicja Mapy:
-    rozmiar (Liczba)
-
-
-# === Pomocnicze konstruktory ===
-
-aby stwórz_pustą_listę -> Lista:
-    zwróć nowa Lista
-
-
-aby stwórz_pustą_mapę -> Mapa:
-    zwróć nowa Mapa
-
-
-# === Wydobycie przypadków z znacznika SGJP ===
-# Tag SGJP ma postać "pos:cat1:cat2:..." — szukamy pierwszej części po pos
-# zawierającej oznaczenia przypadków (rozdzielone kropką).
-
-aby wydobądź_przypadki x (Tekst) -> Lista:
-    części to rozdziel x z ":"
-    indeks to jeden
-    dopóki indeks mniejsze od policz_długość_listy części:
-        kawałek to części pod indeks
-        atomy to rozdziel kawałek z "."
-        zebrane to stwórz_pustą_listę
-        wewnętrzny to zero
-        dopóki wewnętrzny mniejsze od policz_długość_listy atomy:
-            atom to atomy pod wewnętrzny
-            jeśli sprawdź_czy_przypadek atom:
-                dopisz_na_koniec zebrane z atomem
-            wewnętrzny to wewnętrzny plus jeden
-        jeśli policz_długość_listy zebrane większe od zero:
-            zwróć zebrane
-        indeks to indeks plus jeden
-    zwróć stwórz_pustą_listę
+# Mapowanie atomów rodzaju przez GENDER_MAP — zbiera tylko trafienia.
+aby tłumaczyć atomy przez mapę:
+    czym jest atomy?
+        jeśli PustaLista:
+            zwróć atomy
+        jeśli Węzeł z głową z ogonem:
+            reszta to tłumacz ogon przez mapę
+            znalezisko to szukaj głowy w mapie
+            czym jest znalezisko?
+                jeśli Trafienie z wartością:
+                    zwróć dodaj wartość do reszty
+                jeśli Pudło:
+                    zwróć resztę
 
 
-# === Wczytanie bazy SGJP ===
-# Format pliku: linie z tab-rozdzielonymi polami:
-#   forma  lemat_z_kropką  znacznik  ...
-# Budujemy mapę forma → lista Analiz oraz mapę przyimek → lista przypadków.
-# Imiesłowy (pact, ppas) mają w SGJP lemmę = bezokolicznik; podmieniamy ją
-# na formę cytowaną (nom sg m1).
+# ---------- atrapa stdlib tekstu ----------
 
-aby ładuj_bazę x (Tekst) -> Bazy:
-    wypisz_na_stderr "Wczytywanie bazy SGJP..."
-    czas_startu to weź_obecny_czas
-    mapa_form to stwórz_pustą_mapę
-    mapa_przyimków to stwórz_pustą_mapę
-    mapa_cytatów to stwórz_pustą_mapę
-    wiersze to otwórz_plik x
-    indeks_wiersza to zero
-    dopóki indeks_wiersza mniejsze od policz_długość_listy wiersze:
-        wiersz to wiersze pod indeks_wiersza
-        kolumny to rozdziel wiersz z "	"
-        jeśli policz_długość_listy kolumny mniejsze od trzy:
-            indeks_wiersza to indeks_wiersza plus jeden
-            dalej
-        forma to kolumny pod zero
-        pole_lematu to kolumny pod jeden
-        znacznik to kolumny pod dwa
-        lemat to weź_przed_separatorem pole_lematu z ":"
-        część_mowy to weź_przed_separatorem znacznik z ":"
-        przypadek to wydobądź_przypadki znacznik
-        nowa_analiza to nowa Analiza o części_mowy część_mowy o lemacie lemat o znaczniku znacznik o przypadku przypadek
-        jeśli nie sprawdź_klucz_mapy mapa_form z formą:
-            ustaw_w_mapie mapa_form z formą z stwórz_pustą_listę
-        kontener_analiz to mapa_form pod forma
-        dopisz_na_koniec kontener_analiz z nową_analizą
-        jeśli sprawdź_równość_tekstów część_mowy z "prep":
-            jeśli policz_długość_listy przypadek większe od zero:
-                jeśli nie sprawdź_klucz_mapy mapa_przyimków z lematem:
-                    ustaw_w_mapie mapa_przyimków z lematem z stwórz_pustą_listę
-                kontener_przypadków to mapa_przyimków pod lemat
-                dla pojedynczy_przypadek w przypadek:
-                    dopisz_na_koniec kontener_przypadków z pojedynczym_przypadkiem
-        jeśli sprawdź_czy_imiesłów część_mowy:
-            klucz_cytatu to nowy Klucz o części_mowy część_mowy o lemacie lemat
-            ustaw_w_mapie mapa_cytatów z kluczem_cytatu z formą
-        indeks_wiersza to indeks_wiersza plus jeden
-    # Drugi przebieg — podmiana lematu imiesłowów na formę cytowaną.
-    wszystkie_klucze to pobierz_klucze_mapy mapa_form
-    indeks_klucza to zero
-    dopóki indeks_klucza mniejsze od policz_długość_listy wszystkie_klucze:
-        bieżący_klucz to wszystkie_klucze pod indeks_klucza
-        pula_analiz to mapa_form pod bieżący_klucz
-        dla pojedyncza_analiza w pula_analiz:
-            jeśli sprawdź_czy_imiesłów część_mowy pojedynczej_analizy:
-                stary_klucz to nowy Klucz o części_mowy część_mowy pojedynczej_analizy o lemacie lemat pojedynczej_analizy
-                jeśli sprawdź_klucz_mapy mapa_cytatów z starym_kluczem:
-                    nowy_lemat to mapa_cytatów pod stary_klucz
-                    lemat pojedynczej_analizy to nowy_lemat
-        indeks_klucza to indeks_klucza plus jeden
-    wypisz_na_stderr "Baza wczytana."
-    zwróć nowa Baza o słowniku_form mapa_form o słowniku_przyimków mapa_przyimków
+# ATRAPA: dzielenie tekstu po separatorze wymaga operacji na znakach.
+# Zwraca jednoelementową listę z całym tekstem.
+aby podzielić tekst po separatorze:
+    zwróć dodaj tekst do utwórz_pustą
 
 
-# === Anotowanie tokenów analizami ===
-# Dla każdego tokenu typu WORD dopinamy listę analiz per segment.
-# Pozostałe tokeny przechodzą bez analiz.
+# ---------- stałe z morph_anal.py ----------
 
-aby przeanalizować_tokeny x (Lista) z bazą (Bazy) -> Lista:
-    wynik to stwórz_pustą_listę
-    dla wyraz w x:
-        rodzaj_wyrazu to rodzaj wyrazu
-        lista_segmentów to segmenty wyrazu
-        analizy_per_segment to stwórz_pustą_listę
-        jeśli sprawdź_równość_tekstów rodzaj_wyrazu z "WORD":
-            dla segment w lista_segmentów:
-                małe to obniż_litery segment
-                pula to pobierz_lub_pustą_listę słownik_form bazy z małym
-                dopisz_na_koniec analizy_per_segment z pulą
-        nowy to stwórz_nowy_token z rodzajem_wyrazu z listą_segmentów z analizami_per_segment
-        dopisz_na_koniec wynik z nowym
-    zwróć wynik
+aby wymienić_przypadki:
+    zbiór to utwórz_pustą
+    zbiór to dodaj "nom" do zbioru
+    zbiór to dodaj "gen" do zbioru
+    zbiór to dodaj "dat" do zbioru
+    zbiór to dodaj "acc" do zbioru
+    zbiór to dodaj "inst" do zbioru
+    zbiór to dodaj "loc" do zbioru
+    zbiór to dodaj "voc" do zbioru
+    zwróć zbiór
 
+aby wymienić_liczby:
+    zbiór to utwórz_pustą
+    zbiór to dodaj "sg" do zbioru
+    zbiór to dodaj "pl" do zbioru
+    zwróć zbiór
 
-# === Skapitalizowanie lematu ===
-# Jeśli pierwszy znak segmentu jest wielki, podnieś pierwszy znak lematu.
+aby wymienić_mapę_rodzajów:
+    mapa to utwórz_pustą
+    mapa to wstaw "m1" z "m" do mapy
+    mapa to wstaw "m2" z "m" do mapy
+    mapa to wstaw "m3" z "m" do mapy
+    mapa to wstaw "m" z "m" do mapy
+    mapa to wstaw "f" z "f" do mapy
+    mapa to wstaw "n1" z "n" do mapy
+    mapa to wstaw "n2" z "n" do mapy
+    mapa to wstaw "n" z "n" do mapy
+    zwróć mapę
 
-aby skapitalizuj_lemat x (Tekst) z segmentem (Tekst) -> Tekst:
-    jeśli policz_długość_tekstu segmentem równe zero:
-        zwróć x
-    jeśli policz_długość_tekstu x równe zero:
-        zwróć x
-    pierwszy to weź_pierwszy_znak segmentem
-    jeśli nie sprawdź_wielką_literę pierwszy:
-        zwróć x
-    zwróć podnieś_pierwszą_literę x
+aby wymienić_klasy_przymiotnikowe:
+    zbiór to utwórz_pustą
+    zbiór to dodaj "adj" do zbioru
+    zbiór to dodaj "pact" do zbioru
+    zbiór to dodaj "ppas" do zbioru
+    zwróć zbiór
 
-
-# === Kanonikalizacja łagodna ===
-# Per-segment: preferuj analizy adj-like, dopasuj do formy powierzchniowej,
-# w razie braku — pierwszy element puli. Segmenty bez analiz / jednoznakowe
-# przechodzą bez zmian.
-
-aby znormalizuj_łagodnie wyraz (Wyraz) -> Lista:
-    lista_segmentów to segmenty wyrazu
-    zbiory_pul to analizy wyrazu
-    wynik to stwórz_pustą_listę
-    indeks to zero
-    dopóki indeks mniejsze od policz_długość_listy lista_segmentów:
-        segment to lista_segmentów pod indeks
-        pula_segmentu to zbiory_pul pod indeks
-        jeśli policz_długość_listy pula_segmentu równe zero:
-            dopisz_na_koniec wynik z segmentem
-            indeks to indeks plus jeden
-            dalej
-        jeśli policz_długość_tekstu segment równe jeden:
-            dopisz_na_koniec wynik z segmentem
-            indeks to indeks plus jeden
-            dalej
-        preferowane to stwórz_pustą_listę
-        dla pojedyncza w pula_segmentu:
-            jeśli sprawdź_czy_przymiotnikowate część_mowy pojedynczej:
-                dopisz_na_koniec preferowane z pojedynczą
-        jeśli policz_długość_listy preferowane równe zero:
-            preferowane to pula_segmentu
-        małe to obniż_litery segment
-        wybrana to preferowane pod zero
-        dla kandydatka w preferowane:
-            jeśli sprawdź_równość_tekstów lemat kandydatki z małym:
-                wybrana to kandydatka
-        skapitalizowany to skapitalizuj_lemat lemat wybranej z segmentem
-        dopisz_na_koniec wynik z skapitalizowanym
-        indeks to indeks plus jeden
-    zwróć wynik
+aby wymienić_klasy_czasownikowe:
+    zbiór to utwórz_pustą
+    zbiór to dodaj "fin" do zbioru
+    zbiór to dodaj "impt" do zbioru
+    zbiór to dodaj "inf" do zbioru
+    zbiór to dodaj "imps" do zbioru
+    zbiór to dodaj "praet" do zbioru
+    zbiór to dodaj "pcon" do zbioru
+    zbiór to dodaj "winien" do zbioru
+    zbiór to dodaj "bedzie" do zbioru
+    zbiór to dodaj "fut" do zbioru
+    zbiór to dodaj "cond" do zbioru
+    zwróć zbiór
 
 
-# === Kanonikalizacja ścisła ===
-# Per-segment filtruj analizy po wymaganym przypadku.
-# Każdy segment z analizami musi mieć ≥1 takich, wszystkie z tą samą lematą,
-# inaczej rzucamy błąd. Segmenty bez analiz / jednoznakowe — bez zmian.
+# ---------- _morpho_for_tag ----------
 
-aby znormalizuj_ściśle wyraz (Wyraz) z wymaganym_przypadkiem (Tekst) -> Lista:
-    lista_segmentów to segmenty wyrazu
-    zbiory_pul to analizy wyrazu
-    wynik to stwórz_pustą_listę
-    indeks to zero
-    dopóki indeks mniejsze od policz_długość_listy lista_segmentów:
-        segment to lista_segmentów pod indeks
-        pula_segmentu to zbiory_pul pod indeks
-        jeśli policz_długość_listy pula_segmentu równe zero:
-            dopisz_na_koniec wynik z segmentem
-            indeks to indeks plus jeden
-            dalej
-        jeśli policz_długość_tekstu segment równe jeden:
-            dopisz_na_koniec wynik z segmentem
-            indeks to indeks plus jeden
-            dalej
-        dopasowane to stwórz_pustą_listę
-        dla pojedyncza w pula_segmentu:
-            dla obecny_przypadek w przypadek pojedynczej:
-                jeśli sprawdź_równość_tekstów obecny_przypadek z wymaganym_przypadkiem:
-                    dopisz_na_koniec dopasowane z pojedynczą
-        jeśli policz_długość_listy dopasowane równe zero:
-            rzuć_błąd "segment nie ma wymaganej formy"
-        unikalne_lematy to stwórz_pustą_mapę
-        dla dopasowana w dopasowane:
-            ustaw_w_mapie unikalne_lematy z lematem_dopasowanej z jeden
-        klucze_lematów to pobierz_klucze_mapy unikalne_lematy
-        jeśli policz_długość_listy klucze_lematów większe od jeden:
-            rzuć_błąd "niejednoznaczność lematu"
-        pierwsza to dopasowane pod zero
-        skapitalizowany to skapitalizuj_lemat lemat pierwszej z segmentem
-        dopisz_na_koniec wynik z skapitalizowanym
-        indeks to indeks plus jeden
-    zwróć wynik
+# Rozbiera części tagu SGJP na (przypadki, liczba, rodzaje).
+# Rekursja od końca + nadpisanie wartością z głowy = "pierwsze trafienie
+# wygrywa" jak w pythonowej pętli z continue.
+aby badać części:
+    czym jest części?
+        jeśli PustaLista:
+            zwróć nowa Morfologia o przypadkach utwórz_pustą o liczbie (nowe Pudło o powodzie "brak liczby w tagu") o rodzajach utwórz_pustą
+        jeśli Węzeł z głową z ogonem:
+            morfologia to badaj ogon
+            atomy to podziel głowę po "."
+            trafione to filtruj atomy według wymień_przypadki
+            czym jest trafione?
+                jeśli Węzeł:
+                    przypadki morfologii to trafione
+                jeśli PustaLista:
+                    liczby to filtruj atomy według wymień_liczby
+                    możliwa_liczba to bierz_pierwszą z liczb
+                    czym jest możliwa_liczba?
+                        jeśli Trafienie:
+                            liczba morfologii to możliwa_liczba
+                        jeśli Pudło:
+                            przetłumaczone to tłumacz atomy przez wymień_mapę_rodzajów
+                            czym jest przetłumaczone?
+                                jeśli Węzeł:
+                                    rodzaje morfologii to przetłumaczone
+                                jeśli PustaLista:
+                                    ignoruj atomy
+            zwróć morfologię
+
+
+# ---------- load() — wczytanie bazy ----------
+
+# Jeden wiersz sgjp.tab -> Analiza (albo Pudło dla za krótkich wierszy).
+aby przetwarzać wiersz:
+    części to podziel wiersz po "\t"
+    możliwy_napis to wybierz zero z części
+    możliwe_pole to wybierz jeden z części
+    możliwa_etykieta to wybierz dwa z części
+    kwalifikator to wydobądź (wybierz cztery z części) z ""
+    czym jest możliwy_napis?
+        jeśli Pudło z powodem:
+            zwróć nowe Pudło o powodzie powód
+        jeśli Trafienie z wartością:
+            napis to wartość
+            czym jest możliwe_pole?
+                jeśli Pudło z powodem:
+                    zwróć nowe Pudło o powodzie powód
+                jeśli Trafienie z wartością:
+                    lemat to wydobądź (bierz_pierwszą z (podziel wartość po ":")) z wartością
+                    czym jest możliwa_etykieta?
+                        jeśli Pudło z powodem:
+                            zwróć nowe Pudło o powodzie powód
+                        jeśli Trafienie z wartością:
+                            klasa to wydobądź (bierz_pierwszą z (podziel wartość po ":")) z wartością
+                            morfologia to badaj (podziel wartość po ":")
+                            analiza to nowa Analiza o napisie napis o klasie klasa o lemacie lemat o etykiecie wartość o kwalifikatorze kwalifikator o przypadkach przypadki morfologii o liczbie liczba morfologii o rodzajach rodzaje morfologii
+                            zwróć nowe Trafienie o wartości analiza
+
+# db.setdefault(form, []).append(analiza) na assoc-liście.
+aby dopisać analizę w słowniku:
+    dotychczasowe to szukaj napisu analizy w słowniku
+    czym jest dotychczasowe?
+        jeśli Trafienie z wartością:
+            zwróć wstaw napis analizy z (dodaj analizę do wartości) do słownika
+        jeśli Pudło:
+            zwróć wstaw napis analizy z (dodaj analizę do utwórz_pustą) do słownika
+
+aby wczytywać wiersze:
+    czym jest wiersze?
+        jeśli PustaLista:
+            zwróć nowa Baza o formach utwórz_pustą o przyimkach utwórz_pustą
+        jeśli Węzeł z głową z ogonem:
+            baza to wczytuj ogon
+            możliwa_analiza to przetwarzaj głowę
+            czym jest możliwa_analiza?
+                jeśli Pudło:
+                    ignoruj możliwą_analizę
+                jeśli Trafienie z wartością:
+                    formy bazy to dopisz wartość w formach bazy
+                    jeśli klasa wartości równe "prep":
+                        przyimki bazy to wstaw lemat wartości z (przypadki wartości) do przyimków bazy
+            zwróć bazę
+
+
+# ---------- analyze() ----------
+
+aby analizować słowa w słowniku:
+    czym jest słowa?
+        jeśli PustaLista:
+            zwróć słowa
+        jeśli Węzeł z głową z ogonem:
+            reszta to analizuj ogon w słowniku
+            znalezisko to szukaj głowy w słowniku
+            analizy to wydobądź znalezisko z utwórz_pustą
+            zwróć dodaj (nowe OpisaneSłowo o słowie głowa o analizach analizy) do reszty
+
+
+# ---------- canonical() ----------
+
+# Analizy o klasie przymiotnikowej (adj/pact/ppas).
+aby przesiewać analizy według klas:
+    czym jest analizy?
+        jeśli PustaLista:
+            zwróć analizy
+        jeśli Węzeł z głową z ogonem:
+            reszta to przesiewaj ogon według klas
+            jeśli należy klasa głowy do klas:
+                zwróć dodaj głowę do reszty
+            zwróć resztę
+
+# Pula kanonizacji: analizy przymiotnikowe, a gdy ich brak — wszystkie.
+aby wybrać_pulę z analiz:
+    przymiotnikowe to przesiewaj analizy według wymień_klasy_przymiotnikowe
+    czym jest przymiotnikowe?
+        jeśli PustaLista:
+            zwróć analizy
+        jeśli Węzeł:
+            zwróć przymiotnikowe
+
+# Pierwsza analiza, której lemat równa się słowu (citation match).
+aby wyszukiwać słowo w analizach:
+    czym jest analizy?
+        jeśli PustaLista:
+            zwróć nowe Pudło o powodzie "żaden lemat nie pasuje"
+        jeśli Węzeł z głową z ogonem:
+            jeśli lemat głowy równe słowo:
+                zwróć nowe Trafienie o wartości głowa
+            zwróć wyszukuj słowo w ogonie
+
+aby kanonizować słowo w słowniku:
+    znalezisko to szukaj słowa w słowniku
+    czym jest znalezisko?
+        jeśli Pudło:
+            zwróć słowo
+        jeśli Trafienie z wartością:
+            pula to wybierz_pulę z wartości
+            dopasowanie to wyszukuj słowo w puli
+            czym jest dopasowanie?
+                jeśli Trafienie z wartością:
+                    zwróć lemat wartości
+                jeśli Pudło:
+                    awaryjne to bierz_pierwszą z puli
+                    czym jest awaryjne?
+                        jeśli Trafienie z wartością:
+                            zwróć lemat wartości
+                        jeśli Pudło:
+                            zwróć słowo
+
+
+# ---------- przykład użycia ----------
+
+aby działać:
+    wiersze to utwórz_pustą
+    wiersze to dodaj "kota\tkot\tsubst:sg:gen.acc:m2" do wierszy
+    wiersze to dodaj "kot\tkot\tsubst:sg:nom:m2" do wierszy
+    wiersze to dodaj "ładny\tładny\tadj:sg:nom:m1.m2.m3:pos" do wierszy
+    wiersze to dodaj "dla\tdla\tprep:gen" do wierszy
+    baza to wczytuj wiersze
+    słowa to utwórz_pustą
+    słowa to dodaj "kota" do słów
+    słowa to dodaj "ładny" do słów
+    opisane to analizuj słowa w formach bazy
+    liczba_opisanych to licz opisane
+    kanon to kanonizuj "kota" w formach bazy
+    morfologia to badaj (podziel "subst:sg:gen.acc:m2" po ":")
+    liczba_przypadków to licz przypadki morfologii
+    czym jest liczba morfologii?
+        jeśli Trafienie z wartością:
+            kanon to wartość
+        jeśli Pudło z powodem:
+            kanon to powód
+    znalezisko to szukaj "kota" w formach bazy
+    liczba_analiz to zero
+    czym jest znalezisko?
+        jeśli Trafienie z wartością:
+            liczba_analiz to licz wartość
+        jeśli Pudło:
+            ignoruj znalezisko

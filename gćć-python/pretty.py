@@ -57,6 +57,10 @@ def _groups(node):
         return groups
     if isinstance(node, ast.StructDef):
         return [("fields", node.fields)]
+    if isinstance(node, ast.Match):
+        return [("subject", [node.subject]), ("branches", node.branches)]
+    if isinstance(node, ast.MatchBranch):
+        return [("body", node.body)]
     if isinstance(node, ast.StructCreation):
         if node.args:
             return [("args", node.args)]
@@ -98,6 +102,16 @@ def _label(node):
         return s
     if isinstance(node, ast.StructDef):
         return f"StructDef {'_'.join(node.name)}"
+    if isinstance(node, ast.UnionDef):
+        members = " albo ".join("_".join(m) for m in node.members)
+        return f"UnionDef {'_'.join(node.name)} = {members}"
+    if isinstance(node, ast.Match):
+        return "Match"
+    if isinstance(node, ast.MatchBranch):
+        s = f"MatchBranch {'_'.join(node.type_name)}"
+        for f in node.fields:
+            s += f" z {'_'.join(f.surface)}"
+        return s
     if isinstance(node, ast.Field):
         return f"Field {'_'.join(node.name.surface)} : {_fmt_tref(node.type)}"
     if isinstance(node, ast.Param):

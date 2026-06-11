@@ -908,3 +908,352 @@ def test_struct_shorthand_type_mismatch_raises(parse):
     )
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(parse(src))
+
+
+# =====================================================================
+# Typy wariantowe — widening (struktura < unia) w unifikacji
+# =====================================================================
+
+def _install_unions(*decls):
+    """Moduł z samymi UnionDef — wystarczy dla _widening_union/find_union_def.
+    `decls` to pary (nazwa, członkowie)."""
+    body = [
+        ast.UnionDef(name=(name,), members=[(m,) for m in members])
+        for name, members in decls
+    ]
+    typechecker.module = ast.Module(body=body)
+
+
+def test_unify_two_variants_widens_to_union():
+    _install_unions(("Rezultat", ["Wynik", "Błąd"]))
+    result = typechecker.unify_types(conc("Wynik"), conc("Błąd"), widen=True)
+    assert ty(result) == "Rezultat"
+
+
+def test_unify_without_widen_flag_raises():
+    # widening tylko na pozycjach top-level — domyślna unifikacja jest ścisła
+    _install_unions(("Rezultat", ["Wynik", "Błąd"]))
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.unify_types(conc("Wynik"), conc("Błąd"))
+
+
+def test_unify_struct_with_union_widens():
+    _install_unions(("Rezultat", ["Wynik", "Błąd"]))
+    result = typechecker.unify_types(conc("Wynik"), conc("Rezultat"), widen=True)
+    assert ty(result) == "Rezultat"
+
+
+def test_unify_widen_without_covering_union_raises():
+    _install_unions(("Rezultat", ["Wynik", "Błąd"]))
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.unify_types(conc("Wynik"), conc("Tekst"), widen=True)
+
+
+def test_unify_two_unions_raises():
+    # brak relacji unia < unia
+    _install_unions(("Rezultat", ["Wynik", "Błąd"]),
+                    ("Pojemnik", ["Wynik", "Pudełko"]))
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.unify_types(conc("Rezultat"), conc("Pojemnik"), widen=True)
+
+
+def test_widen_prefers_minimal_union():
+    _install_unions(("Mała", ["A", "B"]), ("Duża", ["A", "B", "C"]))
+    result = typechecker.unify_types(conc("A"), conc("B"), widen=True)
+    assert ty(result) == "Mała"
+
+
+def test_widen_ambiguous_tie_raises():
+    _install_unions(("Pierwsza", ["A", "B"]), ("Druga", ["A", "B"]))
+    with pytest.raises(typechecker.TypeCheckError, match="niejednoznaczne"):
+        typechecker.unify_types(conc("A"), conc("B"), widen=True)
+
+
+def test_widen_erases_type_arguments():
+    # unia nie niesie parametrów — Wynik[Liczba] | Błąd → Rezultat (0-arg)
+    _install_unions(("Rezultat", ["Wynik", "Błąd"]))
+    result = typechecker.unify_types(
+        _applied("Wynik", conc("Liczba")), conc("Błąd"), widen=True)
+    r = typechecker.find_type(result)
+    assert ty(r) == "Rezultat"
+    assert next(iter(r.variants)).args == ()
+
+
+def test_widen_does_not_apply_inside_type_arguments():
+    # inwariancja typów parametryzowanych: Lista[Wynik] ≠ Lista[Rezultat]
+    _install_unions(("Rezultat", ["Wynik", "Błąd"]))
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.unify_types(
+            _applied("Lista", conc("Wynik")),
+            _applied("Lista", conc("Rezultat")),
+            widen=True,
+        )
+
+
+# =====================================================================
+# Typy wariantowe — elaborate / struct creation
+# =====================================================================
+
+def test_elaborate_union_annotation_is_concrete_in_signature():
+    # głowa-unia w sygnaturze NIE staje się niejawnym parametrem typu
+    _install_unions(("Rezultat", ["Wynik", "Błąd"]))
+    t = typechecker.elaborate(
+        ast.TypeRef(head=("Rezultat",)), {}, fresh_unknown=True)
+    assert ty(t) == "Rezultat"
+
+
+def test_elaborate_union_with_type_args_raises():
+    _install_unions(("Rezultat", ["Wynik", "Błąd"]))
+    tref = ast.TypeRef(
+        head=("Rezultat",),
+        args=[ast.TypeArg(prep=None, type=ast.TypeRef(head=("Liczba",)))],
+    )
+    with pytest.raises(typechecker.TypeCheckError, match="nie przyjmuje argumentów"):
+        typechecker.elaborate(tref, {})
+
+
+def test_struct_creation_of_union_raises():
+    _install_unions(("Rezultat", ["Wynik", "Błąd"]))
+    node = ast.StructCreation(type_name=("Rezultat",), args=[])
+    with pytest.raises(typechecker.TypeCheckError, match="nie można utworzyć"):
+        typechecker.resolve_struct_creation(node, typechecker.Scope())
+
+
+# =====================================================================
+# Typy wariantowe — integracja (pełny pipeline)
+# =====================================================================
+
+_UNION_SRC = (
+    "definicja Błędu:\n"
+    "    opis (Tekst)\n"
+    "\n"
+    "definicja Wyniku z elementem:\n"
+    "    wynik (element)\n"
+    "\n"
+    "Rezultat to Wynik albo Błąd\n"
+    "\n"
+)
+
+
+@pytest.mark.integration
+def test_function_returning_two_variants_gets_union_type(parse):
+    """Gałęzie zwracające różne warianty jednej unii → funkcja otypowana unią."""
+    src = _UNION_SRC + (
+        "aby zapisywać tekst -> Rezultat:\n"
+        "    jeśli tekst równe zero:\n"
+        "        zwróć nowy Wynik o wyniku zero\n"
+        "    inaczej:\n"
+        "        zwróć nowy Błąd o opisie \"nie udało się\"\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert ty(_fdt_by_surface(("zapisywać",)).ret_type) == "Rezultat"
+
+
+@pytest.mark.integration
+def test_function_returning_two_variants_infers_union_without_annotation(parse):
+    """Ten sam program BEZ adnotacji `-> Rezultat` — unia wnioskowana."""
+    src = _UNION_SRC + (
+        "aby zapisywać tekst:\n"
+        "    jeśli tekst równe zero:\n"
+        "        zwróć nowy Wynik o wyniku zero\n"
+        "    inaczej:\n"
+        "        zwróć nowy Błąd o opisie \"nie udało się\"\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert ty(_fdt_by_surface(("zapisywać",)).ret_type) == "Rezultat"
+
+
+@pytest.mark.integration
+def test_branches_returning_unrelated_types_raise(parse):
+    """Gałęzie zwracające typy bez wspólnej unii → odrzucamy."""
+    src = _UNION_SRC + (
+        "aby zapisywać tekst:\n"
+        "    jeśli tekst równe zero:\n"
+        "        zwróć nowy Wynik o wyniku zero\n"
+        "    inaczej:\n"
+        "        zwróć \"niepowiązany tekst\"\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_assigning_two_variants_widens_variable(parse, capsys):
+    src = _UNION_SRC + (
+        "aby przygotowywać dla x:\n"
+        "    rzecz to nowy Wynik o wyniku zero\n"
+        "    rzecz to nowy Błąd o opisie \"e\"\n"
+        "    zwróć rzecz\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert ty(_fdt_by_surface(("przygotowywać",)).ret_type) == "Rezultat"
+
+
+@pytest.mark.integration
+def test_match_exhaustive_typechecks_and_binds_field_types(parse, capsys):
+    """Pełny `czym jest`: pole `opis` związane jako Tekst (typ z deklaracji
+    struktury), pole `wynik` (parametr `element`) konkretyzuje się przez
+    użycie (`plus jeden` → Liczba)."""
+    src = _UNION_SRC + (
+        "aby działać:\n"
+        "    rezultat (Rezultat) to nowy Wynik o wyniku zero\n"
+        "    czym jest rezultat?\n"
+        "        jeśli Błąd z opisem:\n"
+        "            wiadomość to opis\n"
+        "        jeśli Wynik z wynikiem:\n"
+        "            liczba to wynik plus jeden\n"
+    )
+    typechecker.resolve_module(parse(src))
+    out = capsys.readouterr().out
+    assert "Tekst" in out   # wiadomość/opis
+    assert "Liczba" in out  # liczba/wynik
+
+
+@pytest.mark.integration
+def test_match_missing_branch_raises(parse):
+    src = _UNION_SRC + (
+        "aby działać:\n"
+        "    rezultat (Rezultat) to nowy Wynik o wyniku zero\n"
+        "    czym jest rezultat?\n"
+        "        jeśli Wynik z wynikiem:\n"
+        "            liczba to wynik\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError, match="brakuje gałęzi: Błąd"):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_match_extra_branch_raises(parse):
+    src = _UNION_SRC + (
+        "definicja Pustki:\n"
+        "    nic (Liczba)\n"
+        "\n"
+        "aby działać:\n"
+        "    rezultat (Rezultat) to nowy Wynik o wyniku zero\n"
+        "    czym jest rezultat?\n"
+        "        jeśli Wynik z wynikiem:\n"
+        "            liczba to wynik\n"
+        "        jeśli Błąd z opisem:\n"
+        "            wiadomość to opis\n"
+        "        jeśli Pustka:\n"
+        "            x to jeden\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError, match="spoza unii: Pustka"):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_match_duplicate_branch_raises(parse):
+    src = _UNION_SRC + (
+        "aby działać:\n"
+        "    rezultat (Rezultat) to nowy Wynik o wyniku zero\n"
+        "    czym jest rezultat?\n"
+        "        jeśli Wynik z wynikiem:\n"
+        "            liczba to wynik\n"
+        "        jeśli Wynik:\n"
+        "            x to jeden\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError, match="powtórzona gałąź"):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_match_on_non_union_subject_raises(parse):
+    src = _UNION_SRC + (
+        "aby działać:\n"
+        "    rezultat to pięć\n"
+        "    czym jest rezultat?\n"
+        "        jeśli Wynik z wynikiem:\n"
+        "            liczba to wynik\n"
+        "        jeśli Błąd z opisem:\n"
+        "            wiadomość to opis\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_match_infers_union_type_of_free_param(parse):
+    """`czym jest` na nieotypowanym parametrze — gałęzie wyznaczają unię,
+    która trafia DO SYGNATURY funkcji; wspólny typ zwrotny gałęzi (element
+    Wyniku unifikowany z `zero`) daje Liczbę."""
+    src = _UNION_SRC + (
+        "aby obsługiwać rezultat:\n"
+        "    czym jest rezultat?\n"
+        "        jeśli Wynik z wynikiem:\n"
+        "            zwróć wynik\n"
+        "        jeśli Błąd z opisem:\n"
+        "            zwróć zero\n"
+    )
+    typechecker.resolve_module(parse(src))
+    fdt = _fdt_by_surface(("obsługiwać",))
+    assert ty(fdt.arg_types[0]) == "Rezultat"
+    assert ty(fdt.ret_type) == "Liczba"
+
+
+@pytest.mark.integration
+def test_match_subject_widens_struct_to_union(parse):
+    """Subject o typie konkretnego wariantu (Wynik) — match na unii rozszerza
+    go do Rezultat i wymaga WSZYSTKICH gałęzi unii."""
+    src = _UNION_SRC + (
+        "aby działać:\n"
+        "    rezultat to nowy Wynik o wyniku zero\n"
+        "    czym jest rezultat?\n"
+        "        jeśli Wynik z wynikiem:\n"
+        "            liczba to wynik plus jeden\n"
+        "        jeśli Błąd z opisem:\n"
+        "            wiadomość to opis\n"
+    )
+    typechecker.resolve_module(parse(src))  # bez błędu
+
+
+@pytest.mark.integration
+def test_passing_variant_to_union_param_typechecks(parse):
+    src = _UNION_SRC + (
+        "aby przyjmować rezultat (Rezultat) -> Liczba:\n"
+        "    zwróć zero\n"
+        "\n"
+        "aby działać:\n"
+        "    n to przyjmuj nowy Błąd o opisie \"e\"\n"
+    )
+    typechecker.resolve_module(parse(src))  # bez błędu
+
+
+@pytest.mark.integration
+def test_union_in_struct_field_accepts_variant(parse):
+    src = _UNION_SRC + (
+        "definicja Pudełka:\n"
+        "    zawartość (Rezultat)\n"
+        "\n"
+        "aby działać:\n"
+        "    pudełko to nowe Pudełko o zawartości nowy Błąd o opisie \"e\"\n"
+    )
+    typechecker.resolve_module(parse(src))  # bez błędu
+
+
+@pytest.mark.integration
+def test_creating_union_value_directly_raises(parse):
+    src = _UNION_SRC + (
+        "aby działać:\n"
+        "    rezultat to nowy Rezultat\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError, match="nie można utworzyć"):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_parameterized_types_invariant_over_union(parse):
+    """Lista z Wynikiem ≠ Lista z Rezultatem — kontenery są inwariantne."""
+    src = _UNION_SRC + (
+        "definicja Listy z elementem:\n"
+        "    wartość (element)\n"
+        "\n"
+        "aby brać listę (Lista z (Rezultat)) -> Liczba:\n"
+        "    zwróć zero\n"
+        "\n"
+        "aby działać:\n"
+        "    lista (Lista z (Wynik)) to nowa Lista\n"
+        "    n to bierz listę\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
