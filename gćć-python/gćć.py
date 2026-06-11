@@ -16,11 +16,22 @@ def main():
     argp = argparse.ArgumentParser()
     argp.add_argument("input", nargs="?", type=argparse.FileType("r"), default=sys.stdin)
     argp.add_argument("--sgjp", default="../sgjp.tab")
+    argp.add_argument("--redis", action="store_true",
+                      help="lematyzuj przez lokalny Redis (zero ładowania; "
+                           "wymaga migracji: sgjp_do_redisa.py)")
+    argp.add_argument("--redis-url", default="redis://localhost:6379/0")
     args = argp.parse_args()
 
     text = args.input.read()
     filename = getattr(args.input, "name", "<stdin>")
-    db, preps = morph_anal.load(args.sgjp)
+    try:
+        if args.redis:
+            db, preps = morph_anal.load_redis(args.redis_url)
+        else:
+            db, preps = morph_anal.load(args.sgjp)
+    except InterpreterError as e:
+        _print_error(filename, text, e)
+        sys.exit(1)
 
     try:
         tokens = lexer.lex(text)

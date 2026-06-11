@@ -30,9 +30,9 @@ hindley milner
     v double check fixpoint upper bound
 
 
-gerundium (?) polubienie/polubić
 redis
 jakieś includy
+v gerundium (?) polubienie/polubić
 v literały Prawda/Fałsz
 v tryb przypuszczający - usunąłbyś_komentarz dla usera z identyfikatorem?
 v funkcja bez zwróć ma typ zwracany wolny (nie Nic)

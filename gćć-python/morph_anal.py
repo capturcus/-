@@ -1,3 +1,4 @@
+import json
 import sys
 import time
 from typing import NamedTuple
@@ -186,3 +187,108 @@ def canonical(token):
         chosen = next((a for a in pool if a.lemma == seg.lower()), pool[0])
         out.append(_cap_lemma(chosen.lemma, seg))
     return tuple(out)
+
+
+# ---------- tryb redisowy (gćć.py --redis) ----------
+#
+# Zamiast ładować sgjp.tab do pamięci (~8 s), analizy leżą w lokalnym
+# Redisie pod kluczami `sgjp:f:<forma>` — zmigrowane jednorazowo przez
+# `sgjp_do_redisa.py`. Migracja zapisuje GOTOWE analizy (po passie
+# re-lematyzacji imiesłowów/gerundiów do form cytowanych), więc semantyka
+# jest identyczna z `load()`.
+
+REDIS_PREFIX = "sgjp:"
+REDIS_SCHEMA = 1
+
+
+def analysis_to_jsonable(ana):
+    """MorphAnalysis → lista JSON-owalna (frozensety jako posortowane listy).
+    Jedyna para serializacyjna — używana przez migrację i `RedisDb`."""
+    return [
+        ana.pos,
+        sorted(ana.case) if ana.case is not None else None,
+        ana.number,
+        sorted(ana.gender) if ana.gender is not None else None,
+        ana.lemma,
+        ana.tag,
+        ana.qualifier,
+    ]
+
+
+def analysis_from_jsonable(lst):
+    pos, case, number, gender, lemma, tag, qualifier = lst
+    return tuple.__new__(MorphAnalysis, (
+        pos,
+        frozenset(case) if case is not None else None,
+        number,
+        frozenset(gender) if gender is not None else None,
+        lemma,
+        tag,
+        qualifier,
+    ))
+
+
+def source_fingerprint(path):
+    """Odcisk źródła sgjp.tab do wykrywania zmian przez migrator:
+    (wersja schematu, rozmiar, mtime). Nowe wydanie SGJP → inny odcisk →
+    ponowna migracja; zgodny odcisk → migracja jest no-opem."""
+    import os
+    st = os.stat(path)
+    return {"schemat": REDIS_SCHEMA, "rozmiar": st.st_size,
+            "mtime": int(st.st_mtime)}
+
+
+class RedisDb:
+    """Drop-in dla pamięciowego `db` w `analyze()` — jedyny używany
+    interfejs to `get(forma, default)`. Memo-cache per proces: każda forma
+    pytana w Redisie najwyżej raz."""
+
+    def __init__(self, client):
+        self.client = client
+        self.cache = {}
+
+    def get(self, form, default=None):
+        if form in self.cache:
+            return self.cache[form]
+        raw = self.client.get(f"{REDIS_PREFIX}f:{form}")
+        if raw is None:
+            result = default
+        else:
+            result = [analysis_from_jsonable(a) for a in json.loads(raw)]
+        self.cache[form] = result
+        return result
+
+
+def load_redis(url):
+    """Łączy z Redisem i zwraca (RedisDb, preps) — odpowiednik `load()`,
+    ale bez ładowania czegokolwiek do pamięci (poza przyimkami).
+    Czytelne błędy: brak modułu redis, brak połączenia, brak/nieaktualna
+    migracja (klucz `sgjp:meta`)."""
+    from ast_nodes import InterpreterError
+    try:
+        import redis
+    except ModuleNotFoundError:
+        raise InterpreterError(
+            "tryb --redis wymaga klienta Pythona: pip3 install redis")
+    client = redis.Redis.from_url(url)
+    try:
+        client.ping()
+    except redis.exceptions.ConnectionError as e:
+        raise InterpreterError(
+            f"nie można połączyć z Redisem pod {url} ({e}); "
+            f"uruchom redis-server albo popraw --redis-url")
+    meta_raw = client.get(f"{REDIS_PREFIX}meta")
+    if meta_raw is None:
+        raise InterpreterError(
+            f"Redis pod {url} nie zawiera zmigrowanego SGJP — uruchom: "
+            f"python3 gćć-python/sgjp_do_redisa.py")
+    meta = json.loads(meta_raw)
+    if meta.get("schemat") != REDIS_SCHEMA:
+        raise InterpreterError(
+            f"schemat danych w Redisie ({meta.get('schemat')}) nie pasuje "
+            f"do interpretera ({REDIS_SCHEMA}) — uruchom ponownie: "
+            f"python3 gćć-python/sgjp_do_redisa.py")
+    preps_raw = client.get(f"{REDIS_PREFIX}preps")
+    preps = {lemma: set(cases)
+             for lemma, cases in json.loads(preps_raw).items()}
+    return RedisDb(client), preps

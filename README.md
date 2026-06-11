@@ -48,6 +48,23 @@ Interpreter jest skryptem CLI:
 
 - Wejście można też podać na `stdin`.
 - `--sgjp` domyślnie wskazuje `../sgjp.tab` (czyli plik SGJP w katalogu nadrzędnym względem skryptu).
+- `--redis` (opcjonalnie `--redis-url`, domyślnie
+  `redis://localhost:6379/0`) — lematyzacja przez lokalny Redis zamiast
+  ~8-sekundowego ładowania sgjp.tab do pamięci; start interpretera spada
+  do ułamka sekundy. Wymaga klienta (`pip3 install redis`) i jednorazowej
+  migracji:
+
+  ```
+  python3 gćć-python/sgjp_do_redisa.py
+  ```
+
+  Migrator jest **idempotentny i wykrywa zmiany źródła**: w `sgjp:meta`
+  trzyma odcisk pliku (schemat + rozmiar + mtime) — zgodny odcisk → no-op,
+  inny (nowe wydanie SGJP) → automatyczna pełna re-migracja z czyszczeniem
+  starych kluczy; `--wymuś` wymusza. Migracja zapisuje analizy GOTOWE
+  (po re-lematyzacji imiesłowów i gerundiów), więc wyniki są identyczne
+  z trybem plikowym. Po wyczyszczeniu Redisa wystarczy uruchomić migrację
+  ponownie.
 - Wynik to drzewo AST wypisane przez `pretty.pretty(module)` — drzewo
   z gałęziami `├──`/`└──`, z polami `params`, `body`, `cond`, `then`/`else`,
   `var`/`collection`/`body`, `fields`, `args`.
