@@ -69,10 +69,10 @@ definicja OpisanegoSłowa:
 # ---------- operacje na listach ----------
 
 aby utworzyć_pustą:
-    zwróć nowa PustaLista o znaczniku zero
+    zwróć PustaLista o znaczniku zero
 
 aby dodać element do listy:
-    zwróć nowy Węzeł o głowie element o ogonie lista
+    zwróć Węzeł o głowie element o ogonie lista
 
 aby liczyć listę:
     czym jest lista?
@@ -84,17 +84,17 @@ aby liczyć listę:
 aby brać_pierwszą z listy:
     czym jest lista?
         jeśli PustaLista:
-            zwróć nowe Pudło o powodzie "lista jest pusta"
+            zwróć Pudło o powodzie "lista jest pusta"
         jeśli Węzeł z głową:
-            zwróć nowe Trafienie o wartości głowa
+            zwróć Trafienie o wartości głowa
 
 aby wybrać pozycję z listy:
     czym jest lista?
         jeśli PustaLista:
-            zwróć nowe Pudło o powodzie "pozycja poza listą"
+            zwróć Pudło o powodzie "pozycja poza listą"
         jeśli Węzeł z głową z ogonem:
             jeśli pozycja równe zero:
-                zwróć nowe Trafienie o wartości głowa
+                zwróć Trafienie o wartości głowa
             zwróć wybierz (pozycja minus jeden) z ogona
 
 aby należeć element do zbioru:
@@ -136,14 +136,14 @@ aby wydobyć opcję z awaryjną:
 aby szukać klucza w słowniku:
     czym jest słownik?
         jeśli PustaLista:
-            zwróć nowe Pudło o powodzie "nie znaleziono klucza"
+            zwróć Pudło o powodzie "nie znaleziono klucza"
         jeśli Węzeł z głową z ogonem:
             jeśli klucz głowy równe klucz:
-                zwróć nowe Trafienie o wartości zawartość głowy
+                zwróć Trafienie o wartości zawartość głowy
             zwróć szukaj klucza w ogonie
 
 aby wstawić klucz z zawartością do słownika:
-    zwróć dodaj (nowe Hasło o kluczu klucz o zawartości zawartość) do słownika
+    zwróć dodaj (Hasło o kluczu klucz o zawartości zawartość) do słownika
 
 # Mapowanie atomów rodzaju przez GENDER_MAP — zbiera tylko trafienia.
 aby tłumaczyć atomy przez mapę:
@@ -226,7 +226,7 @@ aby wymienić_klasy_czasownikowe:
 aby badać części:
     czym jest części?
         jeśli PustaLista:
-            zwróć nowa Morfologia o przypadkach utwórz_pustą o liczbie (nowe Pudło o powodzie "brak liczby w tagu") o rodzajach utwórz_pustą
+            zwróć Morfologia o przypadkach utwórz_pustą o liczbie (Pudło o powodzie "brak liczby w tagu") o rodzajach utwórz_pustą
         jeśli Węzeł z głową z ogonem:
             morfologia to badaj ogon
             atomy to podziel głowę po "."
@@ -261,22 +261,22 @@ aby przetwarzać wiersz:
     kwalifikator to wydobądź (wybierz cztery z części) z ""
     czym jest możliwy_napis?
         jeśli Pudło z powodem:
-            zwróć nowe Pudło o powodzie powód
+            zwróć Pudło o powodzie powód
         jeśli Trafienie z wartością:
             napis to wartość
             czym jest możliwe_pole?
                 jeśli Pudło z powodem:
-                    zwróć nowe Pudło o powodzie powód
+                    zwróć Pudło o powodzie powód
                 jeśli Trafienie z wartością:
                     lemat to wydobądź (bierz_pierwszą z (podziel wartość po ":")) z wartością
                     czym jest możliwa_etykieta?
                         jeśli Pudło z powodem:
-                            zwróć nowe Pudło o powodzie powód
+                            zwróć Pudło o powodzie powód
                         jeśli Trafienie z wartością:
                             klasa to wydobądź (bierz_pierwszą z (podziel wartość po ":")) z wartością
                             morfologia to badaj (podziel wartość po ":")
-                            analiza to nowa Analiza o napisie napis o klasie klasa o lemacie lemat o etykiecie wartość o kwalifikatorze kwalifikator o przypadkach przypadki morfologii o liczbie liczba morfologii o rodzajach rodzaje morfologii
-                            zwróć nowe Trafienie o wartości analiza
+                            analiza to Analiza o napisie napis o klasie klasa o lemacie lemat o etykiecie wartość o kwalifikatorze kwalifikator o przypadkach przypadki morfologii o liczbie liczba morfologii o rodzajach rodzaje morfologii
+                            zwróć Trafienie o wartości analiza
 
 # db.setdefault(form, []).append(analiza) na assoc-liście.
 aby dopisać analizę w słowniku:
@@ -290,7 +290,7 @@ aby dopisać analizę w słowniku:
 aby wczytywać wiersze:
     czym jest wiersze?
         jeśli PustaLista:
-            zwróć nowa Baza o formach utwórz_pustą o przyimkach utwórz_pustą
+            zwróć Baza o formach utwórz_pustą o przyimkach utwórz_pustą
         jeśli Węzeł z głową z ogonem:
             baza to wczytuj ogon
             możliwa_analiza to przetwarzaj głowę
@@ -314,7 +314,7 @@ aby analizować słowa w słowniku:
             reszta to analizuj ogon w słowniku
             znalezisko to szukaj głowy w słowniku
             analizy to wydobądź znalezisko z utwórz_pustą
-            zwróć dodaj (nowe OpisaneSłowo o słowie głowa o analizach analizy) do reszty
+            zwróć dodaj (OpisaneSłowo o słowie głowa o analizach analizy) do reszty
 
 
 # ---------- canonical() ----------
@@ -343,10 +343,10 @@ aby wybrać_pulę z analiz:
 aby wyszukiwać słowo w analizach:
     czym jest analizy?
         jeśli PustaLista:
-            zwróć nowe Pudło o powodzie "żaden lemat nie pasuje"
+            zwróć Pudło o powodzie "żaden lemat nie pasuje"
         jeśli Węzeł z głową z ogonem:
             jeśli lemat głowy równe słowo:
-                zwróć nowe Trafienie o wartości głowa
+                zwróć Trafienie o wartości głowa
             zwróć wyszukuj słowo w ogonie
 
 aby kanonizować słowo w słowniku:

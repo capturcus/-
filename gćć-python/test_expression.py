@@ -383,7 +383,7 @@ def test_chain_with_arith_left_binding(parse):
 def test_struct_creation_basic(parse):
     src = (
         "definicja Użytkownika:\n    nazwa (Tekst)\n"
-        "aby działać:\n    wynik to nowy Użytkownik o nazwie \"Anna\"\n"
+        "aby działać:\n    wynik to Użytkownik o nazwie \"Anna\"\n"
     )
     m = parse(src)
     sc = m.body[1].body[0].value.resolved
@@ -400,7 +400,7 @@ def test_struct_creation_field_value_is_full_expr(parse):
         "aby weź_wiek_z_bazy dla identyfikatora:\n    zwrócić\n"
         "definicja Użytkownika:\n    wiek (Liczba)\n    nazwa (Tekst)\n"
         "aby działać identyfikator:\n"
-        "    wynik to nowy Użytkownik o wieku weź_wiek_z_bazy dla identyfikatora plus siedem o nazwie \"Anna\"\n"
+        "    wynik to Użytkownik o wieku weź_wiek_z_bazy dla identyfikatora plus siedem o nazwie \"Anna\"\n"
     )
     m = parse(src)
     sc = m.body[2].body[0].value.resolved
@@ -418,7 +418,7 @@ def test_struct_creation_field_value_is_full_expr(parse):
 def test_struct_creation_shorthand(parse):
     src = (
         "definicja Użytkownika:\n    nazwa (Tekst)\n    wiek (Liczba)\n"
-        "aby działać nazwa wiek:\n    u to nowy Użytkownik z nazwą z wiekiem\n"
+        "aby działać nazwa wiek:\n    u to Użytkownik z nazwą z wiekiem\n"
     )
     m = parse(src)
     sc = m.body[1].body[0].value.resolved
@@ -526,13 +526,13 @@ def test_chain_head_subst_variant_when_adj_variant_exists(parse):
 
 
 def test_struct_arg_loc_picks_subst_variant(parse):
-    """`nowe Słowo o części_mowy ...` — dispatcher struct arg wymaga loc.
+    """`Słowo o części_mowy ...` — dispatcher struct arg wymaga loc.
     Subst-prefix `("część","mowa")` ma loc, adj-prefix `("częsty","mowa")`
     nie ma loc. Wybierz subst-variant. (Field decl jest sg-f, więc reference
     też musi być sg dla pełnego klucza match.)"""
     src = (
         "definicja Słowa:\n    część_mowy (Tekst)\n"
-        "aby działać:\n    s to nowe Słowo o części_mowy \"czasownik\"\n"
+        "aby działać:\n    s to Słowo o części_mowy \"czasownik\"\n"
     )
     m = parse(src)
     sc = m.body[1].body[0].value.resolved
@@ -550,7 +550,7 @@ def test_struct_creation_no_match_leaves_tokens(parse):
     tokeny dalej muszą się sparsować."""
     src = (
         "definicja Punktu:\n    x (Liczba)\n"
-        "aby działać:\n    p to nowy Punkt o nazwie \"A\"\n"
+        "aby działać:\n    p to Punkt o nazwie \"A\"\n"
     )
     with pytest.raises(ast.ResolveError):
         parse(src)
@@ -589,12 +589,12 @@ def test_undeclared_identifier_reference_raises(parse):
 
 
 def test_diag_leftover_after_struct_field_missing(parse):
-    """`nowy Punkt o nazwie ...` — pole `nazwa` nie istnieje w typie `Punkt`
+    """`Punkt o nazwie ...` — pole `nazwa` nie istnieje w typie `Punkt`
     (dostępne tylko `x`). Diagnostyka mówi nazwę struct'a i listę dostępnych
     pól."""
     src = (
         "definicja Punktu:\n    x (Liczba)\n"
-        "aby działać:\n    p to nowy Punkt o nazwie \"A\"\n"
+        "aby działać:\n    p to Punkt o nazwie \"A\"\n"
     )
     with pytest.raises(ast.ResolveError) as ei:
         parse(src)
@@ -749,12 +749,12 @@ def test_subscript_as_assignment_target(parse):
 
 
 def test_subscript_in_struct_field_value(parse):
-    """`nowe Pudełko o wartości lista pod jeden` — value pola = Subscript.
+    """`Pudełko o wartości lista pod jeden` — value pola = Subscript.
     Wartość pola w struct_creation parsuje się przez `parse_phrase`,
     więc subscript naturalnie się stosuje."""
     src = (
         "definicja Pudełka:\n    wartość (Liczba)\n"
-        "aby działać lista:\n    p to nowe Pudełko o wartości lista pod jeden\n"
+        "aby działać lista:\n    p to Pudełko o wartości lista pod jeden\n"
     )
     m = parse(src)
     sc = m.body[1].body[0].value.resolved
@@ -784,14 +784,14 @@ def test_subscript_after_fcall_with_two_args(parse):
 
 
 def test_subscript_full_composition(parse):
-    """Pełny przykład 5 użytkownika: chain pod fcall to nowy Post o treści Subscript."""
+    """Pełny przykład 5 użytkownika: chain pod fcall to Post o treści Subscript."""
     src = (
         "definicja Postu:\n    treść (Tekst)\n"
         "definicja Autora:\n    lista_postów (Tekst)\n"
         "aby policz_index od liczby:\n    zwrócić\n"
         "aby działać autor liczba lista_treści indeks:\n"
         "    lista_postów autora pod policz_index od liczby "
-        "to nowy Post o treści lista_treści pod indeksem\n"
+        "to Post o treści lista_treści pod indeksem\n"
     )
     m = parse(src)
     asn = m.body[3].body[0]
@@ -1074,7 +1074,7 @@ def test_struct_arg_field_name_disambiguated_by_case(parse):
         "    część_mowy (Tekst)\n"
         "    tryb (Tekst)\n"
         "aby działać:\n"
-        "    s to nowe Słowo o części_mowy \"v\" o trybie \"oznajmujący\"\n"
+        "    s to Słowo o części_mowy \"v\" o trybie \"oznajmujący\"\n"
     )
     m = parse(src)
     sc = m.body[1].body[0].value.resolved
@@ -1281,7 +1281,7 @@ def test_field_canonical_lemma_picks_min_rest_for_adj_noun(parse):
         "    pierwsze_pole (Tekst)\n"
         "    drugie_pole (Tekst)\n"
         "aby działać:\n"
-        "    s to nowa Struktura o pierwszym_polu \"v\"\n"
+        "    s to Struktura o pierwszym_polu \"v\"\n"
     )
     m = parse(src)
     sc = m.body[1].body[0].value.resolved
@@ -1573,7 +1573,7 @@ def test_param_nested_type_annotation(parse):
     src = (
         "definicja Listy z elementem:\n    wartość (element)\n"
         "definicja Mapy z klucza na wartość:\n    klucz (klucz)\n    wartość (wartość)\n"
-        "aby działać:\n    x (Lista z (Mapa z klucza na wartość)) to nowa Lista\n"
+        "aby działać:\n    x (Lista z (Mapa z klucza na wartość)) to Lista\n"
     )
     m = parse(src)
     fn = next(n for n in m.body if isinstance(n, ast.FunctionDef))
@@ -1606,7 +1606,7 @@ def test_union_registers_as_type(parse):
         + "Rezultat to Wynik albo Błąd\n"
         "\n"
         "aby działać:\n"
-        "    rzecz (Rezultat) to nowy Wynik o wyniku zero\n"
+        "    rzecz (Rezultat) to Wynik o wyniku zero\n"
     )
     m = parse(src)
     typed = m.body[3].body[0].target.resolved
@@ -1694,7 +1694,7 @@ def test_match_binds_branch_fields(parse):
     src = (
         _MATCH_BASE
         + "aby działać:\n"
-        "    rezultat to nowy Wynik o wyniku zero\n"
+        "    rezultat to Wynik o wyniku zero\n"
         "    czym jest rezultat?\n"
         "        jeśli Błąd z opisem:\n"
         "            x to opis\n"
@@ -1902,7 +1902,85 @@ def test_chain_base_must_be_declared(parse):
 def test_struct_shorthand_requires_declared_var(parse):
     src = (
         "definicja Użytkownika:\n    nazwa (Tekst)\n"
-        "aby działać:\n    u to nowy Użytkownik z nazwą\n"
+        "aby działać:\n    u to Użytkownik z nazwą\n"
     )
     with pytest.raises(ast.ResolveError, match="wymaga zadeklarowanej zmiennej"):
         parse(src)
+
+
+# =====================================================================
+# Konstruktor po wielkiej literze (bez słowa kluczowego `nowy`)
+# =====================================================================
+
+
+def test_struct_creation_without_keyword(parse):
+    """Konstrukcja struktury to sama nazwa typu — bez `nowy`."""
+    src = (
+        "definicja Użytkownika:\n    nazwa (Tekst)\n"
+        "aby działać:\n    u to Użytkownik o nazwie \"Anna\"\n"
+    )
+    m = parse(src)
+    sc = m.body[1].body[0].value.resolved
+    assert isinstance(sc, ast.StructCreation)
+    assert sc.type_name == ("Użytkownik",)
+    assert len(sc.args) == 1
+
+
+def test_nowy_is_ordinary_word(parse):
+    """`nowy` to zwykłe słowo — może być zmienną."""
+    src = (
+        "aby działać:\n"
+        "    nowy to pięć\n"
+        "    wynik to nowy plus jeden\n"
+    )
+    m = parse(src)
+    expr = m.body[0].body[1].value.resolved
+    assert isinstance(expr, ast.BinOp) and expr.op == "+"
+    assert isinstance(expr.left, ast.Identifier)
+    assert ("nowy",) in expr.left.lemmas_set
+
+
+def test_old_nowy_syntax_raises(parse):
+    """Stara składnia `nowy Typ` — `nowy` jest teraz niezadeklarowaną zmienną."""
+    src = (
+        "definicja Użytkownika:\n    nazwa (Tekst)\n"
+        "aby działać:\n    u to nowy Użytkownik o nazwie \"Anna\"\n"
+    )
+    with pytest.raises(ast.ResolveError, match="'nowy' nie jest zadeklarowaną"):
+        parse(src)
+
+
+def test_capitalization_separates_type_from_variable(parse):
+    """Zmienna `lista` (mała litera) i typ `Lista` współistnieją — wielka
+    litera w lemmie jednoznacznie wskazuje konstruktor."""
+    src = (
+        "definicja Listy z elementem:\n    wartość (element)\n"
+        "aby działać:\n"
+        "    lista to pięć\n"
+        "    pojemnik to Lista o wartości lista\n"
+        "    wynik to lista plus jeden\n"
+    )
+    m = parse(src)
+    sc = m.body[1].body[1].value.resolved
+    assert isinstance(sc, ast.StructCreation)
+    assert sc.type_name == ("Lista",)
+    assert isinstance(sc.args[0].value, ast.Identifier)
+    ref = m.body[1].body[2].value.resolved
+    assert isinstance(ref.left, ast.Identifier)
+
+
+def test_nested_creation_as_field_value(parse):
+    """Zagnieżdżona konstrukcja jako wartość pola — bez `nowy`."""
+    src = (
+        "definicja Autora:\n    imię (Tekst)\n"
+        "definicja Komentarza:\n    autor (Autor)\n"
+        "aby działać:\n"
+        "    komentarz to Komentarz o autorze Autor o imieniu \"Anna\"\n"
+    )
+    m = parse(src)
+    sc = m.body[2].body[0].value.resolved
+    assert isinstance(sc, ast.StructCreation)
+    assert sc.type_name == ("Komentarz",)
+    inner = sc.args[0].value
+    assert isinstance(inner, ast.StructCreation)
+    assert inner.type_name == ("Autor",)

@@ -19,5 +19,5 @@ aby badać_jednoznaczność obiekt:
     wiek to wiek obiektu
 
 aby badać_łańcuch:
-    komentarz to nowy Komentarz
+    komentarz to Komentarz
     wynik to imię autora komentarza

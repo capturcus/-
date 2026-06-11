@@ -20,9 +20,9 @@ można wysłać tekst (Tekst) do wtyczki (Liczba) -> Liczba
 aby zapisać do bazy tekst -> Rezultat:
     wynik to wyślij tekst do bazy
     jeśli wynik równe zero:
-        zwróć nowy Wynik o wyniku zero
+        zwróć Wynik o wyniku zero
     inaczej:
-        zwróć nowy Błąd o opisie "nie udało się zapisać"
+        zwróć Błąd o opisie "nie udało się zapisać"
 
 # `czym jest` na nieotypowanym parametrze — unia wnioskowana z gałęzi
 # trafia do sygnatury funkcji. Gałąź nie musi wiązać wszystkich pól

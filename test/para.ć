@@ -7,12 +7,12 @@ definicja Pary z klucza z wartości:
     tył (wartość)
 
 aby zbudować_parę z przodem z tyłem:
-    zwróć nowa Para z przodem z tyłem
+    zwróć Para z przodem z tyłem
 
 aby zamienić zestaw:
     przód to tył zestawu
     tył to przód zestawu
-    zwróć nowa Para z przodem z tyłem
+    zwróć Para z przodem z tyłem
 
 aby działać:
     zestaw to zbuduj_parę z pięć z "tekst"

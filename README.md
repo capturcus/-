@@ -31,7 +31,7 @@ gramatyka jest ostateczna.
 13. [Wyrażenia](#wyrażenia)
 14. [Wywołania funkcji](#wywołania-funkcji)
 15. [Łańcuchy dostępu do pól (getter chain)](#łańcuchy-dostępu-do-pól-getter-chain)
-16. [Tworzenie struktur (`nowy`)](#tworzenie-struktur-nowy)
+16. [Tworzenie struktur (konstruktor)](#tworzenie-struktur-konstruktor)
 17. [Subscript (`pod`)](#subscript-pod)
 18. [Zasięg i rozróżnianie wariantów](#zasięg-i-rozróżnianie-wariantów)
 19. [Konflikty nazw](#konflikty-nazw)
@@ -508,7 +508,7 @@ Zasady:
   „wymazuje" argumenty typów wariantów (`Wynik z Liczbą` → `Rezultat`).
 - Nazwa unii działa wszędzie tam, gdzie nazwa typu: adnotacje parametrów,
   typ zwracany, typy pól, sufiks `(Rezultat)`.
-- Nie można utworzyć wartości unii przez `nowy Rezultat` — tworzy się
+- Nie można utworzyć wartości unii przez `Rezultat o ...` — tworzy się
   konkretną strukturę.
 
 ### Podtypowanie
@@ -539,7 +539,8 @@ czym jest WYRAŻENIE?
   dla wariantu → błąd z listą brakujących; gałąź spoza unii → błąd;
   duplikat gałęzi → błąd). Typ subjectu unifikuje się z tą unią — więc
   `czym jest` na nieotypowanym parametrze typuje go unią w sygnaturze.
-- `z POLE` dekonstruuje wariant: pole (w narzędniku, jak shorthand `nowy`)
+- `z POLE` dekonstruuje wariant: pole (w narzędniku, jak shorthand
+  konstruktora)
   staje się zmienną w scope gałęzi, o typie z deklaracji struktury.
   Można związać **podzbiór** pól (też żadne: `jeśli Wynik:`). Pola
   o typie-parametrze struktury zaczynają jako wolne zmienne i konkretyzują
@@ -949,14 +950,18 @@ lista pod numerem autora
 
 ---
 
-## Tworzenie struktur (`nowy`)
+## Tworzenie struktur (konstruktor)
 
 ```
-nowy/nowa/nowe TYP [O POLE WARTOŚĆ]* [Z POLE]*
+TYP [O POLE WARTOŚĆ]* [Z POLE]*
 ```
 
-Forma `nowy` (lub jej fleksja, np. `nowa`, `nowe`, `nowego`, `nowych`) +
-nazwa typu rozpoczyna konstrukcję struct. Reszta tokenów to argumenty:
+Nazwa typu w pozycji wyrażenia rozpoczyna konstrukcję struct — typy mają
+skapitalizowane lemmy, a zmienne/pola/funkcje małą literę, więc wielka
+litera jednoznacznie wskazuje konstruktor (nie ma słowa kluczowego;
+`nowy` jest zwykłym słowem i może być np. nazwą zmiennej). Nazwa typu
+może być w dowolnym przypadku (dopasowanie po lemmie). Reszta tokenów
+to argumenty:
 
 - `o POLE WARTOŚĆ` — explicit value. `POLE` musi być w `loc` w jakimś
   wariancie (`o jakim/o czym`). `WARTOŚĆ` to **pełne wyrażenie** (Phrase) —
@@ -968,12 +973,6 @@ nazwa typu rozpoczyna konstrukcję struct. Reszta tokenów to argumenty:
   (`z jakim/z czym`). Wartość pola = `None` (semantycznie: weź wartość
   z istniejącej zmiennej / z aktualnego scope'u o tej samej nazwie —
   zmienna musi być zadeklarowana, inaczej `ResolveError`).
-
-### Zgodność `nowy` ↔ typ
-
-`_cases_overlap` sprawdza, czy `nowy` (adj-czytanie) i nazwa typu mają
-przecięcie przypadków — w praktyce wystarczy, żeby forma `nowy`/`nowa`/
-`nowe` zgadzała się z rodzajem i przypadkiem typu.
 
 ### Dispatcher pól w struct args
 
@@ -1004,22 +1003,22 @@ definicja Użytkownika:
     wiek (Liczba)
 
 # Explicit value:
-u to nowy Użytkownik o nazwie "Anna"
+u to Użytkownik o nazwie "Anna"
 
 # Wartość = pełne wyrażenie:
-u to nowy Użytkownik o wieku weź_wiek_z_bazy dla identyfikatora plus siedem o nazwie "Anna"
+u to Użytkownik o wieku weź_wiek_z_bazy dla identyfikatora plus siedem o nazwie "Anna"
 
 # Shorthand (z nazwą + z wiekiem):
-u to nowy Użytkownik z nazwą z wiekiem
+u to Użytkownik z nazwą z wiekiem
 
 # Mieszane:
-u to nowy Użytkownik z nazwą o wieku trzydzieści
+u to Użytkownik z nazwą o wieku trzydzieści
 
 # Zagnieżdżone:
-nowy_komentarz to nowy Komentarz o autorze nowy Użytkownik o imieniu "Anna" o nazwisku "Nowak" o poście nowy Post o treści "Pierwszy" o liczbie_polubień zero
+nowy_komentarz to Komentarz o autorze Użytkownik o imieniu "Anna" o nazwisku "Nowak" o poście Post o treści "Pierwszy" o liczbie_polubień zero
 
 # Duplikat pola — innermost wins:
-test to nowy Komentarz o autorze nowy Użytkownik o identyfikatorze jeden o identyfikatorze dwa
+test to Komentarz o autorze Użytkownik o identyfikatorze jeden o identyfikatorze dwa
 # `o identyfikatorze jeden` → Użytkownik.identyfikator = 1
 # `o identyfikatorze dwa`   → Komentarz.identyfikator = 2 (innermost ma już zajęte → wrac na enclosing)
 ```
@@ -1078,7 +1077,7 @@ lista pod indeksem to jeden
 W wartości pola struct:
 
 ```
-p to nowe Pudełko o wartości lista pod jeden
+p to Pudełko o wartości lista pod jeden
 # → StructCreation(Pudełko, [StructArg(wartość, Subscript(lista, 1))])
 ```
 
@@ -1105,7 +1104,7 @@ Deklaracje (sekwencyjnie, w miejscu wystąpienia):
 
 **Każde użycie zmiennej wymaga wcześniejszej deklaracji** — dotyczy to
 referencji (`identifier_ref`), podstawy getter chaina (`autor postu` czyta
-zmienną `post`) i skrótu `z polem` w `nowy` (czyta zmienną o nazwie pola).
+zmienną `post`) i skrótu `z polem` w konstruktorze (czyta zmienną o nazwie pola).
 Referencja do niezadeklarowanej zmiennej to `ResolveError` już w Pass 2.
 
 ### Narrowing wariantów do scope

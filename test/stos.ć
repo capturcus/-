@@ -7,15 +7,15 @@ definicja Stosu z elementem:
     reszta (Stos z elementem)
 
 aby odłożyć element na stos (Stos z elementem) -> Stos z elementem:
-    zwróć nowy Stos o szczycie element o reszcie stos
+    zwróć Stos o szczycie element o reszcie stos
 
 aby podejrzeć_szczyt dla stosu (Stos z elementem) -> element:
     zwróć szczyt stosu
 
 aby działać:
-    stos_liczb to nowy Stos
+    stos_liczb to Stos
     pełny_stos to odłóż pięć na stos_liczb
     czubek to podejrzyj_szczyt dla pełnego_stosu
-    stos_tekstów to nowy Stos
+    stos_tekstów to Stos
     stos_napisów to odłóż "abc" na stos_tekstów
     napis to podejrzyj_szczyt dla stosu_napisów

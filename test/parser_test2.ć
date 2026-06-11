@@ -9,5 +9,5 @@ aby wziąć_wiek_z_bazy po identyfikatorze_wieku:
 	zwrócić
 
 aby stworzyć_użytkownika o imieniu z identyfikatorem_wieku:
-	wynik to nowy Użytkownik z imieniem o wieku weź_wiek_z_bazy po identyfikatorze_wieku
-	zapisz w bazie nowego Użytkownika z imieniem
+	wynik to Użytkownik z imieniem o wieku weź_wiek_z_bazy po identyfikatorze_wieku
+	zapisz w bazie Użytkownika z imieniem

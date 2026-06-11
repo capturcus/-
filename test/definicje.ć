@@ -7,5 +7,5 @@ definicja Listy:
     pierwszy_element (Liczba)
 
 aby działać:
-    struktura to nowa Struktura o pierwszym_polu "test"
-    lista to nowa Lista o pierwszym_elemencie jeden
+    struktura to Struktura o pierwszym_polu "test"
+    lista to Lista o pierwszym_elemencie jeden

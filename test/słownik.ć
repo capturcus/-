@@ -8,7 +8,7 @@ definicja Wpisu z klucza z wartości:
     następny (Wpis z klucza z wartości)
 
 aby utworzyć_wpis dla klucza z wartością -> Wpis z klucza z wartości:
-    zwróć nowy Wpis z kluczem z wartością
+    zwróć Wpis z kluczem z wartością
 
 aby odczytać_klucz dla wpisu (Wpis z klucza z wartości) -> klucz:
     zwróć klucz wpisu

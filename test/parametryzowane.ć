@@ -14,12 +14,12 @@ definicja Drzewa dla rzeczy:
     prawy_syn (Drzewo dla rzeczy)
 
 aby zbudować_mapę:
-    moja_mapa (Mapa z klucza na wartość) to nowa Mapa
-    lista_map (Lista z (Mapa z klucza na wartość)) to nowa Lista
+    moja_mapa (Mapa z klucza na wartość) to Mapa
+    lista_map (Lista z (Mapa z klucza na wartość)) to Lista
     zwróć moja_mapa
 
 aby dodać do szeregu (Lista z elementem) element:
-    nowy_węzeł to nowa Lista
+    nowy_węzeł to Lista
     zwróć nowy_węzeł
 
 
@@ -32,7 +32,7 @@ definicja DrzewaZbalansowanego z elementem:
     prawy_syn (DrzewoZbalansowane z elementem)
 
 aby utworzyć_liść dla elementu -> DrzewoZbalansowane z elementem:
-    zwróć nowe DrzewoZbalansowane o wartości element o wysokości jeden
+    zwróć DrzewoZbalansowane o wartości element o wysokości jeden
 
 aby obliczyć_równowagę dla drzewa (DrzewoZbalansowane z elementem) -> Liczba:
     zwróć wysokość lewego_syna drzewa minus wysokość prawego_syna drzewa

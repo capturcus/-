@@ -54,9 +54,6 @@ import type_parser
 from type_parser import parse_type
 
 
-_ADJ_LIKE_POS = ("adj", "pact", "ppas")
-
-
 def _lemma_key(v):
     """Default key_fn dla find_in_set — używane dla typów (lemma-only)."""
     return v.lemmas
@@ -89,16 +86,6 @@ def _describe_tok(t):
             return f"WORD '{'_'.join(t[1])}'"
         return f"{kind_name} {t[1]!r}"
     return kind_name
-
-
-def _adj_cases_from_analyses(analyses):
-    if not analyses:
-        return frozenset()
-    out = frozenset()
-    for ana in analyses[0]:
-        if ana.pos in _ADJ_LIKE_POS and ana.case:
-            out |= ana.case
-    return out
 
 
 class _Ctx:
@@ -506,10 +493,10 @@ class ExpressionParser:
     def _parse_word_primary(self):
         head_tok = self.advance()
         head_ident = make_identifier(head_tok)
-        # Struct creation: "nowy" + <typ>
+        # Struct creation: head sam jest znanym typem (capitalized lemma)
         type_segs = self._starts_struct_creation(head_ident)
         if type_segs is not None:
-            return self._parse_struct_creation(head_ident, type_segs)
+            return self._parse_struct_creation(type_segs)
         # Getter chain: field + następne słowo w gen
         if self._can_start_chain(head_ident):
             return self._parse_getter_chain(head_ident)
@@ -703,31 +690,13 @@ class ExpressionParser:
     # ---------- struct creation ----------
 
     def _starts_struct_creation(self, head_ident):
-        """Zwraca dopasowane type_segments jeśli head zaczyna struct creation,
-        inaczej None."""
-        if ("nowy",) not in head_ident.lemmas_set:
-            return None
-        nxt = self.peek()
-        if nxt is None or nxt[0] is not lexer.Token.WORD:
-            return None
-        nxt_ident = make_identifier(nxt)
-        type_segs = find_in_set(nxt_ident, self.ctx.types)
-        if type_segs is None:
-            return None
-        if not self._cases_overlap(head_ident, nxt_ident):
-            return None
-        return type_segs
+        """Zwraca dopasowane type_segments jeśli head sam jest znanym typem —
+        konstrukcja struktury to nazwa typu [+ argumenty pól]. Typy mają
+        capitalized lemmy, a zmienne/pola/funkcje małą literę, więc wielka
+        litera jednoznacznie odróżnia konstruktor od referencji i wywołania."""
+        return find_in_set(head_ident, self.ctx.types)
 
-    @staticmethod
-    def _cases_overlap(nowy_ident, type_ident):
-        nowy_cases = _adj_cases_from_analyses(nowy_ident.analyses)
-        type_cases = type_ident.case
-        if not nowy_cases or not type_cases:
-            return True
-        return bool(nowy_cases & type_cases)
-
-    def _parse_struct_creation(self, _nowy_ident, type_name):
-        self.advance()  # consume token typu (już zwalidowany w `_starts_struct_creation`)
+    def _parse_struct_creation(self, type_name):
         ctx = StructCtx(type_name=type_name)
         self.struct_stack.append(ctx)
         args = []

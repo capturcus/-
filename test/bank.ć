@@ -22,10 +22,10 @@ definicja Przelewu:
     kwota (Kwota)
 
 aby utworzyć_kwotę dla wartości z walutą:
-    zwróć nowa Kwota z wartością z walutą
+    zwróć Kwota z wartością z walutą
 
 aby utworzyć_przelew dla źródła do celu z kwotą:
-    zwróć nowy Przelew z źródłem z celem z kwotą
+    zwróć Przelew z źródłem z celem z kwotą
 
 aby odczytać_saldo dla konta:
     zwróć saldo konta
@@ -45,10 +45,10 @@ aby znaleźć_ostatnie dla konta:
     zwróć konto
 
 aby obsłużyć_klienta:
-    pierwsza_kwota to nowa Kwota o wartości pięć o walucie "PLN"
-    drugie_konto to nowe Konto o numerze dwa o właścicielu "Anna"
-    pierwsze_konto to nowe Konto o numerze jeden o właścicielu "Jan" o saldzie pierwsza_kwota o następniku drugie_konto
-    klient to nowy Klient o koncie pierwsze_konto
+    pierwsza_kwota to Kwota o wartości pięć o walucie "PLN"
+    drugie_konto to Konto o numerze dwa o właścicielu "Anna"
+    pierwsze_konto to Konto o numerze jeden o właścicielu "Jan" o saldzie pierwsza_kwota o następniku drugie_konto
+    klient to Klient o koncie pierwsze_konto
     saldo_klienta to odczytaj_saldo_klienta dla klienta
     ostatnie_konto to znajdź_ostatnie dla pierwszego_konta
     opłata to trzy

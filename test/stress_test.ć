@@ -155,25 +155,25 @@ aby przetestować_język sesji (Sesja) z opcjami (Tekst) o identyfikatorze (Teks
 	wypisz_dwa tekstem złóż_komunikat z opcjami
 
 	# === struct creation — shorthand ===
-	użytkownik_kopia to nowy Użytkownik z identyfikatorem z imieniem z nazwiskiem
+	użytkownik_kopia to Użytkownik z identyfikatorem z imieniem z nazwiskiem
 
 	# === struct creation — explicit values (literal) ===
-	nowy_post to nowy Post o identyfikatorze "p1" o treści "Hej" o liczbie_polubień zero
+	nowy_post to Post o identyfikatorze "p1" o treści "Hej" o liczbie_polubień zero
 
 	# === struct creation — chain jako wartość ===
-	post_z_autorem to nowy Post o autorze użytkownikiem sesji o treści "Z chainem"
+	post_z_autorem to Post o autorze użytkownikiem sesji o treści "Z chainem"
 
 	# === struct creation — sub-function call jako wartość ===
-	pobrany_post to nowy Post o autorze weź_użytkownika_z_bazy o identyfikatorze o treści "X"
+	pobrany_post to Post o autorze weź_użytkownika_z_bazy o identyfikatorze o treści "X"
 
 	# === nested struct creation (zagnieżdżone struct) ===
-	nowy_komentarz to nowy Komentarz o autorze nowy Użytkownik o imieniu "Anna" o nazwisku "Nowak" o poście nowy Post o treści "Pierwszy" o liczbie_polubień zero
+	nowy_komentarz to Komentarz o autorze Użytkownik o imieniu "Anna" o nazwisku "Nowak" o poście Post o treści "Pierwszy" o liczbie_polubień zero
 
 	# === propagacja na duplikacie pola (innermost wins) ===
-	test_propagacji to nowy Komentarz o autorze nowy Użytkownik o identyfikatorze jeden o identyfikatorze dwa
+	test_propagacji to Komentarz o autorze Użytkownik o identyfikatorze jeden o identyfikatorze dwa
 
 	# === function call ze struct_creation jako arg ===
-	zapisz_w_bazie nowy Post o autorze użytkownikiem sesji o treści "log"
+	zapisz_w_bazie Post o autorze użytkownikiem sesji o treści "log"
 
 	# === assignment do chaina (LHS) ===
 	liczba_polubień postu to liczba_polubień postu plus jeden
@@ -193,13 +193,13 @@ aby przetestować_język sesji (Sesja) z opcjami (Tekst) o identyfikatorze (Teks
 		licznik to licznik plus identyfikator użytkownika sesji
 
 	# === bardzo długa fraza — function call z wieloma rzeczami ===
-	zapisz_finalne nowy Post o autorze użytkownikiem sesji o treści złóż_komunikat z opcjami o liczbie_polubień czterdzieści dwa
+	zapisz_finalne Post o autorze użytkownikiem sesji o treści złóż_komunikat z opcjami o liczbie_polubień czterdzieści dwa
 
 	# === pętla z chainami i strukturami w środku ===
 	licznik to zero
 	dopóki licznik mniejsze od liczba_polubień postu:
 		licznik to licznik plus jeden
-		zapisz_iter nowy Komentarz o autorze użytkownikiem sesji o treści "iter" o poście postu
+		zapisz_iter Komentarz o autorze użytkownikiem sesji o treści "iter" o poście postu
 
 	# === zwrócić chain jako wartość (return type Użytkownik) ===
 	zwrócić użytkownik sesji

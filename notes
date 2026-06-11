@@ -22,9 +22,11 @@ hindley milner
             update logiki unifikacji: Pies|Człowiek ^ Pies|Żyrafa = Pies
         v struct creation
         v typy parametryzowane (Lista, Mapa)
+        v typy wariantowe
+
         subscript
 
-        typy wariantowe
+        
     double check fixpoint upper bound
 
 uruchamianie

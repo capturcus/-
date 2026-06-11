@@ -792,7 +792,7 @@ def test_canonical_preserves_case_distinction_type_vs_variable(parse):
     src = (
         "definicja Formy:\n    nazwa (Tekst)\n"
         "aby działać:\n"
-        "    forma to nowa Forma o nazwie \"v\"\n"
+        "    forma to Forma o nazwie \"v\"\n"
     )
     m = parse(src)
     sd = m.body[0]

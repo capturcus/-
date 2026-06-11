@@ -666,7 +666,7 @@ def test_module_struct_creation_infers_struct_type(parse, capsys):
         "    identyfikator (Liczba)\n"
         "\n"
         "aby działać:\n"
-        "    użytkownik to nowy UżytkownikSerwis o imieniu \"Marcin\"\n"
+        "    użytkownik to UżytkownikSerwis o imieniu \"Marcin\"\n"
     )
     module = parse(src)
     typechecker.resolve_module(module)
@@ -861,7 +861,7 @@ _STRUCT_DEF = (
 def test_struct_explicit_values_typecheck(parse):
     src = _STRUCT_DEF + (
         "aby działać:\n"
-        "    u to nowy UżytkownikSerwisu o imieniu \"Marcin\" o identyfikatorze cztery\n"
+        "    u to UżytkownikSerwisu o imieniu \"Marcin\" o identyfikatorze cztery\n"
     )
     typechecker.resolve_module(parse(src))  # bez błędu
 
@@ -872,7 +872,7 @@ def test_struct_out_of_order_typechecks(parse):
     # → błąd. Brak błędu dowodzi dopasowania po nazwie i unifikacji per pole.
     src = _STRUCT_DEF + (
         "aby działać:\n"
-        "    u to nowy UżytkownikSerwisu o identyfikatorze cztery o imieniu \"Marcin\"\n"
+        "    u to UżytkownikSerwisu o identyfikatorze cztery o imieniu \"Marcin\"\n"
     )
     typechecker.resolve_module(parse(src))  # bez błędu
 
@@ -881,7 +881,7 @@ def test_struct_out_of_order_typechecks(parse):
 def test_struct_field_type_mismatch_raises(parse):
     src = _STRUCT_DEF + (
         "aby działać:\n"
-        "    u to nowy UżytkownikSerwisu o imieniu cztery\n"  # Liczba w pole Tekst
+        "    u to UżytkownikSerwisu o imieniu cztery\n"  # Liczba w pole Tekst
     )
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(parse(src))
@@ -893,7 +893,7 @@ def test_struct_shorthand_typechecks(parse):
     src = _STRUCT_DEF + (
         "aby działać:\n"
         "    imię to \"Marcin\"\n"
-        "    użytkownik to nowy UżytkownikSerwisu z imieniem\n"
+        "    użytkownik to UżytkownikSerwisu z imieniem\n"
     )
     typechecker.resolve_module(parse(src))  # bez błędu
 
@@ -904,7 +904,7 @@ def test_struct_shorthand_type_mismatch_raises(parse):
     src = _STRUCT_DEF + (
         "aby działać:\n"
         "    imię to pięć\n"
-        "    użytkownik to nowy UżytkownikSerwisu z imieniem\n"
+        "    użytkownik to UżytkownikSerwisu z imieniem\n"
     )
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(parse(src))
@@ -1041,9 +1041,9 @@ def test_function_returning_two_variants_gets_union_type(parse):
     src = _UNION_SRC + (
         "aby zapisywać tekst -> Rezultat:\n"
         "    jeśli tekst równe zero:\n"
-        "        zwróć nowy Wynik o wyniku zero\n"
+        "        zwróć Wynik o wyniku zero\n"
         "    inaczej:\n"
-        "        zwróć nowy Błąd o opisie \"nie udało się\"\n"
+        "        zwróć Błąd o opisie \"nie udało się\"\n"
     )
     typechecker.resolve_module(parse(src))
     assert ty(_fdt_by_surface(("zapisywać",)).ret_type) == "Rezultat"
@@ -1055,9 +1055,9 @@ def test_function_returning_two_variants_infers_union_without_annotation(parse):
     src = _UNION_SRC + (
         "aby zapisywać tekst:\n"
         "    jeśli tekst równe zero:\n"
-        "        zwróć nowy Wynik o wyniku zero\n"
+        "        zwróć Wynik o wyniku zero\n"
         "    inaczej:\n"
-        "        zwróć nowy Błąd o opisie \"nie udało się\"\n"
+        "        zwróć Błąd o opisie \"nie udało się\"\n"
     )
     typechecker.resolve_module(parse(src))
     assert ty(_fdt_by_surface(("zapisywać",)).ret_type) == "Rezultat"
@@ -1069,7 +1069,7 @@ def test_branches_returning_unrelated_types_raise(parse):
     src = _UNION_SRC + (
         "aby zapisywać tekst:\n"
         "    jeśli tekst równe zero:\n"
-        "        zwróć nowy Wynik o wyniku zero\n"
+        "        zwróć Wynik o wyniku zero\n"
         "    inaczej:\n"
         "        zwróć \"niepowiązany tekst\"\n"
     )
@@ -1081,8 +1081,8 @@ def test_branches_returning_unrelated_types_raise(parse):
 def test_assigning_two_variants_widens_variable(parse, capsys):
     src = _UNION_SRC + (
         "aby przygotowywać dla x:\n"
-        "    rzecz to nowy Wynik o wyniku zero\n"
-        "    rzecz to nowy Błąd o opisie \"e\"\n"
+        "    rzecz to Wynik o wyniku zero\n"
+        "    rzecz to Błąd o opisie \"e\"\n"
         "    zwróć rzecz\n"
     )
     typechecker.resolve_module(parse(src))
@@ -1096,7 +1096,7 @@ def test_match_exhaustive_typechecks_and_binds_field_types(parse, capsys):
     użycie (`plus jeden` → Liczba)."""
     src = _UNION_SRC + (
         "aby działać:\n"
-        "    rezultat (Rezultat) to nowy Wynik o wyniku zero\n"
+        "    rezultat (Rezultat) to Wynik o wyniku zero\n"
         "    czym jest rezultat?\n"
         "        jeśli Błąd z opisem:\n"
         "            wiadomość to opis\n"
@@ -1113,7 +1113,7 @@ def test_match_exhaustive_typechecks_and_binds_field_types(parse, capsys):
 def test_match_missing_branch_raises(parse):
     src = _UNION_SRC + (
         "aby działać:\n"
-        "    rezultat (Rezultat) to nowy Wynik o wyniku zero\n"
+        "    rezultat (Rezultat) to Wynik o wyniku zero\n"
         "    czym jest rezultat?\n"
         "        jeśli Wynik z wynikiem:\n"
         "            liczba to wynik\n"
@@ -1129,7 +1129,7 @@ def test_match_extra_branch_raises(parse):
         "    nic (Liczba)\n"
         "\n"
         "aby działać:\n"
-        "    rezultat (Rezultat) to nowy Wynik o wyniku zero\n"
+        "    rezultat (Rezultat) to Wynik o wyniku zero\n"
         "    czym jest rezultat?\n"
         "        jeśli Wynik z wynikiem:\n"
         "            liczba to wynik\n"
@@ -1146,7 +1146,7 @@ def test_match_extra_branch_raises(parse):
 def test_match_duplicate_branch_raises(parse):
     src = _UNION_SRC + (
         "aby działać:\n"
-        "    rezultat (Rezultat) to nowy Wynik o wyniku zero\n"
+        "    rezultat (Rezultat) to Wynik o wyniku zero\n"
         "    czym jest rezultat?\n"
         "        jeśli Wynik z wynikiem:\n"
         "            liczba to wynik\n"
@@ -1197,7 +1197,7 @@ def test_match_subject_widens_struct_to_union(parse):
     go do Rezultat i wymaga WSZYSTKICH gałęzi unii."""
     src = _UNION_SRC + (
         "aby działać:\n"
-        "    rezultat to nowy Wynik o wyniku zero\n"
+        "    rezultat to Wynik o wyniku zero\n"
         "    czym jest rezultat?\n"
         "        jeśli Wynik z wynikiem:\n"
         "            liczba to wynik plus jeden\n"
@@ -1214,7 +1214,7 @@ def test_passing_variant_to_union_param_typechecks(parse):
         "    zwróć zero\n"
         "\n"
         "aby działać:\n"
-        "    n to przyjmuj nowy Błąd o opisie \"e\"\n"
+        "    n to przyjmuj Błąd o opisie \"e\"\n"
     )
     typechecker.resolve_module(parse(src))  # bez błędu
 
@@ -1226,7 +1226,7 @@ def test_union_in_struct_field_accepts_variant(parse):
         "    zawartość (Rezultat)\n"
         "\n"
         "aby działać:\n"
-        "    pudełko to nowe Pudełko o zawartości nowy Błąd o opisie \"e\"\n"
+        "    pudełko to Pudełko o zawartości Błąd o opisie \"e\"\n"
     )
     typechecker.resolve_module(parse(src))  # bez błędu
 
@@ -1235,7 +1235,7 @@ def test_union_in_struct_field_accepts_variant(parse):
 def test_creating_union_value_directly_raises(parse):
     src = _UNION_SRC + (
         "aby działać:\n"
-        "    rezultat to nowy Rezultat\n"
+        "    rezultat to Rezultat\n"
     )
     with pytest.raises(typechecker.TypeCheckError, match="nie można utworzyć"):
         typechecker.resolve_module(parse(src))
@@ -1252,7 +1252,7 @@ def test_parameterized_types_invariant_over_union(parse):
         "    zwróć zero\n"
         "\n"
         "aby działać:\n"
-        "    lista (Lista z (Wynik)) to nowa Lista\n"
+        "    lista (Lista z (Wynik)) to Lista\n"
         "    n to bierz listę\n"
     )
     with pytest.raises(typechecker.TypeCheckError):
@@ -1313,7 +1313,7 @@ def test_match_branch_reassignment_unifies_with_outer_var(parse):
         "Rezultat to Wynik albo Błąd\n"
         "\n"
         "aby działać:\n"
-        "    rezultat (Rezultat) to nowy Wynik o wyniku zero\n"
+        "    rezultat (Rezultat) to Wynik o wyniku zero\n"
         "    komunikat to \"\"\n"
         "    czym jest rezultat?\n"
         "        jeśli Błąd z opisem:\n"

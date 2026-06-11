@@ -21,12 +21,12 @@ aby działać:
     wynik to rób_części dla rzeczy z czerwoną_inną_rzeczą_z_warszawy
     imię to "Marcin"
     identyfikator to cztery
-    wynik_jeden to nowy UżytkownikSerwisu z imieniem z identyfikatorem
-    wynik_dwa to nowy UżytkownikSerwisu z identyfikatorem z imieniem
-    wynik_trzy to nowy UżytkownikSerwisu o imieniu "Marcin" o identyfikatorze cztery
-    wynik_cztery to nowy UżytkownikSerwisu o identyfikatorze cztery o imieniu "Marcin"
-    komentarz to nowy Komentarz
-    twoja_stara to nowy Człowiek
+    wynik_jeden to UżytkownikSerwisu z imieniem z identyfikatorem
+    wynik_dwa to UżytkownikSerwisu z identyfikatorem z imieniem
+    wynik_trzy to UżytkownikSerwisu o imieniu "Marcin" o identyfikatorze cztery
+    wynik_cztery to UżytkownikSerwisu o identyfikatorze cztery o imieniu "Marcin"
+    komentarz to Komentarz
+    twoja_stara to Człowiek
     wynik_pięć to imię twojej_starej
     wynik_sześć to wiek twojej_starej
 

@@ -12,9 +12,9 @@ aby dodać do listy wartość:
     głowa to węzeł listy
     dopóki sprawdź_niepustą głowę:
         głowa to następnik głowy
-    następnik głowy to nowy Węzeł z wartością
+    następnik głowy to Węzeł z wartością
 
 aby działać:
-    test to nowa Lista
+    test to Lista
     dodaj do testu pięć
     dodaj do testu sześć
