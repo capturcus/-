@@ -21,7 +21,7 @@ from ast_nodes import (
 )
 
 
-_NOUN_LIKE = {"subst", "adj", "pact", "ppas"}
+_NOUN_LIKE = {"subst", "ger", "adj", "pact", "ppas"}
 _ADJ_LIKE = ("adj", "pact", "ppas")
 
 
@@ -98,7 +98,9 @@ def _enumerate_variants(surface, analyses):
                 continue
             if a.pos in _ADJ_LIKE:
                 target = adj_groups
-            elif a.pos == "subst":
+            elif a.pos in ("subst", "ger"):
+                # Gerundium (po re-lematyzacji do formy cytowanej w load())
+                # odmienia się jak rzeczownik — pełnoprawna subst-głowa.
                 target = subst_groups
             else:
                 continue

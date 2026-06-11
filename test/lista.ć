@@ -6,7 +6,7 @@ definicja Węzła z elementem:
     następnik (Węzeł z elementem)
 
 aby sprawdzić_niepustą głowę:
-    zwróć zero równe zero
+    zwróć prawda
 
 aby dodać do listy wartość:
     głowa to węzeł listy

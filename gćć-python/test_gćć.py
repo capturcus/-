@@ -1099,3 +1099,72 @@ def test_lex_question_mark_inside_string_is_text():
     assert lexer.Token.QUESTION not in kinds
     text_values = [t[1] for t in toks if t[0] is lexer.Token.TEXT]
     assert text_values == ["czy na pewno?"]
+
+
+# ---------- Gerundia: re-lematyzacja do formy cytowanej ----------
+
+
+def _ident_for(db, word):
+    from morph_anal import analyze
+    from identifier import make_identifier
+    toks = list(lexer.lex(word))
+    word_tok = next(t for t in toks if t[0] is lexer.Token.WORD)
+    return make_identifier(analyze([word_tok], db)[0])
+
+
+def test_gerund_lemmatizes_to_citation_form(db):
+    """`polubieniem` → lemma `polubienie` (nie `polubić`); pełny wariant
+    rzeczownikowy: sg, nijaki, narzędnik."""
+    ident = _ident_for(db, "polubieniem")
+    keys = {(v.lemmas, v.number, v.gender) for v in ident.variants}
+    assert (("polubienie",), "sg", "n") in keys
+    assert all(v.lemmas == ("polubienie",) for v in ident.variants)
+    assert any("inst" in v.case for v in ident.variants)
+
+
+def test_gerund_inflection_shares_lemma(db):
+    """Formy `polubienia` (gen sg / nom pl) dzielą lemmę `polubienie` —
+    deklaracja pola i referencje spotykają się w jednej lemmie."""
+    ident = _ident_for(db, "polubienia")
+    assert all(v.lemmas == ("polubienie",) for v in ident.variants)
+    numbers = {(v.number, "nom" in v.case) for v in ident.variants}
+    assert ("pl", True) in numbers   # nom pl — deklaracja pola
+    assert ("sg", False) in numbers  # gen sg — chain
+
+
+def test_gerund_and_subst_homograph_merge(db):
+    """`mieszkanie` ma czytanie subst ORAZ ger (od `mieszkać`) — po
+    re-lematyzacji obie ścieżki dają lemmę `mieszkanie` i sklejają się
+    w jeden wariant (bez sztucznej niejednoznaczności)."""
+    ident = _ident_for(db, "mieszkanie")
+    keys = {(v.lemmas, v.number, v.gender) for v in ident.variants}
+    assert keys == {(("mieszkanie",), "sg", "n")}
+
+
+def test_gerund_field_no_longer_conflicts_with_verb(parse):
+    """Pole-gerundium `polubienia` i funkcja `polubić` współistnieją —
+    przed re-lematyzacją pole dziedziczyło lemmę czasownika i wywalało
+    'konflikt nazw: pole i funkcja'."""
+    src = (
+        "definicja Postu:\n"
+        "    polubienia (Lista)\n"
+        "\n"
+        "definicja Węzła z elementem:\n"
+        "    głowa (element)\n"
+        "\n"
+        "definicja PustejListy:\n"
+        "    znacznik (Liczba)\n"
+        "\n"
+        "Lista to Węzeł albo PustaLista\n"
+        "\n"
+        "aby polubić post:\n"
+        "    zwróć post\n"
+        "\n"
+        "aby działać post:\n"
+        "    polubienia posta to PustaLista o znaczniku zero\n"
+        "    suma to polubienia posta\n"
+    )
+    m = parse(src)
+    # zapis do pola (chain LHS) i odczyt chainem — gerundium z pełną fleksją
+    asn = m.body[5].body[0]
+    assert isinstance(asn.target.resolved, ast.GetterChain)

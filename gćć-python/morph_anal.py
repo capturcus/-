@@ -15,6 +15,11 @@ _GENDER_MAP = {
     "n1": "n", "n2": "n", "n": "n",
 }
 PARTICIPLE_POS = {"pact", "ppas"}
+# Imiesłowy i gerundia SGJP lematyzuje do bezokolicznika — przy ładowaniu
+# zastępujemy lemmę formą cytowaną (mianownik sg: m1 dla imiesłowów, n dla
+# gerundiów), żeby `administrujący` i `polubienie` były własnymi lemmami,
+# a nie czasownikami.
+CITATION_POS = PARTICIPLE_POS | {"ger"}
 VERB_POS = frozenset({
     "fin", "impt", "inf", "imps", "praet", "pcon",
     "winien", "bedzie", "fut", "cond",
@@ -105,20 +110,25 @@ def load(path):
             )
             if pos == "prep" and case:
                 preps.setdefault(lemma, set()).update(case)
-            if pos in PARTICIPLE_POS:
+            if pos in CITATION_POS:
                 if tag_parts is None:
                     tag_parts = tag.split(":")
+                # Forma cytowana: mianownik sg, aff; imiesłowy dodatkowo m1
+                # (gerundia są zawsze nijakie — bez warunku na rodzaj).
+                gender_ok = pos == "ger" or (
+                    len(tag_parts) >= 4 and "m1" in tag_parts[3].split(".")
+                )
                 if (
-                    len(tag_parts) >= 4
+                    len(tag_parts) >= 3
                     and tag_parts[1] == "sg"
                     and "nom" in tag_parts[2].split(".")
-                    and "m1" in tag_parts[3].split(".")
+                    and gender_ok
                     and tag_parts[-1] == "aff"
                 ):
                     citation[(pos, lemma)] = form
     for anas in db.values():
         for i, ana in enumerate(anas):
-            if ana.pos in PARTICIPLE_POS:
+            if ana.pos in CITATION_POS:
                 anas[i] = ana._replace(lemma=citation.get((ana.pos, ana.lemma), ana.lemma))
     print(f"Loaded {len(db)} forms in {time.time() - t0:.1f}s", file=sys.stderr)
     return db, preps

@@ -36,7 +36,7 @@ from morph_anal import canonical
 from ast_nodes import (
     Identifier, FunctionIdentifier, FunctionIdentifierError,
     StructDef, FunctionDef, ExternFunctionDef, UnionDef, Match,
-    IntLit, StrLit, BinOp, UnaryOp, And, Or, Not,
+    IntLit, StrLit, BoolLit, BinOp, UnaryOp, And, Or, Not,
     FunctionCall, GetterChain, StructCreation, StructArg, StructCtx, TryCall,
     Typed, ResolveError, Word, LOGICAL_OPS,
     Assignment, If, While, For, Return, Phrase,
@@ -426,6 +426,10 @@ class ExpressionParser:
             self.advance()
             self.last_production = {"kind": "literal", "type": "text"}
             return StrLit(t[1])
+        if kind is lexer.Token.BOOL_LIT:
+            self.advance()
+            self.last_production = {"kind": "literal", "type": "bool"}
+            return BoolLit(t[1])
         if kind is lexer.Token.LPAREN:
             self.advance()
             inner = self.parse_phrase()

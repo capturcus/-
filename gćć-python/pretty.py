@@ -172,6 +172,8 @@ def _label(node):
         return f"IntLit {node.value}"
     if isinstance(node, ast.StrLit):
         return f"StrLit {node.value!r}"
+    if isinstance(node, ast.BoolLit):
+        return f"BoolLit {'prawda' if node.value else 'fałsz'}"
     if isinstance(node, ast.BinOp):
         return f"BinOp {node.op}"
     if isinstance(node, ast.UnaryOp):

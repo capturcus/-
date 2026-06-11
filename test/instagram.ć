@@ -45,7 +45,7 @@ definicja Postu:
     autor (Liczba)
     treść (Tekst)
     chwila (Liczba)
-    fani (Lista)
+    polubienia (Lista)
     komentarze (Lista)
 
 definicja Stanu:
@@ -80,10 +80,10 @@ aby liczyć listę:
 aby należeć element do zbioru:
     zbiór jest:
         PustąListą:
-            zwróć zero równe jeden
+            zwróć fałsz
         Węzłem z głową z ogonem:
             jeśli głowa równe element:
-                zwróć zero równe zero
+                zwróć prawda
             zwróć należy element do ogona
 
 # Wyszukiwanie rekordu po identyfikatorze. Dzięki wymazywaniu parametrów
@@ -109,16 +109,16 @@ aby zarejestrować nazwę w stanie:
 
 aby opublikować treść przez autora w stanie:
     twórca to wyszukiwałbyś autora w użytkownikach stanu?
-    post to Post o identyfikatorze licznik stanu o autorze autor o treści treść o chwili pobierz_czas o fanach utwórz_pustą o komentarzach utwórz_pustą
+    post to Post o identyfikatorze licznik stanu o autorze autor o treści treść o chwili pobierz_czas o polubieniach utwórz_pustą o komentarzach utwórz_pustą
     wpisy stanu to dodaj post do wpisów stanu
     licznik stanu to licznik stanu plus jeden
     zwróć Sukces o wartości "opublikowano"
 
 aby polubić wpis przez fana w stanie:
     rekord to wyszukiwałbyś wpis we wpisach stanu?
-    jeśli należy fan do fanów rekordu:
+    jeśli należy fan do polubień rekordu:
         zwróć Błąd o opisie "już polubiono"
-    fani rekordu to dodaj fana do fanów rekordu
+    polubienia rekordu to dodaj fana do polubień rekordu
     powiadamiaj autora rekordu o "ktoś polubił twój post"
     zwróć Sukces o wartości "polubiono"
 

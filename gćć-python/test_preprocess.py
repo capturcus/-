@@ -133,3 +133,35 @@ def test_pod_is_ordinary_word(pp):
     assert toks[0][1] == ("pod",)
 
 
+
+
+# ---------- literały logiczne (BOOL_LIT) ----------
+
+def test_bool_literal_prawda(pp):
+    toks = pp("prawda")
+    assert toks[0][0] is lexer.Token.BOOL_LIT
+    assert toks[0][1] is True
+
+
+def test_bool_literal_fałsz(pp):
+    toks = pp("fałsz")
+    assert toks[0][0] is lexer.Token.BOOL_LIT
+    assert toks[0][1] is False
+
+
+def test_bool_literal_inflected_forms(pp):
+    # rozpoznawanie po lemmie — formy odmienione też są literałami
+    toks = pp("prawdę fałszem")
+    assert [t[0] for t in toks] == [lexer.Token.BOOL_LIT, lexer.Token.BOOL_LIT]
+    assert [t[1] for t in toks] == [True, False]
+
+
+def test_bool_literal_capitalized_is_not_literal(pp):
+    # `Prawda` ma lemmę ("Prawda",) — to przestrzeń typów, nie literał
+    toks = pp("Prawda")
+    assert toks[0][0] is lexer.Token.WORD
+
+
+def test_bool_literal_multiseg_is_not_literal(pp):
+    toks = pp("prawda_objawiona")
+    assert toks[0][0] is lexer.Token.WORD

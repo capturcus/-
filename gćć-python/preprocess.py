@@ -1,10 +1,14 @@
 """Preprocesor tokenów po analizie morfologicznej.
 
-Trzy przebiegi:
+Cztery przebiegi:
 1. Scal pary `mniejsze+od / większe+od / mniejsze+równe / większe+równe`
    oraz solo `równe / nierówne` w token `CMP_OP`.
 2. Oznacz solo `plus / minus` jako `ARITH_OP`, `razy` jako `TERM_OP`.
-3. Scal maksymalne sekwencje liczebnikowe (`is_number_word`) w token `INT_LIT`.
+3. Oznacz formy lemm `prawda` / `fałsz` jako literały logiczne `BOOL_LIT`
+   (Przełącznik). Po lemmie — `prawdę`, `fałszem` itd. też są literałami
+   (argumenty bez przypadka pasują do slotów pozycyjnie, jak INT_LIT).
+   Capitalized `Prawda` ma lemmę `("Prawda",)` i NIE jest literałem.
+4. Scal maksymalne sekwencje liczebnikowe (`is_number_word`) w token `INT_LIT`.
 
 Kolejność jest istotna: porównania PRZED liczebnikami, żeby `mniejsze od pięć`
 nie zgubiło `pięć` w czasie scalania ciągu liczebnikowego.
@@ -37,6 +41,8 @@ _CMP_1WORD_LEMMAS = {
 
 _ARITH_SURFACE = {"plus": "+", "minus": "-"}
 _TERM_SURFACE = {"razy": "*"}
+
+_BOOL_LEMMAS = {("prawda",): True, ("fałsz",): False}
 
 
 def _canon_or_none(tok):
@@ -91,6 +97,18 @@ def _scan_arith(tokens):
     return out
 
 
+def _scan_bools(tokens):
+    out = []
+    for t in tokens:
+        canon = _canon_or_none(t)
+        if canon in _BOOL_LEMMAS:
+            line = getattr(t, "line", None)
+            out.append(lexer.Tok(lexer.Token.BOOL_LIT, _BOOL_LEMMAS[canon], None, line=line))
+        else:
+            out.append(t)
+    return out
+
+
 def _scan_numbers(tokens):
     out = []
     i = 0
@@ -116,4 +134,4 @@ def _scan_numbers(tokens):
 
 
 def preprocess(tokens):
-    return _scan_numbers(_scan_arith(_scan_cmp(tokens)))
+    return _scan_numbers(_scan_bools(_scan_arith(_scan_cmp(tokens))))

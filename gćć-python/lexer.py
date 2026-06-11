@@ -15,6 +15,7 @@ class Token(Enum):
     QUESTION = auto()
     # Produkowane wyłącznie przez preprocess.preprocess (nie przez lex).
     INT_LIT = auto()
+    BOOL_LIT = auto()
     ARITH_OP = auto()
     TERM_OP = auto()
     CMP_OP = auto()

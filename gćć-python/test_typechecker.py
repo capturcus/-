@@ -1747,3 +1747,53 @@ def test_try_call_with_conflicting_annotation_raises(parse):
     )
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(parse(src))
+
+
+# =====================================================================
+# Literały logiczne `prawda` / `fałsz` — Przełącznik
+# =====================================================================
+
+
+def test_resolve_bool_literal():
+    t = typechecker.resolve_expression(ast.BoolLit(True), typechecker.Scope())
+    assert ty(t) == "Przełącznik"
+
+
+@pytest.mark.integration
+def test_bool_literal_types_as_przelacznik(parse, capsys):
+    src = (
+        "aby działać:\n"
+        "    flaga to prawda\n"
+        "    jeśli flaga:\n"
+        "        flaga to fałsz\n"
+        "    dopóki fałsz:\n"
+        "        flaga to prawda\n"
+    )
+    typechecker.resolve_module(parse(src))
+    out = capsys.readouterr().out
+    assert "Przełącznik" in out
+
+
+@pytest.mark.integration
+def test_bool_literal_conflict_raises(parse):
+    src = (
+        "aby działać:\n"
+        "    x to prawda\n"
+        "    x to pięć\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_inflected_bool_literal_as_argument(parse):
+    """`przyjmuj prawdę` — odmieniony literał jako argument (case None,
+    dopasowanie pozycyjne jak INT_LIT); grounding w działać przechodzi."""
+    src = (
+        "aby przyjmować flagę -> Przełącznik:\n"
+        "    zwróć flaga\n"
+        "\n"
+        "aby działać:\n"
+        "    x to przyjmuj prawdę\n"
+    )
+    typechecker.resolve_module(parse(src))

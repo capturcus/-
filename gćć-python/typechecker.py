@@ -514,6 +514,9 @@ def resolve_expression(node, scope):
     if isinstance(node, ast.StrLit):
         print("StrLit")
         return variant(["Tekst"])
+    if isinstance(node, ast.BoolLit):
+        print("BoolLit")
+        return variant(["Przełącznik"])
 
 def resolve_assignment(node, scope):
     print("Assignment")

@@ -100,10 +100,10 @@ aby wybrać pozycję z listy:
 aby należeć element do zbioru:
     zbiór jest:
         PustąListą:
-            zwróć zero równe jeden
+            zwróć fałsz
         Węzłem z głową z ogonem:
             jeśli głowa równe element:
-                zwróć zero równe zero
+                zwróć prawda
             zwróć należy element do ogona
 
 # Przecięcie listy ze zbiorem (Python: frozenset(p for p in atoms if p in CASES)).

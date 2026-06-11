@@ -338,6 +338,11 @@ class StrLit:
 
 
 @dataclass
+class BoolLit:
+    value: bool
+
+
+@dataclass
 class BinOp:
     op: str
     left: object

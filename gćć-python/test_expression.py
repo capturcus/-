@@ -1867,3 +1867,21 @@ def test_try_call_zero_arg(parse):
     val = m.body[5].body[0].value.resolved
     assert isinstance(val, ast.TryCall)
     assert val.call.params == []
+
+
+# =====================================================================
+# Literały logiczne `prawda` / `fałsz`
+# =====================================================================
+
+
+def test_bool_literal_expression(parse):
+    expr = _value_of_first_assignment(parse(_wrap("prawda")))
+    assert expr == ast.BoolLit(True)
+
+
+def test_bool_literal_in_logic(parse):
+    expr = _value_of_first_assignment(parse(_wrap("prawda i nie fałsz")))
+    assert isinstance(expr, ast.And)
+    assert expr.left == ast.BoolLit(True)
+    assert isinstance(expr.right, ast.Not)
+    assert expr.right.operand == ast.BoolLit(False)

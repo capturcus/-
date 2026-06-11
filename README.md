@@ -195,7 +195,7 @@ arytmetyczny rozcina sekwencję na dwie liczby: `sto plus dwieście` →
 
 ## Operatory leksykalne (preprocesor)
 
-Preprocesor wykonuje trzy przebiegi na strumieniu tokenów (w tej
+Preprocesor wykonuje cztery przebiegi na strumieniu tokenów (w tej
 kolejności):
 
 ### 1. Operatory porównania (`CMP_OP`)
@@ -231,12 +231,27 @@ są kanoniczne):
 Tylko jako pojedynczy segment (`("plus",)`). Dzielenie i modulo nie
 istnieją.
 
-### 3. Scalanie liczebników w `INT_LIT`
+### 3. Literały logiczne (`BOOL_LIT`)
+
+Formy lemm `prawda` i `fałsz` stają się literałami typu `Przełącznik`
+(wartości prawda/fałsz). Rozpoznawanie **po lemmie**, więc formy
+odmienione (`prawdę`, `fałszem`) też są literałami — jako argumenty
+wywołań nie niosą przypadka i dopasowują się pozycyjnie, jak `INT_LIT`.
+Capitalized `Prawda` ma lemmę `("Prawda",)` i NIE jest literałem
+(przestrzeń typów). Multi-seg (`prawda_objawiona`) pozostaje `WORD`-em.
+
+```
+flaga to prawda
+jeśli nie fałsz i flaga:
+    flaga to fałsz
+```
+
+### 4. Scalanie liczebników w `INT_LIT`
 
 Maksymalna sąsiadująca sekwencja słów-liczebników (zob. wyżej) jest scalana
 w jeden token `INT_LIT` z wartością `int`.
 
-Kolejność (cmp → arith → numbers) jest istotna: gdyby liczby były
+Kolejność (cmp → arith → bool → numbers) jest istotna: gdyby liczby były
 najpierw, `mniejsze od pięć` zgubiłoby `pięć` w scalaniu — `od` nie jest
 liczebnikiem, ale wpadałoby między `cmp` i resztę.
 
@@ -311,9 +326,13 @@ Funkcja `canonical` zwraca jedną kanoniczną krotkę lemm:
 - Single-letter / brak analiz → segment niezmieniony.
 - Multi-pos segment — preferuje analizy `adj`/`pact`/`ppas`. Wśród nich
   wybiera tę, której lemma równa się segmentowi, w przeciwnym razie pierwszą.
-- Imiesłowy aktywne i bierne (`pact`, `ppas`) są w SGJP lematyzowane do
-  bezokolicznika — przy ładowaniu bazy ich lemma zastępowana jest
-  cytowaną formą mianownika sg. m1 (`administrujący` zamiast `administrować`).
+- Imiesłowy aktywne i bierne (`pact`, `ppas`) oraz **gerundia** (`ger`,
+  rzeczowniki odczasownikowe) są w SGJP lematyzowane do bezokolicznika —
+  przy ładowaniu bazy ich lemma zastępowana jest cytowaną formą mianownika
+  sg. (m1 dla imiesłowów, nijaki dla gerundiów): `administrujący` zamiast
+  `administrować`, `polubienie` zamiast `polubić`. Gerundia odmieniają się
+  w wariantach jak rzeczowniki — mogą być polami, zmiennymi i bazami
+  chainów, i nie kolidują z czasownikiem, od którego pochodzą.
 
 Przykłady kanonikalizacji:
 
@@ -325,6 +344,7 @@ Przykłady kanonikalizacji:
 | `n`, `a` | `("n",)`, `("a",)` |
 | `administrującego` | `("administrujący",)` |
 | `obserwowanego` | `("obserwowany",)` |
+| `polubieniem` | `("polubienie",)` (gerundium — nie `polubić`) |
 | `zielonego` | `("zielony",)` (preferencja adj nad substantywizowanym `zielone`) |
 | `zapisz_w_bazie` | `("zapisać", "w", "baza")` |
 | `inna_rzecz` | `("inny", "rzecz")` |
@@ -769,6 +789,8 @@ minus pięć                     # → -5
 ### Literały
 
 - `INT_LIT` — patrz [Liczebniki słowne](#liczebniki-słowne).
+- `BOOL_LIT` — `prawda` / `fałsz` (typ `Przełącznik`); rozpoznawane po
+  lemmie, także w formach odmienionych.
 - `TEXT` — np. `"siemka"`. Wartość — dokładnie to, co w cudzysłowach.
 
 ### Nawiasy
