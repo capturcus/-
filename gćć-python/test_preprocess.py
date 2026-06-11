@@ -124,41 +124,12 @@ def test_word_passthrough(pp):
     assert toks[0][0] is lexer.Token.WORD
 
 
-# ---------- POD scalanie ----------
+# ---------- `pod` bez specjalnego traktowania ----------
 
-def test_pod_solo(pp):
-    toks = pp("pod")
-    assert _kinds_values(toks) == [(lexer.Token.POD, "pod")]
-
-
-def test_pod_in_subscript_expr(pp):
-    """`lista pod indeksem` → WORD POD WORD."""
-    toks = pp("lista pod indeksem")
-    assert [t[0] for t in toks] == [
-        lexer.Token.WORD, lexer.Token.POD, lexer.Token.WORD,
-    ]
+def test_pod_is_ordinary_word(pp):
+    """`pod` to zwykłe słowo (przyimek) — preprocesor go nie rusza."""
+    toks = pp("pod warunkiem")
+    assert [t[0] for t in toks] == [lexer.Token.WORD, lexer.Token.WORD]
+    assert toks[0][1] == ("pod",)
 
 
-def test_pod_with_int_index(pp):
-    """`lista pod jeden` — `jeden` zostaje INT_LIT, `pod` jako POD."""
-    toks = pp("lista pod jeden")
-    assert [t[0] for t in toks] == [
-        lexer.Token.WORD, lexer.Token.POD, lexer.Token.INT_LIT,
-    ]
-
-
-def test_pod_multiseg_identifier_unchanged(pp):
-    """`pod_warunkiem` (multi-seg WORD) NIE jest tokenem POD —
-    operator powstaje tylko z single-seg `('pod',)`."""
-    toks = pp("pod_warunkiem")
-    assert [t[0] for t in toks] == [lexer.Token.WORD]
-
-
-def test_pod_chain_left_assoc_tokens(pp):
-    """`lista pod jeden pod dwa` — dwa tokeny POD, dwa INT_LIT."""
-    toks = pp("lista pod jeden pod dwa")
-    assert [t[0] for t in toks] == [
-        lexer.Token.WORD,
-        lexer.Token.POD, lexer.Token.INT_LIT,
-        lexer.Token.POD, lexer.Token.INT_LIT,
-    ]

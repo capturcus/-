@@ -9,8 +9,7 @@ Pełna gramatyka:
   cmp_expr   := arith [CMP_OP arith]
   arith      := term (ARITH_OP term)*       # +, -
   term       := factor (TERM_OP factor)*    # *
-  factor     := [ARITH_OP] subscript        # unary +/-
-  subscript  := primary ("pod" primary)*    # left-assoc, postfix
+  factor     := [ARITH_OP] primary          # unary +/-
   primary    := atom [ "(" TYPE_WORD ")" ]  # opcjonalny sufiks typu
   atom       := INT_LIT | TEXT | "(" phrase ")"
               | function_call | getter_chain | struct_creation
@@ -26,9 +25,6 @@ ResolveError (nie fallback do grupowania).
 
 Argumenty function_call są ograniczone do `primary` (lewostronne wiązanie),
 żeby `weź dla X plus 7` parsowało się jako `BinOp(+, FCall(weź, [X]), 7)`.
-W szczególności argumenty NIE wchodzą na poziom `subscript` — `f od listy
-pod indeksem` daje `Subscript(FCall(f, [listy]), indeksem)`, a żeby wepchnąć
-subscript do argumentu trzeba parens: `f od (listy pod indeksem)`.
 Wartości pól w struct_creation są pełnymi `phrase` (boundary: kolejny `o/z`
 matchujący niezajęte pole z aktywnego StructCtx).
 """
@@ -41,7 +37,7 @@ from ast_nodes import (
     Identifier, FunctionIdentifier, FunctionIdentifierError,
     StructDef, FunctionDef, ExternFunctionDef, UnionDef, Match,
     IntLit, StrLit, BinOp, UnaryOp, And, Or, Not,
-    FunctionCall, GetterChain, Subscript, StructCreation, StructArg, StructCtx,
+    FunctionCall, GetterChain, StructCreation, StructArg, StructCtx,
     Typed, ResolveError, Word, LOGICAL_OPS,
     Assignment, If, While, For, Return, Phrase,
     scope_key_matches,
@@ -270,11 +266,9 @@ def _declare_target_var(target_phrase, scope, field_lemmas, preps):
     od przypisania do końca bloku). Waliduje, że LHS jest w mianowniku
     i jednoznaczny w (lemmas, number, gender).
 
-    Nie deklaruje: chain-LHS (zapis do pola) ani subscript-LHS (zapis do
-    elementu — głowa musi już być zadeklarowana, co sprawdzi rezolucja
-    targetu). Jeśli zmienna jest już widoczna (w tym z przodka), to
-    reasignacja — bez nowej deklaracji, żeby gałąź nie przesłaniała
-    zmiennej z zewnątrz."""
+    Nie deklaruje chain-LHS (zapis do pola). Jeśli zmienna jest już
+    widoczna (w tym z przodka), to reasignacja — bez nowej deklaracji,
+    żeby gałąź nie przesłaniała zmiennej z zewnątrz."""
     tokens = target_phrase.tokens
     if not tokens or tokens[0][0] is not lexer.Token.WORD:
         return
@@ -282,8 +276,6 @@ def _declare_target_var(target_phrase, scope, field_lemmas, preps):
     next_token = tokens[1] if len(tokens) > 1 else None
     if _starts_chain(head_ident, next_token, field_lemmas, preps):
         return  # chain LHS — to field write, nie deklaracja zmiennej
-    if next_token is not None and next_token[0] is lexer.Token.POD:
-        return  # subscript LHS — zapis do istniejącej kolekcji
     # Atom (single-letter, brak analiz) — bez nom validation, dodaj jak jest.
     if not head_ident.variants:
         if not any(scope.has_var(k) for k in head_ident.scope_keys):
@@ -405,23 +397,7 @@ class ExpressionParser:
         if self.peek() and self.peek()[0] is lexer.Token.ARITH_OP:
             op = self.advance()[1]
             return UnaryOp(op, self.parse_factor())
-        return self.parse_subscript()
-
-    def parse_subscript(self):
-        left = self.parse_primary()
-        had_pod = False
-        while self.peek() and self.peek()[0] is lexer.Token.POD:
-            had_pod = True
-            pod_tok = self.advance()
-            if self.peek() is None:
-                raise ResolveError(
-                    "operator 'pod' wymaga prawego operandu (indeksu)",
-                    line=getattr(pod_tok, "line", None),
-                )
-            left = Subscript(target=left, index=self.parse_primary())
-        if had_pod:
-            self.last_production = {"kind": "subscript"}
-        return left
+        return self.parse_primary()
 
     def parse_primary(self):
         return self._maybe_typed(self._parse_atom())
@@ -935,7 +911,7 @@ def _diagnose_leftover(parser, phrase):
         last_surface = "_".join(lp["chain_surfaces"][-1])
         bullets.append(
             f"po getter chain '{chain_str}' nie spodziewałem się dalszych "
-            f"tokenów (oczekiwałem operatora, 'pod' lub końca wyrażenia)"
+            f"tokenów (oczekiwałem operatora lub końca wyrażenia)"
         )
         first = leftover_tokens[0] if leftover_tokens else None
         if first is not None and _is_gen_word(first, parser.preps):
@@ -950,8 +926,7 @@ def _diagnose_leftover(parser, phrase):
         name = "_".join(lp["name_surface"])
         bullets.append(
             f"funkcja '{name}' przyjęła {lp['n_slots']} argument(ów); "
-            f"po niej nie spodziewałem się więcej tokenów (oczekiwałem "
-            f"operatora, 'pod' lub końca wyrażenia)"
+            f"po niej nie spodziewałem się więcej tokenów (oczekiwałem operatora lub końca wyrażenia)"
         )
 
     elif kind == "struct":
@@ -987,20 +962,20 @@ def _diagnose_leftover(parser, phrase):
         # rzuciłby wcześniej) — leftover to nadmiarowe tokeny po niej.
         surface = "_".join(lp["surface"])
         bullets.append(
-            f"po referencji do '{surface}' spodziewałem się operatora, "
-            f"'pod' lub końca wyrażenia"
+            f"po referencji do '{surface}' spodziewałem się operatora "
+            f"lub końca wyrażenia"
         )
 
-    elif kind in ("subscript", "parens", "literal"):
+    elif kind in ("parens", "literal"):
         bullets.append(
-            "spodziewałem się operatora, 'pod' lub końca wyrażenia"
+            "spodziewałem się operatora lub końca wyrażenia"
         )
 
     elif kind == "type_suffix":
         type_str = "_".join(lp["type"])
         bullets.append(
-            f"po sufiksie typu '({type_str})' spodziewałem się operatora, "
-            f"'pod' lub końca wyrażenia"
+            f"po sufiksie typu '({type_str})' spodziewałem się operatora "
+            f"lub końca wyrażenia"
         )
 
     else:

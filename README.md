@@ -32,10 +32,9 @@ gramatyka jest ostateczna.
 14. [Wywołania funkcji](#wywołania-funkcji)
 15. [Łańcuchy dostępu do pól (getter chain)](#łańcuchy-dostępu-do-pól-getter-chain)
 16. [Tworzenie struktur (konstruktor)](#tworzenie-struktur-konstruktor)
-17. [Subscript (`pod`)](#subscript-pod)
-18. [Zasięg i rozróżnianie wariantów](#zasięg-i-rozróżnianie-wariantów)
-19. [Konflikty nazw](#konflikty-nazw)
-20. [Komunikaty błędów](#komunikaty-błędów)
+17. [Zasięg i rozróżnianie wariantów](#zasięg-i-rozróżnianie-wariantów)
+18. [Konflikty nazw](#konflikty-nazw)
+19. [Komunikaty błędów](#komunikaty-błędów)
 
 ---
 
@@ -195,7 +194,7 @@ arytmetyczny rozcina sekwencję na dwie liczby: `sto plus dwieście` →
 
 ## Operatory leksykalne (preprocesor)
 
-Preprocesor wykonuje cztery przebiegi na strumieniu tokenów (w tej
+Preprocesor wykonuje trzy przebiegi na strumieniu tokenów (w tej
 kolejności):
 
 ### 1. Operatory porównania (`CMP_OP`)
@@ -231,18 +230,12 @@ są kanoniczne):
 Tylko jako pojedynczy segment (`("plus",)`). Dzielenie i modulo nie
 istnieją.
 
-### 3. Operator subscript (`POD`)
-
-Słowo `pod` (kanoniczna lemma `("pod",)`) staje się tokenem `POD`, ale
-**tylko** jako pojedynczy segment. `pod_warunkiem` (multi-seg) pozostaje
-zwykłym `WORD`.
-
-### 4. Scalanie liczebników w `INT_LIT`
+### 3. Scalanie liczebników w `INT_LIT`
 
 Maksymalna sąsiadująca sekwencja słów-liczebników (zob. wyżej) jest scalana
 w jeden token `INT_LIT` z wartością `int`.
 
-Kolejność (cmp → arith → pod → numbers) jest istotna: gdyby liczby były
+Kolejność (cmp → arith → numbers) jest istotna: gdyby liczby były
 najpierw, `mniejsze od pięć` zgubiłoby `pięć` w scalaniu — `od` nie jest
 liczebnikiem, ale wpadałoby między `cmp` i resztę.
 
@@ -657,8 +650,7 @@ LEWA_STRONA to PRAWA_STRONA
 
 - `LEWA_STRONA` to wyrażenie:
   - prosta zmienna (`liczba to pięć`),
-  - chain LHS / field write (`liczba_polubień postu to ...`),
-  - subscript (`lista pod indeksem to ...`).
+  - chain LHS / field write (`liczba_polubień postu to ...`).
 - `PRAWA_STRONA` — dowolne wyrażenie.
 
 `to` jest słowem kluczowym leksykalnym — pojawienie się słowa `to` (poza
@@ -682,8 +674,7 @@ bloku**. Prawa strona jest rozwiązywana PRZED deklaracją lewej, więc
 
 Jeżeli LHS to chain rozpoczynający się od pola struct-a (`autor postu to ...`),
 to przypisanie jest **zapisem do pola** — `autor` **nie** staje się
-zmienną. Subscript-LHS (`lista pod indeksem to ...`) to zapis do elementu —
-`lista` musi już być zadeklarowana.
+zmienną.
 
 Ciała `jeśli`/`inaczej`, `dopóki`, `dla` i gałęzi dopasowania `jest:` to **osobne
 bloki**: zmienna zadeklarowana w gałęzi NIE jest widoczna po bloku ani
@@ -723,8 +714,7 @@ not_expr   := "nie" not_expr | cmp_expr
 cmp_expr   := arith [CMP_OP arith]
 arith      := term (ARITH_OP term)*        # +, -
 term       := factor (TERM_OP factor)*     # *
-factor     := [ARITH_OP] subscript         # unary +/-
-subscript  := primary ("pod" primary)*     # left-assoc, postfix
+factor     := [ARITH_OP] primary           # unary +/-
 primary    := INT_LIT | TEXT | "(" phrase ")"
             | function_call | getter_chain | struct_creation
             | identifier_ref
@@ -732,8 +722,8 @@ primary    := INT_LIT | TEXT | "(" phrase ")"
 
 ### Priorytety i asocjatywność
 
-- `lub` < `i` < `nie` < porównanie < `+ -` < `*` < unarny `+` `-` < `pod`.
-- Lewa asocjatywność w `+`, `-`, `*` i `pod` (`10 - 3 - 2 = (10-3)-2 = 5`).
+- `lub` < `i` < `nie` < porównanie < `+ -` < `*` < unarny `+` `-`.
+- Lewa asocjatywność w `+`, `-` i `*` (`10 - 3 - 2 = (10-3)-2 = 5`).
 - Porównanie nie jest asocjatywne (`a < b < c` jest błędne — tylko jeden CMP_OP).
 - `nie` jest prawo-asocjatywne (`nie nie x` to `Not(Not(x))`).
 
@@ -945,14 +935,9 @@ liczba_polubień postu to liczba_polubień postu plus jeden
 LHS to chain → **field write** (nie deklaracja zmiennej). `liczba_polubień`
 nie staje się zmienną.
 
-### Chain w pozycji indeksu / argumentu fcall / wartości pola
+### Chain w pozycji argumentu fcall / wartości pola
 
 Wszędzie tam, gdzie pojawia się `primary`, chain rozpoznawany jest tak samo.
-
-```
-lista pod numerem autora
-# → Subscript(lista, GetterChain(numer, autor))
-```
 
 ---
 
@@ -1031,63 +1016,6 @@ test to Komentarz o autorze Użytkownik o identyfikatorze jeden o identyfikatorz
 
 ---
 
-## Subscript (`pod`)
-
-```
-PRIMARY pod PRIMARY [pod PRIMARY]…
-```
-
-- Lewostronna asocjatywność (`a pod b pod c = (a pod b) pod c`).
-- Operator postfiksowy: po `primary`, kolejne `pod primary` rozszerzają lewy operand.
-- Prawy operand to `primary` (np. liczba, identyfikator, chain, nawiasy
-  z wyrażeniem). Brak prawego operandu → `ResolveError`.
-
-Priorytet — niższy od arytmetyki:
-
-```
-lista pod indeksem plus jeden
-# → BinOp(+, Subscript(lista, indeks), 1)
-```
-
-Żeby wepchnąć arytmetykę do indeksu — nawiasy:
-
-```
-lista pod (indeksem plus jeden)
-# → Subscript(lista, BinOp(+, indeks, 1))
-```
-
-Niższy od `nie`:
-
-```
-nie lista pod indeksem
-# → Not(Subscript(lista, indeks))
-```
-
-Wyższy od fcall-arg primary:
-
-```
-weź dla numeru pod indeksem
-# → Subscript(FCall(weź, [numer]), indeks)
-# (subscript na WYNIKU fcall, bo arg to tylko primary)
-
-weź dla (numeru pod indeksem)
-# → FCall(weź, [Subscript(numer, indeks)])
-```
-
-Subscript jako LHS przypisania:
-
-```
-lista pod indeksem to jeden
-```
-
-W wartości pola struct:
-
-```
-p to Pudełko o wartości lista pod jeden
-# → StructCreation(Pudełko, [StructArg(wartość, Subscript(lista, 1))])
-```
-
----
 
 ## Zasięg i rozróżnianie wariantów
 
@@ -1173,7 +1101,7 @@ konflikt nazw: identyfikator nie może być jednocześnie polem i funkcją: X
 - `SyntaxError` — z lekkim opisem („Expected …, got …", brak `w` w `dla`,
   `:` po `można`, śmieci po `dalej`, etc.).
 - `ResolveError` — wszelkie problemy semantyczne w Pass 2 (ambiguity w
-  identyfikatorze, brak prawego operandu `pod`, niedopasowanie argumentu
+  identyfikatorze, niedopasowanie argumentu
   do parametru, nieparsowalne pozostałe tokeny).
 - `NumberParseError` — wewnętrzny błąd parsera liczebników (gdy ktoś wepchnie
   nie-liczebnik do `parse_number_words`).

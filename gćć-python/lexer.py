@@ -17,7 +17,6 @@ class Token(Enum):
     ARITH_OP = auto()
     TERM_OP = auto()
     CMP_OP = auto()
-    POD = auto()
 
 
 class Tok(tuple):

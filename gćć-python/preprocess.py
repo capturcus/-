@@ -1,11 +1,10 @@
 """Preprocesor tokenów po analizie morfologicznej.
 
-Cztery przebiegi:
+Trzy przebiegi:
 1. Scal pary `mniejsze+od / większe+od / mniejsze+równe / większe+równe`
    oraz solo `równe / nierówne` w token `CMP_OP`.
 2. Oznacz solo `plus / minus` jako `ARITH_OP`, `razy` jako `TERM_OP`.
-3. Oznacz solo `pod` (single-seg WORD) jako `POD` — operator subscript.
-4. Scal maksymalne sekwencje liczebnikowe (`is_number_word`) w token `INT_LIT`.
+3. Scal maksymalne sekwencje liczebnikowe (`is_number_word`) w token `INT_LIT`.
 
 Kolejność jest istotna: porównania PRZED liczebnikami, żeby `mniejsze od pięć`
 nie zgubiło `pięć` w czasie scalania ciągu liczebnikowego.
@@ -16,9 +15,7 @@ od zwykłego `mały`. Konwencja matematyczna używa neutrum singularis:
 `mniejsze/większe/równe/nierówne`.
 
 Operatory arytmetyczne (plus/minus/razy) i `równe/nierówne` rozpoznawane
-po canonical lemma (bo lemmy są już kanoniczne). `pod` jako operator —
-po canonical, tylko gdy jest pojedynczym segmentem (multi-seg identyfikatory
-typu `pod_warunkiem` zostają WORD-em).
+po canonical lemma (bo lemmy są już kanoniczne).
 """
 
 import lexer
@@ -94,17 +91,6 @@ def _scan_arith(tokens):
     return out
 
 
-def _scan_pod(tokens):
-    out = []
-    for t in tokens:
-        if _canon_or_none(t) == ("pod",):
-            line = getattr(t, "line", None)
-            out.append(lexer.Tok(lexer.Token.POD, "pod", None, line=line))
-        else:
-            out.append(t)
-    return out
-
-
 def _scan_numbers(tokens):
     out = []
     i = 0
@@ -130,4 +116,4 @@ def _scan_numbers(tokens):
 
 
 def preprocess(tokens):
-    return _scan_numbers(_scan_pod(_scan_arith(_scan_cmp(tokens))))
+    return _scan_numbers(_scan_arith(_scan_cmp(tokens)))

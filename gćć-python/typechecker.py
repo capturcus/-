@@ -477,8 +477,6 @@ def resolve_expression(node, scope):
         return resolve_function_call(node, scope)
     if isinstance(node, ast.GetterChain):
         return resolve_getter_chain(node, scope)
-    if isinstance(node, ast.Subscript):
-        return resolve_subscript(node, scope)
     if isinstance(node, ast.StructCreation):
         return resolve_struct_creation(node, scope)
     if isinstance(node, ast.StructArg):
@@ -765,12 +763,6 @@ def resolve_getter_chain(node, scope):
     return VariantVar(variants=union) if union else surviving[0]
 
 
-def resolve_subscript(node, scope):
-    print("Subscript")
-    resolve_expression(node.target, scope)
-    resolve_expression(node.index, scope)
-
-
 def find_struct_def(type_name):
     # type_name bywa krotką lemm (z StructCreation) albo sklejonym stringiem
     # (typ ze scope) — "".join normalizuje oba do tej samej postaci.
@@ -931,7 +923,6 @@ def resolve_identifier(node, scope):
 #     ast.Or: resolve_or,
 #     ast.FunctionCall: resolve_function_call,
 #     ast.GetterChain: resolve_getter_chain,
-#     ast.Subscript: resolve_subscript,
 #     ast.StructCreation: resolve_struct_creation,
 #     ast.StructArg: resolve_struct_arg,
 #     ast.Identifier: resolve_identifier,
@@ -958,7 +949,6 @@ def resolve_identifier(node, scope):
 #     ast.Or: resolve_or,
 #     ast.FunctionCall: resolve_function_call,
 #     ast.GetterChain: resolve_getter_chain,
-#     ast.Subscript: resolve_subscript,
 #     ast.StructCreation: resolve_struct_creation,
 #     ast.StructArg: resolve_struct_arg,
 #     ast.Identifier: resolve_identifier,

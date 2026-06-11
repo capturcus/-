@@ -24,7 +24,7 @@ hindley milner
         v typy parametryzowane (Lista, Mapa)
         v typy wariantowe
 
-        subscript
+        x subscript
 
         
     v double check fixpoint upper bound

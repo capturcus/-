@@ -4,8 +4,8 @@ Rozpoznaje top-level konstrukcje: definicje funkcji/struktur, struktury sterują
 (if/while/for/break/return), assignment. Wszystko, co nie jest słowem kluczowym
 strukturalnym, trafia do `Phrase` jako surowy strumień tokenów.
 
-Treść `Phrase` (matematyka, function calls, getter chains, struct creation,
-subscript) jest parsowana w drugim przebiegu przez `expression.resolve_module`.
+Treść `Phrase` (matematyka, function calls, getter chains, struct creation)
+jest parsowana w drugim przebiegu przez `expression.resolve_module`.
 
 Gramatyka Pass 1:
 
