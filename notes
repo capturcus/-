@@ -29,6 +29,12 @@ hindley milner
         
     v double check fixpoint upper bound
 
+literały Prawda/Fałsz
+gerundium (?) polubienie/polubić
+funkcje wyższego rzędu??
+funkcja bez zwróć ma typ zwracany wolny (nie Nic)
+tryb przypuszczający - usunąłbyś_komentarz dla usera z identyfikatorem?
+
 uruchamianie
 
 stdlib:
@@ -37,6 +43,5 @@ Przełącznik
 konkatenacja stringów
 
 
-tryb przypuszczający - usunąłbyś_komentarz dla usera z identyfikatorem?
 które
 kiedy

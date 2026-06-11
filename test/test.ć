@@ -1,0 +1,10 @@
+definicja Czegoś z elementem:
+    wartość (element)
+
+Rezultat to Coś lub Nic
+
+aby testować_nic:
+    zwróć Nic
+
+aby testować_nic_znów:
+    zwróć

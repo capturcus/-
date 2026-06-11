@@ -1,212 +1,214 @@
-# Instagram - backend w języku Ć
+# Backend aplikacji typu Instagram.
+#
+# Architektura:
+# - kontenery własne: Lista (Węzeł albo PustaLista) + Opcja (Trafienie albo
+#   Pudło) — jak w analizatorze morfologicznym,
+# - wynik operacji API: Skutek (Sukces albo Porażka) — dopasowanie `jest:`
+#   wymusza obsłużenie obu gałęzi,
+# - stan aplikacji mutowany zapisami do pól (chain-LHS), identyfikatory
+#   nadaje licznik w stanie,
+# - IO (sieć, dziennik, zegar, operacje tekstowe) zadeklarowane przez
+#   `można` — sygnatury w całości jawne.
 
-# === Stuby pomocniczych funkcji (signature-aware fn-call wymaga def) ===
+# ---------- kontenery ----------
 
-aby zapisać w bazie x:
-    zwrócić
+definicja Węzła z elementem:
+    głowa (element)
+    ogon (Lista)
 
-aby usunąć z bazy x:
-    zwrócić
+definicja PustejListy:
+    znacznik (Liczba)
 
-aby stworzyć_błąd komunikatem:
-    zwrócić
+Lista to Węzeł albo PustaLista
 
-aby stworzyć_użytkownika z nazwą (Tekst) z emailem (Tekst) z hasłem (Tekst):
-    zwrócić
+definicja Trafienia z wartością:
+    wartość (wartość)
 
-aby stworzyć_sesję dla użytkownika (Użytkownik):
-    zwrócić
+definicja Pudła:
+    powód (Tekst)
 
-aby stworzyć_post z treścią (Tekst) dla użytkownika (Użytkownik):
-    zwrócić
+Opcja to Trafienie albo Pudło
 
-aby stworzyć_komentarz dla postu (Post) z treścią (Tekst) dla użytkownika (Użytkownik):
-    zwrócić
-
-aby stworzyć_obserwację dla obserwatora (Użytkownik) dla użytkownika (Użytkownik):
-    zwrócić
-
-aby wygenerować_id:
-    zwrócić
-
-# `znajdź` w wywołaniach kanonikalizuje się do "znajść" (archaiczna forma),
-# a nie "znaleźć" — definiujemy w tej samej formie powierzchniowej.
-aby znajdź_użytkownika z emailem (Tekst):
-    zwrócić
-
-aby znajdź_obserwację obserwatora (Użytkownik) przez użytkownika (Użytkownik):
-    zwrócić
-
-aby znajdź_obserwowanych użytkownika (Użytkownik):
-    zwrócić
-
-aby znajdź_wpisy kolejnego (Użytkownik):
-    zwrócić
-
-aby wziąć_głowę obserwowanych (Lista):
-    zwrócić
-
-aby wziąć_ogon obserwowanych (Lista):
-    zwrócić
-
-aby dodać_wszystkie nowych (Lista) do postów (Lista):
-    zwrócić
-
-
-# === Definicje typów danych ===
+# ---------- model domeny ----------
 
 definicja Użytkownika:
-    identyfikator (Tekst)
+    identyfikator (Liczba)
     nazwa (Tekst)
-    email (Tekst)
-    hasło (Tekst)
-    flaga_blokady (Przełącznik)
-    liczba_obserwujących (Liczba)
-
-
-definicja Sesji:
-    identyfikator (Tekst)
-    użytkownik (Użytkownik)
-    flaga_aktywności (Przełącznik)
-
-
-definicja Postu:
-    identyfikator (Tekst)
-    autor (Użytkownik)
-    treść (Tekst)
-    liczba_polubień (Liczba)
-
+    obserwowani (Lista)
 
 definicja Komentarza:
-    identyfikator (Tekst)
-    autor (Użytkownik)
-    post (Post)
+    autor (Liczba)
+    tekst (Tekst)
+
+definicja Postu:
+    identyfikator (Liczba)
+    autor (Liczba)
     treść (Tekst)
+    chwila (Liczba)
+    fani (Lista)
+    komentarze (Lista)
 
+definicja Stanu:
+    użytkownicy (Lista)
+    wpisy (Lista)
+    licznik (Liczba)
 
-definicja Obserwacji:
-    obserwator (Użytkownik)
-    obserwowany (Użytkownik)
+definicja Sukcesu:
+    opis (Tekst)
 
+definicja Porażki:
+    powód (Tekst)
 
-# === Użytkownicy i logowanie ===
+Skutek to Sukces albo Porażka
 
-aby zarejestrować z nazwą (Tekst) z emailem (Tekst) z hasłem (Tekst) -> Użytkownik:
-    jeśli istnieje_użytkownik z emailem:
-        zwróć stwórz_błąd "email zajęty"
-    nowy to stwórz_użytkownika z nazwą z emailem z hasłem
-    identyfikator nowego to wygeneruj_id
-    liczba_obserwujących nowego to zero
-    zapisz w bazie nowego
-    zwróć nowego
+# ---------- świat zewnętrzny ----------
 
+można wysłać_odpowiedź tekst (Tekst) do klienta (Liczba) -> Nic
+można zapisać_dziennik wpis (Tekst) -> Nic
+można powiadamiać odbiorcę (Liczba) o nowości (Tekst) -> Nic
+można pobrać_czas -> Liczba
+można skleić tekst (Tekst) z drugim (Tekst) -> Tekst
+można zakodować liczbę (Liczba) -> Tekst
 
-aby zaloguj użytkownika (Użytkownik) z hasłem (Tekst) -> Sesja:
-    jeśli nie pasuje_hasło użytkownika do hasła:
-        zwróć stwórz_błąd "złe hasło"
-    nowa to stwórz_sesję dla użytkownika
-    identyfikator nowej to wygeneruj_id
-    flaga_aktywności nowej to prawda
-    zapisz w bazie nową
-    zwróć nową
+# ---------- operacje na listach ----------
 
+aby utworzyć_pustą:
+    zwróć PustaLista o znaczniku zero
 
-aby wyloguj sesję (Sesja):
-    flaga_aktywności sesji to fałsz
-    zapisz w bazie sesję
+aby dodać element do listy:
+    zwróć Węzeł o głowie element o ogonie lista
 
+aby liczyć listę:
+    lista jest:
+        PustąListą:
+            zwróć zero
+        Węzłem z ogonem:
+            zwróć jeden plus licz ogon
 
-aby pasowało_hasło użytkownika (Użytkownik) do hasła (Tekst) -> Przełącznik:
-    zwróć hasło użytkownika równe hasło
+aby należeć element do zbioru:
+    zbiór jest:
+        PustąListą:
+            zwróć zero równe jeden
+        Węzłem z głową z ogonem:
+            jeśli głowa równe element:
+                zwróć zero równe zero
+            zwróć należy element do ogona
 
+# Wyszukiwanie rekordu po identyfikatorze. Dzięki wymazywaniu parametrów
+# unii ta sama funkcja obsługuje listę użytkowników i listę postów —
+# wystarczy, że element ma pole `identyfikator`.
+aby wyszukiwać numer w rekordach:
+    rekordy jest:
+        PustąListą:
+            zwróć Pudło o powodzie "nie znaleziono rekordu"
+        Węzłem z głową z ogonem:
+            jeśli identyfikator głowy równe numer:
+                zwróć Trafienie o wartości głowa
+            zwróć wyszukuj numer w ogonie
 
-aby istnieje_użytkownik z emailem (Tekst) -> Przełącznik:
-    znaleziony to znajdź_użytkownika z emailem
-    zwróć nie znaleziony równe pusty
+# ---------- operacje API (mutują stan, zwracają Skutek) ----------
 
+aby zarejestrować nazwę w stanie:
+    użytkownik to Użytkownik o identyfikatorze licznik stanu o nazwie nazwa o obserwowanych utwórz_pustą
+    użytkownicy stanu to dodaj użytkownika do użytkowników stanu
+    licznik stanu to licznik stanu plus jeden
+    zapisz_dziennik (sklej "nowe konto: " z nazwą)
+    zwróć Sukces o opisie "zarejestrowano"
 
-# === Posty ===
+aby opublikować treść przez autora w stanie:
+    znalezisko to wyszukuj autora w użytkownikach stanu
+    znalezisko jest:
+        Pudłem z powodem:
+            zwróć Porażka o powodzie powód
+        Trafieniem:
+            post to Post o identyfikatorze licznik stanu o autorze autor o treści treść o chwili pobierz_czas o fanach utwórz_pustą o komentarzach utwórz_pustą
+            wpisy stanu to dodaj post do wpisów stanu
+            licznik stanu to licznik stanu plus jeden
+            zwróć Sukces o opisie "opublikowano"
 
-aby opublikuj_post z treścią (Tekst) w sesji (Sesja) -> Post:
-    jeśli nie flaga_aktywności sesji:
-        zwróć stwórz_błąd "brak aktywnej sesji"
-    nowy to stwórz_post z treścią dla użytkownika sesji
-    identyfikator nowego to wygeneruj_id
-    liczba_polubień nowego to zero
-    zapisz w bazie nowego
-    zwróć nowego
+aby polubić wpis przez fana w stanie:
+    znalezisko to wyszukuj wpis we wpisach stanu
+    znalezisko jest:
+        Pudłem z powodem:
+            zwróć Porażka o powodzie powód
+        Trafieniem z wartością:
+            jeśli należy fan do fanów wartości:
+                zwróć Porażka o powodzie "już polubiono"
+            fani wartości to dodaj fana do fanów wartości
+            powiadamiaj autora wartości o "ktoś polubił twój post"
+            zwróć Sukces o opisie "polubiono"
 
+aby skomentować wpis przez autora słowami w stanie:
+    znalezisko to wyszukuj wpis we wpisach stanu
+    znalezisko jest:
+        Pudłem z powodem:
+            zwróć Porażka o powodzie powód
+        Trafieniem z wartością:
+            komentarz to Komentarz o autorze autor o tekście słowa
+            komentarze wartości to dodaj komentarz do komentarzy wartości
+            zwróć Sukces o opisie "skomentowano"
 
-aby polubić post (Post):
-    liczba_polubień postu to liczba_polubień postu plus jeden
-    zapisz w bazie post
+aby obserwować cel przez fana w stanie:
+    znaleziony_fan to wyszukuj fana w użytkownikach stanu
+    znaleziony_fan jest:
+        Pudłem:
+            zwróć Porażka o powodzie "obserwujący nie istnieje"
+        Trafieniem z wartością:
+            obserwujący to wartość
+            znaleziony_cel to wyszukuj cel w użytkownikach stanu
+            znaleziony_cel jest:
+                Pudłem:
+                    zwróć Porażka o powodzie "cel nie istnieje"
+                Trafieniem z wartością:
+                    jeśli należy identyfikator wartości do obserwowanych obserwującego:
+                        zwróć Porażka o powodzie "już obserwuje"
+                    obserwowani obserwującego to dodaj identyfikator wartości do obserwowanych obserwującego
+                    zwróć Sukces o opisie "zaobserwowano"
 
+# ---------- oś czasu ----------
 
-aby usuń_post post (Post) w sesji (Sesja):
-    jeśli nie flaga_aktywności sesji:
-        zwróć stwórz_błąd "brak sesji"
-    jeśli nie identyfikator autora postu równe identyfikator użytkownika sesji:
-        zwróć stwórz_błąd "nie wolno"
-    usuń z bazy post
+aby zbierać posty dla obserwowanych:
+    posty jest:
+        PustąListą:
+            zwróć posty
+        Węzłem z głową z ogonem:
+            reszta to zbieraj ogon dla obserwowanych
+            jeśli należy autor głowy do obserwowanych:
+                zwróć dodaj głowę do reszty
+            zwróć resztę
 
+aby opisywać posty:
+    posty jest:
+        PustąListą:
+            zwróć ""
+        Węzłem z głową z ogonem:
+            zwróć sklej treść głowy z (opisuj ogon)
 
-# === Komentarze ===
+# ---------- obsługa odpowiedzi ----------
 
-aby skomentuj post (Post) z treścią (Tekst) w sesji (Sesja) -> Komentarz:
-    jeśli nie flaga_aktywności sesji:
-        zwróć stwórz_błąd "brak sesji"
-    nowy to stwórz_komentarz dla postu z treścią dla użytkownika sesji
-    identyfikator nowego to wygeneruj_id
-    zapisz w bazie nowego
-    zwróć nowego
+aby zgłaszać skutek do klienta:
+    skutek jest:
+        Sukcesem z opisem:
+            wyślij_odpowiedź opis do klienta
+        Porażką z powodem:
+            zapisz_dziennik powód
+            wyślij_odpowiedź powód do klienta
 
+# ---------- przykładowa sesja ----------
 
-aby usuń_komentarz komentarz (Komentarz) w sesji (Sesja):
-    jeśli nie identyfikator autora komentarza równe identyfikator użytkownika sesji:
-        zwróć stwórz_błąd "nie wolno"
-    usuń z bazy komentarz
-
-
-# === Obserwacje ===
-
-aby zacząć_obserwować użytkownika (Użytkownik) przez obserwatora (Użytkownik):
-    jeśli już_obserwuje obserwatora przez użytkownika:
-        zwróć stwórz_błąd "już obserwujesz"
-    jeśli identyfikator obserwatora równe identyfikator użytkownika:
-        zwróć stwórz_błąd "nie można obserwować siebie"
-    nowa to stwórz_obserwację dla obserwatora dla użytkownika
-    zapisz w bazie nową
-    liczba_obserwujących użytkownika to liczba_obserwujących użytkownika plus jeden
-
-
-aby przestań_obserwować użytkownika (Użytkownik) przez obserwatora (Użytkownik):
-    obserwacja to znajdź_obserwację obserwatora przez użytkownika
-    jeśli obserwacja równe pusty:
-        zwróć stwórz_błąd "nie obserwujesz"
-    usuń z bazy obserwację
-    liczba_obserwujących użytkownika to liczba_obserwujących użytkownika minus jeden
-
-
-aby już_obserwować obserwatora (Użytkownik) przez użytkownika (Użytkownik) -> Przełącznik:
-    obserwacja to znajdź_obserwację obserwatora przez użytkownika
-    zwróć nie obserwacja równe pusty
-
-
-# === Listing postów ===
-
-aby pokaż_feed dla użytkownika (Użytkownik) z limitem (Liczba) -> Lista:
-    wpisy to pusta_lista
-    obserwowani to znajdź_obserwowanych użytkownika
-    licznik to zero
-    dopóki licznik mniejsze od limit i nie obserwowani równe pusty:
-        kolejny to weź_głowę obserwowanych
-        nowe to znajdź_wpisy kolejnego
-        wpisy to dodaj_wszystkie nowych do wpisów
-        obserwowani to weź_ogon obserwowanych
-        licznik to licznik plus jeden
-    zwróć wpisy
-
-
-aby zablokuj użytkownika (Użytkownik):
-    flaga_blokady użytkownika to prawda
-    zapisz w bazie użytkownika
+aby działać:
+    stan to Stan o użytkownikach utwórz_pustą o wpisach utwórz_pustą o liczniku jeden
+    zgłaszaj (zarejestruj "ada" w stanie) do jeden
+    zgłaszaj (zarejestruj "bob" w stanie) do dwa
+    zgłaszaj (opublikuj "pierwszy post na osi" przez jeden w stanie) do jeden
+    zgłaszaj (polub trzy przez dwa w stanie) do dwa
+    zgłaszaj (skomentuj trzy przez dwa "ładne zdjęcie" w stanie) do dwa
+    zgłaszaj (obserwuj jeden przez dwa w stanie) do dwa
+    obserwator to wyszukuj dwa w użytkownikach stanu
+    obserwator jest:
+        Trafieniem z wartością:
+            oś to zbieraj wpisy stanu dla obserwowanych wartości
+            wyślij_odpowiedź (opisuj oś) do dwa
+        Pudłem z powodem:
+            zapisz_dziennik powód
+    wyślij_odpowiedź (sklej "liczba rekordów: " z (zakoduj licz wpisy stanu)) do jeden
