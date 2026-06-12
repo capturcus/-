@@ -293,7 +293,9 @@ class Match:
 class MatchBranch:
     """Gałąź `Wariantem z polem [z polem...]:` wewnątrz dopasowania `X jest:`.
 
-    `type_name` — nazwa wariantu w narzędniku ("wynik jest (czym?) Błędem").
+    `type_name` — nazwa wariantu w narzędniku ("wynik jest (czym?) Błędem")
+    albo None dla gałęzi domyślnej `inaczej:` (pokrywa pozostałe warianty
+    unii; zawsze ostatnia, bez pól).
     `fields` — identyfikatory pól do związania (forma narzędnika po `z`);
     może być podzbiorem pól struktury. Pass 2 zawęża każdy do wariantu
     pasującego do zadeklarowanego pola."""

@@ -124,6 +124,8 @@ def _label(node):
     if isinstance(node, ast.Match):
         return "Match"
     if isinstance(node, ast.MatchBranch):
+        if node.type_name is None:
+            return "MatchBranch inaczej"
         s = f"MatchBranch {'_'.join(node.type_name)}"
         for f in node.fields:
             s += f" z {'_'.join(f.surface)}"

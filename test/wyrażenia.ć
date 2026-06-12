@@ -178,11 +178,7 @@ aby podpatrywać_symbol w parserze:
             wartość jest:
                 Symbolem z symbolem:
                     zwróć symbol
-                Słowem:
-                    zwróć ""
-                Liczebnikiem:
-                    zwróć ""
-                Napisem:
+                inaczej:
                     zwróć ""
 
 # Lemat słowa pod kursorem albo "".
@@ -195,11 +191,7 @@ aby podpatrywać_lemat w parserze:
             wartość jest:
                 Słowem z lematem:
                     zwróć lemat
-                Symbolem:
-                    zwróć ""
-                Liczebnikiem:
-                    zwróć ""
-                Napisem:
+                inaczej:
                     zwróć ""
 
 # Czy słowo pod kursorem ma dopełniacz (rozszerzenie łańcucha pól).
@@ -212,11 +204,7 @@ aby sprawdzać_dopełniacz w parserze:
             wartość jest:
                 Słowem z przypadkami:
                     zwróć należy "gen" do przypadków
-                Symbolem:
-                    zwróć fałsz
-                Liczebnikiem:
-                    zwróć fałsz
-                Napisem:
+                inaczej:
                     zwróć fałsz
 
 aby oczekiwać wzorca w parserze:
@@ -233,11 +221,7 @@ aby czytać_lemat w parserze:
         Słowem z lematem:
             przesuwaj parser
             zwróć Sukces o wartości lemat
-        Symbolem:
-            zwróć Błąd o opisie "oczekiwano słowa"
-        Liczebnikiem:
-            zwróć Błąd o opisie "oczekiwano słowa"
-        Napisem:
+        inaczej:
             zwróć Błąd o opisie "oczekiwano słowa"
 
 aby odnajdywać_funkcję cel w spisie:

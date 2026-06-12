@@ -309,7 +309,20 @@ rezultat jest:
   `kwiatki są:` — pomyłka daje błąd z podpowiedzią właściwej formy.
   Podmiot dopasowania stoi w **mianowniku**.
 - Gałęzie muszą pokryć **wszystkie** warianty unii; `Nic` obsługuje
-  gałąź `Niczym:`.
+  gałąź `Niczym:`. Alternatywnie OSTATNIĄ gałęzią może być **`inaczej:`** —
+  pokrywa pozostałe warianty (bez wiązania pól):
+
+  ```
+  wartość jest:
+      Symbolem z symbolem:
+          zwróć symbol
+      inaczej:
+          zwróć ""
+  ```
+
+  Jawne gałęzie muszą być podzbiorem wariantów którejś unii; gdy pasuje
+  ich kilka, o typie podmiotu rozstrzygają jego pozostałe wystąpienia
+  (nierozstrzygnięty w `działać` → „dodaj adnotację typu").
 - Wiązać można podzbiór pól (również żadne: `Sukcesem:`).
 - Pola związane są lokalne dla gałęzi.
 - Dopasowanie na nieotypowanym parametrze **wnioskuje** jego unię do

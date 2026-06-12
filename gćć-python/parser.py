@@ -19,7 +19,7 @@ Gramatyka Pass 1:
   struct_def := "definicja" type_name ":" INDENT field+ DEDENT
   union_def  := type_name "to" type_name ("albo" type_name)+
   match_stmt := phrase ("jest"|"są") ":" INDENT match_branch+ DEDENT
-  match_branch := type_inst ("z" identifier)* ":" INDENT stmt+ DEDENT
+  match_branch := (type_inst ("z" identifier)* | "inaczej") ":" INDENT stmt+ DEDENT
   field      := identifier "(" type ")"
   param      := [prep] identifier ["(" type ")"]
   if_stmt    := "jeśli" phrase ":" INDENT stmt+ DEDENT
@@ -280,6 +280,21 @@ class Parser:
             branches.append(self.parse_match_branch())
             self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
+        # Gałąź domyślna `inaczej:` (type_name=None) — co najwyżej jedna,
+        # wyłącznie OSTATNIA, i nie może być jedyną (samo `inaczej` to
+        # zwykłe `jeśli` bez sensu dopasowania).
+        for br in branches[:-1]:
+            if br.type_name is None:
+                raise InterpreterError(
+                    "gałąź 'inaczej:' musi być ostatnią gałęzią dopasowania",
+                    line=br.line,
+                )
+        if branches and branches[-1].type_name is None and len(branches) == 1:
+            raise InterpreterError(
+                "dopasowanie z samą gałęzią 'inaczej:' nie ma sensu — "
+                "dodaj co najmniej jedną gałąź wariantu",
+                line=branches[-1].line,
+            )
         return Match(
             subject=subject, branches=branches, plural=plural,
             line=getattr(jest_tok, "line", None),
@@ -287,6 +302,21 @@ class Parser:
 
     def parse_match_branch(self):
         type_tok = self.expect(lexer.Token.WORD)
+        # Gałąź domyślna: `inaczej:` pokrywa pozostałe warianty unii.
+        if canonical(type_tok) == ("inaczej",):
+            self.expect(lexer.Token.COLON)
+            self._skip_newlines()
+            self.expect(lexer.Token.INDENT)
+            body = []
+            self._skip_newlines()
+            while self.peek()[0] is not lexer.Token.DEDENT:
+                body.append(self.parse_stmt())
+                self._skip_newlines()
+            self.expect(lexer.Token.DEDENT)
+            return MatchBranch(
+                type_name=None, fields=[], body=body,
+                line=getattr(type_tok, "line", None),
+            )
         # Narzędnik orzecznika: "wynik jest (czym?) Błędem".
         type_name = canonical_type(
             type_tok, required_case="inst", label="nazwa wariantu",

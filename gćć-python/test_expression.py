@@ -2157,3 +2157,63 @@ def test_match_atom_subject_accepts_both(parse):
             f"    x {verb}:\n"
         ) + _KWIATKI_BRANCHES
         parse(src)  # nie rzuca
+
+
+# =====================================================================
+# Gałąź domyślna `inaczej:` w dopasowaniu
+# =====================================================================
+
+
+def test_match_inaczej_as_last_branch(parse):
+    src = _KWIATKI_BASE + (
+        "aby opisywać kwiatek:\n"
+        "    kwiatek jest:\n"
+        "        Tulipanem z płatkiem:\n"
+        "            zwróć płatek\n"
+        "        inaczej:\n"
+        "            zwróć \"inny kwiat\"\n"
+    )
+    m = parse(src)
+    match = m.body[3].body[0]
+    assert isinstance(match, ast.Match)
+    assert match.branches[0].type_name == ("Tulipan",)
+    assert match.branches[1].type_name is None
+    assert match.branches[1].fields == []
+
+
+def test_match_inaczej_not_last_raises(parse):
+    src = _KWIATKI_BASE + (
+        "aby opisywać kwiatek:\n"
+        "    kwiatek jest:\n"
+        "        inaczej:\n"
+        "            zwróć \"inny\"\n"
+        "        Tulipanem z płatkiem:\n"
+        "            zwróć płatek\n"
+    )
+    with pytest.raises(ast.InterpreterError, match="ostatnią gałęzią"):
+        parse(src)
+
+
+def test_match_only_inaczej_raises(parse):
+    src = _KWIATKI_BASE + (
+        "aby opisywać kwiatek:\n"
+        "    kwiatek jest:\n"
+        "        inaczej:\n"
+        "            zwróć \"cokolwiek\"\n"
+    )
+    with pytest.raises(ast.InterpreterError, match="samą gałęzią 'inaczej:'"):
+        parse(src)
+
+
+def test_match_inaczej_does_not_see_other_branch_fields(parse):
+    """Pole związane w gałęzi wariantu jest lokalne — `inaczej` go nie widzi."""
+    src = _KWIATKI_BASE + (
+        "aby opisywać kwiatek:\n"
+        "    kwiatek jest:\n"
+        "        Tulipanem z płatkiem:\n"
+        "            zwróć płatek\n"
+        "        inaczej:\n"
+        "            zwróć płatek\n"
+    )
+    with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną"):
+        parse(src)

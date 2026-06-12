@@ -2006,3 +2006,132 @@ def test_unapplied_generic_ref_in_dzialac_not_grounded(parse):
     module = parse(src)
     with pytest.raises(typechecker.TypeCheckError, match="adnotację"):
         typechecker.resolve_module(module)
+
+
+# =====================================================================
+# Dopasowanie z gałęzią domyślną `inaczej:`
+# =====================================================================
+
+
+_KWIATKI = (
+    "definicja Tulipana:\n"
+    "    płatek (Tekst)\n"
+    "\n"
+    "definicja Róży:\n"
+    "    płatek (Tekst)\n"
+    "\n"
+    "definicja Bratka:\n"
+    "    płatek (Tekst)\n"
+    "\n"
+    "Kwiatki to Róża albo Tulipan albo Bratek\n"
+    "\n"
+)
+
+
+@pytest.mark.integration
+def test_partial_match_widens_subject_to_single_candidate(parse, capsys):
+    """Scenariusz test.ć: {Tulipanem}+inaczej, podmiot przypisany Tulipan —
+    jedyna kandydatka Kwiatki, podmiot szerzy się do unii."""
+    src = _KWIATKI + (
+        "aby działać:\n"
+        "    kwiatki to Tulipan o płatku \"siemka\"\n"
+        "    kwiatki są:\n"
+        "        Tulipanem z płatkiem:\n"
+        "            ozdoba to płatek\n"
+        "        inaczej:\n"
+        "            reszta to \"nie tulipan\"\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    out = capsys.readouterr().out
+    # unia `Kwiatki` ma lemat "Kwiatek" — tożsamość typów jest po lematach
+    assert "kwiatki',)" in out and ") Kwiatek" in out
+
+
+@pytest.mark.integration
+def test_partial_match_union_from_other_occurrence(parse, capsys):
+    """Dwie unie ze wspólnym wariantem: o wyborze decyduje INNE wystąpienie
+    zmiennej (przekazanie do funkcji o znanej sygnaturze)."""
+    src = (
+        "definicja Sukcesu z elementem:\n"
+        "    wartość (element)\n"
+        "\n"
+        "definicja Błędu:\n"
+        "    opis (Tekst)\n"
+        "\n"
+        "definicja Porażki:\n"
+        "    powód (Tekst)\n"
+        "\n"
+        "Rezultat to Sukces albo Błąd\n"
+        "Wynik to Sukces albo Porażka\n"
+        "\n"
+        "aby przyjąć rezultat (Rezultat) -> Tekst:\n"
+        "    zwróć \"ok\"\n"
+        "\n"
+        "aby badać coś:\n"
+        "    coś jest:\n"
+        "        Sukcesem:\n"
+        "            napis to \"sukces\"\n"
+        "        inaczej:\n"
+        "            napis to \"nie sukces\"\n"
+        "    zwróć przyjmij coś\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    fdt = _fdt_by_surface(("badać",))
+    assert ty(fdt.arg_types[0]) == "Rezultat"
+
+
+@pytest.mark.integration
+def test_partial_match_unresolved_ambiguity_not_grounded(parse):
+    """Ten sam setup bez zawężającego wystąpienia — zmienna w `działać`
+    zostaje ambiguity-setem {Rezultat|Wynik} → istniejący grounding."""
+    src = (
+        "definicja Sukcesu z elementem:\n"
+        "    wartość (element)\n"
+        "\n"
+        "definicja Błędu:\n"
+        "    opis (Tekst)\n"
+        "\n"
+        "definicja Porażki:\n"
+        "    powód (Tekst)\n"
+        "\n"
+        "Rezultat to Sukces albo Błąd\n"
+        "Wynik to Sukces albo Porażka\n"
+        "\n"
+        "aby wytwarzać coś:\n"
+        "    zwróć coś\n"
+        "\n"
+        "aby działać:\n"
+        "    tajemnica to wytwarzaj pięć\n"
+        "    tajemnica jest:\n"
+        "        Sukcesem:\n"
+        "            napis to \"sukces\"\n"
+        "        inaczej:\n"
+        "            napis to \"nie sukces\"\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_partial_match_branches_not_subset_raises(parse):
+    src = _KWIATKI + (
+        "definicja Psa:\n"
+        "    imię (Tekst)\n"
+        "\n"
+        "aby działać:\n"
+        "    kwiatki to Tulipan o płatku \"x\"\n"
+        "    kwiatki są:\n"
+        "        Tulipanem:\n"
+        "            napis to \"t\"\n"
+        "        Psem:\n"
+        "            napis to \"p\"\n"
+        "        inaczej:\n"
+        "            napis to \"reszta\"\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError,
+                       match="nie są podzbiorem"):
+        typechecker.resolve_module(module)

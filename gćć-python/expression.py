@@ -1312,6 +1312,13 @@ def _resolve_match(stmt, ctx, preps, scope):
     _resolve(stmt.subject, ctx, preps, scope)
     _validate_match_subject(stmt)
     for br in stmt.branches:
+        if br.type_name is None:
+            # Gałąź domyślna `inaczej:` — bez wariantu i bez pól (parser
+            # gwarantuje), samo ciało we własnym scope.
+            br_scope = _Scope(parent=scope)
+            for sub in br.body:
+                _resolve_stmt(sub, ctx, preps, br_scope)
+            continue
         type_str = "_".join(br.type_name)
         if br.type_name == ("Nic",):
             field_set = frozenset()  # wbudowane Nic — brak pól do związania

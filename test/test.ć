@@ -4,7 +4,10 @@ definicja Tulipana:
 definicja Róży:
     płatek (Tekst)
 
-Kwiatki to Róża albo Tulipan
+definicja Bratka:
+    płatek (Tekst)
+
+Kwiatki to Róża albo Tulipan albo Bratek
 
 można wypisać tekst (Tekst) -> Nic
 
@@ -13,5 +16,5 @@ aby działać:
     kwiatki są:
         Tulipanem z płatkiem:
             wypisz płatek
-        Różą z płatkiem:
-            wypisz płatek
+        inaczej:
+            wypisz "nie tulipan"

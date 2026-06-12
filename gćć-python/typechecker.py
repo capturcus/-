@@ -682,23 +682,85 @@ def _union_for_match(subject_t, branch_heads, line):
         f"żadnego zadeklarowanego typu wariantowego")
 
 
+def _unions_for_partial_match(subject_t, branch_heads, line):
+    """Unie-kandydatki dla dopasowania z gałęzią `inaczej:` — wystarczy,
+    żeby jawne gałęzie były PODZBIOREM członków unii (resztę wariantów
+    pokrywa `inaczej`; podzbiór niewłaściwy też OK — martwe `inaczej`
+    nie jest błędem, kod ewoluuje). Przy wielu kandydatkach rozstrzyga
+    znany typ podmiotu; nierozstrzygnięte zwraca wszystkie — caller
+    unifikuje podmiot z wielogłowym ambiguity-setem, który zawężą
+    POZOSTAŁE wystąpienia zmiennej (przecięcie w _unify_variants)."""
+    branch_set = set(branch_heads)
+    cands = [
+        decl for decl in module.body
+        if isinstance(decl, ast.UnionDef)
+        and branch_set <= {"".join(m) for m in decl.members}
+    ]
+    if not cands:
+        raise TypeCheckError(
+            f"gałęzie dopasowania z 'inaczej:' (linia {line}) — "
+            f"{', '.join(sorted(branch_set))} — nie są podzbiorem wariantów "
+            f"żadnego zadeklarowanego typu wariantowego")
+    ft = find_type(subject_t)
+    if isinstance(ft, VariantVar) and len(ft.variants) == 1:
+        subj_head = next(iter(ft.variants)).head
+        # Podmiot już jest jedną z unii-kandydatek → ona rozstrzyga.
+        for c in cands:
+            if "".join(c.name) == subj_head:
+                return [c]
+        # Podmiot jest strukturą → zostają unie, które go zawierają;
+        # wciąż wiele → ta sama wieloznaczność co w pełnym dopasowaniu.
+        containing = [
+            c for c in cands
+            if subj_head in {"".join(m) for m in c.members}
+        ]
+        if len(containing) > 1:
+            opts = ", ".join(sorted("".join(c.name) for c in containing))
+            raise TypeCheckError(
+                f"dopasowanie z 'inaczej:' (linia {line}) na wartości typu "
+                f"'{subj_head}' pasuje do wielu typów wariantowych: {opts} "
+                f"— dodaj adnotację typu")
+        if containing:
+            cands = containing
+    return cands
+
+
 def resolve_match(node, scope):
     print("Match")
     subject_t = resolve_expression(node.subject, scope)
     branch_heads = []
+    has_default = False
     for br in node.branches:
+        if br.type_name is None:
+            has_default = True
+            continue
         h = "".join(br.type_name)
         if h in branch_heads:
             raise TypeCheckError(
                 f"powtórzona gałąź '{h}' w dopasowaniu 'jest:' (linia {node.line})")
         branch_heads.append(h)
-    ud = _union_for_match(subject_t, branch_heads, node.line)
-    unify_types(
-        subject_t,
-        VariantVar(variants={AppliedType("".join(ud.name), ())}),
-        widen=True,
-    )
+    if has_default:
+        cands = _unions_for_partial_match(subject_t, branch_heads, node.line)
+        # Jedna kandydatka → zwykła unifikacja z rozszerzaniem (podmiot-
+        # struktura szerzy się do unii). Wiele → wielogłowy ambiguity-set
+        # BEZ widen: przecięcia z pozostałych wystąpień zmiennej zawężają
+        # go w fixpoincie; nierozstrzygnięty w `działać` wpada w grounding.
+        heads = {AppliedType("".join(c.name), ()) for c in cands}
+        unify_types(subject_t, VariantVar(variants=heads),
+                    widen=len(cands) == 1)
+    else:
+        ud = _union_for_match(subject_t, branch_heads, node.line)
+        unify_types(
+            subject_t,
+            VariantVar(variants={AppliedType("".join(ud.name), ())}),
+            widen=True,
+        )
     for br in node.branches:
+        if br.type_name is None:
+            br_scope = scope.child_for(br, "body")
+            for stmt in br.body:
+                resolve_statement(stmt, br_scope)
+            continue
         sd = find_struct_def(br.type_name)
         if sd is None:
             # Wbudowane `Nic` — wariant bez pól (pass 2 gwarantuje, że

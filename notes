@@ -30,7 +30,7 @@ hindley milner
     v double check fixpoint upper bound
 
 
-jest/są
+v jest/są
 inaczej w matchach
 v redis
 v gerundium (?) polubienie/polubić
@@ -50,4 +50,4 @@ które
 kiedy
 v funkcje wyższego rzędu: zrób/zrobiłbyś/zrobienie
 
-kolekcja nie może być liczbą mnogą nazwy w zasięgu — ogniwa (lista) obok ogniwo (parametr) skleja się w zasięgu typów przez odczyt dopełniaczowy lp; objaw to occurs check
+v kolekcja nie może być liczbą mnogą nazwy w zasięgu — ogniwa (lista) obok ogniwo (parametr) skleja się w zasięgu typów przez odczyt dopełniaczowy lp; objaw to occurs check
