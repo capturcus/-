@@ -280,9 +280,12 @@ class UnionDef:
 
 @dataclass
 class Match:
-    """Konstrukt `X jest:` — dopasowanie wartości unii do wariantów."""
+    """Konstrukt `X jest:` / `X są:` — dopasowanie wartości unii do
+    wariantów. `plural` niesie formę orzecznika (są → True); zgodę liczby
+    z podmiotem (lista jest / kwiatki są) waliduje Pass 2."""
     subject: "Phrase"
     branches: list  # list[MatchBranch]
+    plural: bool = False
     line: int = None
 
 

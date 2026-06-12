@@ -90,7 +90,7 @@ aby należeć element do zbioru:
 # unii ta sama funkcja obsługuje listę użytkowników i listę postów —
 # wystarczy, że element ma pole `identyfikator`.
 aby wyszukiwać numer w rekordach:
-    rekordy jest:
+    rekordy są:
         PustąListą:
             zwróć Błąd o opisie "nie znaleziono rekordu"
         Węzłem z głową z ogonem:
@@ -139,7 +139,7 @@ aby obserwować cel przez fana w stanie:
 # ---------- oś czasu ----------
 
 aby zbierać posty dla obserwowanych:
-    posty jest:
+    posty są:
         PustąListą:
             zwróć posty
         Węzłem z głową z ogonem:
@@ -149,7 +149,7 @@ aby zbierać posty dla obserwowanych:
             zwróć resztę
 
 aby opisywać posty:
-    posty jest:
+    posty są:
         PustąListą:
             zwróć ""
         Węzłem z głową z ogonem:

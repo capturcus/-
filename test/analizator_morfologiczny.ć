@@ -108,7 +108,7 @@ aby należeć element do zbioru:
 
 # Przecięcie listy ze zbiorem (Python: frozenset(p for p in atoms if p in CASES)).
 aby filtrować atomy według zbioru:
-    atomy jest:
+    atomy są:
         PustąListą:
             zwróć atomy
         Węzłem z głową z ogonem:
@@ -147,7 +147,7 @@ aby wstawić klucz z zawartością do słownika:
 
 # Mapowanie atomów rodzaju przez GENDER_MAP — zbiera tylko trafienia.
 aby tłumaczyć atomy przez mapę:
-    atomy jest:
+    atomy są:
         PustąListą:
             zwróć atomy
         Węzłem z głową z ogonem:
@@ -224,7 +224,7 @@ aby wymienić_klasy_czasownikowe:
 # Rekursja od końca + nadpisanie wartością z głowy = "pierwsze trafienie
 # wygrywa" jak w pythonowej pętli z continue.
 aby badać części:
-    części jest:
+    części są:
         PustąListą:
             zwróć Morfologia o przypadkach utwórz_pustą o liczbie (Błąd o opisie "brak liczby w tagu") o rodzajach utwórz_pustą
         Węzłem z głową z ogonem:
@@ -276,7 +276,7 @@ aby dopisać analizę w słowniku:
             zwróć wstaw napis analizy z (dodaj analizę do utwórz_pustą) do słownika
 
 aby wczytywać wiersze:
-    wiersze jest:
+    wiersze są:
         PustąListą:
             zwróć Baza o formach utwórz_pustą o przyimkach utwórz_pustą
         Węzłem z głową z ogonem:
@@ -295,7 +295,7 @@ aby wczytywać wiersze:
 # ---------- analyze() ----------
 
 aby analizować słowa w słowniku:
-    słowa jest:
+    słowa są:
         PustąListą:
             zwróć słowa
         Węzłem z głową z ogonem:
@@ -309,7 +309,7 @@ aby analizować słowa w słowniku:
 
 # Analizy o klasie przymiotnikowej (adj/pact/ppas).
 aby przesiewać analizy według klas:
-    analizy jest:
+    analizy są:
         PustąListą:
             zwróć analizy
         Węzłem z głową z ogonem:
@@ -329,7 +329,7 @@ aby wybrać_pulę z analiz:
 
 # Pierwsza analiza, której lemat równa się słowu (citation match).
 aby wyszukiwać słowo w analizach:
-    analizy jest:
+    analizy są:
         PustąListą:
             zwróć Błąd o opisie "żaden lemat nie pasuje"
         Węzłem z głową z ogonem:

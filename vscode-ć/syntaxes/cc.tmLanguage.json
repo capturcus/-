@@ -50,7 +50,7 @@
     },
     {
       "name": "keyword.control.cc",
-      "match": "\\b(aby|można|definicja|jeśli|inaczej|dopóki|dla|zwróć|zwrócić|stop|dalej|albo|jest|to)\\b"
+      "match": "\\b(aby|można|definicja|jeśli|inaczej|dopóki|dla|zwróć|zwrócić|stop|dalej|albo|jest|są|to)\\b"
     },
     {
       "name": "keyword.control.apply.cc",

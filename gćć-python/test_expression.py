@@ -2068,3 +2068,92 @@ def test_parenthesized_apply_as_fcall_arg(parse):
     inner = call.params[1].value
     assert isinstance(inner, ast.Apply)
     assert len(inner.args) == 1
+
+
+# =====================================================================
+# Zgoda liczby w dopasowaniu: `jest:` / `są:` + mianownik podmiotu
+# =====================================================================
+
+
+_KWIATKI_BASE = (
+    "definicja Tulipana:\n"
+    "    płatek (Tekst)\n"
+    "\n"
+    "definicja Róży:\n"
+    "    płatek (Tekst)\n"
+    "\n"
+    "Kwiatki to Róża albo Tulipan\n"
+    "\n"
+)
+
+_KWIATKI_BRANCHES = (
+    "        Tulipanem z płatkiem:\n"
+    "            zwróć płatek\n"
+    "        Różą z płatkiem:\n"
+    "            zwróć płatek\n"
+)
+
+
+def test_match_plural_subject_with_są(parse):
+    src = _KWIATKI_BASE + (
+        "aby opisywać kwiatki:\n"
+        "    kwiatki są:\n"
+    ) + _KWIATKI_BRANCHES
+    m = parse(src)
+    match = m.body[3].body[0]
+    assert isinstance(match, ast.Match)
+    assert match.plural is True
+    # podmiot zawężony do mianownika liczby mnogiej
+    subj = match.subject.resolved
+    assert all("nom" in v.case and v.number == "pl" for v in subj.variants)
+
+
+def test_match_plural_subject_with_jest_raises(parse):
+    src = _KWIATKI_BASE + (
+        "aby opisywać kwiatki:\n"
+        "    kwiatki jest:\n"
+    ) + _KWIATKI_BRANCHES
+    with pytest.raises(ast.ResolveError, match="napisz 'kwiatki są:'"):
+        parse(src)
+
+
+def test_match_singular_subject_with_są_raises(parse):
+    src = _KWIATKI_BASE + (
+        "aby opisywać kwiatek:\n"
+        "    kwiatek są:\n"
+    ) + _KWIATKI_BRANCHES
+    with pytest.raises(ast.ResolveError, match="napisz 'kwiatek jest:'"):
+        parse(src)
+
+
+def test_match_singular_subject_with_jest_ok(parse):
+    src = _KWIATKI_BASE + (
+        "aby opisywać kwiatek:\n"
+        "    kwiatek jest:\n"
+    ) + _KWIATKI_BRANCHES
+    m = parse(src)
+    match = m.body[3].body[0]
+    assert match.plural is False
+    subj = match.subject.resolved
+    assert all("nom" in v.case and v.number == "sg" for v in subj.variants)
+
+
+def test_match_subject_not_nominative_raises(parse):
+    """Parametr `kotem` (wyłącznie narzędnik) — podmiot dopasowania musi
+    być w mianowniku."""
+    src = _KWIATKI_BASE + (
+        "aby badać kotem:\n"
+        "    kotem jest:\n"
+    ) + _KWIATKI_BRANCHES
+    with pytest.raises(ast.ResolveError, match="mianowniku"):
+        parse(src)
+
+
+def test_match_atom_subject_accepts_both(parse):
+    """Atom jednoliterowy nie niesie morfologii — bez egzekwowania."""
+    for verb in ("jest", "są"):
+        src = _KWIATKI_BASE + (
+            "aby badać x:\n"
+            f"    x {verb}:\n"
+        ) + _KWIATKI_BRANCHES
+        parse(src)  # nie rzuca

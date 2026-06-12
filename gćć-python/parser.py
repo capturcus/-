@@ -18,7 +18,7 @@ Gramatyka Pass 1:
   extern_def := "można" function_name typed_param* "->" type NEWLINE
   struct_def := "definicja" type_name ":" INDENT field+ DEDENT
   union_def  := type_name "to" type_name ("albo" type_name)+
-  match_stmt := phrase "jest" ":" INDENT match_branch+ DEDENT
+  match_stmt := phrase ("jest"|"są") ":" INDENT match_branch+ DEDENT
   match_branch := type_inst ("z" identifier)* ":" INDENT stmt+ DEDENT
   field      := identifier "(" type ")"
   param      := [prep] identifier ["(" type ")"]
@@ -197,12 +197,14 @@ class Parser:
                 line=getattr(nxt, "line", None) if nxt is not None
                 else self._last_seen_line(),
             )
-        # `X jest:` — dopasowanie wartości unii do wariantów; rozpoznawane
-        # po formie powierzchniowej 'jest' na końcu frazy przed ':' (fraza
-        # zakończona ':' nie jest poza tym poprawnym statementem).
+        # `X jest:` / `X są:` — dopasowanie wartości unii do wariantów;
+        # rozpoznawane po formie powierzchniowej orzecznika na końcu frazy
+        # przed ':' (fraza zakończona ':' nie jest poza tym poprawnym
+        # statementem). Zgodę liczby podmiotu z orzecznikiem (lista jest /
+        # kwiatki są) egzekwuje Pass 2 (_validate_match_subject).
         if (self.peek() is not None and self.peek()[0] is lexer.Token.COLON
                 and lhs.tokens[-1][0] is lexer.Token.WORD
-                and lhs.tokens[-1][1] == ("jest",)):
+                and lhs.tokens[-1][1] in (("jest",), ("są",))):
             return self.parse_match(lhs)
         if self.peek() and self.peek()[0] is lexer.Token.ASSIGN:
             self.advance()
@@ -257,13 +259,16 @@ class Parser:
         return UnionDef(name=name, members=members, line=line)
 
     def parse_match(self, header):
-        """`X jest:` — `header` to fraza zebrana w parse_stmt, zakończona
-        słowem 'jest' (orzecznik); subject = fraza bez tego 'jest'."""
+        """`X jest:` / `X są:` — `header` to fraza zebrana w parse_stmt,
+        zakończona orzecznikiem; subject = fraza bez orzecznika. Forma
+        orzecznika (jest/są) wędruje do węzła jako `plural` — zgodę liczby
+        z podmiotem waliduje Pass 2."""
         jest_tok = header.tokens[-1]
+        plural = jest_tok[1] == ("są",)
         subject = Phrase(tokens=header.tokens[:-1], line=header.line)
         if not subject.tokens:
             raise InterpreterError(
-                "dopasowanie 'X jest:' wymaga wyrażenia przed 'jest'",
+                "dopasowanie 'X jest:' wymaga wyrażenia przed 'jest'/'są'",
                 line=getattr(jest_tok, "line", None),
             )
         self.expect(lexer.Token.COLON)
@@ -276,7 +281,7 @@ class Parser:
             self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
         return Match(
-            subject=subject, branches=branches,
+            subject=subject, branches=branches, plural=plural,
             line=getattr(jest_tok, "line", None),
         )
 

@@ -438,14 +438,14 @@ aby opisywać wyrażenie:
             zwróć sklej "budowa:" z typem
 
 aby opisywać_listę spisane:
-    spisane jest:
+    spisane są:
         PustąListą:
             zwróć ""
         Węzłem z głową z ogonem:
             zwróć sklej (opisuj głowę) z (sklej " " z (opisuj_listę ogon))
 
 aby sklejać_lematy ogniwa:
-    ogniwa jest:
+    ogniwa są:
         PustąListą:
             zwróć ""
         Węzłem z głową z ogonem:

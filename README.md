@@ -305,6 +305,9 @@ rezultat jest:
         wypisz opis
 ```
 
+- **Orzecznik zgadza się liczbą z podmiotem**: `lista jest:`, ale
+  `kwiatki są:` — pomyłka daje błąd z podpowiedzią właściwej formy.
+  Podmiot dopasowania stoi w **mianowniku**.
 - Gałęzie muszą pokryć **wszystkie** warianty unii; `Nic` obsługuje
   gałąź `Niczym:`.
 - Wiązać można podzbiór pól (również żadne: `Sukcesem:`).

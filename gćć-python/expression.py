@@ -1250,13 +1250,67 @@ def _resolve_stmt(stmt, ctx, preps, scope):
     # Break: no phrase
 
 
+def _match_subject_ident(resolved):
+    """Identyfikator morfologiczny podmiotu dopasowania: Identifier wprost
+    albo głowa łańcucha dopełniaczowego. None dla podmiotów bez morfologii
+    (atom jednoliterowy, wywołanie, nawiasy) — tam zgody liczby nie da się
+    egzekwować."""
+    if isinstance(resolved, Identifier) and resolved.variants:
+        return resolved
+    if isinstance(resolved, GetterChain):
+        head = resolved.chain[0]
+        if isinstance(head, Identifier) and head.variants:
+            return head
+    return None
+
+
+def _validate_match_subject(stmt):
+    """Polska zgoda orzecznika z podmiotem w dopasowaniu: `lista jest:`,
+    ale `kwiatki są:`. Podmiot musi być w MIANOWNIKU (inny przypadek nie
+    ma tu gramatycznego sensu), a liczba podmiotu musi zgadzać się
+    z formą orzecznika. Warianty podmiotu są przy okazji zawężane
+    in-place do mianownikowych o zgodnej liczbie — typechecker dostaje
+    ciaśniejszy scope-key (np. odpada odczyt dopełniacza lp z 'ogniwa')."""
+    ident = _match_subject_ident(stmt.subject.resolved)
+    if ident is None:
+        return
+    surface = "_".join(ident.surface)
+    nom = tuple(v for v in ident.variants if "nom" in v.case)
+    if not nom:
+        raise ResolveError(
+            f"podmiot dopasowania '{surface}' musi być w mianowniku",
+            line=ident.line,
+        )
+    wanted = "pl" if stmt.plural else "sg"
+    agreeing = tuple(v for v in nom if v.number == wanted)
+    if not agreeing:
+        verb = "są" if stmt.plural else "jest"
+        right = "są" if any(v.number == "pl" for v in nom) else "jest"
+        liczba = "mnogiej" if right == "są" else "pojedynczej"
+        raise ResolveError(
+            f"orzecznik '{verb}' nie zgadza się liczbą z podmiotem "
+            f"'{surface}' (w liczbie {liczba}) — napisz '{surface} {right}:'",
+            line=ident.line,
+        )
+    narrowed = Identifier(
+        surface=ident.surface, analyses=ident.analyses,
+        variants=agreeing, line=ident.line,
+    )
+    if isinstance(stmt.subject.resolved, GetterChain):
+        stmt.subject.resolved.chain[0] = narrowed
+    else:
+        stmt.subject.resolved = narrowed
+
+
 def _resolve_match(stmt, ctx, preps, scope):
-    """Rezolucja dopasowania `X jest:`: subject w bieżącym scope; każda gałąź
+    """Rezolucja dopasowania `X jest:` / `X są:`: subject w bieżącym scope
+    (mianownik + zgoda liczby z orzecznikiem); każda gałąź
     waliduje swój wariant (zdefiniowana struktura) i pola (narzędnik po `z`,
     pole tej struktury), wiąże je w scope gałęzi i rezolwuje body.
     Identyfikatory pól są zawężane in-place do dopasowanego klucza —
     typechecker czyta z nich jednoznaczny scope-key."""
     _resolve(stmt.subject, ctx, preps, scope)
+    _validate_match_subject(stmt)
     for br in stmt.branches:
         type_str = "_".join(br.type_name)
         if br.type_name == ("Nic",):
