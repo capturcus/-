@@ -250,31 +250,58 @@ aby odnajdywać_funkcję cel w spisie:
             zwróć odnajduj_funkcję cel w ogonie
 
 # ---------- gramatyka: lub < i < nie < porównanie < suma < iloczyn ----------
+#
+# Wszystkie poziomy lewostronnie łączące to JEDEN fold (rozbierać_poziom +
+# doklejać), sparametryzowany dwiema wartościami funkcyjnymi przekazywanymi
+# jako referencje gerundialne: "schodzenie" rozbiera poziom niżej,
+# a "wykrywanie" rozpoznaje operator pod kursorem (zwraca znak albo "").
+# Przed funkcjami wyższego rzędu każdy poziom był osobną kopią tego foldu.
 
 aby rozbierać_frazę w parserze:
     zwróć rozbieraj_alternatywę w parserze
 
-aby rozbierać_alternatywę w parserze:
-    pierwsza to rozbierałbyś_koniunkcję w parserze?
-    zwróć doklejaj_alternatywę do pierwszej w parserze
+aby rozbierać_poziom ze schodzeniem po wykrywaniu w parserze:
+    pierwsza to zastosowałbyś schodzenie z parserem?
+    zwróć doklejaj ze schodzeniem po wykrywaniu do pierwszej w parserze
 
-aby doklejać_alternatywę do lewicy w parserze:
+aby doklejać ze schodzeniem po wykrywaniu do lewicy w parserze:
+    znak to zastosuj wykrywanie z parserem
+    jeśli znak równe "":
+        zwróć Sukces o wartości lewica
+    przesuwaj parser
+    prawica to zastosowałbyś schodzenie z parserem?
+    zwróć doklejaj ze schodzeniem po wykrywaniu do (Działanie o operatorze znak o lewicy lewica o prawicy prawica) w parserze
+
+# Wykrywacze operatorów — jedyne, czym poziomy naprawdę się różnią.
+
+aby wykrywać_alternatywę w parserze:
     jeśli podpatruj_lemat w parserze równe "lub":
-        przesuwaj parser
-        prawica to rozbierałbyś_koniunkcję w parserze?
-        zwróć doklejaj_alternatywę do (Działanie o operatorze "lub" o lewicy lewica o prawicy prawica) w parserze
-    zwróć Sukces o wartości lewica
+        zwróć "lub"
+    zwróć ""
+
+aby wykrywać_koniunkcję w parserze:
+    jeśli podpatruj_lemat w parserze równe "i":
+        zwróć "i"
+    zwróć ""
+
+aby wykrywać_sumę w parserze:
+    znak to podpatruj_symbol w parserze
+    jeśli znak równe "+" lub znak równe "-":
+        zwróć znak
+    zwróć ""
+
+aby wykrywać_iloczyn w parserze:
+    jeśli podpatruj_symbol w parserze równe "*":
+        zwróć "*"
+    zwróć ""
+
+# Poziomy gramatyki — dwulinijkowe deklaracje z referencjami gerundialnymi.
+
+aby rozbierać_alternatywę w parserze:
+    zwróć rozbieraj_poziom z rozbieraniem_koniunkcji po wykrywaniu_alternatywy w parserze
 
 aby rozbierać_koniunkcję w parserze:
-    pierwsza to rozbierałbyś_negację w parserze?
-    zwróć doklejaj_koniunkcję do pierwszej w parserze
-
-aby doklejać_koniunkcję do lewicy w parserze:
-    jeśli podpatruj_lemat w parserze równe "i":
-        przesuwaj parser
-        prawica to rozbierałbyś_negację w parserze?
-        zwróć doklejaj_koniunkcję do (Działanie o operatorze "i" o lewicy lewica o prawicy prawica) w parserze
-    zwróć Sukces o wartości lewica
+    zwróć rozbieraj_poziom z rozbieraniem_negacji po wykrywaniu_koniunkcji w parserze
 
 aby rozbierać_negację w parserze:
     jeśli podpatruj_lemat w parserze równe "nie":
@@ -293,27 +320,10 @@ aby rozbierać_porównanie w parserze:
     zwróć Sukces o wartości lewica
 
 aby rozbierać_sumę w parserze:
-    pierwsza to rozbierałbyś_iloczyn w parserze?
-    zwróć doklejaj_sumę do pierwszej w parserze
-
-aby doklejać_sumę do lewicy w parserze:
-    znak to podpatruj_symbol w parserze
-    jeśli znak równe "+" lub znak równe "-":
-        przesuwaj parser
-        prawica to rozbierałbyś_iloczyn w parserze?
-        zwróć doklejaj_sumę do (Działanie o operatorze znak o lewicy lewica o prawicy prawica) w parserze
-    zwróć Sukces o wartości lewica
+    zwróć rozbieraj_poziom z rozbieraniem_iloczynu po wykrywaniu_sumy w parserze
 
 aby rozbierać_iloczyn w parserze:
-    pierwsza to rozbierałbyś_człon w parserze?
-    zwróć doklejaj_iloczyn do pierwszej w parserze
-
-aby doklejać_iloczyn do lewicy w parserze:
-    jeśli podpatruj_symbol w parserze równe "*":
-        przesuwaj parser
-        prawica to rozbierałbyś_człon w parserze?
-        zwróć doklejaj_iloczyn do (Działanie o operatorze "*" o lewicy lewica o prawicy prawica) w parserze
-    zwróć Sukces o wartości lewica
+    zwróć rozbieraj_poziom z rozbieraniem_członu po wykrywaniu_iloczynu w parserze
 
 # ---------- człony (primary) ----------
 

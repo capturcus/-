@@ -323,6 +323,56 @@ zapisz wydobyłbyś wartość z listy? do bazy
 
 ---
 
+## Funkcje wyższego rzędu — gerundium i `zastosuj`
+
+Funkcję modułu (top-level, jak wskaźnik funkcji w C — bez domknięć)
+przekazuje się przez jej **rzeczownik odczasownikowy**: `dodawanie` to
+referencja do funkcji `dodawać`, `rozbieranie_koniunkcji` — do
+`rozbierać_koniunkcję`. Nominalizacja naturalnie przesuwa dopełnienie do
+dopełniacza (`rozbierać koniunkcjĘ` → `rozbieranie koniunkcjI`) —
+tożsamość po lematach załatwia tę różnicę sama.
+
+Wartość funkcyjną wywołuje wbudowany czasownik `zastosuj` — argumenty
+pozycyjnie, każdy przez `z` + narzędnik:
+
+```
+aby złożyć listę z operacją z akumulatorem:        # fold
+    lista jest:
+        Węzłem z głową z ogonem:
+            reszta to złóż ogon z operacją z akumulatorem
+            zwróć zastosuj operację z głową z resztą
+        PustąListą:
+            zwróć akumulator
+
+suma to złóż liczby z dodawaniem z zero            # referencja gerundialna
+```
+
+Zasady:
+
+- **Zmienna przesłania referencję** — parametr `operacja` w ciele to
+  zmienna; gerundium działa jako referencja tylko, gdy nazwy nie ma
+  w zasięgu.
+- **`zastosować` jest zarezerwowane** — własnej funkcji o tym lemacie nie
+  można zadeklarować (`zastosować_filtr` — można).
+- **Tryb przypuszczający komponuje się**: `zastosowałbyś schodzenie
+  z parserem?` to zastosowanie z obsługą błędu (wymagania jak przy `?`).
+- Typy strzałkowe są w pełni inferowane (`operacja : (Liczba, Liczba) →
+  Liczba`); nie ma składni na strzałkę w `można` ani w polach struktur.
+- Pozycja **zwrotu** strzałki rozszerza się jak inne pozycje top-level —
+  funkcja zwracająca samego `Sukcesa` pasuje tam, gdzie oczekiwany jest
+  zwrot `Rezultat`. Argumenty strzałki pozostają ścisłe (inwariancja).
+- Zagnieżdżony goły `zastosuj` zachłannie zjada kolejne `z …` — w wartości
+  pola struktury, w argumencie wywołania i w argumencie innego `zastosuj`
+  używaj nawiasów: `bierz jeden z (zastosuj operację z dwa)`. Wyjątek:
+  `z <pole>` pasujące do niezajętego pola tworzonej właśnie struktury
+  wraca do niej automatycznie.
+
+Typowe funkcje wyższego rzędu (fold, map, filter) zaimplementowane w Ć:
+`test/fwr.ć`; realne użycie (gramatyka jako jeden fold sparametryzowany
+referencjami): `test/wyrażenia.ć`.
+
+---
+
 ## Sterowanie
 
 ```
@@ -382,8 +432,8 @@ Typy wbudowane: `Liczba`, `Tekst`, `Przełącznik`, `Nic`, `Znak`.
 - **Niejednoznaczność morfologiczna nazw pól** — np. `posty` czyta się
   i jako `post`, i jako `posta`; interpreter to zgłosi, wtedy wybierz
   inną nazwę (np. `wpisy`).
-- **Tylko podstawowe formy przyimków** — `z`, `w`, `nad` (nie `ze`, `we`,
-  `nade`).
+- **Formy eufoniczne przyimków działają** — `ze`, `we` lematyzują się do
+  `z`, `w` i są równoważne wszędzie (`ze schodzeniem` ≡ `z ...`).
 - **Rzeczowniki odczasownikowe są pełnoprawnymi rzeczownikami** —
   `polubienie` ma własną lemmę; pole `polubienia` nie koliduje z funkcją
   `polubić`.
@@ -401,6 +451,8 @@ obecnym interpreterem:
 | `nic.ć` | `Nic` w uniach i wnioskowanie typu `Nic` |
 | `instagram.ć` | backend aplikacji: stan, operacje API, `?`, kontenery |
 | `analizator_morfologiczny.ć` | duży program: listy, słowniki, `Rezultat`, `?` |
+| `wyrażenia.ć` | parser wyrażeń: unie AST, try-calle, gramatyka jako jeden fold |
+| `fwr.ć` | funkcje wyższego rzędu: fold, map, filter |
 | `parametryzowane.ć` | typy generyczne (mapy, drzewa AVL) |
 | `lista.ć`, `stos.ć`, `para.ć`, `słownik.ć` | proste struktury danych |
 | `łańcuchy_dopełniaczowe.ć` | dostęp do pól |

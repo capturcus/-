@@ -421,6 +421,30 @@ class FunctionCall:
 
 
 @dataclass
+class FunctionRef:
+    """Referencja gerundialna do funkcji top-level — rozstrzygnięcie
+    resolvera, że rzeczownik odczasownikowy (`rozbieraniem_koniunkcji`)
+    oznacza funkcję (klucz `("rozbierać", "koniunkcja")`), a nie zmienną.
+    `case` to przypadek powierzchni (do dopasowania slotów argumentów),
+    typowana per miejsce użycia świeżą instancją strzałki (rank-1)."""
+    key: tuple
+    surface: tuple
+    case: frozenset = None
+    line: int = None
+
+
+@dataclass
+class Apply:
+    """Aplikacja wartości funkcyjnej: `zastosuj F z X z Y`. Odbiorca jest
+    WYRAŻENIEM (zmienna, FunctionRef, łańcuch, nawiasy), nie nazwą; arność
+    wariadyczna — każdy argument wprowadza `z` + narzędnik, pozycyjnie.
+    `zastosować` jest zarezerwowane (parser odrzuca własne definicje)."""
+    fn: object
+    args: list
+    line: int = None
+
+
+@dataclass
 class GetterChain:
     chain: list
 
@@ -436,8 +460,9 @@ class TryCall:
     """Wywołanie z obsługą błędu: tryb przypuszczający + '?' po argumentach
     (`wybrałbyś zero z części?`). Semantyka jak `?` Rusta: wynik-Sukces
     odpakowany do wartości, Błąd propagowany returnem z funkcji otaczającej.
-    Wymaga zadeklarowanej w module unii `Rezultat to Sukces albo Błąd`."""
-    call: FunctionCall
+    Wymaga zadeklarowanej w module unii `Rezultat to Sukces albo Błąd`.
+    `call` to FunctionCall albo Apply (`zastosowałbyś F z X?`)."""
+    call: object
     line: int = None
 
 

@@ -49,6 +49,11 @@ def _groups(node):
         if node.params:
             return [("params", node.params)]
         return None
+    if isinstance(node, ast.Apply):
+        groups = [("fn", [node.fn])]
+        if node.args:
+            groups.append(("args", node.args))
+        return groups
     if isinstance(node, ast.TryCall):
         return _groups(node.call)
     if isinstance(node, ast.FunctionDef):
@@ -141,7 +146,13 @@ def _label(node):
         return "Phrase"
     if isinstance(node, ast.FunctionCall):
         return f"FunctionCall {'_'.join(node.name.surface)}"
+    if isinstance(node, ast.FunctionRef):
+        return f"FunctionRef {'_'.join(node.surface)} -> {'_'.join(node.key)}"
+    if isinstance(node, ast.Apply):
+        return "Apply"
     if isinstance(node, ast.TryCall):
+        if isinstance(node.call, ast.Apply):
+            return "TryCall zastosowanie"
         return f"TryCall {'_'.join(node.call.name.surface)}"
     if isinstance(node, ast.GetterChain):
         return "GetterChain"
@@ -205,6 +216,8 @@ def _children(node):
             return _children(node.resolved)
         return []
     if isinstance(node, ast.FunctionCall):
+        return []
+    if isinstance(node, ast.FunctionRef):
         return []
     if isinstance(node, ast.GetterChain):
         return node.chain

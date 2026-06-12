@@ -1,0 +1,99 @@
+# Funkcje wyższego rzędu w Ć — fold, map, filter na liście liczb.
+#
+# Mechanizm: rzeczownik odczasownikowy (gerundium) jest referencją do
+# funkcji top-level o lemacie czasownika bazowego ("dodawaniem" → funkcja
+# "dodawać"), a wbudowany czasownik `zastosuj` aplikuje wartość funkcyjną:
+# `zastosuj operację z głową z resztą` (argumenty pozycyjnie, każdy przez
+# "z" + narzędnik). Zmienna w zasięgu przesłania referencję (scope-first).
+
+# ---------- kontenery ----------
+
+definicja Węzła z elementem:
+    głowa (element)
+    ogon (Lista)
+
+definicja PustejListy:
+    znacznik (Liczba)
+
+Lista to Węzeł albo PustaLista
+
+aby utworzyć_pustą:
+    zwróć PustaLista o znaczniku zero
+
+aby doczepiać element do listy:
+    zwróć Węzeł o głowie element o ogonie lista
+
+# ---------- świat zewnętrzny ----------
+
+można wypisać tekst (Tekst) -> Nic
+można skleić tekst (Tekst) z drugim (Tekst) -> Tekst
+można zakodować liczbę (Liczba) -> Tekst
+
+# ---------- fold / map / filter ----------
+
+# fold prawostronny: złóż [a, b, c] z op z akc = op(a, op(b, op(c, akc)))
+aby złożyć listę z operacją z akumulatorem:
+    lista jest:
+        Węzłem z głową z ogonem:
+            reszta to złóż ogon z operacją z akumulatorem
+            zwróć zastosuj operację z głową z resztą
+        PustąListą:
+            zwróć akumulator
+
+# map: nowa lista z wynikami operacji na każdym elemencie
+aby przekształcać listę z operacją:
+    lista jest:
+        Węzłem z głową z ogonem:
+            zwróć Węzeł o głowie (zastosuj operację z głową) o ogonie (przekształcaj ogon z operacją)
+        PustąListą:
+            zwróć utwórz_pustą
+
+# filter: zostają elementy, dla których warunek daje prawdę
+aby przesiewać listę przez warunek:
+    lista jest:
+        Węzłem z głową z ogonem:
+            reszta to przesiewaj ogon przez warunek
+            jeśli zastosuj warunek z głową:
+                zwróć Węzeł o głowie głowa o ogonie reszta
+            zwróć reszta
+        PustąListą:
+            zwróć utwórz_pustą
+
+# ---------- funkcje do przekazywania ----------
+
+aby dodawać pierwszą do drugiej:
+    zwróć pierwsza plus druga
+
+aby mnożyć pierwszą przez drugą:
+    zwróć pierwsza razy druga
+
+aby podwajać liczbę:
+    zwróć liczba razy dwa
+
+aby przekraczać_próg liczbę:
+    zwróć liczba większe od dwóch
+
+# ---------- raportowanie ----------
+
+aby opisywać listę:
+    lista jest:
+        Węzłem z głową z ogonem:
+            zwróć sklej (zakoduj głowę) z (sklej " " z (opisuj ogon))
+        PustąListą:
+            zwróć ""
+
+# ---------- demonstracja ----------
+
+aby działać:
+    liczby to doczepiaj jeden do (doczepiaj dwa do (doczepiaj trzy do (doczepiaj cztery do utwórz_pustą)))
+
+    suma to złóż liczby z dodawaniem z zero
+    iloczyn to złóż liczby z mnożeniem z jeden
+    wypisz (sklej "suma: " z (zakoduj sumę))
+    wypisz (sklej "iloczyn: " z (zakoduj iloczyn))
+
+    wyniki to przekształcaj liczby z podwajaniem
+    wypisz (sklej "podwojone: " z (opisuj wyniki))
+
+    selekcja to przesiewaj liczby przez przekraczanie_progu
+    wypisz (sklej "większe od dwóch: " z (opisuj selekcję))

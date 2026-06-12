@@ -11,6 +11,7 @@ Dwie warstwy:
 import io
 import contextlib
 import os
+import re
 
 import pytest
 
@@ -122,7 +123,20 @@ def test_redis_full_pipeline_matches_memory(redis_subset):
         with contextlib.redirect_stdout(buf):
             typechecker.resolve_module(module)
         outs.append(buf.getvalue())
-    assert outs[0] == outs[1]
+    assert _normalize_frozensets(outs[0]) == _normalize_frozensets(outs[1])
+
+
+_FROZENSET = re.compile(r"frozenset\(\{([^}]*)\}\)")
+
+
+def _normalize_frozensets(text):
+    """Kolejność wyświetlania frozensetu zależy od HISTORII WSTAWIEŃ przy
+    kolizjach hashy (mem wstawia w kolejności pliku, redis z posortowanego
+    JSON-a), więc przy pechowym PYTHONHASHSEED dumpy różnią się wyłącznie
+    kolejnością elementów — porównujemy modulo tę kolejność."""
+    return _FROZENSET.sub(
+        lambda m: "frozenset({%s})" % ", ".join(sorted(m.group(1).split(", "))),
+        text)
 
 
 @pytest.mark.redis
@@ -142,3 +156,15 @@ def test_redis_without_migration_raises():
     from ast_nodes import InterpreterError
     with pytest.raises(InterpreterError, match="sgjp_do_redisa"):
         morph_anal.load_redis(TEST_URL)
+
+
+def test_gerund_base_survives_serialization(db):
+    """Pole `base` (czasownik bazowy gerundium) przeżywa round-trip —
+    referencje gerundialne działają identycznie w trybie redisowym."""
+    gers = [a for a in db.get("polubieniem", []) if a.pos == "ger"]
+    assert gers
+    for ana in gers:
+        back = morph_anal.analysis_from_jsonable(
+            morph_anal.analysis_to_jsonable(ana))
+        assert back.base == "polubić"
+        assert back.lemma == "polubienie"

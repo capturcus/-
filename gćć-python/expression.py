@@ -37,7 +37,8 @@ from ast_nodes import (
     Identifier, FunctionIdentifier, FunctionIdentifierError,
     StructDef, FunctionDef, ExternFunctionDef, UnionDef, Match,
     IntLit, StrLit, BoolLit, BinOp, UnaryOp, And, Or, Not,
-    FunctionCall, GetterChain, StructCreation, StructArg, StructCtx, TryCall,
+    FunctionCall, FunctionRef, Apply, GetterChain, StructCreation,
+    StructArg, StructCtx, TryCall,
     Typed, ResolveError, Word, LOGICAL_OPS,
     Assignment, If, While, For, Return, Phrase,
     scope_key_matches,
@@ -495,13 +496,18 @@ class ExpressionParser:
             name = FunctionIdentifier.from_head(head_ident)
         except FunctionIdentifierError:
             return self._finish_as_ident_ref(head_ident)
-        matched_lemma = next(
-            (lemma for lemma in name.lemmas_set if lemma in self.ctx.function_defs),
-            None,
-        )
-        if matched_lemma is None:
-            return self._finish_as_ident_ref(head_ident)
-        call = self._parse_function_call(name, matched_lemma)
+        if ("zastosować",) in name.lemmas_set:
+            # Wbudowana aplikacja wartości funkcyjnej — nie ma wpisu w
+            # function_defs, odbiorca jest wyrażeniem, arność wariadyczna.
+            call = self._parse_apply(head_ident)
+        else:
+            matched_lemma = next(
+                (lemma for lemma in name.lemmas_set if lemma in self.ctx.function_defs),
+                None,
+            )
+            if matched_lemma is None:
+                return self._finish_as_ident_ref(head_ident)
+            call = self._parse_function_call(name, matched_lemma)
         if _has_cond_reading(head_ident):
             # Tryb przypuszczający otwiera wywołanie z obsługą błędu,
             # a '?' je domyka — oba znaczniki są obowiązkowe.
@@ -533,8 +539,13 @@ class ExpressionParser:
         """Fallback dispatcher — head nie jest struct creation, chain ani fcall.
         Block scoping: referencja MUSI wskazywać zadeklarowaną zmienną
         (przypisanie wcześniej w tym lub nadrzędnym bloku, parametr, zmienna
-        `dla`, pole związane w gałęzi dopasowania `jest:`) — inaczej ResolveError."""
+        `dla`, pole związane w gałęzi dopasowania `jest:`). Gdy zmiennej nie ma,
+        gerundium może być referencją do funkcji (scope-first: zmienna
+        przesłania referencję) — inaczej ResolveError."""
         if not self._ident_in_scope(head_ident):
+            ref = self._try_gerund_ref(head_ident)
+            if ref is not None:
+                return ref
             raise ResolveError(
                 self._describe_undeclared(head_ident),
                 line=head_ident.line,
@@ -545,12 +556,93 @@ class ExpressionParser:
         }
         return self._narrow_to_variable(head_ident)
 
+    def _gerund_function_keys(self, ident):
+        """Kandydujące klucze funkcji dla identyfikatora gerundialnego.
+
+        Dla każdego wariantu z subst-głową będącą gerundium podmienia lemat
+        głowy na czasownik bazowy (`a.base` z analiz SGJP): `rozbieranie
+        koniunkcji` → `(rozbierać, koniunkcja)`. Przesunięcie przypadka
+        dopełnienia pod nominalizacją (biernik→dopełniacz) znika w lematach.
+
+        Reszta segmentów jest ENUMEROWANA po wszystkich lematach analiz
+        (jak w FunctionIdentifier), nie braną z pojedynczego wariantu —
+        wariant niesie jeden fallback-lemat reszty, a np. 'sumy' czyta się
+        i jako 'suma' (gen) i jako 'sum' (pl); o właściwym kluczu rozstrzyga
+        dopiero przecięcie ze zdefiniowanymi funkcjami (robi je caller).
+        Zwraca dict[key → union-case wariantów, które go wyprodukowały]."""
+        per_seg_lemmas = []
+        for seg, anas in zip(ident.surface, ident.analyses):
+            if not anas or len(seg) == 1:
+                per_seg_lemmas.append((seg,))
+            else:
+                per_seg_lemmas.append(tuple({a.lemma for a in anas}))
+        candidates = {}
+        for v in ident.variants:
+            if not v.had_subst:
+                continue
+            head_at = len(ident.surface) - 1 - v.rest_length
+            head_lemma = v.lemmas[head_at]
+            bases = {
+                a.base for a in ident.analyses[head_at]
+                # Gerundia mają często równoległy odczyt subst tej samej
+                # lemmy — wiążący jest odczyt ger (tylko on niesie base).
+                if a.pos == "ger" and a.base and a.lemma == head_lemma
+            }
+            if not bases:
+                continue
+            rest_options = per_seg_lemmas[head_at + 1:]
+            for base in bases:
+                for combo in product(*rest_options):
+                    key = v.lemmas[:head_at] + (base,) + combo
+                    candidates[key] = candidates.get(key, frozenset()) | v.case
+        return candidates
+
+    def _try_gerund_ref(self, head_ident):
+        """Referencja gerundialna do funkcji top-level: `polubieniem` →
+        funkcja `polubić`. Zwraca FunctionRef, None (brak dopasowania —
+        caller rzuca undeclared) albo ResolveError przy niejednoznaczności."""
+        if not head_ident.variants:
+            return None
+        matched = {
+            key: case
+            for key, case in self._gerund_function_keys(head_ident).items()
+            if key in self.ctx.function_defs
+        }
+        if not matched:
+            return None
+        if len(matched) > 1:
+            options = ", ".join(sorted("_".join(k) for k in matched))
+            raise ResolveError(
+                f"'{'_'.join(head_ident.surface)}' jest niejednoznaczną "
+                f"referencją do funkcji — pasuje do: {options}",
+                line=head_ident.line,
+            )
+        (key, case), = matched.items()
+        self.last_production = {
+            "kind": "function_ref",
+            "surface": head_ident.surface,
+            "key": key,
+        }
+        return FunctionRef(
+            key=key, surface=head_ident.surface, case=case,
+            line=head_ident.line,
+        )
+
     def _describe_undeclared(self, head_ident):
         """Komunikat o referencji do niezadeklarowanej zmiennej, z hintami
         opartymi o ctx (pole? typ? zmienna widoczna tylko w innym bloku?)."""
         surface = "_".join(head_ident.surface)
         msg = f"'{surface}' nie jest zadeklarowaną zmienną w tym miejscu"
-        if head_ident.lemmas_set & self.ctx.field_lemmas:
+        gerund_keys = (
+            self._gerund_function_keys(head_ident) if head_ident.variants else {}
+        )
+        if gerund_keys:
+            wanted = ", ".join(sorted("_".join(k) for k in gerund_keys))
+            msg += (
+                f"; wygląda jak gerundialna referencja do funkcji "
+                f"'{wanted}', która nie jest zdefiniowana w module"
+            )
+        elif head_ident.lemmas_set & self.ctx.field_lemmas:
             msg += (
                 f"; '{surface}' jest polem struktury — odczyt pola to "
                 f"'{surface} <obiektu-w-dopełniaczu>'"
@@ -633,9 +725,56 @@ class ExpressionParser:
 
     @staticmethod
     def _infer_case(value):
-        if isinstance(value, Identifier):
+        if isinstance(value, (Identifier, FunctionRef)):
             return value.case
         return None
+
+    # ---------- aplikacja wartości funkcyjnej ----------
+
+    def _parse_apply(self, head_ident):
+        """`zastosuj F z X z Y` — wariadyczna aplikacja wartości funkcyjnej.
+
+        Odbiorca to primary (zmienna, referencja gerundialna, łańcuch,
+        nawiasy); każdy argument wprowadza przyimek `z` i stoi w narzędniku,
+        dopasowanie czysto pozycyjne. Pętla argumentów jest zachłanna —
+        zagnieżdżony goły apply zjadłby `z ...` rodzica, stąd zalecenie
+        nawiasów; wyjątek: `z <pole>` będące skrótem niezajętego pola
+        wierzchniej konstrukcji struktury oddajemy strukturze."""
+        if self.peek() is None:
+            raise ResolveError(
+                "'zastosuj' wymaga wartości funkcyjnej (zmiennej, referencji "
+                "gerundialnej albo wyrażenia w nawiasach)",
+                line=head_ident.line,
+            )
+        fn = self.parse_primary()
+        args = []
+        while True:
+            p = self.peek()
+            if (
+                p is None or p[0] is not lexer.Token.WORD
+                or canonical(p) != ("z",)
+            ):
+                break
+            if (
+                self.struct_stack
+                and self._next_struct_arg_kind(self.struct_stack[-1]) is not None
+            ):
+                break  # `z <pole>` należy do otaczającej struktury
+            z_tok = self.advance()
+            value = self.parse_primary()
+            case = self._infer_case(value)
+            if case is not None and "inst" not in case:
+                raise ResolveError(
+                    f"argument zastosowania po 'z' musi być w narzędniku "
+                    f"(np. 'z wynikiem', nie 'z wynik')",
+                    line=getattr(z_tok, "line", None),
+                )
+            args.append(Word(prep=("z",), value=value, case=case))
+        self.last_production = {
+            "kind": "apply",
+            "n_args": len(args),
+        }
+        return Apply(fn=fn, args=args, line=head_ident.line)
 
     def _match_args_to_slots(self, arg_meta, sig, name):
         return type_parser.match_args_to_slots(
@@ -1000,6 +1139,29 @@ def _diagnose_leftover(parser, phrase):
         bullets.append(
             f"po referencji do '{surface}' spodziewałem się operatora "
             f"lub końca wyrażenia"
+        )
+
+    elif kind == "apply":
+        bullets.append(
+            f"zastosowanie wartości funkcyjnej przyjęło {lp['n_args']} "
+            f"argument(ów) wprowadzanych przez 'z <narzędnik>'; po nich "
+            f"spodziewałem się operatora lub końca wyrażenia"
+        )
+        first = leftover_tokens[0] if leftover_tokens else None
+        if first is not None and first[0] is lexer.Token.QUESTION:
+            bullets.append(
+                "'?' tworzy zastosowanie z obsługą błędu tylko przy "
+                "trybie przypuszczającym ('zastosowałbyś' zamiast 'zastosuj')"
+            )
+
+    elif kind == "function_ref":
+        surface = "_".join(lp["surface"])
+        key = "_".join(lp["key"])
+        bullets.append(
+            f"'{surface}' to gerundialna referencja do funkcji '{key}'; "
+            f"po referencji spodziewałem się operatora lub końca wyrażenia "
+            f"(referencja nie przyjmuje argumentów — do wywołania służy "
+            f"'zastosuj ... z ...')"
         )
 
     elif kind in ("parens", "literal"):

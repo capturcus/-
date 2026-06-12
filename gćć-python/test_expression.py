@@ -1885,3 +1885,186 @@ def test_bool_literal_in_logic(parse):
     assert expr.left == ast.BoolLit(True)
     assert isinstance(expr.right, ast.Not)
     assert expr.right.operand == ast.BoolLit(False)
+
+
+# =====================================================================
+# Funkcje wyższego rzędu: referencje gerundialne i `zastosuj`
+# =====================================================================
+
+
+_HOF_BASE = (
+    "aby polubić wpis:\n"
+    "    zwróć wpis\n"
+    "\n"
+)
+
+
+def test_gerund_ref_resolves_to_function(parse):
+    """Gerundium poza zasięgiem zmiennych to referencja do funkcji o lemacie
+    czasownika bazowego."""
+    src = _HOF_BASE + (
+        "aby działać:\n"
+        "    operacja to polubienie\n"
+    )
+    m = parse(src)
+    val = m.body[1].body[0].value.resolved
+    assert isinstance(val, ast.FunctionRef)
+    assert val.key == ("polubić",)
+    assert val.surface == ("polubienie",)
+
+
+def test_gerund_ref_multiseg_case_shift(parse):
+    """Nominalizacja przesuwa dopełnienie do dopełniacza: funkcja
+    `rozbierać_koniunkcję` (biernik) ↔ referencja `rozbieranie_koniunkcji`
+    (dopełniacz) — tożsamość po lematach zjada różnicę przypadka."""
+    src = (
+        "aby rozbierać_koniunkcję w parserze:\n"
+        "    zwróć parser\n"
+        "\n"
+        "aby działać:\n"
+        "    operacja to rozbieranie_koniunkcji\n"
+    )
+    m = parse(src)
+    val = m.body[1].body[0].value.resolved
+    assert isinstance(val, ast.FunctionRef)
+    assert val.key == ("rozbierać", "koniunkcja")
+
+
+def test_gerund_ref_shadowed_by_variable(parse):
+    """Scope-first: zmienna o lemacie gerundium przesłania referencję."""
+    src = _HOF_BASE + (
+        "aby działać:\n"
+        "    polubienie to jeden\n"
+        "    wynik to polubienie\n"
+    )
+    m = parse(src)
+    val = m.body[1].body[1].value.resolved
+    assert isinstance(val, ast.Identifier)
+
+
+def test_gerund_ref_unknown_function_hint(parse):
+    """Gerundium bez pasującej funkcji → undeclared z hintem o referencji."""
+    src = (
+        "aby działać:\n"
+        "    wynik to rozbieranie\n"
+    )
+    with pytest.raises(ast.ResolveError) as ei:
+        parse(src)
+    assert "gerundialna referencja" in str(ei.value)
+    assert "rozbierać" in str(ei.value)
+
+
+def test_gerund_ref_in_arg_position_carries_case(parse):
+    """Referencja jako argument `z polubieniem` niesie narzędnik —
+    dopasowanie do slotu (z, inst) działa jak dla zwykłej zmiennej."""
+    src = _HOF_BASE + (
+        "aby brać rzecz z operacją:\n"
+        "    zwróć operacja\n"
+        "\n"
+        "aby działać:\n"
+        "    wynik to bierz jeden z polubieniem\n"
+    )
+    m = parse(src)
+    call = m.body[2].body[0].value.resolved
+    assert isinstance(call, ast.FunctionCall)
+    ref = call.params[1].value
+    assert isinstance(ref, ast.FunctionRef)
+    assert ref.key == ("polubić",)
+    assert "inst" in ref.case
+
+
+def test_apply_builds_apply_node(parse):
+    src = _HOF_BASE + (
+        "aby działać:\n"
+        "    operacja to polubienie\n"
+        "    wynik to zastosuj operację z jeden z dwa\n"
+    )
+    m = parse(src)
+    val = m.body[1].body[1].value.resolved
+    assert isinstance(val, ast.Apply)
+    assert isinstance(val.fn, ast.Identifier)
+    assert len(val.args) == 2
+    assert all(w.prep == ("z",) for w in val.args)
+
+
+def test_apply_zero_args(parse):
+    src = _HOF_BASE + (
+        "aby działać:\n"
+        "    operacja to polubienie\n"
+        "    wynik to zastosuj operację\n"
+    )
+    m = parse(src)
+    val = m.body[1].body[1].value.resolved
+    assert isinstance(val, ast.Apply)
+    assert val.args == []
+
+
+def test_try_apply_builds_trycall_with_apply(parse):
+    src = _HOF_BASE + (
+        "aby przepuszczać operację przez wartość:\n"
+        "    wynik to zastosowałbyś operację z wartością?\n"
+        "    zwróć wynik\n"
+    )
+    m = parse(src)
+    val = m.body[1].body[0].value.resolved
+    assert isinstance(val, ast.TryCall)
+    assert isinstance(val.call, ast.Apply)
+
+
+def test_try_apply_without_question_raises(parse):
+    src = _HOF_BASE + (
+        "aby przepuszczać operację przez wartość:\n"
+        "    wynik to zastosowałbyś operację z wartością\n"
+    )
+    with pytest.raises(ast.ResolveError, match="wymaga '\\?'"):
+        parse(src)
+
+
+def test_apply_arg_not_instrumental_raises(parse):
+    src = _HOF_BASE + (
+        "aby działać wpis:\n"
+        "    operacja to polubienie\n"
+        "    wynik to zastosuj operację z wpis\n"
+    )
+    with pytest.raises(ast.ResolveError, match="narzędniku"):
+        parse(src)
+
+
+def test_apply_in_struct_value_yields_z_shorthand_to_struct(parse):
+    """Wariadyczna pętla `z ...` apply oddaje strukturze `z <pole>` będące
+    skrótem niezajętego pola wierzchniego StructCtx."""
+    src = _HOF_BASE + (
+        "definicja Ułamka:\n"
+        "    licznik (Liczba)\n"
+        "    mianownik (Liczba)\n"
+        "\n"
+        "aby działać:\n"
+        "    operacja to polubienie\n"
+        "    mianownik to pięć\n"
+        "    ułamek to Ułamek o liczniku zastosuj operację z jeden z mianownikiem\n"
+    )
+    m = parse(src)
+    sc = m.body[2].body[2].value.resolved
+    assert isinstance(sc, ast.StructCreation)
+    assert len(sc.args) == 2
+    licznik_arg = sc.args[0]
+    assert isinstance(licznik_arg.value, ast.Apply)
+    assert len(licznik_arg.value.args) == 1  # `z mianownikiem` poszło do struct
+    assert sc.args[1].value is None  # shorthand
+
+
+def test_parenthesized_apply_as_fcall_arg(parse):
+    src = _HOF_BASE + (
+        "aby brać rzecz z operacją:\n"
+        "    zwróć operacja\n"
+        "\n"
+        "aby działać:\n"
+        "    operacja to polubienie\n"
+        "    wynik to bierz jeden z (zastosuj operację z dwa)\n"
+    )
+    m = parse(src)
+    call = m.body[2].body[1].value.resolved
+    assert isinstance(call, ast.FunctionCall)
+    inner = call.params[1].value
+    assert isinstance(inner, ast.Apply)
+    assert len(inner.args) == 1

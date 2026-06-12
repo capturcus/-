@@ -1797,3 +1797,212 @@ def test_inflected_bool_literal_as_argument(parse):
         "    x to przyjmuj prawdę\n"
     )
     typechecker.resolve_module(parse(src))
+
+
+# =====================================================================
+# Typy strzałkowe i `zastosuj` (funkcje wyższego rzędu)
+# =====================================================================
+
+
+def test_arrow_unification_propagates_args_and_ret():
+    a, r = typechecker.new_type(), typechecker.new_type()
+    f1 = typechecker.arrow([a], r)
+    f2 = typechecker.arrow([conc("Liczba")], conc("Tekst"))
+    typechecker.unify_types(f1, f2)
+    assert ty(a) == "Liczba"
+    assert ty(r) == "Tekst"
+
+
+def test_arrow_arity_mismatch_raises_readable():
+    f1 = typechecker.arrow([conc("Liczba")], conc("Tekst"))
+    f2 = typechecker.arrow([conc("Liczba"), conc("Liczba")], conc("Tekst"))
+    with pytest.raises(typechecker.TypeCheckError,
+                       match="liczba argumentów"):
+        typechecker.unify_types(f1, f2)
+
+
+def test_arrow_repr_readable():
+    f = typechecker.arrow([conc("Liczba"), conc("Tekst")], conc("Nic"))
+    assert repr(typechecker.find_type(f)) == "(Liczba, Tekst) → Nic"
+
+
+def test_arrow_does_not_widen_into_union():
+    """Strzałka nie należy do żadnej unii — widening odpada błędem,
+    nie cichym rozszerzeniem."""
+    f = typechecker.arrow([conc("Liczba")], conc("Tekst"))
+    with pytest.raises(typechecker.TypeCheckError, match="cannot unify"):
+        typechecker.unify_types(f, conc("Błąd"), widen=True)
+
+
+def test_instantiate_arrow_in_signature_gets_fresh_vars():
+    """Sygnatura z parametrem-strzałką generyczną: każda instancja dostaje
+    niezależne zmienne (rank-1 per call-site)."""
+    el = typechecker.new_type()
+    fdt = typechecker.FunDefTypes(
+        name=None, arg_types=[typechecker.arrow([el], el)], ret_type=el)
+    (f1,), r1 = typechecker.instantiate(fdt)
+    (f2,), r2 = typechecker.instantiate(fdt)
+    typechecker.unify_types(f1, typechecker.arrow([conc("Liczba")],
+                                                  typechecker.new_type()))
+    assert ty(r1) == "Liczba"
+    assert ty(r2) == "?"  # druga instancja niezależna
+
+
+# ---------- integracja: referencje gerundialne + zastosuj ----------
+
+
+_FOLD_SRC = (
+    "definicja Węzła z elementem:\n"
+    "    głowa (element)\n"
+    "    ogon (Lista)\n"
+    "\n"
+    "definicja PustejListy:\n"
+    "    znacznik (Liczba)\n"
+    "\n"
+    "Lista to Węzeł albo PustaLista\n"
+    "\n"
+    "aby dodawać pierwszą do drugiej:\n"
+    "    zwróć pierwsza plus druga\n"
+    "\n"
+    "aby złożyć listę z operacją z akumulatorem:\n"
+    "    lista jest:\n"
+    "        Węzłem z głową z ogonem:\n"
+    "            wynik to złóż ogon z operacją z akumulatorem\n"
+    "            zwróć zastosuj operację z głową z wynikiem\n"
+    "        PustąListą:\n"
+    "            zwróć akumulator\n"
+    "\n"
+)
+
+
+@pytest.mark.integration
+def test_fold_with_gerund_ref_typechecks(parse, capsys):
+    """Fold przekazujący `z dodawaniem` (referencja do `dodawać`) typuje
+    się end-to-end; suma jest Liczbą."""
+    src = _FOLD_SRC + (
+        "aby działać:\n"
+        "    liczby to Węzeł o głowie jeden o ogonie (PustaLista o znaczniku zero)\n"
+        "    suma to złóż liczby z dodawaniem z zero\n"
+        "    suma to suma plus jeden\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)  # nie rzuca
+    out = capsys.readouterr().out
+    assert "FunctionRef" in out and "Apply" in out
+
+
+@pytest.mark.integration
+def test_function_ref_forward_declared(parse):
+    """Referencja do funkcji zdefiniowanej PONIŻEJ — fixpoint + PASS 1."""
+    src = (
+        "aby działać:\n"
+        "    operacja to mnożenie\n"
+        "    wynik to zastosuj operację z dwa z trzy\n"
+        "    wynik to wynik plus jeden\n"
+        "\n"
+        "aby mnożyć pierwszą przez drugą:\n"
+        "    zwróć pierwsza razy druga\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)  # nie rzuca
+
+
+@pytest.mark.integration
+def test_function_ref_to_extern(parse, capsys):
+    src = (
+        "można zakodować liczbę (Liczba) -> Tekst\n"
+        "\n"
+        "aby działać:\n"
+        "    kod to zastosuj zakodowanie z pięć\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    out = capsys.readouterr().out
+    assert "Tekst" in out
+
+
+@pytest.mark.integration
+def test_apply_wrong_arity_errors(parse):
+    src = (
+        "aby mnożyć pierwszą przez drugą:\n"
+        "    zwróć pierwsza razy druga\n"
+        "\n"
+        "aby działać:\n"
+        "    wynik to zastosuj mnożenie z dwa\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError,
+                       match="przekazuje 1 argument"):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_apply_non_function_value_errors(parse):
+    src = (
+        "aby działać:\n"
+        "    liczba to pięć\n"
+        "    wynik to zastosuj liczbę z dwa\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_try_apply_requires_rezultat(parse):
+    src = (
+        "aby polubić wpis:\n"
+        "    zwróć wpis\n"
+        "\n"
+        "aby przepuszczać operację przez wartość:\n"
+        "    wynik to zastosowałbyś operację z wartością?\n"
+        "    zwróć wynik\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError, match="Rezultat"):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_try_apply_typechecks_with_rezultat(parse):
+    src = (
+        "definicja Sukcesu z elementem:\n"
+        "    wartość (element)\n"
+        "\n"
+        "definicja Błędu:\n"
+        "    opis (Tekst)\n"
+        "\n"
+        "Rezultat to Sukces albo Błąd\n"
+        "\n"
+        # `próbować` zwraca samego Sukcesa — pozycja zwrotu strzałki
+        # rozszerza się (widening) do Rezultatu wymaganego przez slot,
+        # więc adnotacja `-> Rezultat` nie jest potrzebna.
+        "aby próbować wartości:\n"
+        "    zwróć Sukces o wartości wartość\n"
+        "\n"
+        "aby przepuszczać operację przez wartość:\n"
+        "    wynik to zastosowałbyś operację z wartością?\n"
+        "    zwróć Sukces o wartości wynik\n"
+        "\n"
+        "aby działać:\n"
+        "    całość to przepuszczaj próbowanie przez pięć\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)  # nie rzuca
+
+
+@pytest.mark.integration
+def test_unapplied_generic_ref_in_dzialac_not_grounded(parse):
+    """Referencja do funkcji generycznej przypisana w `działać` i nigdy
+    nie zastosowana → strzałka z wolną zmienną → istniejący błąd
+    groundingu (dodaj adnotację)."""
+    src = (
+        "aby zwracać x:\n"
+        "    zwróć x\n"
+        "\n"
+        "aby działać:\n"
+        "    operacja to zwracanie\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError, match="adnotację"):
+        typechecker.resolve_module(module)

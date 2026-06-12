@@ -1168,3 +1168,49 @@ def test_gerund_field_no_longer_conflicts_with_verb(parse):
     # zapis do pola (chain LHS) i odczyt chainem — gerundium z pełną fleksją
     asn = m.body[5].body[0]
     assert isinstance(asn.target.resolved, ast.GetterChain)
+
+
+# =====================================================================
+# Gerundium: czasownik bazowy w analizach + rezerwacja `zastosować`
+# =====================================================================
+
+
+def test_gerund_analysis_carries_base_verb(db):
+    """Re-lematyzacja podmienia lemat na formę cytowaną, ale `base`
+    zachowuje czasownik — referencje gerundialne potrzebują obu."""
+    gers = [a for a in db.get("rozbieraniem", []) if a.pos == "ger"]
+    assert gers
+    assert all(a.lemma == "rozbieranie" for a in gers)
+    assert all(a.base == "rozbierać" for a in gers)
+
+
+def test_non_gerund_analyses_have_no_base(db):
+    assert all(a.base is None for a in db.get("kotem", []))
+    assert all(a.base is None for a in db.get("wybrałbyś", []))
+    # imiesłowy też przechodzą re-lematyzację, ale base dostają tylko ger
+    assert all(a.base is None for a in db.get("obserwującego", []))
+
+
+def test_zastosować_reserved_in_aby(parse):
+    src = (
+        "aby zastosować maść:\n"
+        "    zwróć maść\n"
+    )
+    with pytest.raises(ast.InterpreterError, match="wbudowanym czasownikiem"):
+        parse(src)
+
+
+def test_zastosować_reserved_in_można(parse):
+    src = "można zastosować maść (Tekst) -> Tekst\n"
+    with pytest.raises(ast.InterpreterError, match="wbudowanym czasownikiem"):
+        parse(src)
+
+
+def test_zastosować_multiseg_not_reserved(parse):
+    """Rezerwacja dotyczy tylko singletonu — `zastosować_filtr` to inna
+    funkcja i nie koliduje z dyspozycją apply."""
+    src = (
+        "aby zastosować_filtr obraz:\n"
+        "    zwróć obraz\n"
+    )
+    parse(src)  # nie rzuca

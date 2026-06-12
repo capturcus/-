@@ -18,6 +18,12 @@ class TypeVar:
     def __repr__(self):
         return f"t{self.number}"
 
+# Głowa typu strzałkowego (wartości funkcyjne z referencji gerundialnych).
+# Strzałka to zwykły AppliedType: args = (a1, …, ak, ret), arność = len-1 —
+# dzięki temu unifikacja, instantiate i occurs check działają bez zmian.
+ARROW = "→"
+
+
 @dataclass(frozen=True)
 class AppliedType:
     """Typ konstruktora zaaplikowany do argumentów (zinstancjonowany generyk).
@@ -34,7 +40,10 @@ class AppliedType:
             return self.head
         # Pokazuj REPREZENTANTA argumentu (find_type), nie zapisaną zmienną —
         # po unifikacji `t35` może już wskazywać np. na Liczbę.
-        return f"{self.head}[{', '.join(repr(find_type(x)) for x in self.args)}]"
+        args = [repr(find_type(x)) for x in self.args]
+        if self.head == ARROW:
+            return f"({', '.join(args[:-1])}) → {args[-1]}"
+        return f"{self.head}[{', '.join(args)}]"
 
 
 @dataclass(eq=False, repr=False)
@@ -51,6 +60,12 @@ class TypeCheckError(Exception):
 def variant(heads):
     # Typ konkretny/wariantowy z iterowalnej kolekcji nazw-głów (stringów).
     return VariantVar(variants={AppliedType(h) for h in heads})
+
+def arrow(arg_types, ret_type):
+    """Typ strzałkowy (a1, …, ak) → ret jako jednogłowy VariantVar."""
+    return VariantVar(variants={
+        AppliedType(ARROW, tuple(arg_types) + (ret_type,))
+    })
 
 def new_type():
     global last_type
@@ -147,10 +162,23 @@ def _unify_variants(ft0, ft1, widen=False):
         for a0 in by0[h]:
             for a1 in by1[h]:
                 if len(a0.args) != len(a1.args):
+                    if h == ARROW:
+                        raise TypeCheckError(
+                            f"niezgodna liczba argumentów funkcji: "
+                            f"{a0!r} vs {a1!r}")
                     raise TypeCheckError(
                         f"arity mismatch for {h}: {len(a0.args)} vs {len(a1.args)}")
-                for x, y in zip(a0.args, a1.args):
-                    unify_types(x, y)
+                for i, (x, y) in enumerate(zip(a0.args, a1.args)):
+                    # Zwrot strzałki (ostatni arg "→") to pozycja top-level —
+                    # widening przechodzi w głąb. Bez tego przejściowy,
+                    # niedoszacowany zwrot funkcji w fixpoincie (np. Błąd
+                    # zanim kolejny przebieg rozszerzy go do Rezultatu)
+                    # zabijałby ścisłą unifikację wnętrza strzałki, a funkcja
+                    # zwracająca jeden wariant unii nie przeszłaby tam, gdzie
+                    # slot oczekuje zwrotu-unii. Argumenty strzałki i typy
+                    # parametryzowane pozostają inwariantne (ścisłe).
+                    ret_pos = h == ARROW and i == len(a0.args) - 1
+                    unify_types(x, y, widen=widen and ret_pos)
                 result.add(AppliedType(h, a0.args))
     # Reużyj istniejący węzeł, gdy wynik równa się jednej ze stron — przy
     # pustych args to dokładnie stara optymalizacja (zero śmieci w fixpoincie).
@@ -253,6 +281,14 @@ def find_fdt(func_id):
     global fun_decls
     for (name, fdt) in fun_decls:
         if name.lemmas_set & func_id.lemmas_set:
+            return fdt
+
+def find_fdt_by_key(key):
+    """Lookup schematu po rozwiązanym kluczu funkcji (FunctionRef niesie
+    pojedynczy klucz, nie FunctionIdentifier z lemmas_set)."""
+    global fun_decls
+    for (name, fdt) in fun_decls:
+        if key in name.lemmas_set:
             return fdt
 
 def instantiate(fdt):
@@ -498,6 +534,10 @@ def resolve_expression(node, scope):
         return resolve_or(node, scope)
     if isinstance(node, ast.FunctionCall):
         return resolve_function_call(node, scope)
+    if isinstance(node, ast.FunctionRef):
+        return resolve_function_ref(node, scope)
+    if isinstance(node, ast.Apply):
+        return resolve_apply(node, scope)
     if isinstance(node, ast.TryCall):
         return resolve_try_call(node, scope)
     if isinstance(node, ast.GetterChain):
@@ -718,6 +758,45 @@ def resolve_function_call(node, scope):
     return ret_type
 
 
+def resolve_function_ref(node, scope):
+    """Referencja gerundialna: świeża instancja sygnatury (rank-1) opakowana
+    w strzałkę — generyczna funkcja dostaje niezależne zmienne per miejsce
+    użycia. W fixpoincie zachowuje się jak wywołanie: re-instancjonuje
+    aktualny stan schematu co przebieg."""
+    print("FunctionRef")
+    fdt = find_fdt_by_key(node.key)
+    if fdt is None:
+        raise TypeCheckError(
+            f"referencja do nieznanej funkcji '{'_'.join(node.key)}' "
+            f"(linia {node.line})")
+    arg_types, ret_type = instantiate(fdt)
+    return arrow(arg_types, ret_type)
+
+
+def resolve_apply(node, scope):
+    """`zastosuj F z X z Y`: typ F unifikowany ze strzałką o arności
+    z miejsca wywołania; argumenty jak w zwykłym wywołaniu (widen na
+    pozycjach top-level). Zwraca typ wyniku."""
+    print("Apply")
+    t_f = resolve_expression(node.fn, scope)
+    ft = find_type(t_f)
+    if isinstance(ft, VariantVar):
+        arities = {len(a.args) - 1 for a in ft.variants if a.head == ARROW}
+        if arities and len(node.args) not in arities:
+            expected = " lub ".join(str(a) for a in sorted(arities))
+            raise TypeCheckError(
+                f"zastosowanie (linia {node.line}) przekazuje "
+                f"{len(node.args)} argument(ów), a wartość funkcyjna "
+                f"przyjmuje {expected}")
+    arg_types = [new_type() for _ in node.args]
+    ret_type = new_type()
+    unify_types(t_f, arrow(arg_types, ret_type))
+    for (t0, p) in zip(arg_types, node.args):
+        t1 = resolve_expression(p, scope)
+        unify_types(t0, t1, widen=True)
+    return ret_type
+
+
 def _require_rezultat(line):
     """Wywołanie z obsługą błędu wymaga zadeklarowanej w module unii
     `Rezultat to Sukces albo Błąd` — dokładnie tych nazw i tego składu."""
@@ -736,7 +815,10 @@ def resolve_try_call(node, scope):
         raise TypeCheckError(
             f"wywołanie z obsługą błędu '?' (linia {node.line}) jest "
             f"dozwolone tylko w ciele funkcji")
-    t = resolve_function_call(node.call, scope)
+    if isinstance(node.call, ast.Apply):
+        t = resolve_apply(node.call, scope)
+    else:
+        t = resolve_function_call(node.call, scope)
     # Wołana funkcja musi dawać Rezultat (Sukces/Błąd też ujdą — widening).
     unify_types(t, variant(["Rezultat"]), widen=True)
     # Gałąź-Błąd propaguje się returnem z funkcji otaczającej.

@@ -377,10 +377,23 @@ class Parser:
         self.expect(lexer.Token.DEDENT)
         return For(var=var, collection=collection, body=body)
 
+    def _reject_reserved(self, name):
+        """`zastosować` to wbudowany czasownik aplikacji wartości funkcyjnych
+        (`zastosuj F z X`) — własna definicja zmieniałaby znaczenie każdego
+        zastosowania w module. Nazwy wielosegmentowe (`zastosować_filtr`)
+        nie kolidują z dyspozycją i są dozwolone."""
+        if ("zastosować",) in name.lemmas_set:
+            raise InterpreterError(
+                "'zastosować' jest wbudowanym czasownikiem aplikacji "
+                "funkcji (zastosuj F z X) i nie może być definiowane",
+                line=name.line,
+            )
+
     def parse_func_def(self):
         aby_tok = self.expect(lexer.Token.WORD)  # aby
         name_tok = self.expect(lexer.Token.WORD)
         name = FunctionIdentifier.from_token(name_tok)
+        self._reject_reserved(name)
         params = []
         while self.peek() and self.peek()[0] not in (lexer.Token.COLON, lexer.Token.ARROW):
             params.append(self.parse_param())
@@ -406,6 +419,7 @@ class Parser:
         self.expect(lexer.Token.WORD)  # można
         name_tok = self.expect(lexer.Token.WORD)
         name = FunctionIdentifier.from_token(name_tok)
+        self._reject_reserved(name)
         params = []
         while self.peek() and self.peek()[0] not in (
             lexer.Token.NEWLINE, lexer.Token.ARROW, lexer.Token.DEDENT,

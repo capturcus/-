@@ -35,6 +35,11 @@ class MorphAnalysis(NamedTuple):
     lemma: str
     tag: str  # surowy tag SGJP, np. "fin:sg:pri:imperf"
     qualifier: str  # SGJP qualifier (np. "ryb.", "przest.", "pot.") lub ""
+    # Lemat czasownika bazowego dla gerundiów (pos == "ger"), inaczej None.
+    # Re-lematyzacja form cytowanych podmienia `lemma` na rzeczownik
+    # ("polubieniem" → "polubienie"); `base` zachowuje czasownik ("polubić"),
+    # bo referencje gerundialne do funkcji potrzebują obu.
+    base: str = None
 
 
 _SENTINEL = object()
@@ -104,10 +109,11 @@ def load(path):
                     cached = _morpho_for_tag(tag_parts)
                 morpho_cache[tag] = cached
             case, number, gender = cached
-            # tuple.__new__ omija NamedTuple.__new__ (walidację argumentów),
-            # wraca do konstruktora w C — istotne przy 5M wpisach.
+            # tuple.__new__ omija NamedTuple.__new__ (walidację argumentów
+            # I defaulty pól!) — `base` musi być podany jawnie jako None.
             db.setdefault(form, []).append(
-                tuple_new(Ma, (pos, case, number, gender, lemma, tag, qualifiers))
+                tuple_new(Ma, (pos, case, number, gender, lemma, tag,
+                               qualifiers, None))
             )
             if pos == "prep" and case:
                 preps.setdefault(lemma, set()).update(case)
@@ -130,7 +136,12 @@ def load(path):
     for anas in db.values():
         for i, ana in enumerate(anas):
             if ana.pos in CITATION_POS:
-                anas[i] = ana._replace(lemma=citation.get((ana.pos, ana.lemma), ana.lemma))
+                # `ana.lemma` to tu JESZCZE oryginalny lemat SGJP (czasownik) —
+                # dla gerundiów zachowujemy go w `base` zanim podmienimy.
+                anas[i] = ana._replace(
+                    lemma=citation.get((ana.pos, ana.lemma), ana.lemma),
+                    base=ana.lemma if ana.pos == "ger" else None,
+                )
     print(f"Loaded {len(db)} forms in {time.time() - t0:.1f}s", file=sys.stderr)
     return db, preps
 
@@ -198,7 +209,7 @@ def canonical(token):
 # jest identyczna z `load()`.
 
 REDIS_PREFIX = "sgjp:"
-REDIS_SCHEMA = 1
+REDIS_SCHEMA = 2
 
 
 def analysis_to_jsonable(ana):
@@ -212,11 +223,12 @@ def analysis_to_jsonable(ana):
         ana.lemma,
         ana.tag,
         ana.qualifier,
+        ana.base,
     ]
 
 
 def analysis_from_jsonable(lst):
-    pos, case, number, gender, lemma, tag, qualifier = lst
+    pos, case, number, gender, lemma, tag, qualifier, base = lst
     return tuple.__new__(MorphAnalysis, (
         pos,
         frozenset(case) if case is not None else None,
@@ -225,6 +237,7 @@ def analysis_from_jsonable(lst):
         lemma,
         tag,
         qualifier,
+        base,
     ))
 
 
