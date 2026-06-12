@@ -30,8 +30,9 @@ hindley milner
     v double check fixpoint upper bound
 
 
-redis
+jest/są
 jakieś includy
+v redis
 v gerundium (?) polubienie/polubić
 v literały Prawda/Fałsz
 v tryb przypuszczający - usunąłbyś_komentarz dla usera z identyfikatorem?
@@ -40,10 +41,10 @@ v funkcja bez zwróć ma typ zwracany wolny (nie Nic)
 uruchamianie
 
 stdlib:
-Przełącznik
+v Przełącznik
 konkatenacja stringów
 
 
 które
 kiedy
-x funkcje wyższego rzędu??
+funkcje wyższego rzędu: zrób/zrobiłbyś/zrobienie
