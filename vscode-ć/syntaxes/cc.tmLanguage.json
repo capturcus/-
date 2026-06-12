@@ -1,0 +1,88 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Ć",
+  "scopeName": "source.cc",
+  "patterns": [
+    {
+      "match": "^(uwzględnij)\\s+(\\S.*)$",
+      "captures": {
+        "1": {
+          "name": "keyword.control.import.cc"
+        },
+        "2": {
+          "name": "string.unquoted.path.cc"
+        }
+      }
+    },
+    {
+      "name": "comment.line.number-sign.cc",
+      "match": "#.*$"
+    },
+    {
+      "name": "string.quoted.double.cc",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.cc",
+          "match": "\\\\[nrt\\\\\"0]"
+        }
+      ]
+    },
+    {
+      "match": "\\b(aby|można)\\s+([a-ząćęłńóśźż_][a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ0-9_]*)",
+      "captures": {
+        "1": {
+          "name": "keyword.control.cc"
+        },
+        "2": {
+          "name": "entity.name.function.cc"
+        }
+      }
+    },
+    {
+      "name": "entity.name.function.conditional.cc",
+      "match": "\\b[a-ząćęłńóśźż_][a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ0-9_]*(?:ł(?:a|o|y)?|li)by(?:m|ś|śmy|ście)?\\b"
+    },
+    {
+      "name": "keyword.control.trycall.cc",
+      "match": "\\?"
+    },
+    {
+      "name": "keyword.control.cc",
+      "match": "\\b(aby|można|definicja|jeśli|inaczej|dopóki|dla|zwróć|zwrócić|stop|dalej|albo|jest|to)\\b"
+    },
+    {
+      "name": "keyword.control.apply.cc",
+      "match": "\\b(zastosuj|zastosować)\\b"
+    },
+    {
+      "name": "constant.language.cc",
+      "match": "\\b(prawd(a|ę|y|ą|o|zie)|fałsz(u|em|owi|e|ywie)?)\\b"
+    },
+    {
+      "name": "constant.numeric.cc",
+      "match": "\\b(zero|zera|zeru|zerem|zerze|jeden|jedna|jedno|jednego|jednej|jednym|jedną|dwa|dwie|dwóch|dwom|dwoma|dwiema|trzy|trzech|trzem|trzema|cztery|czterech|czterem|czterema|pięć|pięciu|pięcioma|sześć|sześciu|sześcioma|siedem|siedmiu|siedmioma|osiem|ośmiu|ośmioma|dziewięć|dziewięciu|dziewięcioma|dziesięć|dziesięciu|dziesięcioma|jedenaście|jedenastu|dwanaście|dwunastu|trzynaście|trzynastu|czternaście|czternastu|piętnaście|piętnastu|szesnaście|szesnastu|siedemnaście|siedemnastu|osiemnaście|osiemnastu|dziewiętnaście|dziewiętnastu|dwadzieścia|dwudziestu|trzydzieści|trzydziestu|czterdzieści|czterdziestu|pięćdziesiąt|pięćdziesięciu|sześćdziesiąt|sześćdziesięciu|siedemdziesiąt|siedemdziesięciu|osiemdziesiąt|osiemdziesięciu|dziewięćdziesiąt|dziewięćdziesięciu|sto|stu|dwieście|dwustu|trzysta|trzystu|czterysta|czterystu|pięćset|pięciuset|sześćset|sześciuset|siedemset|siedmiuset|osiemset|ośmiuset|dziewięćset|dziewięciuset|tysiąc|tysiąca|tysiące|tysięcy|tysiącem|tysiącami|milion|miliona|miliony|milionów|miliard|miliarda|miliardy|miliardów)\\b"
+    },
+    {
+      "name": "keyword.operator.comparison.cc",
+      "match": "\\b(mniejsze|większe)\\s+(od|równe)\\b|\\b(równe|nierówne)\\b"
+    },
+    {
+      "name": "keyword.operator.arithmetic.cc",
+      "match": "\\b(plus|minus|razy)\\b"
+    },
+    {
+      "name": "keyword.operator.logical.cc",
+      "match": "\\b(i|lub|nie)\\b"
+    },
+    {
+      "name": "entity.name.type.cc",
+      "match": "\\b[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ0-9_]*\\b"
+    },
+    {
+      "name": "keyword.other.preposition.cc",
+      "match": "\\b(z|ze|w|we|o|od|do|na|po|przez|przy|u|nad|za|bez|pod|między)\\b"
+    }
+  ]
+}

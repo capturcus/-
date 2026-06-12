@@ -1,0 +1,17 @@
+definicja Tulipana:
+    płatek (Tekst)
+
+definicja Róży:
+    płatek (Tekst)
+
+Kwiatki to Róża albo Tulipan
+
+można wypisać tekst (Tekst) -> Nic
+
+aby działać:
+    kwiatki to Tulipan o płatku "siemka"
+    kwiatki jest:
+        Tulipanem z płatkiem:
+            wypisz płatek
+        Różą z płatkiem:
+            wypisz płatek

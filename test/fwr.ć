@@ -1,27 +1,15 @@
 # Funkcje wyższego rzędu w Ć — fold, map, filter na liście liczb.
 #
+# Kontenery (Lista) przychodzą z osobnego pliku — dyrektywa `uwzględnij`
+# scala pliki tekstowo (pass 0), zanim ruszy reszta interpretera.
+#
 # Mechanizm: rzeczownik odczasownikowy (gerundium) jest referencją do
 # funkcji top-level o lemacie czasownika bazowego ("dodawaniem" → funkcja
 # "dodawać"), a wbudowany czasownik `zastosuj` aplikuje wartość funkcyjną:
 # `zastosuj operację z głową z resztą` (argumenty pozycyjnie, każdy przez
 # "z" + narzędnik). Zmienna w zasięgu przesłania referencję (scope-first).
 
-# ---------- kontenery ----------
-
-definicja Węzła z elementem:
-    głowa (element)
-    ogon (Lista)
-
-definicja PustejListy:
-    znacznik (Liczba)
-
-Lista to Węzeł albo PustaLista
-
-aby utworzyć_pustą:
-    zwróć PustaLista o znaczniku zero
-
-aby doczepiać element do listy:
-    zwróć Węzeł o głowie element o ogonie lista
+uwzględnij pojemniki.ć
 
 # ---------- świat zewnętrzny ----------
 

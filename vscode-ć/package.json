@@ -1,0 +1,44 @@
+{
+  "name": "jezyk-c",
+  "displayName": "Język Ć",
+  "description": "Kolorowanie składni języka Ć (kod po polsku z fleksją) — w barwach biało-czerwonych.",
+  "version": "0.1.0",
+  "publisher": "mparafiniuk",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Themes"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "jezyk-c",
+        "aliases": [
+          "Ć",
+          "ć"
+        ],
+        "extensions": [
+          ".ć",
+          ".ć"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "jezyk-c",
+        "scopeName": "source.cc",
+        "path": "./syntaxes/cc.tmLanguage.json"
+      }
+    ],
+    "themes": [
+      {
+        "label": "Ć — biało-czerwony",
+        "uiTheme": "vs",
+        "path": "./themes/bialo-czerwony-color-theme.json"
+      }
+    ]
+  }
+}

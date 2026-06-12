@@ -193,6 +193,34 @@ w obrębie sygnatury.
 
 ---
 
+## Wiele plików — `uwzględnij`
+
+Program można rozbić na pliki — dyrektywa `uwzględnij` wstawia zawartość
+wskazanego pliku w miejscu dyrektywy:
+
+```
+uwzględnij pojemniki.ć
+uwzględnij biblioteki/napisy.ć
+```
+
+Scalanie to **pass 0**: czysto tekstowy krok przed całą resztą
+interpretera (deklaracje w Ć są niezależne od kolejności, więc
+konkatenacja wystarcza). Zasady:
+
+- ścieżka jest **względna wobec pliku, w którym stoi dyrektywa**
+  (dla wejścia ze stdin — wobec bieżącego katalogu),
+- **każdy plik wchodzi najwyżej raz** — diament (`a` i `b` oba
+  uwzględniają `c`) nie powiela deklaracji, cykl się nie zapętla,
+- dyrektywa musi zaczynać się w kolumnie zerowej i jest rozpoznawana
+  literalnie (to dyrektywa tekstowa, nie odmienne słowo języka),
+- błędy wskazują **plik źródłowy i oryginalny numer linii** — także
+  odwołania w treści komunikatów (np. konflikt deklaracji między plikami:
+  „konflikt z definicją 'doczepiać' w linii 16 w pojemniki.ć").
+
+Przykład w repozytorium: `test/fwr.ć` uwzględnia `test/pojemniki.ć`.
+
+---
+
 ## Struktury — `definicja`
 
 ```
@@ -403,8 +431,10 @@ wyrażenia pozostaje zwykłym przyimkiem (`weź dla użytkownika`).
 ## System typów w praktyce
 
 Typów prawie nie trzeba pisać — inferencja wyprowadza sygnatury funkcji,
-typy zmiennych i generyki z samego kodu, także przez referencje w przód
-i rekurencję wzajemną. Adnotacje są dostępne tam, gdzie ich chcesz:
+typy zmiennych, generyki i typy strzałkowe wartości funkcyjnych
+(`operacja : (Liczba, Liczba) → Liczba`) z samego kodu, także przez
+referencje w przód i rekurencję wzajemną. Adnotacje są dostępne tam,
+gdzie ich chcesz:
 
 ```
 aby liczyć listę (Lista z elementem) -> Liczba:    # parametry i wynik
@@ -437,6 +467,22 @@ Typy wbudowane: `Liczba`, `Tekst`, `Przełącznik`, `Nic`, `Znak`.
 - **Rzeczowniki odczasownikowe są pełnoprawnymi rzeczownikami** —
   `polubienie` ma własną lemmę; pole `polubienia` nie koliduje z funkcją
   `polubić`.
+- **Każde słowo musi istnieć w SGJP** — nazwa spoza słownika (np. `arność`)
+  nie odmienia się i psuje program w zaskakujących miejscach (konstruktor
+  przerywa zbieranie pól, łańcuch się nie składa). Sprawdź słowo przed
+  użyciem (`redis-cli EXISTS sgjp:f:słowo`) i wybierz synonim
+  (np. `krotność`).
+- **Nazwa zmiennej nie może być liczebnikiem ani zaimkiem liczebnym** —
+  `ile`, `dwa` itp. zjada preprocesor liczb.
+- **Nie nazywaj kolekcji liczbą mnogą nazwy będącej już w zasięgu** —
+  `ogniwa` to także dopełniacz lp od `ogniwo`, więc lista `ogniwa` obok
+  parametru `ogniwo` skleja się z nim w zasięgu typów (objaw: `occurs
+  check`). Daj kolekcji inną głowę rzeczownikową (`zbiór`, `spis`).
+- **W referencji gerundialnej do funkcji wielosegmentowej podkreślnik jest
+  obowiązkowy** — `z polubieniem_wpisu` to referencja do `polubić_wpis`,
+  ale `z polubieniem wpisu` (dwa słowa) może się sparsować jako odczyt
+  pola `polubienia` zmiennej `wpis`, jeśli takie pole istnieje — błąd
+  wyjdzie dopiero w typach, daleko od przyczyny.
 
 ---
 
@@ -452,7 +498,7 @@ obecnym interpreterem:
 | `instagram.ć` | backend aplikacji: stan, operacje API, `?`, kontenery |
 | `analizator_morfologiczny.ć` | duży program: listy, słowniki, `Rezultat`, `?` |
 | `wyrażenia.ć` | parser wyrażeń: unie AST, try-calle, gramatyka jako jeden fold |
-| `fwr.ć` | funkcje wyższego rzędu: fold, map, filter |
+| `fwr.ć` + `pojemniki.ć` | funkcje wyższego rzędu (fold, map, filter) i `uwzględnij` |
 | `parametryzowane.ć` | typy generyczne (mapy, drzewa AVL) |
 | `lista.ć`, `stos.ć`, `para.ć`, `słownik.ć` | proste struktury danych |
 | `łańcuchy_dopełniaczowe.ć` | dostęp do pól |

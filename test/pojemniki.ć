@@ -1,0 +1,17 @@
+# Wspólne kontenery: lista jednokierunkowa jako unia (cons/nil).
+# Plik biblioteczny — do użycia przez `uwzględnij pojemniki.ć`.
+
+definicja Węzła z elementem:
+    głowa (element)
+    ogon (Lista)
+
+definicja PustejListy:
+    znacznik (Liczba)
+
+Lista to Węzeł albo PustaLista
+
+aby utworzyć_pustą:
+    zwróć PustaLista o znaczniku zero
+
+aby doczepiać element do listy:
+    zwróć Węzeł o głowie element o ogonie lista
