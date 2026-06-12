@@ -21,11 +21,9 @@ aby działać:
     powitanie to przywitaj gościa
 ```
 
-Interpreter referencyjny (katalog `gćć-python/`) obejmuje dziś pełny
-front-end: lekser, analizę morfologiczną opartą o słownik SGJP, parser
-i statyczny system typów z pełną inferencją. Programy parsują się
-i typują w całości; **runtime jeszcze nie istnieje** — kod się sprawdza,
-ale jeszcze nie wykonuje.
+Stan projektu: programy **parsują się i typują w całości** (pełna
+inferencja typów, polskie komunikaty błędów), ale **runtime jeszcze nie
+istnieje** — kod się sprawdza, lecz jeszcze nie wykonuje.
 
 ---
 
@@ -39,8 +37,8 @@ python3 gćć-python/gćć.py test/warianty.ć --sgjp sgjp.tab
 ```
 
 Wynik to drzewo programu i wywnioskowane typy; błędny kod dostaje polski
-komunikat z numerem linii. Ładowanie słownika trwa ~8 s — przy częstym
-iterowaniu użyj trybu redisowego:
+komunikat z plikiem i numerem linii. Ładowanie słownika trwa ~8 s — przy
+częstym iterowaniu użyj trybu redisowego:
 
 ```
 pip3 install redis                      # raz
@@ -48,8 +46,12 @@ python3 gćć-python/sgjp_do_redisa.py    # raz (i po każdej wymianie sgjp.tab)
 python3 gćć-python/gćć.py test/warianty.ć --redis   # start w ~0,1 s
 ```
 
-Migrator jest idempotentny i wykrywa zmiany: zgodny odcisk `sgjp.tab` to
-natychmiastowy no-op, nowa wersja słownika uruchamia pełną re-migrację.
+Migracja jest idempotentna — wykrywa nową wersję `sgjp.tab` i wtedy
+przeprowadza się ponownie, w przeciwnym razie nic nie robi.
+
+Do VS Code jest wtyczka z kolorowaniem składni (katalog `vscode-ć/`,
+motyw „Ć — biało-czerwony") — instalacja przez symlink do
+`~/.vscode/extensions/` i restart edytora.
 
 ---
 
@@ -138,6 +140,33 @@ gotowe to nie zajęte i suma większe od dziesięć
 
 ---
 
+## Sterowanie
+
+```
+jeśli koszt większe od budżet:
+    ...
+inaczej jeśli koszt równe budżet:
+    ...
+inaczej:
+    ...
+
+dopóki licznik mniejsze od dziesięć:
+    licznik to licznik plus jeden
+
+dla użytkownika w liście:
+    jeśli użytkownik równe szukany:
+        stop          # przerwij pętlę
+    dalej             # następna iteracja
+
+zwróć wyrażenie
+zwróć                 # bez wartości — Nic
+```
+
+`dla` jest słowem strukturalnym tylko na początku instrukcji — w środku
+wyrażenia pozostaje zwykłym przyimkiem (`weź dla użytkownika`).
+
+---
+
 ## Funkcje — `aby`
 
 ```
@@ -190,34 +219,6 @@ można pobrać_czas -> Liczba
 
 Nieznana głowa typu (np. `Uchwyt`) działa jak parametr typu współdzielony
 w obrębie sygnatury.
-
----
-
-## Wiele plików — `uwzględnij`
-
-Program można rozbić na pliki — dyrektywa `uwzględnij` wstawia zawartość
-wskazanego pliku w miejscu dyrektywy:
-
-```
-uwzględnij pojemniki.ć
-uwzględnij biblioteki/napisy.ć
-```
-
-Scalanie to **pass 0**: czysto tekstowy krok przed całą resztą
-interpretera (deklaracje w Ć są niezależne od kolejności, więc
-konkatenacja wystarcza). Zasady:
-
-- ścieżka jest **względna wobec pliku, w którym stoi dyrektywa**
-  (dla wejścia ze stdin — wobec bieżącego katalogu),
-- **każdy plik wchodzi najwyżej raz** — diament (`a` i `b` oba
-  uwzględniają `c`) nie powiela deklaracji, cykl się nie zapętla,
-- dyrektywa musi zaczynać się w kolumnie zerowej i jest rozpoznawana
-  literalnie (to dyrektywa tekstowa, nie odmienne słowo języka),
-- błędy wskazują **plik źródłowy i oryginalny numer linii** — także
-  odwołania w treści komunikatów (np. konflikt deklaracji między plikami:
-  „konflikt z definicją 'doczepiać' w linii 16 w pojemniki.ć").
-
-Przykład w repozytorium: `test/fwr.ć` uwzględnia `test/pojemniki.ć`.
 
 ---
 
@@ -276,7 +277,7 @@ wiek użytkownika to wiek użytkownika plus jeden
 
 ---
 
-## Typy wariantowe — `albo` i dopasowanie `jest:`
+## Typy wariantowe — `albo` i dopasowanie `jest:` / `są:`
 
 Unię deklaruje się przypisaniem na typach:
 
@@ -290,7 +291,7 @@ definicja Błędu:
 Rezultat to Sukces albo Błąd
 ```
 
-Wariantem może być każda struktura zdefiniowana w module oraz wbudowane
+Wariantem może być każda struktura zdefiniowana w programie oraz wbudowane
 `Nic` — jedyny typ zero-argumentowy (`Opcja to Coś albo Nic`). Unie nie
 zagnieżdżają się w uniach; przy deklaracji nie podaje się parametrów typu.
 
@@ -356,8 +357,8 @@ tymczasowy jest:
 ```
 
 Oba znaczniki są obowiązkowe — tryb bez `?` i `?` bez trybu to błędy.
-Konstrukcja wymaga zadeklarowanej w module unii `Rezultat to Sukces albo
-Błąd` (dokładnie tej postaci, jak wyżej). Wołana funkcja musi zwracać
+Konstrukcja wymaga zadeklarowanej unii `Rezultat to Sukces albo Błąd`
+(dokładnie tej postaci, jak wyżej). Wołana funkcja musi zwracać
 `Rezultat`, a typ zwracany funkcji otaczającej rozszerza się o `Błąd`.
 Ponieważ `?` domyka wywołanie, zagnieżdżenie nie potrzebuje nawiasów:
 
@@ -369,12 +370,12 @@ zapisz wydobyłbyś wartość z listy? do bazy
 
 ## Funkcje wyższego rzędu — gerundium i `zastosuj`
 
-Funkcję modułu (top-level, jak wskaźnik funkcji w C — bez domknięć)
-przekazuje się przez jej **rzeczownik odczasownikowy**: `dodawanie` to
-referencja do funkcji `dodawać`, `rozbieranie_koniunkcji` — do
-`rozbierać_koniunkcję`. Nominalizacja naturalnie przesuwa dopełnienie do
-dopełniacza (`rozbierać koniunkcjĘ` → `rozbieranie koniunkcjI`) —
-tożsamość po lematach załatwia tę różnicę sama.
+Funkcję przekazuje się przez jej **rzeczownik odczasownikowy**:
+`dodawanie` to referencja do funkcji `dodawać`, `rozbieranie_koniunkcji` —
+do `rozbierać_koniunkcję` (nominalizacja naturalnie przesuwa dopełnienie
+do dopełniacza — tożsamość po lematach załatwia tę różnicę sama).
+Referencje wskazują funkcje zdefiniowane w programie — jak wskaźniki
+funkcji w C, bez domknięć.
 
 Wartość funkcyjną wywołuje wbudowany czasownik `zastosuj` — argumenty
 pozycyjnie, każdy przez `z` + narzędnik:
@@ -398,49 +399,43 @@ Zasady:
   w zasięgu.
 - **`zastosować` jest zarezerwowane** — własnej funkcji o tym lemacie nie
   można zadeklarować (`zastosować_filtr` — można).
-- **Tryb przypuszczający komponuje się**: `zastosowałbyś schodzenie
-  z parserem?` to zastosowanie z obsługą błędu (wymagania jak przy `?`).
+- **Tryb przypuszczający komponuje się**: `zastosowałbyś operację
+  z wartością?` to zastosowanie z obsługą błędu (wymagania jak przy `?`).
 - Typy strzałkowe są w pełni inferowane (`operacja : (Liczba, Liczba) →
   Liczba`); nie ma składni na strzałkę w `można` ani w polach struktur.
-- Pozycja **zwrotu** strzałki rozszerza się jak inne pozycje top-level —
-  funkcja zwracająca samego `Sukcesa` pasuje tam, gdzie oczekiwany jest
-  zwrot `Rezultat`. Argumenty strzałki pozostają ścisłe (inwariancja).
+- Funkcja zwracająca jeden wariant unii (np. samego `Sukcesa`) pasuje
+  tam, gdzie oczekiwany jest zwrot całej unii (`Rezultat`) — argumenty
+  funkcji muszą się natomiast zgadzać dokładnie.
 - Zagnieżdżony goły `zastosuj` zachłannie zjada kolejne `z …` — w wartości
-  pola struktury, w argumencie wywołania i w argumencie innego `zastosuj`
-  używaj nawiasów: `bierz jeden z (zastosuj operację z dwa)`. Wyjątek:
-  `z <pole>` pasujące do niezajętego pola tworzonej właśnie struktury
-  wraca do niej automatycznie.
+  pola, w argumencie wywołania i w argumencie innego `zastosuj` używaj
+  nawiasów: `bierz jeden z (zastosuj operację z dwa)`.
 
 Typowe funkcje wyższego rzędu (fold, map, filter) zaimplementowane w Ć:
-`test/fwr.ć`; realne użycie (gramatyka jako jeden fold sparametryzowany
-referencjami): `test/wyrażenia.ć`.
+`test/fwr.ć`; realne użycie (gramatyka parsera jako jeden fold
+sparametryzowany referencjami): `test/wyrażenia.ć`.
 
 ---
 
-## Sterowanie
+## Wiele plików — `uwzględnij`
+
+Program można rozbić na pliki — dyrektywa `uwzględnij` wstawia zawartość
+wskazanego pliku w miejscu dyrektywy (deklaracje w Ć są niezależne od
+kolejności, więc to wystarcza):
 
 ```
-jeśli koszt większe od budżet:
-    ...
-inaczej jeśli koszt równe budżet:
-    ...
-inaczej:
-    ...
-
-dopóki licznik mniejsze od dziesięć:
-    licznik to licznik plus jeden
-
-dla użytkownika w liście:
-    jeśli użytkownik równe szukany:
-        stop          # przerwij pętlę
-    dalej             # następna iteracja
-
-zwróć wyrażenie
-zwróć                 # bez wartości — Nic
+uwzględnij pojemniki.ć
+uwzględnij biblioteki/napisy.ć
 ```
 
-`dla` jest słowem strukturalnym tylko na początku instrukcji — w środku
-wyrażenia pozostaje zwykłym przyimkiem (`weź dla użytkownika`).
+- Ścieżka jest **względna wobec pliku, w którym stoi dyrektywa**.
+- **Każdy plik wchodzi najwyżej raz** — gdy dwa pliki uwzględniają tę
+  samą bibliotekę, jej deklaracje się nie powielają.
+- Dyrektywa musi zaczynać się w kolumnie zerowej i jest rozpoznawana
+  literalnie (bez odmiany).
+- Błędy wskazują **plik źródłowy i oryginalny numer linii**, także przy
+  konfliktach między plikami.
+
+Przykład w repozytorium: `test/fwr.ć` uwzględnia `test/pojemniki.ć`.
 
 ---
 
@@ -448,9 +443,8 @@ wyrażenia pozostaje zwykłym przyimkiem (`weź dla użytkownika`).
 
 Typów prawie nie trzeba pisać — inferencja wyprowadza sygnatury funkcji,
 typy zmiennych, generyki i typy strzałkowe wartości funkcyjnych
-(`operacja : (Liczba, Liczba) → Liczba`) z samego kodu, także przez
-referencje w przód i rekurencję wzajemną. Adnotacje są dostępne tam,
-gdzie ich chcesz:
+z samego kodu, także przez referencje w przód i rekurencję wzajemną.
+Adnotacje są dostępne tam, gdzie ich chcesz:
 
 ```
 aby liczyć listę (Lista z elementem) -> Liczba:    # parametry i wynik
@@ -478,22 +472,21 @@ Typy wbudowane: `Liczba`, `Tekst`, `Przełącznik`, `Nic`, `Znak`.
 - **Niejednoznaczność morfologiczna nazw pól** — np. `posty` czyta się
   i jako `post`, i jako `posta`; interpreter to zgłosi, wtedy wybierz
   inną nazwę (np. `wpisy`).
-- **Formy eufoniczne przyimków działają** — `ze`, `we` lematyzują się do
-  `z`, `w` i są równoważne wszędzie (`ze schodzeniem` ≡ `z ...`).
+- **Formy eufoniczne przyimków działają** — `ze`, `we` są równoważne
+  `z`, `w` wszędzie (`ze schodzeniem` ≡ `z ...`).
 - **Rzeczowniki odczasownikowe są pełnoprawnymi rzeczownikami** —
   `polubienie` ma własną lemmę; pole `polubienia` nie koliduje z funkcją
   `polubić`.
 - **Każde słowo musi istnieć w SGJP** — nazwa spoza słownika (np. `arność`)
-  nie odmienia się i psuje program w zaskakujących miejscach (konstruktor
-  przerywa zbieranie pól, łańcuch się nie składa). Sprawdź słowo przed
-  użyciem (`redis-cli EXISTS sgjp:f:słowo`) i wybierz synonim
+  nie odmienia się i psuje program w zaskakujących miejscach. Sprawdź
+  słowo przed użyciem (`redis-cli EXISTS sgjp:f:słowo`) i wybierz synonim
   (np. `krotność`).
 - **Nazwa zmiennej nie może być liczebnikiem ani zaimkiem liczebnym** —
-  `ile`, `dwa` itp. zjada preprocesor liczb.
+  `ile`, `dwa` itp. czytają się jako liczby.
 - **Nie nazywaj kolekcji liczbą mnogą nazwy będącej już w zasięgu** —
   `ogniwa` to także dopełniacz lp od `ogniwo`, więc lista `ogniwa` obok
-  parametru `ogniwo` skleja się z nim w zasięgu typów (objaw: `occurs
-  check`). Daj kolekcji inną głowę rzeczownikową (`zbiór`, `spis`).
+  parametru `ogniwo` skleja się z nim (objaw: błąd `occurs check`).
+  Daj kolekcji inną głowę rzeczownikową (`zbiór`, `spis`).
 - **W referencji gerundialnej do funkcji wielosegmentowej podkreślnik jest
   obowiązkowy** — `z polubieniem_wpisu` to referencja do `polubić_wpis`,
   ale `z polubieniem wpisu` (dwa słowa) może się sparsować jako odczyt
@@ -509,6 +502,7 @@ obecnym interpreterem:
 
 | plik | co pokazuje |
 |---|---|
+| `test.ć` | minimalny przykład: unia, dopasowanie z `inaczej:` |
 | `warianty.ć` | unie, dopasowanie `jest:`, funkcje zewnętrzne |
 | `nic.ć` | `Nic` w uniach i wnioskowanie typu `Nic` |
 | `instagram.ć` | backend aplikacji: stan, operacje API, `?`, kontenery |
@@ -527,9 +521,11 @@ obecnym interpreterem:
 ```
 gćć-python/        interpreter referencyjny + testy pytest
 test/              programy w Ć i podzbiór słownika do testów
+vscode-ć/          wtyczka VS Code (składnia + motyw biało-czerwony)
 sgjp.tab           pełny słownik SGJP (niewersjonowany)
 make_subset.py     generator podzbioru słownika
 ```
 
-Testy: `cd gćć-python && python3 -m pytest -q` (pierwszy raz ładuje SGJP
-~8 s; testy trybu redisowego pomijają się same, gdy Redis nie działa).
+Testy interpretera: `cd gćć-python && python3 -m pytest -q` (pierwszy raz
+ładuje SGJP ~8 s; testy trybu redisowego pomijają się same, gdy Redis
+nie działa).
