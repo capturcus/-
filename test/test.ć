@@ -12,9 +12,4 @@ Kwiatki to Róża albo Tulipan albo Bratek
 można wypisać tekst (Tekst) -> Nic
 
 aby działać:
-    kwiatki to Tulipan o płatku "siemka"
-    kwiatki są:
-        Tulipanem z płatkiem:
-            wypisz płatek
-        inaczej:
-            wypisz "nie tulipan"
+    wypisz "siemka"

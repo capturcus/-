@@ -1,7 +1,5 @@
 import ast_nodes as ast
 import re
-import contextlib
-import io
 from dataclasses import dataclass, field
 from type_parser import match_args_to_slots
 
@@ -360,7 +358,6 @@ def _has_return(stmts):
 
 
 def resolve_module(node):
-    print("Module")
     global fun_decls
     global module
     module = node
@@ -405,13 +402,6 @@ def resolve_module(node):
 
     # PASS 2 (do fixpointu): inferuj ciała, reużywając schematów + all_types.
     fun_scopes = _infer_to_fixpoint(module_funcs)
-
-    for scope in fun_scopes:
-        print("===")
-        for s in scope.walk():
-            for (v, t) in s.types:
-                print("")
-                print(v, find_type(t))
 
     # Punkty wejścia (działać) są wykonywane — ich zmienne muszą być w pełni
     # skonkretyzowane (HM "type annotations needed" / Rust E0282).
@@ -490,7 +480,6 @@ def _infer_to_fixpoint(module_funcs):
 
 
 def resolve_function_def(node, scope):
-    print("FunctionDef")
     for i, p in enumerate(node.params):
         scope.declare(p.name, scope.root_fdt.arg_types[i])
     for stmt in node.body:
@@ -549,17 +538,13 @@ def resolve_expression(node, scope):
     if isinstance(node, ast.Identifier):
         return resolve_identifier(node, scope)
     if isinstance(node, ast.IntLit):
-        print("IntLit")
         return variant(["Liczba"])
     if isinstance(node, ast.StrLit):
-        print("StrLit")
         return variant(["Tekst"])
     if isinstance(node, ast.BoolLit):
-        print("BoolLit")
         return variant(["Przełącznik"])
 
 def resolve_assignment(node, scope):
-    print("Assignment")
     target_type = resolve_expression(node.target.resolved, scope)
     value_type = resolve_expression(node.value.resolved, scope)
     unify_types(target_type, value_type, widen=True)
@@ -576,7 +561,6 @@ def resolve_assignment(node, scope):
 _COMPARISON_OPS = {"<", ">", "<=", ">=", "=", "!="}
 
 def resolve_bin_op(node, scope):
-    print("BinOp")
     t0 = resolve_expression(node.left, scope)
     t1 = resolve_expression(node.right, scope)
     unify_types(t0, t1)
@@ -587,14 +571,12 @@ def resolve_bin_op(node, scope):
 
 
 def resolve_unary_op(node, scope):
-    print("UnaryOp")
     t = resolve_expression(node.operand, scope)
     unify_types(t, variant(["Liczba"]))
     return t
 
 
 def resolve_if(node, scope):
-    print("If")
     t = resolve_expression(node.cond, scope)
     unify_types(t, variant(["Przełącznik"]))
     then_scope = scope.child_for(node, "then")
@@ -606,7 +588,6 @@ def resolve_if(node, scope):
 
 
 def resolve_while(node, scope):
-    print("While")
     t = resolve_expression(node.cond, scope)
     unify_types(t, variant(["Przełącznik"]))
     body_scope = scope.child_for(node, "body")
@@ -615,7 +596,6 @@ def resolve_while(node, scope):
 
 
 def resolve_for(node, scope):
-    print("For")
     resolve_expression(node.collection, scope)
     body_scope = scope.child_for(node, "body")
     body_scope.get_type(node.var)
@@ -624,7 +604,6 @@ def resolve_for(node, scope):
 
 
 def resolve_return(node, scope):
-    print("Return")
     if node.value is not None:
         t = resolve_expression(node.value, scope)
         # widen: gałęzie zwracające różne warianty jednej unii typują
@@ -726,7 +705,6 @@ def _unions_for_partial_match(subject_t, branch_heads, line):
 
 
 def resolve_match(node, scope):
-    print("Match")
     subject_t = resolve_expression(node.subject, scope)
     branch_heads = []
     has_default = False
@@ -786,14 +764,12 @@ def resolve_match(node, scope):
 
 
 def resolve_not(node, scope):
-    print("Not")
     t = resolve_expression(node.operand, scope)
     unify_types(t, variant(["Przełącznik"]))
     return t
 
 
 def resolve_and(node, scope):
-    print("And")
     t0 = resolve_expression(node.left, scope)
     t1 = resolve_expression(node.right, scope)
     unify_types(t0, t1)
@@ -802,7 +778,6 @@ def resolve_and(node, scope):
 
 
 def resolve_or(node, scope):
-    print("Or")
     t0 = resolve_expression(node.left, scope)
     t1 = resolve_expression(node.right, scope)
     unify_types(t0, t1)
@@ -811,7 +786,6 @@ def resolve_or(node, scope):
 
 
 def resolve_function_call(node, scope):
-    print("FunctionCall")
     fdt = find_fdt(node.name)
     arg_types, ret_type = instantiate(fdt)
     for (t0, p) in zip(arg_types, node.params):
@@ -825,7 +799,6 @@ def resolve_function_ref(node, scope):
     w strzałkę — generyczna funkcja dostaje niezależne zmienne per miejsce
     użycia. W fixpoincie zachowuje się jak wywołanie: re-instancjonuje
     aktualny stan schematu co przebieg."""
-    print("FunctionRef")
     fdt = find_fdt_by_key(node.key)
     if fdt is None:
         raise TypeCheckError(
@@ -839,7 +812,6 @@ def resolve_apply(node, scope):
     """`zastosuj F z X z Y`: typ F unifikowany ze strzałką o arności
     z miejsca wywołania; argumenty jak w zwykłym wywołaniu (widen na
     pozycjach top-level). Zwraca typ wyniku."""
-    print("Apply")
     t_f = resolve_expression(node.fn, scope)
     ft = find_type(t_f)
     if isinstance(ft, VariantVar):
@@ -871,7 +843,6 @@ def _require_rezultat(line):
 
 
 def resolve_try_call(node, scope):
-    print("TryCall")
     _require_rezultat(node.line)
     if scope.root_fdt is None:
         raise TypeCheckError(
@@ -930,7 +901,6 @@ def can_resolve_chain_with_struct(chain, struct):
 
 
 def resolve_getter_chain(node, scope):
-    print("GetterChain")
     # Najmniej wiemy o ostatnim słowie — jego typ inferujemy z łańcucha.
     # Przedostatnie słowo musi być polem struktury ostatniego, więc kandydaci
     # na typ ostatniego słowa to wszystkie struktury mające to pole.
@@ -1067,7 +1037,6 @@ def _as_struct(result_t):
 
 
 def resolve_struct_creation(node, scope):
-    print("StructCreation")
     sd = find_struct_def(node.type_name)
     if sd is None and find_union_def(node.type_name) is not None:
         raise TypeCheckError(
@@ -1086,7 +1055,6 @@ def resolve_struct_creation(node, scope):
 
 
 def resolve_struct_arg(node, scope, struct_creation):
-    print("StructArg")
     struct_def = find_struct_def(struct_creation.type_name)
     if struct_def is None:
         if node.value is not None:

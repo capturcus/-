@@ -1,25 +1,44 @@
-# Przekład gćć-python/expression.py na Ć — parser wyrażeń z dyspozycją
-# członów (literały, nawiasy, budowa struktur, łańcuchy pól, wywołania,
-# wywołania ochronne, odwołania ze sprawdzeniem zasięgu).
+# Przekład gćć-python/expression.py na Ć — parser wyrażeń (pass 2).
 #
-# Architektura:
-# - tokeny i węzły AST to UNIE (dyspozycja przez dopasowanie `jest:`),
-# - parser to mutowalna struktura (pozycja przesuwana zapisem do pola),
-# - każda funkcja rozbioru zwraca Rezultat, a błędy parsowania propagują
-#   się wywołaniami ochronnymi (tryb przypuszczający + `?`) — dokładnie
-#   to, do czego ta konstrukcja powstała,
-# - zasięg zmiennych to rekurencyjna struktura przez unię (rodzic to
-#   Zasięg albo Nic).
+# Co jest przeniesione wiernie:
+# - drabinka gramatyki: fraza → alternatywa → koniunkcja → przeczenie →
+#   porównanie → suma → iloczyn → czynnik → człon → atom; cztery binarne
+#   poziomy lewostronne to JEDEN fold (rozebrać_poziom) sparametryzowany
+#   referencją gerundialną do szczebla niżej i rangą operatora,
+# - dyspozytor słowa: konstrukcja struktury / łańcuch dopełniaczowy /
+#   zastosuj / wywołanie funkcji / odwołanie do zmiennej (scope-first) /
+#   referencja gerundialna / błąd,
+# - dopasowanie argumentów do parametrów po (przyimku, przypadku):
+#   najpierw argumenty z dokładnie jednym wolnym miejscem (do utraty
+#   postępu), potem pozycyjnie z kontrolą zgodności — jak
+#   type_parser.match_args_to_slots,
+# - tryb przypuszczający + "?" (Próba), aplikacja wartości funkcyjnej
+#   z wymogiem narzędnika po "z", sufiks typu po atomie z walidacją
+#   znanego typu i wielkiej litery, skrót "z polem" w konstrukcji
+#   struktury z wymogiem zadeklarowanej zmiennej, łańcuch zakresów
+#   z rodzicem, granica wartości pola na kolejnym "o"/"z".
 #
 # Świadome uproszczenia względem pierwowzoru:
-# - tokeny przychodzą z gotową morfologią (lemat + przypadki) — w realu
-#   dostarcza ją analizator; operatory są scalonymi symbolami (jak po
-#   preprocesorze), a `i`/`lub`/`nie` rozpoznajemy po lemacie,
-# - argumenty wywołań dopasowywane pozycyjnie wg arności (bez przyimków),
-# - wartości pól budowy to człony (bez dynamicznej granicy frazy),
-# - bez diagnostyki "leftover" i bez sufiksów typów.
+# - morfologia w żetonach jest dana z góry: Słowo niesie jeden lemat,
+#   zbiór przypadków, podstawę gerundium i tryb — zamiast wariantów
+#   (lemat, liczba, rodzaj) i tie-breaków min-rest z find_in_set;
+#   przez to klucz zakresu to sam lemat,
+# - stan parsera jest niesiony funkcyjnie (Stan = drzewo + pozycja,
+#   Rezultat + "?"), zamiast mutowanego self.pos,
+# - bez literałów logicznych i wielosegmentowych identyfikatorów
+#   w języku obiektowym, bez diagnostyki leftover z narracją produkcji
+#   (rozebrać_całość zgłasza tylko niesparsowaną resztę), bez
+#   struct_stack (granica zachłannego "z" w zagnieżdżonym zastosuj),
+# - poziom instrukcji (przypisania, dopasowania, zgoda orzecznika)
+#   jest poza zakresem pliku — port obejmuje resolve_phrase.
 
-# ---------- kontenery i Rezultat ----------
+# ---------- świat zewnętrzny ----------
+
+można skleić tekst (Tekst) z drugim (Tekst) -> Tekst
+można sprawdzić_wielkość tekst (Tekst) -> Przełącznik
+można wypisać tekst (Tekst) -> Nic
+
+# ---------- pojemniki ----------
 
 definicja Węzła z elementem:
     głowa (element)
@@ -38,27 +57,145 @@ definicja Błędu:
 
 Rezultat to Sukces albo Błąd
 
+definicja Hasła z klucza na zawartość:
+    klucz (klucz)
+    zawartość (zawartość)
+
+# ---------- żetony ----------
+
+definicja Słowa:
+    napis (Tekst)
+    lemat (Tekst)
+    podstawa (Tekst)
+    przypadki (Lista)
+    tryb (Tekst)
+
+definicja Liczebnika:
+    wartość (Liczba)
+
+definicja Napisu:
+    treść (Tekst)
+
+definicja Operatora:
+    symbol (Tekst)
+    ranga (Tekst)
+
+Żeton to Słowo albo Liczebnik albo Napis albo Operator
+
+# ---------- drzewo wyrażeń ----------
+
+definicja Ilości:
+    wartość (Liczba)
+
+definicja Cytatu:
+    treść (Tekst)
+
+definicja Działania:
+    symbol (Tekst)
+    lewe_ramię (Wyrażenie)
+    prawe_ramię (Wyrażenie)
+
+definicja Przeczenia:
+    symbol (Tekst)
+    argument (Wyrażenie)
+
+definicja Odwołania:
+    lemat (Tekst)
+    przypadki (Lista)
+
+definicja Odsyłacza:
+    cel (Tekst)
+    przypadki (Lista)
+
+definicja Wywołania:
+    nazwa (Tekst)
+    argumenty (Lista)
+
+definicja Aplikacji:
+    funkcja (Wyrażenie)
+    argumenty (Lista)
+
+definicja Łańcucha:
+    ogniwa (Lista)
+
+definicja Konstrukcji:
+    typ (Tekst)
+    wpisy (Lista)
+
+definicja Próby:
+    wywołanie (Wyrażenie)
+
+definicja Adnotacji:
+    typ (Tekst)
+    wyrażenie (Wyrażenie)
+
+Wyrażenie to Ilość albo Cytat albo Działanie albo Przeczenie albo Odwołanie albo Odsyłacz albo Wywołanie albo Aplikacja albo Łańcuch albo Konstrukcja albo Próba albo Adnotacja
+
+# ---------- kontekst rezolucji ----------
+
+definicja Argumentu:
+    przyimek (Tekst)
+    przypadki (Lista)
+    wartość (Wyrażenie)
+
+definicja Wpisu:
+    pole (Tekst)
+    wartość (Wyrażenie)
+
+definicja Parametru:
+    przyimek (Tekst)
+    przypadki (Lista)
+
+definicja Sygnatury:
+    nazwa (Tekst)
+    parametry (Lista)
+
+definicja Otoczenia:
+    sygnatury (Lista)
+    typy (Lista)
+    pola (Lista)
+    przyimki (Lista)
+
+definicja Zakresu:
+    zmienne (Lista)
+    rodzic (Opieka)
+
+Opieka to Zakres albo Nic
+
+definicja Parsera:
+    żetony (Lista)
+    otoczenie (Otoczenie)
+    zakres (Zakres)
+
+definicja Stanu:
+    drzewo (Wyrażenie)
+    pozycja (Liczba)
+
+definicja Zdobyczy:
+    argument (Argument)
+    pozycja (Liczba)
+
+definicja Postępu:
+    pole (Tekst)
+    wartość (Wyrażenie)
+    przesunięcie (Liczba)
+
+Krok to Postęp albo Nic
+
+# ---------- operacje na listach ----------
+
 aby utworzyć_pustą:
     zwróć PustaLista o znaczniku zero
 
-aby dodać element do listy:
+aby doczepić element do listy:
     zwróć Węzeł o głowie element o ogonie lista
 
-aby należeć element do zbioru:
-    zbiór jest:
-        PustąListą:
-            zwróć fałsz
-        Węzłem z głową z ogonem:
-            jeśli głowa równe element:
-                zwróć prawda
-            zwróć należy element do ogona
-
-aby odwracać listę na akumulator:
+aby policzyć listę:
     lista jest:
         PustąListą:
-            zwróć akumulator
-        Węzłem z głową z ogonem:
-            zwróć odwracaj ogon na (dodaj głowę do akumulatora)
+            zwróć zero
+        Węzłem z ogonem:
+            zwróć jeden plus policz ogon
 
 aby wybrać pozycję z listy:
     lista jest:
@@ -69,408 +206,660 @@ aby wybrać pozycję z listy:
                 zwróć Sukces o wartości głowa
             zwróć wybierz (pozycja minus jeden) z ogona
 
-# ---------- świat zewnętrzny ----------
+aby odwrócić listę:
+    odwrócona to utwórz_pustą
+    reszta to lista
+    dopóki prawda:
+        reszta jest:
+            PustąListą:
+                stop
+            Węzłem z głową z ogonem:
+                odwrócona to doczep głowę do odwróconej
+                reszta to ogon
+    zwróć odwróconą
 
-można wypisać tekst (Tekst) -> Nic
-można skleić tekst (Tekst) z drugim (Tekst) -> Tekst
-można zakodować liczbę (Liczba) -> Tekst
+aby należeć element do zbioru:
+    zbiór jest:
+        PustąListą:
+            zwróć fałsz
+        Węzłem z głową z ogonem:
+            jeśli głowa równe element:
+                zwróć prawda
+            zwróć należy element do ogona
 
-# ---------- tokeny ----------
+# elementy listy NIEOBECNE w sicie (filtr odwrotny)
+aby przesiać listę przez sito:
+    lista jest:
+        PustąListą:
+            zwróć listę
+        Węzłem z głową z ogonem:
+            reszta to przesiej ogon przez sito
+            jeśli należy głowa do sita:
+                zwróć resztę
+            zwróć doczep głowę do reszty
 
-definicja Słowa:
-    lemat (Tekst)
-    przypadki (Lista)
-    czasownikowe (Przełącznik)
-    przypuszczające (Przełącznik)
+# czy przecięcie dwóch list jest niepuste
+aby krzyżować pierwszy_zbiór z drugim_zbiorem:
+    pierwszy_zbiór jest:
+        PustąListą:
+            zwróć fałsz
+        Węzłem z głową z ogonem:
+            jeśli należy głowa do drugiego_zbioru:
+                zwróć prawda
+            zwróć krzyżuj ogon z drugim_zbiorem
 
-definicja Liczebnika:
-    liczba (Liczba)
+aby wyliczyć_ciąg od początku do końca:
+    jeśli początek większe równe koniec:
+        zwróć utwórz_pustą
+    zwróć doczep początek do (wylicz_ciąg od (początek plus jeden) do końca)
 
-definicja Napisu:
-    treść (Tekst)
+aby ignorować rzecz:
+    zwróć
 
-definicja Symbolu:
-    symbol (Tekst)
+aby wydobyć rezultat z zapasem:
+    rezultat jest:
+        Sukcesem z wartością:
+            zwróć wartość
+        Błędem:
+            zwróć zapas
 
-Token to Słowo albo Liczebnik albo Napis albo Symbol
+# ---------- słownik (assoc-lista Haseł) ----------
 
-# ---------- drzewo wyrażeń ----------
+aby szukać klucza w słowniku:
+    słownik jest:
+        PustąListą:
+            zwróć Błąd o opisie "nie znaleziono klucza"
+        Węzłem z głową z ogonem:
+            jeśli klucz głowy równe klucz:
+                zwróć Sukces o wartości zawartość głowy
+            zwróć szukaj klucza w ogonie
 
-definicja Odwołania:
-    cel (Tekst)
+aby wstawić klucz z zawartością do słownika:
+    zwróć doczep (Hasło o kluczu klucz o zawartości zawartość) do słownika
 
-definicja StałejLiczbowej:
-    liczba (Liczba)
+# ---------- dopasowanie argumentów do parametrów ----------
+# (port type_parser.slot_matches + match_args_to_slots)
 
-definicja StałejTekstowej:
-    tekst (Tekst)
+aby sprawdzić argument wobec parametru:
+    jeśli przyimek argumentu nierówne przyimek parametru:
+        zwróć fałsz
+    jeśli policz (przypadki argumentu) równe zero:
+        zwróć prawda
+    jeśli policz (przypadki parametru) równe zero:
+        zwróć prawda
+    zwróć krzyżuj (przypadki argumentu) z (przypadki parametru)
 
-definicja Działania:
-    operator (Tekst)
-    lewica (Wyrażenie)
-    prawica (Wyrażenie)
+# numery miejsc pasujących do jednego argumentu
+aby wyliczyć_kandydatów dla argumentu wśród parametrów od numeru:
+    parametry są:
+        PustąListą:
+            zwróć utwórz_pustą
+        Węzłem z głową z ogonem:
+            reszta to wylicz_kandydatów dla argumentu wśród ogona od (numer plus jeden)
+            jeśli sprawdź argument wobec głowy:
+                zwróć doczep numer do reszty
+            zwróć resztę
 
-definicja Negacji:
-    środek (Wyrażenie)
+# lista list kandydatów — po jednej na argument
+aby zgromadzić_kandydatów dla argumentów wśród parametrów:
+    argumenty są:
+        PustąListą:
+            zwróć utwórz_pustą
+        Węzłem z głową z ogonem:
+            zwróć doczep (wylicz_kandydatów dla głowy wśród parametrów od zero) do (zgromadź_kandydatów dla ogona wśród parametrów)
 
-definicja Wywołania:
-    cel (Tekst)
-    argumenty (Lista)
-    ochronne (Przełącznik)
+# odwrotne wyszukanie: numer argumentu przydzielonego danemu miejscu
+aby odszukać miejsce w przydziałach:
+    przydziały są:
+        PustąListą:
+            zwróć Błąd o opisie "miejsce bez przydzielonego argumentu"
+        Węzłem z głową z ogonem:
+            jeśli zawartość głowy równe miejsce:
+                zwróć Sukces o wartości klucz głowy
+            zwróć odszukaj miejsce w ogonie
 
-definicja Łańcucha:
-    ogniwa (Lista)
+# ułóż argumenty w kolejności miejsc sygnatury
+aby ułożyć argumenty według przydziałów od numeru do krotności:
+    jeśli numer większe równe krotność:
+        zwróć Sukces o wartości utwórz_pustą
+    indeks to odszukałbyś numer w przydziałach?
+    argument to wybrałbyś indeks z argumentów?
+    reszta to ułożyłbyś argumenty według przydziałów od (numer plus jeden) do krotności?
+    zwróć Sukces o wartości (doczep argument do reszty)
 
-definicja Budowy:
-    typ (Tekst)
-    wpisy (Lista)
+aby dopasować argumenty do parametrów:
+    krotność to policz parametry
+    kandydaci to zgromadź_kandydatów dla argumentów wśród parametrów
+    przydziały to utwórz_pustą
+    obsada to utwórz_pustą
+    # krok 1: do utraty postępu przydzielaj argumenty z dokładnie
+    # jednym wolnym miejscem
+    dopóki prawda:
+        postęp to fałsz
+        numer to zero
+        dopóki numer mniejsze od krotności:
+            los to szukaj numeru w przydziałach
+            los jest:
+                Sukcesem:
+                    ignoruj los
+                Błędem:
+                    kandydatura to wydobądź (wybierz numer z kandydatów) z utwórz_pustą
+                    pula to przesiej kandydaturę przez obsadę
+                    jeśli policz pulę równe jeden:
+                        miejsce to wydobądź (wybierz zero z puli) z zero
+                        przydziały to wstaw numer z miejscem do przydziałów
+                        obsada to doczep miejsce do obsady
+                        postęp to prawda
+            numer to numer plus jeden
+        jeśli nie postęp:
+            stop
+    # krok 2: reszta pozycyjnie do wolnych miejsc, z kontrolą zgodności
+    wolne_miejsca to przesiej (wylicz_ciąg od zero do krotności) przez obsadę
+    numer to zero
+    dopóki numer mniejsze od krotności:
+        los to szukaj numeru w przydziałach
+        los jest:
+            Sukcesem:
+                ignoruj los
+            Błędem:
+                wolne_miejsca są:
+                    PustąListą:
+                        zwróć Błąd o opisie "argument nie pasuje do żadnego wolnego parametru"
+                    Węzłem z głową z ogonem:
+                        kandydatura to wydobądź (wybierz numer z kandydatów) z utwórz_pustą
+                        jeśli nie należy głowa do kandydatury:
+                            zwróć Błąd o opisie "argument nie pasuje do parametru w trybie pozycyjnym"
+                        przydziały to wstaw numer z głową do przydziałów
+                        wolne_miejsca to ogon
+        numer to numer plus jeden
+    zwróć ułóż argumenty według przydziałów od zero do krotności
 
-Wyrażenie to Odwołanie albo StałaLiczbowa albo StałaTekstowa albo Działanie albo Negacja albo Wywołanie albo Łańcuch albo Budowa
+# ---------- otoczenie i zakres ----------
 
-definicja Przypisu:
-    pole (Tekst)
-    wartość (Wyrażenie)
-
-# ---------- kontekst, zasięg, parser ----------
-
-definicja Funkcji:
-    lemat (Tekst)
-    krotność (Liczba)
-
-definicja Zasięgu:
-    nazwy (Lista)
-    rodzic (Otoczenie)
-
-Otoczenie to Zasięg albo Nic
-
-aby znać nazwę w otoczeniu:
-    otoczenie jest:
+aby odnaleźć nazwę w zakresie:
+    jeśli należy nazwa do (zmienne zakresu):
+        zwróć prawda
+    opiekun to rodzic zakresu
+    opiekun jest:
+        Zakresem:
+            zwróć odnajdź nazwę w opiekunie
         Niczym:
             zwróć fałsz
-        Zasięgiem z nazwami z rodzicem:
-            jeśli należy nazwa do nazw:
+
+aby przeszukać_hasła lemat w spisie:
+    spis jest:
+        PustąListą:
+            zwróć fałsz
+        Węzłem z głową z ogonem:
+            jeśli należy lemat do (zawartość głowy):
                 zwróć prawda
-            zwróć znaj nazwę w rodzicu
+            zwróć przeszukaj_hasła lemat w ogonie
 
-definicja Parsera:
-    tokeny (Lista)
-    pozycja (Liczba)
-    funkcje (Lista)
-    typy (Lista)
-    pola (Lista)
-    otoczenie (Otoczenie)
+# czy lemat jest polem którejkolwiek struktury
+aby stwierdzić_pole lemat w otoczeniu:
+    zwróć przeszukaj_hasła lemat w (pola otoczenia)
 
-# ---------- kursor ----------
+aby wyszukać_sygnaturę dla nazwy wśród sygnatur:
+    sygnatury są:
+        PustąListą:
+            zwróć Błąd o opisie "brak takiej funkcji"
+        Węzłem z głową z ogonem:
+            jeśli nazwa głowy równe nazwa:
+                zwróć Sukces o wartości głowa
+            zwróć wyszukaj_sygnaturę dla nazwy wśród ogona
 
-aby podglądać w parserze:
-    zwróć wybierz pozycję parsera z tokenów parsera
-
-aby przesuwać parser:
-    pozycja parsera to pozycja parsera plus jeden
-
-# Symbol pod kursorem albo "" (gdy koniec wejścia / inny rodzaj tokenu).
-aby podpatrywać_symbol w parserze:
-    spojrzenie to podglądaj w parserze
-    spojrzenie jest:
-        Błędem:
-            zwróć ""
-        Sukcesem z wartością:
-            wartość jest:
-                Symbolem z symbolem:
-                    zwróć symbol
-                inaczej:
-                    zwróć ""
-
-# Lemat słowa pod kursorem albo "".
-aby podpatrywać_lemat w parserze:
-    spojrzenie to podglądaj w parserze
-    spojrzenie jest:
-        Błędem:
-            zwróć ""
-        Sukcesem z wartością:
-            wartość jest:
-                Słowem z lematem:
-                    zwróć lemat
-                inaczej:
-                    zwróć ""
-
-# Czy słowo pod kursorem ma dopełniacz (rozszerzenie łańcucha pól).
-aby sprawdzać_dopełniacz w parserze:
-    spojrzenie to podglądaj w parserze
-    spojrzenie jest:
+# czy żeton to słowo w dopełniaczu niebędące przyimkiem
+aby sprawdzić_dopełniacz w żetonach na pozycji wobec otoczenia:
+    zdobycz to wyłów_słowo z żetonów na pozycji
+    zdobycz jest:
         Błędem:
             zwróć fałsz
         Sukcesem z wartością:
-            wartość jest:
-                Słowem z przypadkami:
-                    zwróć należy "gen" do przypadków
-                inaczej:
-                    zwróć fałsz
+            jeśli należy (lemat wartości) do (przyimki otoczenia):
+                zwróć fałsz
+            zwróć należy "dopełniacz" do (przypadki wartości)
 
-aby oczekiwać wzorca w parserze:
-    znak to podpatruj_symbol w parserze
-    jeśli znak równe wzorzec:
-        przesuwaj parser
-        zwróć Sukces o wartości znak
-    zwróć Błąd o opisie (sklej "oczekiwano symbolu " z wzorcem)
+# ---------- zaglądanie w żetony ----------
 
-# Lemat bieżącego słowa z konsumpcją tokenu.
-aby czytać_lemat w parserze:
-    spojrzenie to podglądałbyś w parserze?
-    spojrzenie jest:
-        Słowem z lematem:
-            przesuwaj parser
-            zwróć Sukces o wartości lemat
-        inaczej:
-            zwróć Błąd o opisie "oczekiwano słowa"
-
-aby odnajdywać_funkcję cel w spisie:
-    spis jest:
-        PustąListą:
-            zwróć Błąd o opisie (sklej "nieznana funkcja " z celem)
-        Węzłem z głową z ogonem:
-            jeśli lemat głowy równe cel:
-                zwróć Sukces o wartości głowa
-            zwróć odnajduj_funkcję cel w ogonie
-
-# ---------- gramatyka: lub < i < nie < porównanie < suma < iloczyn ----------
-#
-# Wszystkie poziomy lewostronnie łączące to JEDEN fold (rozbierać_poziom +
-# doklejać), sparametryzowany dwiema wartościami funkcyjnymi przekazywanymi
-# jako referencje gerundialne: "schodzenie" rozbiera poziom niżej,
-# a "wykrywanie" rozpoznaje operator pod kursorem (zwraca znak albo "").
-# Przed funkcjami wyższego rzędu każdy poziom był osobną kopią tego foldu.
-
-aby rozbierać_frazę w parserze:
-    zwróć rozbieraj_alternatywę w parserze
-
-aby rozbierać_poziom ze schodzeniem po wykrywaniu w parserze:
-    pierwsza to zastosowałbyś schodzenie z parserem?
-    zwróć doklejaj ze schodzeniem po wykrywaniu do pierwszej w parserze
-
-aby doklejać ze schodzeniem po wykrywaniu do lewicy w parserze:
-    znak to zastosuj wykrywanie z parserem
-    jeśli znak równe "":
-        zwróć Sukces o wartości lewica
-    przesuwaj parser
-    prawica to zastosowałbyś schodzenie z parserem?
-    zwróć doklejaj ze schodzeniem po wykrywaniu do (Działanie o operatorze znak o lewicy lewica o prawicy prawica) w parserze
-
-# Wykrywacze operatorów — jedyne, czym poziomy naprawdę się różnią.
-
-aby wykrywać_alternatywę w parserze:
-    jeśli podpatruj_lemat w parserze równe "lub":
-        zwróć "lub"
-    zwróć ""
-
-aby wykrywać_koniunkcję w parserze:
-    jeśli podpatruj_lemat w parserze równe "i":
-        zwróć "i"
-    zwróć ""
-
-aby wykrywać_sumę w parserze:
-    znak to podpatruj_symbol w parserze
-    jeśli znak równe "+" lub znak równe "-":
-        zwróć znak
-    zwróć ""
-
-aby wykrywać_iloczyn w parserze:
-    jeśli podpatruj_symbol w parserze równe "*":
-        zwróć "*"
-    zwróć ""
-
-# Poziomy gramatyki — dwulinijkowe deklaracje z referencjami gerundialnymi.
-
-aby rozbierać_alternatywę w parserze:
-    zwróć rozbieraj_poziom z rozbieraniem_koniunkcji po wykrywaniu_alternatywy w parserze
-
-aby rozbierać_koniunkcję w parserze:
-    zwróć rozbieraj_poziom z rozbieraniem_negacji po wykrywaniu_koniunkcji w parserze
-
-aby rozbierać_negację w parserze:
-    jeśli podpatruj_lemat w parserze równe "nie":
-        przesuwaj parser
-        środek to rozbierałbyś_negację w parserze?
-        zwróć Sukces o wartości (Negacja o środku środek)
-    zwróć rozbieraj_porównanie w parserze
-
-aby rozbierać_porównanie w parserze:
-    lewica to rozbierałbyś_sumę w parserze?
-    znak to podpatruj_symbol w parserze
-    jeśli znak równe "<" lub znak równe ">" lub znak równe "=":
-        przesuwaj parser
-        prawica to rozbierałbyś_sumę w parserze?
-        zwróć Sukces o wartości (Działanie o operatorze znak o lewicy lewica o prawicy prawica)
-    zwróć Sukces o wartości lewica
-
-aby rozbierać_sumę w parserze:
-    zwróć rozbieraj_poziom z rozbieraniem_iloczynu po wykrywaniu_sumy w parserze
-
-aby rozbierać_iloczyn w parserze:
-    zwróć rozbieraj_poziom z rozbieraniem_członu po wykrywaniu_iloczynu w parserze
-
-# ---------- człony (primary) ----------
-
-aby rozbierać_człon w parserze:
-    spojrzenie to podglądałbyś w parserze?
-    spojrzenie jest:
-        Liczebnikiem z liczbą:
-            przesuwaj parser
-            zwróć Sukces o wartości (StałaLiczbowa o liczbie liczba)
-        Napisem z treścią:
-            przesuwaj parser
-            zwróć Sukces o wartości (StałaTekstowa o tekście treść)
-        Symbolem z symbolem:
-            jeśli symbol równe "(":
-                przesuwaj parser
-                środek to rozbierałbyś_frazę w parserze?
-                zamknięcie to oczekiwałbyś ")" w parserze?
-                zwróć Sukces o wartości środek
-            zwróć Błąd o opisie (sklej "nieoczekiwany symbol " z symbolem)
+aby wyłowić_słowo z żetonów na pozycji:
+    żeton to wybrałbyś pozycję z żetonów?
+    żeton jest:
         Słowem:
-            zwróć rozbieraj_słowo w parserze
+            zwróć Sukces o wartości żeton
+        inaczej:
+            zwróć Błąd o opisie "żeton nie jest słowem"
 
-# Dyspozycja słowa: budowa struktury (lemat jest typem), wywołanie
-# (czasownik znanej funkcji, z trybem ochronnym), łańcuch pól (pole +
-# dopełniacz dalej), odwołanie do zmiennej (sprawdzane w zasięgu).
-aby rozbierać_słowo w parserze:
-    spojrzenie to podglądałbyś w parserze?
-    spojrzenie jest:
-        Symbolem:
-            zwróć Błąd o opisie "spodziewano słowa"
-        Liczebnikiem:
-            zwróć Błąd o opisie "spodziewano słowa"
-        Napisem:
-            zwróć Błąd o opisie "spodziewano słowa"
-        Słowem z lematem z czasownikowym z przypuszczającym:
-            przesuwaj parser
-            jeśli należy lemat do typów parsera:
-                zwróć rozbieraj_budowę lemat w parserze
-            jeśli czasownikowe:
-                zwróć rozbieraj_wywołanie lemat przypuszczające w parserze
-            jeśli należy lemat do pól parsera i sprawdzaj_dopełniacz w parserze:
-                zwróć rozbieraj_łańcuch lemat w parserze
-            jeśli znaj lemat w otoczeniu parsera:
-                zwróć Sukces o wartości (Odwołanie o celu lemat)
-            zwróć Błąd o opisie (sklej lemat z " nie jest zadeklarowaną zmienną")
+aby wyłowić_operatora z żetonów na pozycji:
+    żeton to wybrałbyś pozycję z żetonów?
+    żeton jest:
+        Operatorem:
+            zwróć Sukces o wartości żeton
+        inaczej:
+            zwróć Błąd o opisie "żeton nie jest operatorem"
 
-aby rozbierać_budowę typ w parserze:
-    przypisy to zbierałbyś_przypisy w parserze?
-    zwróć Sukces o wartości (Budowa o typie typ o wpisach przypisy)
-
-aby zbierać_przypisy w parserze:
-    jeśli podpatruj_lemat w parserze równe "o":
-        przesuwaj parser
-        pole to czytałbyś_lemat w parserze?
-        wartość to rozbierałbyś_człon w parserze?
-        reszta to zbierałbyś_przypisy w parserze?
-        zwróć Sukces o wartości (dodaj (Przypis o polu pole o wartości wartość) do reszty)
-    zwróć Sukces o wartości utwórz_pustą
-
-aby rozbierać_wywołanie cel tryb w parserze:
-    rekord to odnajdywałbyś_funkcję cel w funkcjach parsera?
-    argumenty to zbierałbyś_argumenty (krotność rekordu) w parserze?
-    jeśli tryb:
-        zamknięcie to oczekiwałbyś "?" w parserze?
-        zwróć Sukces o wartości (Wywołanie o celu cel o argumentach argumenty o ochronnym prawda)
-    zwróć Sukces o wartości (Wywołanie o celu cel o argumentach argumenty o ochronnym fałsz)
-
-aby zbierać_argumenty licznik w parserze:
-    jeśli licznik równe zero:
-        zwróć Sukces o wartości utwórz_pustą
-    argument to rozbierałbyś_człon w parserze?
-    reszta to zbierałbyś_argumenty (licznik minus jeden) w parserze?
-    zwróć Sukces o wartości (dodaj argument do reszty)
-
-aby rozbierać_łańcuch ogniwo w parserze:
-    # uwaga: lista NIE może się nazywać "ogniwa" — "ogniwa" to też dopełniacz
-    # lp od "ogniwo", więc skleiłaby się w zasięgu z parametrem "ogniwo"
-    zbiór to dodaj ogniwo do utwórz_pustą
-    dopóki sprawdzaj_dopełniacz w parserze i należy ogniwo do pól parsera:
-        kolejne to czytałbyś_lemat w parserze?
-        zbiór to dodaj kolejne do zbioru
-        ogniwo to kolejne
-    # ostatnie ogniwo to baza łańcucha — odczyt zmiennej, musi być w zasięgu
-    jeśli nie znaj ogniwo w otoczeniu parsera:
-        zwróć Błąd o opisie (sklej ogniwo z " nie jest zadeklarowaną zmienną")
-    zwróć Sukces o wartości (Łańcuch o ogniwach (odwracaj zbiór na utwórz_pustą))
-
-# ---------- opis drzewa (do raportowania) ----------
-
-aby opisywać wyrażenie:
-    wyrażenie jest:
-        Odwołaniem z celem:
-            zwróć cel
-        StałąLiczbową z liczbą:
-            zwróć zakoduj liczbę
-        StałąTekstową z tekstem:
-            zwróć sklej "\"" z (sklej tekst z "\"")
-        Działaniem z operatorem z lewicą z prawicą:
-            początek to sklej "(" z (opisuj lewicę)
-            koniec to sklej (opisuj prawicę) z ")"
-            zwróć sklej początek z (sklej operatora z końcem)
-        Negacją ze środkiem:
-            zwróć sklej "nie(" z (sklej (opisuj środek) z ")")
-        Wywołaniem z celem z argumentami z ochronnym:
-            nagłówek to sklej cel z "("
-            jeśli ochronne:
-                nagłówek to sklej "?" z nagłówkiem
-            zwróć sklej nagłówek z (sklej (opisuj_listę argumenty) z ")")
-        Łańcuchem z ogniwami:
-            zwróć sklej "łańcuch(" z (sklej (sklejaj_lematy ogniwa) z ")")
-        Budową z typem z wpisami:
-            zwróć sklej "budowa:" z typem
-
-aby opisywać_listę spisane:
-    spisane są:
-        PustąListą:
-            zwróć ""
-        Węzłem z głową z ogonem:
-            zwróć sklej (opisuj głowę) z (sklej " " z (opisuj_listę ogon))
-
-aby sklejać_lematy ogniwa:
-    ogniwa są:
-        PustąListą:
-            zwróć ""
-        Węzłem z głową z ogonem:
-            zwróć sklej głowę z (sklej " " z (sklejaj_lematy ogon))
-
-# ---------- fabryki tokenów (do sesji przykładowej) ----------
-
-aby utworzyć_rzeczownik lemat spis:
-    zwróć Słowo o lemacie lemat o przypadkach spis o czasownikowym fałsz o przypuszczającym fałsz
-
-aby utworzyć_czasownik lemat tryb:
-    zwróć Słowo o lemacie lemat o przypadkach utwórz_pustą o czasownikowym prawda o przypuszczającym tryb
-
-aby utworzyć_symbol znak:
-    zwróć Symbol o symbolu znak
-
-# ---------- przykładowa sesja ----------
-
-# Rozbiera odpowiednik frazy:
-#   imię użytkownika + wybrałbyś zero z koszyka? * trzy
-aby działać:
-    mianownik to dodaj "nom" do utwórz_pustą
-    dopełniacz to dodaj "gen" do utwórz_pustą
-    tokeny to utwórz_pustą
-    tokeny to dodaj (utwórz_rzeczownik "imię" mianownik) do tokenów
-    tokeny to dodaj (utwórz_rzeczownik "użytkownik" dopełniacz) do tokenów
-    tokeny to dodaj (utwórz_symbol "+") do tokenów
-    tokeny to dodaj (utwórz_czasownik "wybrać" prawda) do tokenów
-    tokeny to dodaj (Liczebnik o liczbie zero) do tokenów
-    tokeny to dodaj (utwórz_symbol "?") do tokenów
-    tokeny to dodaj (utwórz_symbol "*") do tokenów
-    tokeny to dodaj (Liczebnik o liczbie trzy) do tokenów
-    tokeny to odwracaj tokeny na utwórz_pustą
-
-    zasięg to Zasięg o nazwach (dodaj "użytkownik" do utwórz_pustą) o rodzicu Nic
-    spis_funkcji to dodaj (Funkcja o lemacie "wybrać" o krotności jeden) do utwórz_pustą
-    parser to Parser o tokenach tokeny o pozycji zero o funkcjach spis_funkcji o typach utwórz_pustą o polach (dodaj "imię" do utwórz_pustą) o otoczeniu zasięg
-
-    wynik to rozbieraj_frazę w parserze
-    wynik jest:
+aby oczekiwać wzoru w żetonach na pozycji:
+    połów to wyłów_operatora z żetonów na pozycji
+    połów jest:
+        Błędem:
+            zwróć Błąd o opisie (sklej "oczekiwano symbolu " ze wzorem)
         Sukcesem z wartością:
-            wypisz (opisuj wartość)
+            jeśli symbol wartości równe wzór:
+                zwróć Sukces o wartości (pozycja plus jeden)
+            zwróć Błąd o opisie (sklej "oczekiwano symbolu " ze wzorem)
+
+# ---------- gramatyka: drabinka poziomów ----------
+
+aby rozebrać_frazę przez parser od pozycji:
+    zwróć rozbierz_alternatywę przez parser od pozycji
+
+# JEDEN fold dla wszystkich binarnych poziomów lewostronnych:
+# lewy człon szczeblem niżej, potem dopóki kolejny żeton jest operatorem
+# szukanej rangi — doklejaj prawe ramię
+aby rozebrać_poziom przez parser od pozycji ze szczeblem o szukanej_randze:
+    stan to zastosowałbyś szczebel z parserem z pozycją?
+    dopóki prawda:
+        połów to wyłów_operatora z (żetony parsera) na (pozycja stanu)
+        połów jest:
+            Błędem:
+                stop
+            Sukcesem z wartością:
+                jeśli ranga wartości nierówne szukana_ranga:
+                    stop
+                kontynuacja to zastosowałbyś szczebel z parserem z (pozycja stanu plus jeden)?
+                stan to Stan o drzewie (Działanie o symbolu (symbol wartości) o lewym_ramieniu (drzewo stanu) o prawym_ramieniu (drzewo kontynuacji)) o pozycji (pozycja kontynuacji)
+    zwróć Sukces o wartości stan
+
+aby rozebrać_alternatywę przez parser od pozycji:
+    ranga to "alternatywa"
+    zwróć rozbierz_poziom przez parser od pozycji z rozebraniem_koniunkcji o randze
+
+aby rozebrać_koniunkcję przez parser od pozycji:
+    ranga to "koniunkcja"
+    zwróć rozbierz_poziom przez parser od pozycji z rozebraniem_przeczenia o randze
+
+aby rozebrać_przeczenie przez parser od pozycji:
+    połów to wyłów_operatora z (żetony parsera) na pozycji
+    połów jest:
+        Sukcesem z wartością:
+            jeśli ranga wartości równe "przeczenie":
+                wnętrze to rozebrałbyś_przeczenie przez parser od (pozycja plus jeden)?
+                zwróć Sukces o wartości (Stan o drzewie (Przeczenie o symbolu (symbol wartości) o argumencie (drzewo wnętrza)) o pozycji (pozycja wnętrza))
+            ignoruj połów
+        Błędem:
+            ignoruj połów
+    zwróć rozbierz_porównanie przez parser od pozycji
+
+# co najwyżej JEDEN operator porównania (bez łańcuchowania)
+aby rozebrać_porównanie przez parser od pozycji:
+    stan to rozebrałbyś_sumę przez parser od pozycji?
+    połów to wyłów_operatora z (żetony parsera) na (pozycja stanu)
+    połów jest:
+        Sukcesem z wartością:
+            jeśli ranga wartości równe "porównanie":
+                kontynuacja to rozebrałbyś_sumę przez parser od (pozycja stanu plus jeden)?
+                zwróć Sukces o wartości (Stan o drzewie (Działanie o symbolu (symbol wartości) o lewym_ramieniu (drzewo stanu) o prawym_ramieniu (drzewo kontynuacji)) o pozycji (pozycja kontynuacji))
+            ignoruj połów
+        Błędem:
+            ignoruj połów
+    zwróć Sukces o wartości stan
+
+aby rozebrać_sumę przez parser od pozycji:
+    ranga to "suma"
+    zwróć rozbierz_poziom przez parser od pozycji z rozebraniem_iloczynu o randze
+
+aby rozebrać_iloczyn przez parser od pozycji:
+    ranga to "iloczyn"
+    zwróć rozbierz_poziom przez parser od pozycji z rozebraniem_czynnika o randze
+
+# unarny plus/minus przed członem
+aby rozebrać_czynnik przez parser od pozycji:
+    połów to wyłów_operatora z (żetony parsera) na pozycji
+    połów jest:
+        Sukcesem z wartością:
+            jeśli ranga wartości równe "suma":
+                wnętrze to rozebrałbyś_czynnik przez parser od (pozycja plus jeden)?
+                zwróć Sukces o wartości (Stan o drzewie (Przeczenie o symbolu (symbol wartości) o argumencie (drzewo wnętrza)) o pozycji (pozycja wnętrza))
+            ignoruj połów
+        Błędem:
+            ignoruj połów
+    zwróć rozbierz_człon przez parser od pozycji
+
+# człon = atom + opcjonalny sufiks typu
+aby rozebrać_człon przez parser od pozycji:
+    stan to rozebrałbyś_atom przez parser od pozycji?
+    zwróć doklej_adnotację do stanu przez parser
+
+# sufiks typu "(Typ)": tylko słowo z wielkiej litery; znane typy
+# przechodzą, nieznane to błąd (bez odwrotu do grupowania)
+aby dokleić_adnotację do stanu przez parser:
+    nawias to fałsz
+    połów to wyłów_operatora z (żetony parsera) na (pozycja stanu)
+    połów jest:
+        Błędem:
+            ignoruj połów
+        Sukcesem z wartością:
+            jeśli symbol wartości równe "(":
+                nawias to prawda
+    jeśli nie nawias:
+        zwróć Sukces o wartości stan
+    zdobycz to wyłów_słowo z (żetony parsera) na (pozycja stanu plus jeden)
+    zdobycz jest:
+        Błędem:
+            zwróć Sukces o wartości stan
+        Sukcesem z wartością:
+            jeśli nie sprawdź_wielkość (lemat wartości):
+                zwróć Sukces o wartości stan
+            jeśli nie należy (lemat wartości) do (typy otoczenia parsera):
+                zwróć Błąd o opisie (sklej "sufiks typu wskazuje nieznany typ: " z (lemat wartości))
+            przesunięcie to oczekiwałbyś ")" w (żetony parsera) na (pozycja stanu plus dwa)?
+            zwróć Sukces o wartości (Stan o drzewie (Adnotacja o typie (lemat wartości) o wyrażeniu (drzewo stanu)) o pozycji przesunięcie)
+
+# ---------- atom ----------
+
+aby rozebrać_atom przez parser od pozycji:
+    żeton to wybrałbyś pozycję z (żetony parsera)?
+    zwróć rozważ żeton przez parser od pozycji
+
+aby rozważyć żeton przez parser od pozycji:
+    żeton jest:
+        Liczebnikiem z wartością:
+            zwróć Sukces o wartości (Stan o drzewie (Ilość o wartości wartość) o pozycji (pozycja plus jeden))
+        Napisem z treścią:
+            zwróć Sukces o wartości (Stan o drzewie (Cytat o treści treść) o pozycji (pozycja plus jeden))
+        Operatorem z symbolem:
+            jeśli symbol równe "(":
+                wnętrze to rozebrałbyś_frazę przez parser od (pozycja plus jeden)?
+                przesunięcie to oczekiwałbyś ")" w (żetony parsera) na (pozycja wnętrza)?
+                zwróć Sukces o wartości (Stan o drzewie (drzewo wnętrza) o pozycji przesunięcie)
+            zwróć Błąd o opisie (sklej "nieoczekiwany żeton w członie: " z symbolem)
+        Słowem:
+            zwróć rozpoznaj żeton przez parser od pozycji
+
+# ---------- dyspozytor słowa ----------
+
+aby rozpoznać słowo przez parser od pozycji:
+    # 1. konstrukcja struktury — lemat jest znanym typem
+    jeśli należy (lemat słowa) do (typy otoczenia parsera):
+        zwróć rozbierz_konstrukcję przez parser od (pozycja plus jeden) o (lemat słowa)
+    # 2. łańcuch dopełniaczowy — pole, a za nim słowo w dopełniaczu
+    jeśli stwierdź_pole (lemat słowa) w (otoczenie parsera) i sprawdź_dopełniacz w (żetony parsera) na (pozycja plus jeden) wobec (otoczenie parsera):
+        zwróć rozbierz_łańcuch przez parser od (pozycja plus jeden) z (lemat słowa)
+    # 3. wbudowana aplikacja wartości funkcyjnej
+    jeśli lemat słowa równe "zastosować":
+        stan to rozebrałbyś_aplikację przez parser od (pozycja plus jeden)?
+        zwróć obsłuż stan według słowa przez parser
+    # 4. wywołanie zdefiniowanej funkcji
+    poszukiwanie to wyszukaj_sygnaturę dla (lemat słowa) wśród (sygnatury otoczenia parsera)
+    poszukiwanie jest:
+        Sukcesem z wartością:
+            stan to rozebrałbyś_wywołanie przez parser od (pozycja plus jeden) według wartości?
+            zwróć obsłuż stan według słowa przez parser
+        Błędem:
+            ignoruj poszukiwanie
+    # 5. odwołanie do zmiennej — zmienna przesłania referencję gerundialną
+    jeśli odnajdź (lemat słowa) w (zakres parsera):
+        zwróć Sukces o wartości (Stan o drzewie (Odwołanie o lemacie (lemat słowa) o przypadkach (przypadki słowa)) o pozycji (pozycja plus jeden))
+    # 6. referencja gerundialna do funkcji
+    jeśli podstawa słowa nierówne "":
+        ślad to wyszukaj_sygnaturę dla (podstawa słowa) wśród (sygnatury otoczenia parsera)
+        ślad jest:
+            Sukcesem z wartością:
+                zwróć Sukces o wartości (Stan o drzewie (Odsyłacz o celu (nazwa wartości) o przypadkach (przypadki słowa)) o pozycji (pozycja plus jeden))
+            Błędem:
+                ignoruj ślad
+    zwróć Błąd o opisie (sklej "niezadeklarowana zmienna: " z (napis słowa))
+
+# tryb przypuszczający otwiera wywołanie z obsługą błędu, "?" je domyka
+aby obsłużyć stan według słowa przez parser:
+    jeśli tryb słowa nierówne "przypuszczający":
+        zwróć Sukces o wartości stan
+    przesunięcie to oczekiwałbyś "?" w (żetony parsera) na (pozycja stanu)?
+    zwróć Sukces o wartości (Stan o drzewie (Próba o wywołaniu (drzewo stanu)) o pozycji przesunięcie)
+
+# ---------- wywołanie funkcji ----------
+
+# przypadki argumentu czyta się z odwołania albo odsyłacza;
+# literały, nawiasy i łańcuchy są bezprzypadkowe
+aby wydedukować_przypadki z wyrażenia:
+    wyrażenie jest:
+        Odwołaniem z przypadkami:
+            zwróć przypadki
+        Odsyłaczem z przypadkami:
+            zwróć przypadki
+        inaczej:
+            zwróć utwórz_pustą
+
+# jeden argument: opcjonalny przyimek + człon
+aby rozebrać_argument przez parser od pozycji:
+    przyimek to ""
+    wskaźnik to pozycja
+    zdobycz to wyłów_słowo z (żetony parsera) na pozycji
+    zdobycz jest:
+        Błędem:
+            ignoruj zdobycz
+        Sukcesem z wartością:
+            jeśli należy (lemat wartości) do (przyimki otoczenia parsera):
+                przyimek to lemat wartości
+                wskaźnik to pozycja plus jeden
+    stan to rozebrałbyś_człon przez parser od wskaźnika?
+    zwróć Sukces o wartości (Zdobycz o argumencie (Argument o przyimku przyimek o przypadkach (wydedukuj_przypadki z (drzewo stanu)) o wartości (drzewo stanu)) o pozycji (pozycja stanu))
+
+aby rozebrać_wywołanie przez parser od pozycji według sygnatury:
+    krotność to policz (parametry sygnatury)
+    zbiór to utwórz_pustą
+    licznik to zero
+    wskaźnik to pozycja
+    dopóki licznik mniejsze od krotności:
+        łup to rozebrałbyś_argument przez parser od wskaźnika?
+        zbiór to doczep (argument łupu) do zbioru
+        wskaźnik to pozycja łupu
+        licznik to licznik plus jeden
+    argumenty to odwróć zbiór
+    szyk to dopasowałbyś argumenty do (parametry sygnatury)?
+    zwróć Sukces o wartości (Stan o drzewie (Wywołanie o nazwie (nazwa sygnatury) o argumentach szyk) o pozycji wskaźnik)
+
+# ---------- aplikacja wartości funkcyjnej ----------
+
+aby rozebrać_aplikację przez parser od pozycji:
+    czoło to rozebrałbyś_człon przez parser od pozycji?
+    zbiór to utwórz_pustą
+    wskaźnik to pozycja czoła
+    dopóki prawda:
+        zdobycz to wyłów_słowo z (żetony parsera) na wskaźniku
+        zdobycz jest:
+            Błędem:
+                stop
+            Sukcesem z wartością:
+                jeśli lemat wartości nierówne "z":
+                    stop
+                stan to rozebrałbyś_człon przez parser od (wskaźnik plus jeden)?
+                spis_przypadków to wydedukuj_przypadki z (drzewo stanu)
+                jeśli policz spis_przypadków większe od zero i nie należy "narzędnik" do spisu_przypadków:
+                    zwróć Błąd o opisie "argument zastosowania po z musi być w narzędniku"
+                zbiór to doczep (Argument o przyimku "z" o przypadkach spis_przypadków o wartości (drzewo stanu)) do zbioru
+                wskaźnik to pozycja stanu
+    zwróć Sukces o wartości (Stan o drzewie (Aplikacja o funkcji (drzewo czoła) o argumentach (odwróć zbiór)) o pozycji wskaźnik)
+
+# ---------- łańcuch dopełniaczowy ----------
+
+aby rozebrać_łańcuch przez parser od pozycji z czołem:
+    zbiór to doczep czoło do utwórz_pustą
+    końcówka to czoło
+    wskaźnik to pozycja
+    dopóki prawda:
+        jeśli nie stwierdź_pole końcówkę w (otoczenie parsera):
+            stop
+        zdobycz to wyłów_słowo z (żetony parsera) na wskaźniku
+        zdobycz jest:
+            Błędem:
+                stop
+            Sukcesem z wartością:
+                jeśli należy (lemat wartości) do (przyimki otoczenia parsera):
+                    stop
+                jeśli nie należy "dopełniacz" do (przypadki wartości):
+                    stop
+                zbiór to doczep (lemat wartości) do zbioru
+                końcówka to lemat wartości
+                wskaźnik to wskaźnik plus jeden
+    jeśli nie odnajdź końcówkę w (zakres parsera):
+        zwróć Błąd o opisie (sklej "podstawa łańcucha nie jest zadeklarowaną zmienną: " z końcówką)
+    zwróć Sukces o wartości (Stan o drzewie (Łańcuch o ogniwach (odwróć zbiór)) o pozycji wskaźnik)
+
+# ---------- konstrukcja struktury ----------
+
+# jeden krok konstrukcji: "o pole WARTOŚĆ" (miejscownik) albo skrót
+# "z polem" (narzędnik, czyta zmienną o nazwie pola); Nic = koniec kroków
+aby rozebrać_przypis przez parser od pozycji wobec typu przy obsadzie:
+    przyimek to ""
+    zdobycz to wyłów_słowo z (żetony parsera) na pozycji
+    zdobycz jest:
+        Błędem:
+            ignoruj zdobycz
+        Sukcesem z wartością:
+            przyimek to lemat wartości
+    jeśli przyimek nierówne "o" i przyimek nierówne "z":
+        zwróć Sukces o wartości Nic
+    wymóg to "miejscownik"
+    jeśli przyimek równe "z":
+        wymóg to "narzędnik"
+    traf to wyłów_słowo z (żetony parsera) na (pozycja plus jeden)
+    traf jest:
+        Błędem:
+            zwróć Sukces o wartości Nic
+        Sukcesem z wartością:
+            spis_pól to wydobądź (szukaj typu w (pola otoczenia parsera)) z utwórz_pustą
+            jeśli nie należy (lemat wartości) do spisu_pól:
+                zwróć Sukces o wartości Nic
+            jeśli należy (lemat wartości) do obsady:
+                zwróć Sukces o wartości Nic
+            jeśli nie należy wymóg do (przypadki wartości):
+                zwróć Sukces o wartości Nic
+            jeśli przyimek równe "o":
+                stan to rozebrałbyś_frazę przez parser od (pozycja plus dwa)?
+                zwróć Sukces o wartości (Postęp o polu (lemat wartości) o wartości (drzewo stanu) o przesunięciu (pozycja stanu))
+            jeśli nie odnajdź (lemat wartości) w (zakres parsera):
+                zwróć Błąd o opisie (sklej "skrót z polem wymaga zadeklarowanej zmiennej: " z (napis wartości))
+            zwróć Sukces o wartości (Postęp o polu (lemat wartości) o wartości (Odwołanie o lemacie (lemat wartości) o przypadkach (przypadki wartości)) o przesunięciu (pozycja plus dwa))
+
+aby rozebrać_konstrukcję przez parser od pozycji o typie:
+    zbiór to utwórz_pustą
+    obsada to utwórz_pustą
+    wskaźnik to pozycja
+    dopóki prawda:
+        krok to rozebrałbyś_przypis przez parser od wskaźnika wobec typu przy obsadzie?
+        krok jest:
+            Niczym:
+                stop
+            Postępem z polem z wartością z przesunięciem:
+                zbiór to doczep (Wpis o polu pole o wartości wartość) do zbioru
+                obsada to doczep pole do obsady
+                wskaźnik to przesunięcie
+    zwróć Sukces o wartości (Stan o drzewie (Konstrukcja o typie typ o wpisach (odwróć zbiór)) o pozycji wskaźnik)
+
+# ---------- wejście: cała fraza ----------
+
+aby rozebrać_całość przez parser:
+    stan to rozebrałbyś_frazę przez parser od zero?
+    jeśli pozycja stanu mniejsze od (policz żetony parsera):
+        zwróć Błąd o opisie "niesparsowane żetony po wyrażeniu"
+    zwróć Sukces o wartości stan
+
+aby opisać rezultat:
+    rezultat jest:
+        Sukcesem:
+            zwróć "sukces"
         Błędem z opisem:
-            wypisz opis
+            zwróć opis
+
+# ---------- budowa świata na potrzeby pokazu ----------
+
+aby wytworzyć_parametr z przyimkiem o przypadku:
+    zwróć Parametr o przyimku przyimek o przypadkach (doczep przypadek do utwórz_pustą)
+
+aby wytworzyć_rzeczownik z napisem o lemacie w przypadku:
+    zwróć Słowo o napisie napis o lemacie lemat o podstawie "" o przypadkach (doczep przypadek do utwórz_pustą) o trybie ""
+
+aby wytworzyć_czasownik z napisem o lemacie w trybie:
+    zwróć Słowo o napisie napis o lemacie lemat o podstawie "" o przypadkach utwórz_pustą o trybie tryb
+
+aby wytworzyć_przyimek z napisem:
+    zwróć Słowo o napisie napis o lemacie napis o podstawie "" o przypadkach utwórz_pustą o trybie ""
+
+aby wytworzyć_operator z symbolem o randze:
+    zwróć Operator o symbolu symbol o randze ranga
+
+aby zbudować_otoczenie:
+    spis_typów to doczep "Użytkownik" do utwórz_pustą
+    pola_użytkownika to doczep "imię" do (doczep "wiek" do utwórz_pustą)
+    spis_pól to wstaw "Użytkownik" z polami_użytkownika do utwórz_pustą
+    parametry_dodawania to doczep (wytwórz_parametr z "" o "biernik") do (doczep (wytwórz_parametr z "do" o "dopełniacz") do utwórz_pustą)
+    parametry_wybierania to doczep (wytwórz_parametr z "" o "biernik") do (doczep (wytwórz_parametr z "z" o "dopełniacz") do utwórz_pustą)
+    spis_sygnatur to doczep (Sygnatura o nazwie "dodać" o parametrach parametry_dodawania) do (doczep (Sygnatura o nazwie "wybrać" o parametrach parametry_wybierania) do utwórz_pustą)
+    spis_przyimków to doczep "do" do (doczep "o" do (doczep "z" do (doczep "przez" do (doczep "od" do (doczep "w" do (doczep "na" do utwórz_pustą))))))
+    zwróć Otoczenie o sygnaturach spis_sygnatur o typach spis_typów o polach spis_pól o przyimkach spis_przyimków
+
+# ---------- pokaz ----------
+
+aby działać:
+    otoczenie to zbuduj_otoczenie
+    zakres to Zakres o zmiennych (doczep "suma" do (doczep "użytkownik" do utwórz_pustą)) o rodzicu Nic
+
+    # ( suma plus dwa ) razy trzy   — żetony doczepiane od końca
+    żetony to utwórz_pustą
+    żetony to doczep (Liczebnik o wartości trzy) do żetonów
+    żetony to doczep (wytwórz_operator z "razy" o "iloczyn") do żetonów
+    żetony to doczep (wytwórz_operator z ")" o "nawias") do żetonów
+    żetony to doczep (Liczebnik o wartości dwa) do żetonów
+    żetony to doczep (wytwórz_operator z "plus" o "suma") do żetonów
+    żetony to doczep (wytwórz_rzeczownik z "suma" o "suma" w "mianownik") do żetonów
+    żetony to doczep (wytwórz_operator z "(" o "nawias") do żetonów
+    parser to Parser o żetonach żetony o otoczeniu otoczenie o zakresie zakres
+    pierwszy_wynik to rozbierz_całość przez parser
+    wypisz (opisz pierwszy_wynik)
+
+    # dodaj dwa do wieku użytkownika   — wywołanie + łańcuch dopełniaczowy
+    żetony to utwórz_pustą
+    żetony to doczep (wytwórz_rzeczownik z "użytkownika" o "użytkownik" w "dopełniacz") do żetonów
+    żetony to doczep (wytwórz_rzeczownik z "wieku" o "wiek" w "dopełniacz") do żetonów
+    żetony to doczep (wytwórz_przyimek z "do") do żetonów
+    żetony to doczep (Liczebnik o wartości dwa) do żetonów
+    żetony to doczep (wytwórz_czasownik z "dodaj" o "dodać" w "") do żetonów
+    parser to Parser o żetonach żetony o otoczeniu otoczenie o zakresie zakres
+    drugi_wynik to rozbierz_całość przez parser
+    wypisz (opisz drugi_wynik)
+
+    # zastosuj dodanie z sumą z dwa   — aplikacja + referencja gerundialna
+    żetony to utwórz_pustą
+    żetony to doczep (Liczebnik o wartości dwa) do żetonów
+    żetony to doczep (wytwórz_przyimek z "z") do żetonów
+    żetony to doczep (Słowo o napisie "sumą" o lemacie "suma" o podstawie "" o przypadkach (doczep "narzędnik" do utwórz_pustą) o trybie "") do żetonów
+    żetony to doczep (wytwórz_przyimek z "z") do żetonów
+    żetony to doczep (Słowo o napisie "dodaniem" o lemacie "dodanie" o podstawie "dodać" o przypadkach (doczep "narzędnik" do utwórz_pustą) o trybie "") do żetonów
+    żetony to doczep (wytwórz_czasownik z "zastosuj" o "zastosować" w "") do żetonów
+    parser to Parser o żetonach żetony o otoczeniu otoczenie o zakresie zakres
+    trzeci_wynik to rozbierz_całość przez parser
+    wypisz (opisz trzeci_wynik)
+
+    # wybrałbyś dwa z sumy ?   — tryb przypuszczający z domykającym "?"
+    żetony to utwórz_pustą
+    żetony to doczep (wytwórz_operator z "?" o "pytajnik") do żetonów
+    żetony to doczep (Słowo o napisie "sumy" o lemacie "suma" o podstawie "" o przypadkach (doczep "dopełniacz" do utwórz_pustą) o trybie "") do żetonów
+    żetony to doczep (wytwórz_przyimek z "z") do żetonów
+    żetony to doczep (Liczebnik o wartości dwa) do żetonów
+    żetony to doczep (wytwórz_czasownik z "wybrałbyś" o "wybrać" w "przypuszczający") do żetonów
+    parser to Parser o żetonach żetony o otoczeniu otoczenie o zakresie zakres
+    czwarty_wynik to rozbierz_całość przez parser
+    wypisz (opisz czwarty_wynik)
+
+    # Użytkownik o imieniu "Ada" o wieku trzydzieści   — konstrukcja struktury
+    żetony to utwórz_pustą
+    żetony to doczep (Liczebnik o wartości trzydzieści) do żetonów
+    żetony to doczep (Słowo o napisie "wieku" o lemacie "wiek" o podstawie "" o przypadkach (doczep "dopełniacz" do (doczep "miejscownik" do utwórz_pustą)) o trybie "") do żetonów
+    żetony to doczep (wytwórz_przyimek z "o") do żetonów
+    żetony to doczep (Napis o treści "Ada") do żetonów
+    żetony to doczep (wytwórz_rzeczownik z "imieniu" o "imię" w "miejscownik") do żetonów
+    żetony to doczep (wytwórz_przyimek z "o") do żetonów
+    żetony to doczep (wytwórz_rzeczownik z "Użytkownik" o "Użytkownik" w "mianownik") do żetonów
+    parser to Parser o żetonach żetony o otoczeniu otoczenie o zakresie zakres
+    piąty_wynik to rozbierz_całość przez parser
+    wypisz (opisz piąty_wynik)

@@ -10,6 +10,7 @@ import parser
 import expression
 import pretty
 import typechecker
+import executor
 from ast_nodes import InterpreterError
 
 
@@ -70,6 +71,10 @@ def main():
             msg = scalony.translate(msg, filename)
         print(f"{filename}: TypeCheckError: {msg}", file=sys.stderr)
         sys.exit(1)
+
+    # po prostu to odpal, to python. jak się otypowało w poprzednim kroku to będzie git.
+    # nie potrzeba żadnych informacji dotyczących typów do wykonania programu
+    executor.execute(module)
 
 
 
