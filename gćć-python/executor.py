@@ -53,6 +53,12 @@ def execute_expression(expr_node, scope):
     if isinstance(expr_node, ast.FunctionCall):
         evaluated_params = [execute_expression(expr.value, scope) for expr in expr_node.params]
         return execute_function(expr_node.name.lemmas_set, evaluated_params)
+    if isinstance(expr_node, ast.FunctionRef):
+        return RuntimeValue(value=expr_node.key, type="Funkcja")
+    if isinstance(expr_node, ast.Apply):
+        fn = execute_expression(expr_node.fn, scope)
+        args = [execute_expression(w.value, scope) for w in expr_node.args]
+        return execute_function([fn.value], args)
     if isinstance(expr_node, ast.BinOp):
         left = execute_expression(expr_node.left, scope)
         right = execute_expression(expr_node.right, scope)

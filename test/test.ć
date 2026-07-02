@@ -15,6 +15,9 @@ można konwertować coś (Cokolwiek) -> Tekst
 aby dodać rzecz do drugiej_rzeczy:
     zwróć rzecz plus druga_rzecz
 
+aby wykonać operację:
+    zwróć zastosuj operację z dwoma z trzema
+
 aby działać:
     wypisz "siemka"
     wypisz (konwertuj (dodaj dwa do trzy))
@@ -23,3 +26,5 @@ aby działać:
     wypisz (konwertuj (nie prawda))
     wypisz (konwertuj (prawda i nie fałsz))
     wypisz (konwertuj (dwa większe od trzy lub prawda))
+    wypisz (konwertuj (zastosuj dodanie z dwoma z trzema))
+    wypisz (konwertuj (wykonaj dodanie))
