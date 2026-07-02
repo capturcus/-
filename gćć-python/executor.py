@@ -1,9 +1,14 @@
 import ast_nodes as ast
 from dataclasses import dataclass, field
 
+def _tekst(rv):
+    if rv.type == "Przełącznik":
+        return "prawda" if rv.value else "fałsz"
+    return str(rv.value)
+
 BUILTIN_FUNCTIONS = [
     ([("wypisać",)], lambda args: print(args[0].value)),
-    ([("konwertować",)], lambda args: RuntimeValue(value=str(args[0].value), type="Tekst")),
+    ([("konwertować",)], lambda args: RuntimeValue(value=_tekst(args[0]), type="Tekst")),
 ]
 
 # op → (funkcja, typ wyniku); semantyka jak w typechecker.resolve_bin_op
@@ -41,6 +46,8 @@ def execute_expression(expr_node, scope):
         return RuntimeValue(value=str(expr_node.value), type="Tekst")
     if isinstance(expr_node, ast.IntLit):
         return RuntimeValue(value=int(expr_node.value), type="Liczba")
+    if isinstance(expr_node, ast.BoolLit):
+        return RuntimeValue(value=expr_node.value, type="Przełącznik")
     if isinstance(expr_node, ast.Identifier):
         return scope.variable_value(expr_node)
     if isinstance(expr_node, ast.FunctionCall):
@@ -51,6 +58,21 @@ def execute_expression(expr_node, scope):
         right = execute_expression(expr_node.right, scope)
         fn, result_type = BIN_OPS[expr_node.op]
         return RuntimeValue(value=fn(left.value, right.value), type=result_type)
+    if isinstance(expr_node, ast.UnaryOp):
+        operand = execute_expression(expr_node.operand, scope)
+        value = operand.value if expr_node.op == "+" else -operand.value
+        return RuntimeValue(value=value, type="Liczba")
+    if isinstance(expr_node, ast.Not):
+        operand = execute_expression(expr_node.operand, scope)
+        return RuntimeValue(value=not operand.value, type="Przełącznik")
+    if isinstance(expr_node, ast.And):
+        left = execute_expression(expr_node.left, scope)
+        right = execute_expression(expr_node.right, scope)
+        return RuntimeValue(value=left.value and right.value, type="Przełącznik")
+    if isinstance(expr_node, ast.Or):
+        left = execute_expression(expr_node.left, scope)
+        right = execute_expression(expr_node.right, scope)
+        return RuntimeValue(value=left.value or right.value, type="Przełącznik")
 
 def execute_function(function_lemmas, args):
     for f in BUILTIN_FUNCTIONS:

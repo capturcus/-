@@ -10,7 +10,7 @@ definicja Bratka:
 Kwiatki to Róża albo Tulipan albo Bratek
 
 można wypisać tekst (Tekst) -> Nic
-można konwertować liczbę (Liczba) -> Tekst
+można konwertować coś (Cokolwiek) -> Tekst
 
 aby dodać rzecz do drugiej_rzeczy:
     zwróć rzecz plus druga_rzecz
@@ -18,3 +18,8 @@ aby dodać rzecz do drugiej_rzeczy:
 aby działać:
     wypisz "siemka"
     wypisz (konwertuj (dodaj dwa do trzy))
+    wypisz (konwertuj (minus pięć))
+    wypisz (konwertuj (dodaj dwa do (minus trzy)))
+    wypisz (konwertuj (nie prawda))
+    wypisz (konwertuj (prawda i nie fałsz))
+    wypisz (konwertuj (dwa większe od trzy lub prawda))
