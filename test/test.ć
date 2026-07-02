@@ -31,6 +31,11 @@ aby wybrać:
 aby pakować wartość:
     zwróć Sukces z wartością
 
+aby liczyć:
+    suma to dwa plus trzy
+    suma to suma plus jeden
+    zwróć suma
+
 aby zawieść:
     zwróć Błąd o opisie "poza zakresem"
 
@@ -53,3 +58,4 @@ aby działać:
     wypisz (przetwarzaj)
     wypisz (ryzykuj)
     wypisz (pakuj siedem)
+    wypisz (licz)

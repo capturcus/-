@@ -39,15 +39,20 @@ class RuntimeValue:
 
 @dataclass
 class RuntimeScope:
-    vars: list = field(default_factory=list)
+    vars: list = field(default_factory=list)  # [(scope_keys, RuntimeValue)]
 
     def variable_value(self, keys):
-        for param, value in self.vars:
-            if any(ast.scope_key_matches(a, b)
-                   for a in keys
-                   for b in param.name.scope_keys):
+        for stored_keys, value in self.vars:
+            if any(ast.scope_key_matches(a, b) for a in keys for b in stored_keys):
                 return value
         raise RuntimeError(f"var not found {keys}")
+
+    def assign(self, keys, value):
+        for i, (stored_keys, _) in enumerate(self.vars):
+            if any(ast.scope_key_matches(a, b) for a in keys for b in stored_keys):
+                self.vars[i] = (stored_keys, value)
+                return
+        self.vars.append((keys, value))
 
 def execute_expression(expr_node, scope):
     if isinstance(expr_node, ast.StrLit):
@@ -115,7 +120,7 @@ def execute_function(function_lemmas, args):
     if function_node is None:
         raise RuntimeError(f"error: funkcja {function_lemmas} nie istnieje")
     scope = RuntimeScope()
-    scope.vars = [(name, value) for name, value in zip(function_node.params, args)]
+    scope.vars = [(p.name.scope_keys, value) for p, value in zip(function_node.params, args)]
     try:
         for stmt in function_node.body:
             if isinstance(stmt, ast.Phrase):
@@ -123,6 +128,12 @@ def execute_function(function_lemmas, args):
             if isinstance(stmt, ast.FunctionCall):
                 evaluated_params = [execute_expression(expr.value, scope) for expr in stmt.params]
                 execute_function(stmt.name.lemmas_set, evaluated_params)
+            if isinstance(stmt, ast.Assignment):
+                value = execute_expression(stmt.value.resolved, scope)
+                target = stmt.target.resolved
+                if not isinstance(target, ast.Identifier):
+                    raise RuntimeError("zapis do pola (chain-LHS) jeszcze nieobsługiwany")
+                scope.assign(target.scope_keys, value)
             if isinstance(stmt, ast.Return):
                 return execute_expression(stmt.value.resolved, scope)
     except ErrorPropagation as e:
