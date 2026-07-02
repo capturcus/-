@@ -1,9 +1,18 @@
 import ast_nodes as ast
 from dataclasses import dataclass, field
 
+class ErrorPropagation(Exception):
+    """Gałąź-Błąd wywołania '?' — przerywa funkcję otaczającą, która
+    zwraca niesiony Błąd jako swój wynik."""
+    def __init__(self, value):
+        self.value = value
+
 def _tekst(rv):
     if rv.type == "Przełącznik":
         return "prawda" if rv.value else "fałsz"
+    if isinstance(rv.value, dict):
+        fields = ", ".join(f"{'_'.join(k[0])}: {_tekst(v)}" for k, v in rv.value.items())
+        return f"{rv.type}({fields})"
     return str(rv.value)
 
 BUILTIN_FUNCTIONS = [
@@ -32,13 +41,13 @@ class RuntimeValue:
 class RuntimeScope:
     vars: list = field(default_factory=list)
 
-    def variable_value(self, identifier):
+    def variable_value(self, keys):
         for param, value in self.vars:
             if any(ast.scope_key_matches(a, b)
-                   for a in identifier.scope_keys
+                   for a in keys
                    for b in param.name.scope_keys):
                 return value
-        raise RuntimeError(f"var not found {identifier.surface}")
+        raise RuntimeError(f"var not found {keys}")
 
 def execute_expression(expr_node, scope):
     if isinstance(expr_node, ast.StrLit):
@@ -48,7 +57,7 @@ def execute_expression(expr_node, scope):
     if isinstance(expr_node, ast.BoolLit):
         return RuntimeValue(value=expr_node.value, type="Przełącznik")
     if isinstance(expr_node, ast.Identifier):
-        return scope.variable_value(expr_node)
+        return scope.variable_value(expr_node.scope_keys)
     if isinstance(expr_node, ast.FunctionCall):
         evaluated_params = [execute_expression(expr.value, scope) for expr in expr_node.params]
         return execute_function(expr_node.name.lemmas_set, evaluated_params)
@@ -58,6 +67,19 @@ def execute_expression(expr_node, scope):
         fn = execute_expression(expr_node.fn, scope)
         args = [execute_expression(w.value, scope) for w in expr_node.args]
         return execute_function([fn.value], args)
+    if isinstance(expr_node, ast.StructCreation):
+        fields = {}
+        for arg in expr_node.args:
+            if arg.value is None:  # skrót `z polem` — zmienna o nazwie pola
+                fields[arg.field_name] = scope.variable_value([arg.field_name])
+            else:
+                fields[arg.field_name] = execute_expression(arg.value, scope)
+        return RuntimeValue(value=fields, type="".join(expr_node.type_name))
+    if isinstance(expr_node, ast.TryCall):
+        result = execute_expression(expr_node.call, scope)
+        if result.type == "Błąd":
+            raise ErrorPropagation(result)
+        return next(iter(result.value.values()))
     if isinstance(expr_node, ast.BinOp):
         left = execute_expression(expr_node.left, scope)
         right = execute_expression(expr_node.right, scope)
@@ -94,14 +116,17 @@ def execute_function(function_lemmas, args):
         raise RuntimeError(f"error: funkcja {function_lemmas} nie istnieje")
     scope = RuntimeScope()
     scope.vars = [(name, value) for name, value in zip(function_node.params, args)]
-    for stmt in function_node.body:
-        if isinstance(stmt, ast.Phrase):
-            stmt = stmt.resolved
-        if isinstance(stmt, ast.FunctionCall):
-            evaluated_params = [execute_expression(expr.value, scope) for expr in stmt.params]
-            execute_function(stmt.name.lemmas_set, evaluated_params)
-        if isinstance(stmt, ast.Return):
-            return execute_expression(stmt.value.resolved, scope)
+    try:
+        for stmt in function_node.body:
+            if isinstance(stmt, ast.Phrase):
+                stmt = stmt.resolved
+            if isinstance(stmt, ast.FunctionCall):
+                evaluated_params = [execute_expression(expr.value, scope) for expr in stmt.params]
+                execute_function(stmt.name.lemmas_set, evaluated_params)
+            if isinstance(stmt, ast.Return):
+                return execute_expression(stmt.value.resolved, scope)
+    except ErrorPropagation as e:
+        return e.value
 
 def execute(module_node):
     global module_funcs

@@ -9,6 +9,14 @@ definicja Bratka:
 
 Kwiatki to Róża albo Tulipan albo Bratek
 
+definicja Sukcesu z elementem:
+    wartość (element)
+
+definicja Błędu:
+    opis (Tekst)
+
+Rezultat to Sukces albo Błąd
+
 można wypisać coś (Cokolwiek) -> Nic
 
 aby dodać rzecz do drugiej_rzeczy:
@@ -16,6 +24,21 @@ aby dodać rzecz do drugiej_rzeczy:
 
 aby wykonać operację:
     zwróć zastosuj operację z dwoma z trzema
+
+aby wybrać:
+    zwróć Sukces o wartości pięć
+
+aby pakować wartość:
+    zwróć Sukces z wartością
+
+aby zawieść:
+    zwróć Błąd o opisie "poza zakresem"
+
+aby przetwarzać:
+    zwróć Sukces o wartości ((wybrałbyś?) plus jeden)
+
+aby ryzykować:
+    zwróć Sukces o wartości ((zawiódłbyś?) plus jeden)
 
 aby działać:
     wypisz "siemka"
@@ -27,3 +50,6 @@ aby działać:
     wypisz (dwa większe od trzy lub prawda)
     wypisz (zastosuj dodanie z dwoma z trzema)
     wypisz (wykonaj dodanie)
+    wypisz (przetwarzaj)
+    wypisz (ryzykuj)
+    wypisz (pakuj siedem)
