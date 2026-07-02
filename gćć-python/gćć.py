@@ -60,7 +60,7 @@ def main():
         _print_error(filename, text, e, scalony)
         sys.exit(1)
 
-    pretty.pretty(module)
+    # pretty.pretty(module)
     try:
         typechecker.resolve_module(module)
     except typechecker.TypeCheckError as e:

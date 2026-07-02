@@ -39,6 +39,8 @@ v tryb przypuszczający - usunąłbyś_komentarz dla usera z identyfikatorem?
 v funkcja bez zwróć ma typ zwracany wolny (nie Nic)
 v jakieś includy
 
+v funkcje, które nic nie zwracają w ciele funkcji (gołe wywołania) muszą się unifikować z Nic
+
 uruchamianie
 
 stdlib:
