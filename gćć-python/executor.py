@@ -7,8 +7,7 @@ def _tekst(rv):
     return str(rv.value)
 
 BUILTIN_FUNCTIONS = [
-    ([("wypisać",)], lambda args: print(args[0].value)),
-    ([("konwertować",)], lambda args: RuntimeValue(value=_tekst(args[0]), type="Tekst")),
+    ([("wypisać",)], lambda args: print(_tekst(args[0]))),
 ]
 
 # op → (funkcja, typ wyniku); semantyka jak w typechecker.resolve_bin_op
