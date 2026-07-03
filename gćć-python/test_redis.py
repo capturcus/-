@@ -2,7 +2,7 @@
 
 Dwie warstwy:
 - serializacja analiz (czyste funkcje, bez Redisa),
-- testy integracyjne (marker `redis`): migrują `test/sgjp_subset.tab` do
+- testy integracyjne (marker `redis`): migrują `manual_test/sgjp_subset.tab` do
   OSOBNEGO logicznego DB Redisa (db=15, żeby nie dotykać zmigrowanego
   pełnego SGJP w db=0) i porównują wyniki z backendem pamięciowym.
   Pomijane w całości, gdy Redis jest niedostępny.
@@ -22,7 +22,7 @@ import parser as parser_mod
 import expression
 import typechecker
 
-SUBSET_PATH = os.path.join(os.path.dirname(__file__), "..", "test",
+SUBSET_PATH = os.path.join(os.path.dirname(__file__), "..", "manual_test",
                            "sgjp_subset.tab")
 TEST_URL = "redis://localhost:6379/15"
 

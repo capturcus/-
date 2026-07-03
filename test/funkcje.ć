@@ -1,0 +1,9 @@
+można wypisać coś (Cokolwiek) -> Nic
+
+aby dodać rzecz do drugiej_rzeczy:
+    zwróć rzecz plus druga_rzecz
+
+aby działać:
+    wypisz (dodaj dwa do trzy)
+    wypisz (dodaj dwa do (minus trzy))
+    wypisz (dodaj (dodaj jeden do dwa) do trzy)

@@ -1,0 +1,10 @@
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    wypisz (prawda)
+    wypisz (fałsz)
+    wypisz (nie prawda)
+    wypisz (prawda i fałsz)
+    wypisz (fałsz lub prawda)
+    wypisz (prawda i nie fałsz)
+    wypisz (dwa większe od trzy lub prawda)

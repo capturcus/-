@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+"""Testy end-to-end interpretera Ć.
+
+Każdy plik `*.ć` w tym katalogu jest uruchamiany przez `gćć.py --redis`,
+a jego stdout porównywany 1:1 z plikiem `*.wynik` o tej samej nazwie.
+"""
+import subprocess
+import sys
+from pathlib import Path
+
+KATALOG = Path(__file__).resolve().parent
+GCC = KATALOG.parent / "gćć-python" / "gćć.py"
+
+
+def main():
+    pliki = sorted(KATALOG.glob("*.ć"))
+    if not pliki:
+        print("brak plików .ć w katalogu testów")
+        return 1
+    porazki = 0
+    for plik in pliki:
+        wynik_path = plik.with_suffix(".wynik")
+        if not wynik_path.exists():
+            print(f"PORAŻKA {plik.name}: brak pliku {wynik_path.name}")
+            porazki += 1
+            continue
+        oczekiwane = wynik_path.read_text(encoding="utf-8")
+        proces = subprocess.run(
+            [sys.executable, str(GCC), "--redis", str(plik)],
+            capture_output=True, text=True,
+        )
+        if proces.returncode != 0:
+            print(f"PORAŻKA {plik.name}: exit {proces.returncode}")
+            print(proces.stderr.rstrip())
+            porazki += 1
+        elif proces.stdout != oczekiwane:
+            print(f"PORAŻKA {plik.name}")
+            print(f"  oczekiwane: {oczekiwane!r}")
+            print(f"  otrzymane:  {proces.stdout!r}")
+            porazki += 1
+        else:
+            print(f"OK      {plik.name}")
+    print(f"\n{len(pliki) - porazki}/{len(pliki)} testów przeszło")
+    return 1 if porazki else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
