@@ -31,6 +31,8 @@ def _field_set(struct, keys, value):
 def _tekst(rv):
     if rv.type == "Przełącznik":
         return "prawda" if rv.value else "fałsz"
+    if rv.type == "Nic":
+        return "Nic"
     if isinstance(rv.value, dict):
         fields = ", ".join(f"{'_'.join(k[0])}: {_tekst(v)}" for k, v in rv.value.items())
         return f"{rv.type}({fields})"
