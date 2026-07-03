@@ -1,0 +1,44 @@
+definicja Tulipana:
+    płatek (Tekst)
+
+definicja Róży:
+    wysokość (Liczba)
+
+definicja Bratka:
+    płatek (Tekst)
+
+Kwiatki to Róża albo Tulipan albo Bratek
+
+Poszukiwanie to Tulipan albo Nic
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby opisać kwiatek:
+    kwiatek jest:
+        Tulipanem z płatkiem:
+            wypisz płatek
+        Różą z wysokością:
+            wypisz wysokość
+        inaczej:
+            wypisz "inny kwiatek"
+
+aby szukać flagi:
+    jeśli flaga:
+        zwróć Tulipan o płatku "znaleziony"
+
+aby działać:
+    opisz Tulipan o płatku "czerwony"
+    opisz Róża o wysokości pięć
+    opisz Bratek o płatku "fioletowy"
+    wynik to szukaj prawda
+    wynik jest:
+        Tulipanem z płatkiem:
+            wypisz płatek
+        Niczym:
+            wypisz "brak"
+    wynik to szukaj fałsz
+    wynik jest:
+        Tulipanem z płatkiem:
+            wypisz płatek
+        Niczym:
+            wypisz "brak"

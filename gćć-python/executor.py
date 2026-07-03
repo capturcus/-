@@ -12,6 +12,13 @@ class ReturnUnwind(Exception):
     def __init__(self, value):
         self.value = value
 
+def _field_value(struct, keys):
+    """Wartość pola struktury (RuntimeValue) po scope-keys pola."""
+    for stored_key, value in struct.value.items():
+        if any(ast.scope_key_matches(k, stored_key) for k in keys):
+            return value
+    raise RuntimeError(f"pole nie znalezione {keys}")
+
 def _tekst(rv):
     if rv.type == "Przełącznik":
         return "prawda" if rv.value else "fałsz"
@@ -140,6 +147,7 @@ def execute_function(function_lemmas, args):
         return r.value
     except ErrorPropagation as e:
         return e.value
+    return RuntimeValue(value=None, type="Nic")
 
 def execute_block(stmts, scope):
     for stmt in stmts:
@@ -161,6 +169,18 @@ def execute_block(stmts, scope):
         if isinstance(stmt, ast.While):
             while execute_expression(stmt.cond.resolved, scope).value:
                 execute_block(stmt.body, RuntimeScope(parent=scope))
+        if isinstance(stmt, ast.Match):
+            subject = execute_expression(stmt.subject.resolved, scope)
+            for br in stmt.branches:
+                if br.type_name is not None and "".join(br.type_name) != subject.type:
+                    continue
+                br_scope = RuntimeScope(parent=scope)
+                for fid in br.fields:
+                    br_scope.vars.append((fid.scope_keys, _field_value(subject, fid.scope_keys)))
+                execute_block(br.body, br_scope)
+                break
+            else:
+                raise RuntimeError(f"żadna gałąź 'jest:' nie pasuje do {subject.type}")
         if isinstance(stmt, ast.Return):
             raise ReturnUnwind(execute_expression(stmt.value.resolved, scope))
 
