@@ -10,7 +10,7 @@ aby sumować granicę:
 
 aby odliczać start:
     dopóki start większe od zero:
-        wypisz (start)
+        wypisz start
         start to start minus jeden
 
 aby działać:
