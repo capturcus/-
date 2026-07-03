@@ -1,0 +1,23 @@
+można wypisać coś (Cokolwiek) -> Nic
+
+aby ocenić liczbę:
+    jeśli liczba większe od pięć:
+        zwróć "duża"
+    zwróć "mała"
+
+aby klasyfikować liczbę:
+    etykieta to "nieznana"
+    jeśli liczba większe od dziesięć:
+        etykieta to "ogromna"
+    inaczej jeśli liczba większe od pięć:
+        etykieta to "duża"
+    inaczej:
+        etykieta to "mała"
+    zwróć etykieta
+
+aby działać:
+    wypisz (oceń dziesięć)
+    wypisz (oceń dwa)
+    wypisz (klasyfikuj dwadzieścia)
+    wypisz (klasyfikuj siedem)
+    wypisz (klasyfikuj trzy)

@@ -1,0 +1,18 @@
+można wypisać coś (Cokolwiek) -> Nic
+
+aby sumować granicę:
+    suma to zero
+    licznik to zero
+    dopóki licznik mniejsze od granicy:
+        licznik to licznik plus jeden
+        suma to suma plus licznik
+    zwróć suma
+
+aby odliczać start:
+    dopóki start większe od zero:
+        wypisz (start)
+        start to start minus jeden
+
+aby działać:
+    wypisz (sumuj pięć)
+    odliczaj trzy

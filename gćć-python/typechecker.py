@@ -275,6 +275,10 @@ class FunDefTypes:
 
 fun_decls = []
 
+# (decl, scope) po ostatnim resolve_module — introspekcja wyinferowanych
+# typów zmiennych (testy) bez polegania na stdout.
+fun_scopes = []
+
 def find_fdt(func_id):
     global fun_decls
     for (name, fdt) in fun_decls:
@@ -401,11 +405,13 @@ def resolve_module(node):
             fun_decls.append((decl.name, fdt))
 
     # PASS 2 (do fixpointu): inferuj ciała, reużywając schematów + all_types.
-    fun_scopes = _infer_to_fixpoint(module_funcs)
+    global fun_scopes
+    fun_scopes = [(decl, scope) for (decl, _), scope
+                  in zip(module_funcs, _infer_to_fixpoint(module_funcs))]
 
     # Punkty wejścia (działać) są wykonywane — ich zmienne muszą być w pełni
     # skonkretyzowane (HM "type annotations needed" / Rust E0282).
-    for (decl, _), scope in zip(module_funcs, fun_scopes):
+    for decl, scope in fun_scopes:
         if ("działać",) in decl.name.lemmas_set:
             _check_grounded(decl, scope)
 

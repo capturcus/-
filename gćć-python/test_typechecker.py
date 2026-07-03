@@ -46,10 +46,12 @@ def _reset_typechecker():
     więc nie ma globalnej tablicy do czyszczenia."""
     typechecker.last_type = 0
     typechecker.fun_decls = []
+    typechecker.fun_scopes = []
     typechecker.module = None
     yield
     typechecker.last_type = 0
     typechecker.fun_decls = []
+    typechecker.fun_scopes = []
     typechecker.module = None
 
 
@@ -67,6 +69,17 @@ def ty(t):
 def conc(*names):
     """Konkret/wariant z podanych nazw (skrót na typechecker.variant)."""
     return typechecker.variant(set(names))
+
+
+def _var_types():
+    """Typy zmiennych po ostatnim resolve_module: {powierzchnia: ty(t)}
+    ze wszystkich scope'ów (funkcje + bloki) w typechecker.fun_scopes."""
+    pairs = {}
+    for _decl, scope in typechecker.fun_scopes:
+        for s in scope.walk():
+            for v, t in s.types:
+                pairs["_".join(v.surface)] = ty(t)
+    return pairs
 
 
 # ---------- helpery do budowy AST ----------
@@ -605,7 +618,7 @@ def parse(db, preps):
 
 
 @pytest.mark.integration
-def test_module_typechecks_polymorphic_program(parse, capsys):
+def test_module_typechecks_polymorphic_program(parse):
     """Funkcja z nietypowanym parametrem wołana raz z liczbą, raz z tekstem.
     Polimorfizm pozwala obu wywołaniom przejść; w scope `liczba` ma typ
     Liczba, a `słowo` typ Tekst (dwa różne typy konkretne współistnieją)."""
@@ -621,9 +634,9 @@ def test_module_typechecks_polymorphic_program(parse, capsys):
     )
     module = parse(src)
     typechecker.resolve_module(module)  # nie rzuca = polimorfizm działa
-    out = capsys.readouterr().out
-    assert "Liczba" in out
-    assert "Tekst" in out
+    types = _var_types()
+    assert types["liczba"] == "Liczba"
+    assert types["słowo"] == "Tekst"
 
 
 @pytest.mark.integration
@@ -640,7 +653,7 @@ def test_module_detects_type_conflict(parse):
 
 
 @pytest.mark.integration
-def test_module_infers_return_type_through_call(parse, capsys):
+def test_module_infers_return_type_through_call(parse):
     """`wynik` dostaje typ Liczba z typu zwracanego wołanej funkcji."""
     src = (
         "aby liczyć dla x (Liczba):\n"
@@ -652,13 +665,14 @@ def test_module_infers_return_type_through_call(parse, capsys):
     )
     module = parse(src)
     typechecker.resolve_module(module)
-    out = capsys.readouterr().out
     # zarówno argument jak i wynik powinny być Liczba
-    assert "Liczba" in out
+    types = _var_types()
+    assert types["rzecz"] == "Liczba"
+    assert types["wynik"] == "Liczba"
 
 
 @pytest.mark.integration
-def test_module_struct_creation_infers_struct_type(parse, capsys):
+def test_module_struct_creation_infers_struct_type(parse):
     """Tworzenie struktury nadaje zmiennej typ nazwy struktury."""
     src = (
         "definicja UżytkownikaSerwisu:\n"
@@ -670,8 +684,7 @@ def test_module_struct_creation_infers_struct_type(parse, capsys):
     )
     module = parse(src)
     typechecker.resolve_module(module)
-    out = capsys.readouterr().out
-    assert "UżytkownikSerwis" in out
+    assert _var_types()["użytkownik"] == "UżytkownikSerwis"
 
 
 def _fdt_by_surface(surface):
@@ -1090,7 +1103,7 @@ def test_assigning_two_variants_widens_variable(parse, capsys):
 
 
 @pytest.mark.integration
-def test_match_exhaustive_typechecks_and_binds_field_types(parse, capsys):
+def test_match_exhaustive_typechecks_and_binds_field_types(parse):
     """Pełne dopasowanie `jest:`: pole `opis` związane jako Tekst (typ z deklaracji
     struktury), pole `wynik` (parametr `element`) konkretyzuje się przez
     użycie (`plus jeden` → Liczba)."""
@@ -1104,9 +1117,9 @@ def test_match_exhaustive_typechecks_and_binds_field_types(parse, capsys):
         "            liczba to wynik plus jeden\n"
     )
     typechecker.resolve_module(parse(src))
-    out = capsys.readouterr().out
-    assert "Tekst" in out   # wiadomość/opis
-    assert "Liczba" in out  # liczba/wynik
+    types = _var_types()
+    assert types["wiadomość"] == "Tekst"
+    assert types["liczba"] == "Liczba"
 
 
 @pytest.mark.integration
@@ -1661,7 +1674,7 @@ def test_try_call_unwraps_and_widens_enclosing_return(parse):
 
 
 @pytest.mark.integration
-def test_try_call_unwrapped_value_concretizes_by_use(parse, capsys):
+def test_try_call_unwrapped_value_concretizes_by_use(parse):
     src = _TRY_PRELUDE + (
         "aby przetwarzać części:\n"
         "    liczba to wybrałbyś zero z części?\n"
@@ -1669,8 +1682,10 @@ def test_try_call_unwrapped_value_concretizes_by_use(parse, capsys):
         "    zwróć Sukces o wartości suma\n"
     )
     typechecker.resolve_module(parse(src))
-    out = capsys.readouterr().out
-    assert "Liczba" in out  # liczba/suma skonkretyzowane przez `plus`
+    # liczba/suma skonkretyzowane przez `plus`
+    types = _var_types()
+    assert types["liczba"] == "Liczba"
+    assert types["suma"] == "Liczba"
 
 
 @pytest.mark.integration
@@ -1760,7 +1775,7 @@ def test_resolve_bool_literal():
 
 
 @pytest.mark.integration
-def test_bool_literal_types_as_przelacznik(parse, capsys):
+def test_bool_literal_types_as_przelacznik(parse):
     src = (
         "aby działać:\n"
         "    flaga to prawda\n"
@@ -1770,8 +1785,7 @@ def test_bool_literal_types_as_przelacznik(parse, capsys):
         "        flaga to prawda\n"
     )
     typechecker.resolve_module(parse(src))
-    out = capsys.readouterr().out
-    assert "Przełącznik" in out
+    assert _var_types()["flaga"] == "Przełącznik"
 
 
 @pytest.mark.integration
@@ -1876,7 +1890,7 @@ _FOLD_SRC = (
 
 
 @pytest.mark.integration
-def test_fold_with_gerund_ref_typechecks(parse, capsys):
+def test_fold_with_gerund_ref_typechecks(parse):
     """Fold przekazujący `z dodawaniem` (referencja do `dodawać`) typuje
     się end-to-end; suma jest Liczbą."""
     src = _FOLD_SRC + (
@@ -1887,8 +1901,7 @@ def test_fold_with_gerund_ref_typechecks(parse, capsys):
     )
     module = parse(src)
     typechecker.resolve_module(module)  # nie rzuca
-    out = capsys.readouterr().out
-    assert "FunctionRef" in out and "Apply" in out
+    assert _var_types()["suma"] == "Liczba"
 
 
 @pytest.mark.integration
@@ -1908,7 +1921,7 @@ def test_function_ref_forward_declared(parse):
 
 
 @pytest.mark.integration
-def test_function_ref_to_extern(parse, capsys):
+def test_function_ref_to_extern(parse):
     src = (
         "można zakodować liczbę (Liczba) -> Tekst\n"
         "\n"
@@ -1917,8 +1930,7 @@ def test_function_ref_to_extern(parse, capsys):
     )
     module = parse(src)
     typechecker.resolve_module(module)
-    out = capsys.readouterr().out
-    assert "Tekst" in out
+    assert _var_types()["kod"] == "Tekst"
 
 
 @pytest.mark.integration
@@ -2029,7 +2041,7 @@ _KWIATKI = (
 
 
 @pytest.mark.integration
-def test_partial_match_widens_subject_to_single_candidate(parse, capsys):
+def test_partial_match_widens_subject_to_single_candidate(parse):
     """Scenariusz test.ć: {Tulipanem}+inaczej, podmiot przypisany Tulipan —
     jedyna kandydatka Kwiatki, podmiot szerzy się do unii."""
     src = _KWIATKI + (
@@ -2043,9 +2055,8 @@ def test_partial_match_widens_subject_to_single_candidate(parse, capsys):
     )
     module = parse(src)
     typechecker.resolve_module(module)
-    out = capsys.readouterr().out
     # unia `Kwiatki` ma lemat "Kwiatek" — tożsamość typów jest po lematach
-    assert "kwiatki',)" in out and ") Kwiatek" in out
+    assert _var_types()["kwiatki"] == "Kwiatek"
 
 
 @pytest.mark.integration

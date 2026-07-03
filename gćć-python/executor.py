@@ -7,6 +7,11 @@ class ErrorPropagation(Exception):
     def __init__(self, value):
         self.value = value
 
+class ReturnUnwind(Exception):
+    """`zwróć` w zagnieżdżonym bloku — przerywa ciało funkcji z wartością."""
+    def __init__(self, value):
+        self.value = value
+
 def _tekst(rv):
     if rv.type == "Przełącznik":
         return "prawda" if rv.value else "fałsz"
@@ -40,18 +45,26 @@ class RuntimeValue:
 @dataclass
 class RuntimeScope:
     vars: list = field(default_factory=list)  # [(scope_keys, RuntimeValue)]
+    parent: object = None
 
     def variable_value(self, keys):
         for stored_keys, value in self.vars:
             if any(ast.scope_key_matches(a, b) for a in keys for b in stored_keys):
                 return value
+        if self.parent is not None:
+            return self.parent.variable_value(keys)
         raise RuntimeError(f"var not found {keys}")
 
     def assign(self, keys, value):
-        for i, (stored_keys, _) in enumerate(self.vars):
-            if any(ast.scope_key_matches(a, b) for a in keys for b in stored_keys):
-                self.vars[i] = (stored_keys, value)
-                return
+        # Reasignacja tam, gdzie zmienna jest widoczna (także u przodka);
+        # niewidoczna nigdzie → deklaracja w bieżącym bloku.
+        scope = self
+        while scope is not None:
+            for i, (stored_keys, _) in enumerate(scope.vars):
+                if any(ast.scope_key_matches(a, b) for a in keys for b in stored_keys):
+                    scope.vars[i] = (stored_keys, value)
+                    return
+            scope = scope.parent
         self.vars.append((keys, value))
 
 def execute_expression(expr_node, scope):
@@ -122,22 +135,34 @@ def execute_function(function_lemmas, args):
     scope = RuntimeScope()
     scope.vars = [(p.name.scope_keys, value) for p, value in zip(function_node.params, args)]
     try:
-        for stmt in function_node.body:
-            if isinstance(stmt, ast.Phrase):
-                stmt = stmt.resolved
-            if isinstance(stmt, ast.FunctionCall):
-                evaluated_params = [execute_expression(expr.value, scope) for expr in stmt.params]
-                execute_function(stmt.name.lemmas_set, evaluated_params)
-            if isinstance(stmt, ast.Assignment):
-                value = execute_expression(stmt.value.resolved, scope)
-                target = stmt.target.resolved
-                if not isinstance(target, ast.Identifier):
-                    raise RuntimeError("zapis do pola (chain-LHS) jeszcze nieobsługiwany")
-                scope.assign(target.scope_keys, value)
-            if isinstance(stmt, ast.Return):
-                return execute_expression(stmt.value.resolved, scope)
+        execute_block(function_node.body, scope)
+    except ReturnUnwind as r:
+        return r.value
     except ErrorPropagation as e:
         return e.value
+
+def execute_block(stmts, scope):
+    for stmt in stmts:
+        if isinstance(stmt, ast.Phrase):
+            stmt = stmt.resolved
+        if isinstance(stmt, ast.FunctionCall):
+            evaluated_params = [execute_expression(expr.value, scope) for expr in stmt.params]
+            execute_function(stmt.name.lemmas_set, evaluated_params)
+        if isinstance(stmt, ast.Assignment):
+            value = execute_expression(stmt.value.resolved, scope)
+            target = stmt.target.resolved
+            if not isinstance(target, ast.Identifier):
+                raise RuntimeError("zapis do pola (chain-LHS) jeszcze nieobsługiwany")
+            scope.assign(target.scope_keys, value)
+        if isinstance(stmt, ast.If):
+            cond = execute_expression(stmt.cond.resolved, scope)
+            branch = stmt.then_body if cond.value else stmt.else_body
+            execute_block(branch, RuntimeScope(parent=scope))
+        if isinstance(stmt, ast.While):
+            while execute_expression(stmt.cond.resolved, scope).value:
+                execute_block(stmt.body, RuntimeScope(parent=scope))
+        if isinstance(stmt, ast.Return):
+            raise ReturnUnwind(execute_expression(stmt.value.resolved, scope))
 
 def execute(module_node):
     global module_funcs
