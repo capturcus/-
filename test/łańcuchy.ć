@@ -1,0 +1,43 @@
+definicja Tulipana:
+    płatek (Tekst)
+
+definicja Rabaty:
+    tulipan (Tulipan)
+
+definicja Ogrodu:
+    rabata (Rabata)
+
+definicja Węzła:
+    wartość (Liczba)
+    następnik (Węzeł)
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby przemalować tulipan:
+    płatek tulipana to "fioletowy"
+
+aby działać:
+    tulipan to Tulipan o płatku "czerwony"
+    wypisz (płatek tulipana)
+    płatek tulipana to "żółty"
+    wypisz (płatek tulipana)
+    alias to tulipan
+    płatek aliasu to "różowy"
+    wypisz (płatek tulipana)
+    przemaluj tulipan
+    wypisz (płatek tulipana)
+    kopia to Tulipan o płatku (płatek tulipana)
+    płatek tulipana to "czarny"
+    wypisz (płatek kopii)
+    wypisz (płatek tulipana)
+    ogród to Ogród o rabacie (Rabata o tulipanie tulipana)
+    wypisz (płatek tulipana rabaty ogrodu)
+    płatek tulipana rabaty ogrodu to "biały"
+    wypisz (płatek tulipana)
+    koniec to Węzeł o wartości trzy
+    początek to Węzeł o wartości jeden o następniku końca
+    wypisz (wartość następnika początku)
+    wartość następnika początku to pięć
+    wypisz (wartość końca)
+    następnik końca to Węzeł o wartości siedem
+    wypisz (wartość następnika następnika początku)

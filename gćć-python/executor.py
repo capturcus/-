@@ -19,6 +19,15 @@ def _field_value(struct, keys):
             return value
     raise RuntimeError(f"pole nie znalezione {keys}")
 
+def _field_set(struct, keys, value):
+    """Zapis pola po scope-keys; pole bez wpisu (konstrukcja częściowa)
+    dostaje nowy wpis."""
+    for stored_key in struct.value:
+        if any(ast.scope_key_matches(k, stored_key) for k in keys):
+            struct.value[stored_key] = value
+            return
+    struct.value[next(iter(keys))] = value
+
 def _tekst(rv):
     if rv.type == "Przełącznik":
         return "prawda" if rv.value else "fałsz"
@@ -83,6 +92,11 @@ def execute_expression(expr_node, scope):
         return RuntimeValue(value=expr_node.value, type="Przełącznik")
     if isinstance(expr_node, ast.Identifier):
         return scope.variable_value(expr_node.scope_keys)
+    if isinstance(expr_node, ast.GetterChain):
+        value = scope.variable_value(expr_node.chain[-1].scope_keys)
+        for fid in reversed(expr_node.chain[:-1]):
+            value = _field_value(value, fid.scope_keys)
+        return value
     if isinstance(expr_node, ast.FunctionCall):
         evaluated_params = [execute_expression(expr.value, scope) for expr in expr_node.params]
         return execute_function(expr_node.name.lemmas_set, evaluated_params)
@@ -159,9 +173,13 @@ def execute_block(stmts, scope):
         if isinstance(stmt, ast.Assignment):
             value = execute_expression(stmt.value.resolved, scope)
             target = stmt.target.resolved
-            if not isinstance(target, ast.Identifier):
-                raise RuntimeError("zapis do pola (chain-LHS) jeszcze nieobsługiwany")
-            scope.assign(target.scope_keys, value)
+            if isinstance(target, ast.GetterChain):
+                owner = scope.variable_value(target.chain[-1].scope_keys)
+                for fid in reversed(target.chain[1:-1]):
+                    owner = _field_value(owner, fid.scope_keys)
+                _field_set(owner, target.chain[0].scope_keys, value)
+            else:
+                scope.assign(target.scope_keys, value)
         if isinstance(stmt, ast.If):
             cond = execute_expression(stmt.cond.resolved, scope)
             branch = stmt.then_body if cond.value else stmt.else_body
