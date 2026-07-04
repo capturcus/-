@@ -1,0 +1,30 @@
+# Test drzewa AVL z parametryzowane.ć. Kolejność wstawień wymusza wszystkie
+# rotacje: 1,2 → LR; 9,10 → RR; 12,11 → RL; 0,minus jeden → LL. Własność BST
+# potwierdza wypis rosnąco, własność zbalansowania — wysokość korzenia: 11
+# elementów daje 4 (niezbalansowane BST miałoby przy tej kolejności 6).
+
+uwzględnij parametryzowane.ć
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby wypisać_rosnąco drzewo (DrzewoZbalansowane z elementem):
+    jeśli wysokość drzewa większe od zero:
+        wypisz_rosnąco lewego_syna drzewa
+        wypisz wartość drzewa
+        wypisz_rosnąco prawego_syna drzewa
+
+aby działać:
+    korzeń to utwórz_pustkę
+    korzeń to wstaw pięć do korzenia
+    korzeń to wstaw trzy do korzenia
+    korzeń to wstaw osiem do korzenia
+    korzeń to wstaw jeden do korzenia
+    korzeń to wstaw dwa do korzenia
+    korzeń to wstaw dziewięć do korzenia
+    korzeń to wstaw dziesięć do korzenia
+    korzeń to wstaw dwanaście do korzenia
+    korzeń to wstaw jedenaście do korzenia
+    korzeń to wstaw zero do korzenia
+    korzeń to wstaw (minus jeden) do korzenia
+    wypisz_rosnąco korzeń
+    wypisz (wysokość korzenia)

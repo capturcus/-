@@ -122,7 +122,7 @@ def _widening_union(heads):
     return cands[0][1]
 
 
-def _unify_variants(ft0, ft1, widen=False):
+def _unify_variants(ft0, ft1, widen=False, bind_member=True):
     """Unifikacja dwóch konkretów: przecięcie po GŁOWIE, a dla wspólnych głów
     rekurencyjna unifikacja argumentów (strukturalnie). Przy pustych args
     redukuje się do przecięcia zbiorów (zachowanie sprzed generyków).
@@ -130,7 +130,14 @@ def _unify_variants(ft0, ft1, widen=False):
     `widen`: przy pustym przecięciu spróbuj rozszerzyć obie strony do
     wspólnej zadeklarowanej unii (struktura < typ wariantowy). Unia nie
     niesie parametrów typu (parametryzacja to sprawa struktur), więc
-    argumenty wariantów są przy rozszerzeniu porzucane."""
+    argumenty wariantów są przy rozszerzeniu porzucane.
+
+    `bind_member=False` (subsumpcja, pozycje wartość-do-slotu; ft0 = slot,
+    ft1 = wartość): gdy SLOT już jest unią pokrywającą, zaakceptuj bez
+    wiązania klasy wartości — wariant płynący do slotu unijnego zachowuje
+    swój konkretny typ (destrukcyjne wiązanie odbierało zmiennej chainy
+    w fixpoincie). Kierunek odwrotny (wartość-unia do slotu-wariantu) wiąże
+    slot jak dawniej — to akumulacja inferencji (np. ret przez sztafetę)."""
     by0, by1 = {}, {}
     for a in ft0.variants:
         by0.setdefault(a.head, []).append(a)
@@ -145,7 +152,8 @@ def _unify_variants(ft0, ft1, widen=False):
                 # Reużyj stronę będącą już unią (jak optymalizacja niżej) —
                 # zero śmieci, gdy fixpoint trafia w ten sam widening co przebieg.
                 if u_set == ft0.variants:
-                    ft1.next = ft0
+                    if bind_member:
+                        ft1.next = ft0
                     return ft0
                 if u_set == ft1.variants:
                     ft0.next = ft1
@@ -192,17 +200,19 @@ def _unify_variants(ft0, ft1, widen=False):
     return new_variant
 
 
-def unify_types(t0, t1, widen=False):
+def unify_types(t0, t1, widen=False, bind_member=True):
     """`widen=True` dopuszcza rozszerzenie struktura→unia przy konflikcie głów
     — używane na POZYCJACH TOP-LEVEL (przypisanie, return, argument wywołania,
-    wartość pola, adnotacja). Rekurencyjna unifikacja argumentów typów jest
-    zawsze ścisła (typy parametryzowane są inwariantne)."""
+    wartość pola, adnotacja). Te pozycje przekazują też `bind_member=False`
+    (subsumpcja — patrz _unify_variants); dopasowanie `jest:` wiąże podmiot
+    destrukcyjnie (podmiot szerzy się do unii). Rekurencyjna unifikacja
+    argumentów typów jest zawsze ścisła (typy parametryzowane są inwariantne)."""
     ft0 = find_type(t0)
     ft1 = find_type(t1)
     if ft0 is ft1:
         return ft0
     if isinstance(ft0, VariantVar) and isinstance(ft1, VariantVar):
-        return _unify_variants(ft0, ft1, widen)
+        return _unify_variants(ft0, ft1, widen, bind_member)
     # Co najmniej jedna strona to wolna zmienna — przepnij ją na drugą.
     concrete, abstract = (ft0, ft1) if isinstance(ft0, VariantVar) else (ft1, ft0)
     if isinstance(concrete, VariantVar) and _occurs(abstract, concrete):
@@ -516,7 +526,7 @@ def resolve_expression(node, scope):
     if isinstance(node, ast.Typed):
         expr_t = resolve_expression(node.expr, scope)
         explicit_t = elaborate(node.type, {}, fresh_unknown=True)
-        return unify_types(expr_t, explicit_t, widen=True)
+        return unify_types(explicit_t, expr_t, widen=True, bind_member=False)
     if isinstance(node, ast.BinOp):
         return resolve_bin_op(node, scope)
     if isinstance(node, ast.UnaryOp):
@@ -553,7 +563,7 @@ def resolve_expression(node, scope):
 def resolve_assignment(node, scope):
     target_type = resolve_expression(node.target.resolved, scope)
     value_type = resolve_expression(node.value.resolved, scope)
-    unify_types(target_type, value_type, widen=True)
+    unify_types(target_type, value_type, widen=True, bind_member=False)
     # # target to krotka — element pojedynczy lub łańcuch getterów
     # if isinstance(node.target, tuple):
     #     for t in node.target:
@@ -614,7 +624,7 @@ def resolve_return(node, scope):
         t = resolve_expression(node.value, scope)
         # widen: gałęzie zwracające różne warianty jednej unii typują
         # funkcję tą unią; warianty bez wspólnej unii → TypeCheckError.
-        unify_types(scope.root_fdt.ret_type, t, widen=True)
+        unify_types(scope.root_fdt.ret_type, t, widen=True, bind_member=False)
     else:
         unify_types(scope.root_fdt.ret_type, variant(["Nic"]))
 
@@ -796,7 +806,7 @@ def resolve_function_call(node, scope):
     arg_types, ret_type = instantiate(fdt)
     for (t0, p) in zip(arg_types, node.params):
         t1 = resolve_expression(p, scope)
-        unify_types(t0, t1, widen=True)
+        unify_types(t0, t1, widen=True, bind_member=False)
     return ret_type
 
 
@@ -833,7 +843,7 @@ def resolve_apply(node, scope):
     unify_types(t_f, arrow(arg_types, ret_type))
     for (t0, p) in zip(arg_types, node.args):
         t1 = resolve_expression(p, scope)
-        unify_types(t0, t1, widen=True)
+        unify_types(t0, t1, widen=True, bind_member=False)
     return ret_type
 
 
@@ -1070,9 +1080,11 @@ def resolve_struct_arg(node, scope, struct_creation):
     env = struct_creation.__dict__.get("_struct_env", {})
     field_t = elaborate(field.type, env)   # pole-parametr → współdzielona zmienna instancji
     if node.value is not None:
-        unify_types(field_t, resolve_expression(node.value, scope), widen=True)
+        unify_types(field_t, resolve_expression(node.value, scope),
+                    widen=True, bind_member=False)
     else:
-        unify_types(field_t, scope.get_type(field.name), widen=True)
+        unify_types(field_t, scope.get_type(field.name),
+                    widen=True, bind_member=False)
 
 
 def resolve_identifier(node, scope):
