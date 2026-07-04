@@ -1338,6 +1338,34 @@ def test_match_branch_reassignment_unifies_with_outer_var(parse):
     typechecker.resolve_module(parse(src))  # komunikat/wiadomość: Tekst
 
 
+@pytest.mark.integration
+def test_unused_parameterized_alias_fails_grounding(parse):
+    """Nieużyty alias `jako` sparametryzowanego wariantu w `działać`:
+    element zostaje wolny i wpada w grounding — alias jest pisany przez
+    użytkownika (jak wiązanie pola), więc błąd jest naprawialny (usuń
+    martwy binder). NIEJAWNY cień podmiotu w tej samej gałęzi nie
+    przeszkadza (Scope.shadows poza groundingiem)."""
+    src = (
+        "definicja Wyniku z elementem:\n"
+        "    wynik (element)\n"
+        "\n"
+        "definicja Błędu:\n"
+        "    opis (Tekst)\n"
+        "\n"
+        "Rezultat to Wynik albo Błąd\n"
+        "\n"
+        "aby działać:\n"
+        "    rezultat (Rezultat) to Wynik o wyniku zero\n"
+        "    rezultat jest:\n"
+        "        Wynikiem jako paczka:\n"
+        "            komunikat to \"ok\"\n"
+        "        Błędem:\n"
+        "            komunikat to \"źle\"\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError, match="paczka"):
+        typechecker.resolve_module(parse(src))
+
+
 # =====================================================================
 # Extern (`można`) — rejestracja sygnatur w typecheckerze
 # =====================================================================

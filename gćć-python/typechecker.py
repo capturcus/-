@@ -227,10 +227,12 @@ class Scope:
     ta sama nazwa w `then` i `else` to różne zmienne."""
     def __init__(self, parent=None):
         self.types = []
-        # Cienie zawężeń (`jest:` — podmiot/alias w gałęzi): widoczne dla
-        # odczytów jak types, ale POZA walk()/groundingiem — cień z wolnym
-        # parametrem typu (nieużyty w ciele) nie jest błędem, bo runtime
-        # nie potrzebuje jego typu.
+        # Cienie zawężeń (`jest:` — NIEJAWNY cień podmiotu-zmiennej w gałęzi):
+        # widoczne dla odczytów jak types, ale POZA walk()/groundingiem.
+        # Zasada: grounding sprawdza nazwy pisane przez użytkownika (błąd musi
+        # być naprawialny adnotacją/usunięciem); cień wstrzykuje kompilator,
+        # a jego wolny parametr to wymazanie unii, nie porażka inferencji.
+        # Aliasy `jako` i wiązania pól są pisane ręcznie → idą do types.
         self.shadows = []
         self.parent = parent
         self.children = []
@@ -775,7 +777,7 @@ def resolve_match(node, scope):
             # gałąź niczego nie wiąże); samo ciało do przejścia.
             br_scope = scope.child_for(br, "body")
             if br.alias is not None:
-                br_scope.declare_shadow(br.alias, variant(["".join(br.type_name)]))
+                br_scope.declare(br.alias, variant(["".join(br.type_name)]))
             for stmt in br.body:
                 resolve_statement(stmt, br_scope)
             continue
@@ -795,8 +797,11 @@ def resolve_match(node, scope):
         # przesłaniająca w scope gałęzi — bez unifikacji z klasą zewnętrzną,
         # żeby nie wymazać typu poza gałęzią. Wiązania pól deklarowane
         # wcześniej wygrywają przy kolizji nazw.
+        # Alias `jako` jest pisany przez użytkownika — jak wiązanie pola
+        # podlega groundingowi (nieużyty binder sparametryzowanego wariantu
+        # to martwy kod do usunięcia). Niejawny cień podmiotu — nie.
         if br.alias is not None:
-            br_scope.declare_shadow(br.alias, inst)
+            br_scope.declare(br.alias, inst)
         subject = node.subject.resolved
         if isinstance(subject, ast.Identifier):
             br_scope.declare_shadow(subject, inst)
