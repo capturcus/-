@@ -395,20 +395,24 @@ def _check_grounded(decl, scope):
 module = None
 
 
-def _has_return(stmts):
-    """Czy w ciele (rekurencyjnie, włącznie z gałęziami bloków) występuje
-    jakikolwiek `zwróć`. Funkcja bez żadnego returna zwraca Nic."""
+def _returns_totally(stmts):
+    """Czy KAŻDA ścieżka przez ciało kończy się `zwróć`. Ścieżka bez `zwróć`
+    zwraca Nic — wykrycie jej dounifikowuje Nic do retu (jak niejawne
+    `zwróć Nic` na końcu). Konserwatywnie: pętle mogą się nie wykonać ani
+    razu (nigdy nie są totalne), `jeśli` wymaga totalnych OBU gałęzi,
+    dopasowanie — totalnych wszystkich (wyczerpującość gwarantuje
+    resolve_match). Instrukcje za totalnym blokiem są nieosiągalne."""
     for stmt in stmts:
         if isinstance(stmt, ast.Return):
             return True
         if isinstance(stmt, ast.If):
-            if _has_return(stmt.then_body) or _has_return(stmt.else_body):
-                return True
-        elif isinstance(stmt, (ast.While, ast.For)):
-            if _has_return(stmt.body):
+            if (stmt.then_body and stmt.else_body
+                    and _returns_totally(stmt.then_body)
+                    and _returns_totally(stmt.else_body)):
                 return True
         elif isinstance(stmt, ast.Match):
-            if any(_has_return(br.body) for br in stmt.branches):
+            if stmt.branches and all(
+                    _returns_totally(br.body) for br in stmt.branches):
                 return True
     return False
 
@@ -434,10 +438,13 @@ def resolve_module(node):
                     unify_types(fdt.arg_types[i], elaborate(p.type, fenv, fresh_unknown=True))
             if decl.return_type is not None:
                 unify_types(fdt.ret_type, elaborate(decl.return_type, fenv, fresh_unknown=True))
-            if not _has_return(decl.body):
-                # Funkcja bez żadnego `zwróć` w ciele zwraca Nic (jawna
-                # adnotacja innego typu da tu konflikt — słusznie).
-                unify_types(fdt.ret_type, variant(["Nic"]))
+            if not _returns_totally(decl.body):
+                # Ścieżka bez `zwróć` zwraca Nic — dounifikuj jak niejawne
+                # `zwróć Nic`: adnotowana/wywnioskowana unia z Nic przyjmie
+                # przez subsumpcję, ret bez wspólnej unii da konflikt —
+                # słusznie (dawne bad/nietotalny_zwrot.ć).
+                unify_types(fdt.ret_type, variant(["Nic"]),
+                            widen=True, bind_member=False)
             fun_decls.append((decl.name, fdt))
             module_funcs.append((decl, fdt))
         elif isinstance(decl, ast.ExternFunctionDef):

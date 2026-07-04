@@ -1341,6 +1341,42 @@ def test_match_branch_reassignment_unifies_with_outer_var(parse):
 
 
 @pytest.mark.integration
+def test_fallthrough_unifies_nic_into_return(parse):
+    """Ścieżka bez `zwróć` = niejawne `zwróć Nic`: funkcja częściowa
+    z zadeklarowaną unią dostaje typ unii (fall-through jest legalny
+    i widoczny w typie)."""
+    src = (
+        "definicja Kota:\n"
+        "    imię (Tekst)\n"
+        "\n"
+        "Zwierzę to Kot albo Nic\n"
+        "\n"
+        "aby szukać flagi:\n"
+        "    jeśli flaga:\n"
+        "        zwróć Kot o imieniu \"Filemon\"\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert ty(_fdt_by_surface(("szukać",)).ret_type) == "Zwierzę"
+
+
+@pytest.mark.integration
+def test_fallthrough_without_union_raises(parse):
+    """Bez unii pokrywającej Kot i Nic funkcja częściowa jest odrzucana —
+    dawniej typowała się jako Kot i padała w runtime na chainach
+    (bad/nietotalny_zwrot.ć)."""
+    src = (
+        "definicja Kota:\n"
+        "    imię (Tekst)\n"
+        "\n"
+        "aby szukać flagi:\n"
+        "    jeśli flaga:\n"
+        "        zwróć Kot o imieniu \"Filemon\"\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
 def test_unused_parameterized_alias_fails_grounding(parse):
     """Nieużyty alias `jako` sparametryzowanego wariantu w `działać`:
     element zostaje wolny i wpada w grounding — alias jest pisany przez
@@ -1597,20 +1633,25 @@ def test_no_return_in_body_types_as_nic(parse):
 
 @pytest.mark.integration
 def test_no_return_in_nested_blocks_types_as_nic(parse):
-    """Brak `zwróć` także w zagnieżdżonych blokach → Nic; `zwróć` ukryty
-    w gałęzi `jeśli` wystarcza, żeby reguła NIE zadziałała."""
+    """Brak `zwróć` także w zagnieżdżonych blokach → Nic. `zwróć` ukryty
+    tylko w gałęzi `jeśli` to funkcja CZĘŚCIOWA: fall-through dounifikowuje
+    Nic, a Tekst∪Nic nie ma wspólnej unii → odrzucona (dawniej typowała
+    się jako Tekst i padała w runtime — bad/nietotalny_zwrot.ć)."""
     src = (
         "aby testować_nic flaga:\n"
         "    jeśli flaga równe jeden:\n"
         "        x to dwa\n"
-        "\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert ty(_fdt_by_surface(("testować", "nic")).ret_type) == "Nic"
+
+    czesciowa = (
         "aby badać flagę:\n"
         "    jeśli flaga równe jeden:\n"
         "        zwróć \"tekst\"\n"
     )
-    typechecker.resolve_module(parse(src))
-    assert ty(_fdt_by_surface(("testować", "nic")).ret_type) == "Nic"
-    assert ty(_fdt_by_surface(("badać",)).ret_type) == "Tekst"
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(czesciowa))
 
 
 @pytest.mark.integration
