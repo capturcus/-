@@ -24,29 +24,39 @@ aby dodać do szeregu (Lista z elementem) element:
 
 
 # --- Drzewo AVL (samobalansujące BST), parametryzowane elementem ---
-# Puste poddrzewo to węzeł-wartownik o wysokości zero (bez unii: chainy
-# wymagają typu strukturalnego, a przepływ zmiennej do slotu unijnego
-# rozszerzyłby jej typ i zepsuł chainy w fixpoincie). Wstawianie utrzymuje
-# wysokości (`odśwież`) i równowagę (`zbalansuj` — LL/LR/RR/RL).
+# Puste poddrzewo to `Nic`; `Gałąź` grupuje węzeł i pustkę. Chainy na
+# podmiocie dopasowania działają dzięki zawężeniu w gałęzi (smart cast),
+# a przepływ węzła do slotu unijnego nie wymazuje mu typu (subsumpcja).
+# Wstawianie utrzymuje wysokości (`odśwież`) i równowagę (`zbalansuj`).
 
 definicja DrzewaZbalansowanego z elementem:
     wartość (element)
     wysokość (Liczba)
-    lewy_syn (DrzewoZbalansowane z elementem)
-    prawy_syn (DrzewoZbalansowane z elementem)
+    lewy_syn (Gałąź)
+    prawy_syn (Gałąź)
 
-aby utworzyć_pustkę -> DrzewoZbalansowane z elementem:
-    zwróć DrzewoZbalansowane o wysokości zero
+Gałąź to DrzewoZbalansowane albo Nic
+
+aby zmierzyć gałąź -> Liczba:
+    gałąź jest:
+        DrzewemZbalansowanym z wysokością:
+            zwróć wysokość
+        Niczym:
+            zwróć zero
+
+aby wychylić gałąź -> Liczba:
+    gałąź jest:
+        DrzewemZbalansowanym z lewym_synem z prawym_synem:
+            zwróć zmierz lewy_syn minus zmierz prawy_syn
+        Niczym:
+            zwróć zero
 
 aby utworzyć_liść dla elementu -> DrzewoZbalansowane z elementem:
-    zwróć DrzewoZbalansowane o wartości element o wysokości jeden o lewym_synu (utwórz_pustkę) o prawym_synu (utwórz_pustkę)
-
-aby wychylić drzewo (DrzewoZbalansowane z elementem) -> Liczba:
-    zwróć wysokość lewego_syna drzewa minus wysokość prawego_syna drzewa
+    zwróć DrzewoZbalansowane o wartości element o wysokości jeden o lewym_synu Nic o prawym_synu Nic
 
 aby odświeżyć drzewo (DrzewoZbalansowane z elementem):
-    lewica to wysokość lewego_syna drzewa
-    prawica to wysokość prawego_syna drzewa
+    lewica to zmierz lewego_syna drzewa
+    prawica to zmierz prawego_syna drzewa
     jeśli lewica większe od prawicy:
         wysokość drzewa to lewica plus jeden
     inaczej:
@@ -54,38 +64,58 @@ aby odświeżyć drzewo (DrzewoZbalansowane z elementem):
 
 aby obrócić_prawo drzewo (DrzewoZbalansowane z elementem) -> DrzewoZbalansowane z elementem:
     filar to lewy_syn drzewa
-    lewy_syn drzewa to prawy_syn filara
-    prawy_syn filara to drzewo
-    odśwież drzewo
-    odśwież filar
-    zwróć filar
+    filar jest:
+        DrzewemZbalansowanym z prawym_synem:
+            lewy_syn drzewa to prawy_syn
+            prawy_syn filara to drzewo
+            odśwież drzewo
+            odśwież filar
+            zwróć filar
+        Niczym:
+            zwróć drzewo
 
 aby obrócić_lewo drzewo (DrzewoZbalansowane z elementem) -> DrzewoZbalansowane z elementem:
     filar to prawy_syn drzewa
-    prawy_syn drzewa to lewy_syn filara
-    lewy_syn filara to drzewo
-    odśwież drzewo
-    odśwież filar
-    zwróć filar
+    filar jest:
+        DrzewemZbalansowanym z lewym_synem:
+            prawy_syn drzewa to lewy_syn
+            lewy_syn filara to drzewo
+            odśwież drzewo
+            odśwież filar
+            zwróć filar
+        Niczym:
+            zwróć drzewo
 
 aby zbalansować drzewo (DrzewoZbalansowane z elementem) -> DrzewoZbalansowane z elementem:
     wychylenie to wychyl drzewo
     jeśli wychylenie większe od jeden:
-        jeśli (wychyl lewego_syna drzewa) mniejsze od zero:
-            lewy_syn drzewa to obróć_lewo lewego_syna drzewa
+        filar to lewy_syn drzewa
+        filar jest:
+            DrzewemZbalansowanym:
+                jeśli (wychyl filar) mniejsze od zero:
+                    lewy_syn drzewa to obróć_lewo filar
+            Niczym:
+                zwróć drzewo
         zwróć obróć_prawo drzewo
     jeśli wychylenie mniejsze od minus jeden:
-        jeśli (wychyl prawego_syna drzewa) większe od zero:
-            prawy_syn drzewa to obróć_prawo prawego_syna drzewa
+        filar to prawy_syn drzewa
+        filar jest:
+            DrzewemZbalansowanym:
+                jeśli (wychyl filar) większe od zero:
+                    prawy_syn drzewa to obróć_prawo filar
+            Niczym:
+                zwróć drzewo
         zwróć obróć_lewo drzewo
     zwróć drzewo
 
-aby wstawić element do drzewa (DrzewoZbalansowane z elementem) -> DrzewoZbalansowane z elementem:
-    jeśli wysokość drzewa równe zero:
-        zwróć utwórz_liść dla elementu
-    jeśli element mniejsze od wartości drzewa:
-        lewy_syn drzewa to wstaw element do lewego_syna drzewa
-    inaczej:
-        prawy_syn drzewa to wstaw element do prawego_syna drzewa
-    odśwież drzewo
-    zwróć zbalansuj drzewo
+aby wstawić element do gałęzi -> Gałąź:
+    gałąź jest:
+        DrzewemZbalansowanym z wartością:
+            jeśli element mniejsze od wartości:
+                lewy_syn gałęzi to wstaw element do lewego_syna gałęzi
+            inaczej:
+                prawy_syn gałęzi to wstaw element do prawego_syna gałęzi
+            odśwież gałąź
+            zwróć zbalansuj gałąź
+        Niczym:
+            zwróć utwórz_liść dla elementu
