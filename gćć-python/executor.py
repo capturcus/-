@@ -175,6 +175,8 @@ def execute_block(stmts, scope):
         if isinstance(stmt, ast.Assignment):
             value = execute_expression(stmt.value.resolved, scope)
             target = stmt.target.resolved
+            if isinstance(target, ast.Typed):  # adnotacja bez znaczenia w runtime
+                target = target.expr
             if isinstance(target, ast.GetterChain):
                 owner = scope.variable_value(target.chain[-1].scope_keys)
                 for fid in reversed(target.chain[1:-1]):
