@@ -298,11 +298,15 @@ class MatchBranch:
     unii; zawsze ostatnia, bez pól).
     `fields` — identyfikatory pól do związania (forma narzędnika po `z`);
     może być podzbiorem pól struktury. Pass 2 zawęża każdy do wariantu
-    pasującego do zadeklarowanego pola."""
+    pasującego do zadeklarowanego pola.
+    `alias` — opcjonalne `jako nazwa` po wariancie: wiąże CAŁĄ dopasowaną
+    wartość pod świeżą nazwą (mianownik) o zawężonym typie — dla podmiotów
+    wyrażeniowych i wariantów bez pól."""
     type_name: tuple
     fields: list  # list[Identifier]
     body: list
     line: int = None
+    alias: object = None  # Identifier | None
 
 
 @dataclass

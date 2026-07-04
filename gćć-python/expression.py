@@ -1350,6 +1350,15 @@ def _resolve_match(stmt, ctx, preps, scope):
             br.fields[i] = _narrow_to_key(fid, key)
             bound.add(key)
             br_scope.add_key(key)
+        if br.alias is not None:
+            # `jako nazwa` — świeża deklaracja jak LHS przypisania: mianownik,
+            # jednoznaczny klucz; wiąże całą dopasowaną wartość.
+            alias_key = canonical_identity(
+                br.alias, required_case="nom", label="nazwa po 'jako'",
+                missing_hint="; nazwę po 'jako' podaj w mianowniku",
+            )
+            br.alias = _narrow_to_key(br.alias, alias_key)
+            br_scope.add_key(alias_key)
         for sub in br.body:
             _resolve_stmt(sub, ctx, preps, br_scope)
 

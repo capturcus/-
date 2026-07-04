@@ -197,6 +197,12 @@ def execute_block(stmts, scope):
                 br_scope = RuntimeScope(parent=scope)
                 for fid in br.fields:
                     br_scope.vars.append((fid.scope_keys, _field_value(subject, fid.scope_keys)))
+                if br.alias is not None:
+                    br_scope.vars.append((br.alias.scope_keys, subject))
+                # Cień podmiotu-zmiennej — lustrzany do zawężenia w typechecku;
+                # przypisanie do tej nazwy w gałęzi trafia w cień, nie na zewnątrz.
+                if br.type_name is not None and isinstance(stmt.subject.resolved, ast.Identifier):
+                    br_scope.vars.append((stmt.subject.resolved.scope_keys, subject))
                 execute_block(br.body, br_scope)
                 break
             else:

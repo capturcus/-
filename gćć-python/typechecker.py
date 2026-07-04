@@ -227,6 +227,11 @@ class Scope:
     ta sama nazwa w `then` i `else` to różne zmienne."""
     def __init__(self, parent=None):
         self.types = []
+        # Cienie zawężeń (`jest:` — podmiot/alias w gałęzi): widoczne dla
+        # odczytów jak types, ale POZA walk()/groundingiem — cień z wolnym
+        # parametrem typu (nieużyty w ciele) nie jest błędem, bo runtime
+        # nie potrzebuje jego typu.
+        self.shadows = []
         self.parent = parent
         self.children = []
         self.root_fdt = parent.root_fdt if parent else None
@@ -238,7 +243,14 @@ class Scope:
         for (v, t) in self.types:
             if any(ast.scope_key_matches(a, b) for a in keys for b in v.scope_keys):
                 return t
+        for (v, t) in self.shadows:
+            if any(ast.scope_key_matches(a, b) for a in keys for b in v.scope_keys):
+                return t
         return None
+
+    def declare_shadow(self, identifier, t):
+        if self._find_local(identifier) is None:
+            self.shadows.append((identifier, t))
 
     def _find(self, identifier):
         # Czytanie: idź w górę drzewa — widać zmienne z przodków.
@@ -762,13 +774,15 @@ def resolve_match(node, scope):
             # Wbudowane `Nic` — wariant bez pól (pass 2 gwarantuje, że
             # gałąź niczego nie wiąże); samo ciało do przejścia.
             br_scope = scope.child_for(br, "body")
+            if br.alias is not None:
+                br_scope.declare_shadow(br.alias, variant(["".join(br.type_name)]))
             for stmt in br.body:
                 resolve_statement(stmt, br_scope)
             continue
         # Świeża instancja per gałąź: unia nie niesie parametrów typu, więc
         # pola-parametry wariantu zaczynają jako wolne zmienne i konkretyzują
         # się przez użycie w ciele gałęzi.
-        _, env = instantiate_struct(sd)
+        inst, env = instantiate_struct(sd)
         br_scope = scope.child_for(br, "body")
         for fid in br.fields:
             field = find_field_for_ident(sd, fid)
@@ -777,6 +791,15 @@ def resolve_match(node, scope):
                     f"'{'_'.join(fid.surface)}' nie jest polem struktury "
                     f"'{'_'.join(br.type_name)}' (linia {br.line})")
             br_scope.declare(fid, elaborate(field.type, env))
+        # Zawężenie podmiotu-zmiennej (smart cast): świeża deklaracja
+        # przesłaniająca w scope gałęzi — bez unifikacji z klasą zewnętrzną,
+        # żeby nie wymazać typu poza gałęzią. Wiązania pól deklarowane
+        # wcześniej wygrywają przy kolizji nazw.
+        if br.alias is not None:
+            br_scope.declare_shadow(br.alias, inst)
+        subject = node.subject.resolved
+        if isinstance(subject, ast.Identifier):
+            br_scope.declare_shadow(subject, inst)
         for stmt in br.body:
             resolve_statement(stmt, br_scope)
 

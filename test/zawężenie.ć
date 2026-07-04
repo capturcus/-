@@ -1,0 +1,43 @@
+definicja Kota:
+    imię (Tekst)
+
+definicja Psa:
+    kość (Tekst)
+
+Zwierzę to Kot albo Pies
+
+definicja Paczki:
+    wnętrze (Zwierzę)
+
+Przesyłka to Paczka albo Nic
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby przywitać zwierzę:
+    zwierzę jest:
+        Kotem:
+            imię zwierzęcia to "Mruczek"
+            wypisz (imię zwierzęcia)
+        Psem z kością:
+            wypisz kość
+
+aby rozpakować przesyłkę:
+    przesyłka jest:
+        Paczką z wnętrzem:
+            wnętrze jest:
+                Kotem:
+                    wypisz (imię wnętrza)
+                inaczej:
+                    wypisz "to nie kot"
+        Niczym:
+            wypisz "brak"
+
+aby działać:
+    kot to Kot o imieniu "Filemon"
+    rozpakuj (Paczka o wnętrzu kota)
+    przywitaj kota
+    wypisz (imię kota)
+    pies to Pies o kości "szynka"
+    przywitaj psa
+    rozpakuj (Paczka o wnętrzu psa)
+    rozpakuj Nic

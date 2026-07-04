@@ -321,6 +321,12 @@ class Parser:
         type_name = canonical_type(
             type_tok, required_case="inst", label="nazwa wariantu",
         )
+        # Opcjonalne `jako nazwa` — wiązanie całej dopasowanej wartości.
+        alias = None
+        t = self.peek()
+        if t is not None and t[0] is lexer.Token.WORD and canonical(t) == ("jako",):
+            self.advance()
+            alias = make_identifier(self.expect(lexer.Token.WORD))
         fields = []
         while self.peek() is not None and self.peek()[0] is lexer.Token.WORD:
             z_tok = self.advance()
@@ -342,7 +348,7 @@ class Parser:
         self.expect(lexer.Token.DEDENT)
         return MatchBranch(
             type_name=type_name, fields=fields, body=body,
-            line=getattr(type_tok, "line", None),
+            line=getattr(type_tok, "line", None), alias=alias,
         )
 
     def parse_if(self):
