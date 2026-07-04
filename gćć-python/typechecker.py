@@ -735,19 +735,21 @@ def resolve_match(node, scope):
         branch_heads.append(h)
     if has_default:
         cands = _unions_for_partial_match(subject_t, branch_heads, node.line)
-        # Jedna kandydatka → zwykła unifikacja z rozszerzaniem (podmiot-
-        # struktura szerzy się do unii). Wiele → wielogłowy ambiguity-set
-        # BEZ widen: przecięcia z pozostałych wystąpień zmiennej zawężają
-        # go w fixpoincie; nierozstrzygnięty w `działać` wpada w grounding.
+        # Jedna kandydatka → subsumpcja (unia jako slot): KONKRETNY podmiot
+        # zachowuje swój typ — dopasowanie nie wymazuje faktu `kwiatek :
+        # Tulipan`; wolny podmiot (np. parametr) wiąże się z unią, bo to
+        # jego inferencja. Wiele → wielogłowy ambiguity-set BEZ widen:
+        # przecięcia z pozostałych wystąpień zmiennej zawężają go
+        # w fixpoincie; nierozstrzygnięty w `działać` wpada w grounding.
         heads = {AppliedType("".join(c.name), ()) for c in cands}
-        unify_types(subject_t, VariantVar(variants=heads),
-                    widen=len(cands) == 1)
+        unify_types(VariantVar(variants=heads), subject_t,
+                    widen=len(cands) == 1, bind_member=False)
     else:
         ud = _union_for_match(subject_t, branch_heads, node.line)
         unify_types(
-            subject_t,
             VariantVar(variants={AppliedType("".join(ud.name), ())}),
-            widen=True,
+            subject_t,
+            widen=True, bind_member=False,
         )
     for br in node.branches:
         if br.type_name is None:

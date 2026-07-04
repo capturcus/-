@@ -2041,25 +2041,6 @@ _KWIATKI = (
 
 
 @pytest.mark.integration
-def test_partial_match_widens_subject_to_single_candidate(parse):
-    """Scenariusz test.ć: {Tulipanem}+inaczej, podmiot przypisany Tulipan —
-    jedyna kandydatka Kwiatki, podmiot szerzy się do unii."""
-    src = _KWIATKI + (
-        "aby działać:\n"
-        "    kwiatki to Tulipan o płatku \"siemka\"\n"
-        "    kwiatki są:\n"
-        "        Tulipanem z płatkiem:\n"
-        "            ozdoba to płatek\n"
-        "        inaczej:\n"
-        "            reszta to \"nie tulipan\"\n"
-    )
-    module = parse(src)
-    typechecker.resolve_module(module)
-    # unia `Kwiatki` ma lemat "Kwiatek" — tożsamość typów jest po lematach
-    assert _var_types()["kwiatki"] == "Kwiatek"
-
-
-@pytest.mark.integration
 def test_partial_match_union_from_other_occurrence(parse, capsys):
     """Dwie unie ze wspólnym wariantem: o wyborze decyduje INNE wystąpienie
     zmiennej (przekazanie do funkcji o znanej sygnaturze)."""

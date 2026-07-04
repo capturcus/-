@@ -202,6 +202,8 @@ def execute_block(stmts, scope):
             else:
                 raise RuntimeError(f"żadna gałąź 'jest:' nie pasuje do {subject.type}")
         if isinstance(stmt, ast.Return):
+            if stmt.value is None:  # gołe `zwróć`
+                raise ReturnUnwind(RuntimeValue(value=None, type="Nic"))
             raise ReturnUnwind(execute_expression(stmt.value.resolved, scope))
 
 def execute(module_node):
