@@ -1,0 +1,42 @@
+# KATEGORIA: niekompletność (program poprawny, odrzucany) + wrażliwość
+#   inferencji na kolejność instrukcji.
+# OBECNIE: TypeCheckError `cannot unify Gałąź with ...` — PIERWSZE użycie
+#   wolnego parametru to argument slotu unijnego (`wychyl drzewo`), a ścieżka
+#   wolnej zmiennej w unify zna tylko równość: wiąże drzewo := Gałąź, choć
+#   jedyny wywnioskowalny fakt to drzewo ≤ Gałąź. Późniejszy chain
+#   (`lewy_syn drzewa`) unifikuje bazę bez widen i pada. Zamiana kolejności
+#   dwóch pierwszych linijek NAPRAWIA typowanie (chain daje dysjunkcję,
+#   którą przepływ unijny przycina) — first-contact-wins.
+# POWINNO: wywołanie z parametrem unijnym nakłada górne ograniczenie, nie
+#   równość. Wspólne lekarstwo z bad/unia_do_wariantu.ć: rozdział trybu
+#   sprawdź/akumuluj albo ograniczenia ≤ na zmiennych typowych.
+# Odchudzony scenariusz `zbalansować` z manual_test/parametryzowane.ć
+# (tam linijka 89 wymaga przez to adnotacji typu).
+
+definicja Drzewa dla rzeczy:
+    wartość (rzecz)
+    lewy_syn (Drzewo dla rzeczy)
+
+definicja Węzła z elementem:
+    wartość (element)
+    wysokość (Liczba)
+    lewy_syn (Gałąź)
+
+Gałąź to Węzeł albo Nic
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby zmierzyć gałąź -> Liczba:
+    gałąź jest:
+        Węzłem z wysokością:
+            zwróć wysokość
+        Niczym:
+            zwróć zero
+
+aby testować drzewo:
+    głębia to zmierz drzewo
+    filar to lewy_syn drzewa
+    wypisz głębia
+
+aby działać:
+    testuj Węzeł o wartości dwa o wysokości jeden o lewym_synu Nic

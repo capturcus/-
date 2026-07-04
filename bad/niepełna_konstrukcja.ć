@@ -1,0 +1,18 @@
+# KATEGORIA: unsoundness (typuje się, wywala się w runtime).
+# OBECNIE: konstrukcja struktury nie wymaga podania wszystkich pól (ctx.assigned
+#   służy tylko skrótom i diagnostyce) — odczyt brakującego pola pada:
+#   RuntimeError `pole nie znalezione`.
+# POWINNO: konstrukcja wymaga wszystkich pól definicji. Idiom częściowej
+#   konstrukcji stracił rację bytu, odkąd rekurencyjne struktury robi się
+#   na uniach (Gałąź to Węzeł albo Nic). Uwaga: test/łańcuchy.ć celowo
+#   dokłada pole `następnik` po fakcie — naprawa wymaga przepisania testu.
+
+definicja Kota:
+    imię (Tekst)
+    przydomek (Tekst)
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    kot to Kot o imieniu "Filemon"
+    wypisz (przydomek kota)

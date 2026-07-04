@@ -122,6 +122,18 @@ def _widening_union(heads):
     return cands[0][1]
 
 
+def _union_members(vv):
+    """Zbiór głów-członków, jeśli `vv` to dokładnie zadeklarowana unia
+    (pojedyncza głowa będąca nazwą unii); inaczej None."""
+    if module is None or len(vv.variants) != 1:
+        return None
+    head = next(iter(vv.variants)).head
+    for decl in module.body:
+        if isinstance(decl, ast.UnionDef) and "".join(decl.name) == head:
+            return {"".join(m) for m in decl.members}
+    return None
+
+
 def _unify_variants(ft0, ft1, widen=False, bind_member=True):
     """Unifikacja dwóch konkretów: przecięcie po GŁOWIE, a dla wspólnych głów
     rekurencyjna unifikacja argumentów (strukturalnie). Przy pustych args
@@ -146,6 +158,22 @@ def _unify_variants(ft0, ft1, widen=False, bind_member=True):
     common_heads = by0.keys() & by1.keys()
     if not common_heads:
         if widen:
+            # Zbiór niejednoznaczności kontra unia: zbiór głów to DYSJUNKCJA
+            # („jedno z tych"), nie koniunkcja — głowy spoza unii z drugiej
+            # strony odpadają. Zawężenie to zysk informacji (jak przecięcie
+            # z kolejnego wystąpienia w chainach), więc wiąże destrukcyjnie;
+            # po nim unifikacja biegnie od nowa (zwykle w subsumpcję unii).
+            for u_side, other in ((ft0, ft1), (ft1, ft0)):
+                members = _union_members(u_side)
+                if members is None:
+                    continue
+                u_head = next(iter(u_side.variants)).head
+                surviving = {a for a in other.variants
+                             if a.head == u_head or a.head in members}
+                if surviving and surviving != set(other.variants):
+                    other.next = VariantVar(variants=surviving)
+                    return _unify_variants(
+                        find_type(ft0), find_type(ft1), widen, bind_member)
             u = _widening_union(by0.keys() | by1.keys())
             if u is not None:
                 u_set = {AppliedType(u, ())}

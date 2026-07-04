@@ -1,0 +1,26 @@
+definicja Liścia:
+    barwa (Tekst)
+
+definicja Kwiatu:
+    barwa (Tekst)
+
+Ozdoba to Kwiat albo Nic
+
+definicja Wazonu:
+    ozdoba (Ozdoba)
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby ustawić kwiat w wazonie:
+    barwa kwiatu to "czerwona"
+    ozdoba wazonu to kwiat
+
+aby działać:
+    kwiat to Kwiat o barwie "biała"
+    wazon to Wazon o ozdobie Nic
+    ustaw kwiat w wazonie
+    ozdoba wazonu jest:
+        Kwiatem z barwą:
+            wypisz barwa
+        Niczym:
+            wypisz "pusto"

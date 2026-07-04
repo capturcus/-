@@ -1,0 +1,31 @@
+# KATEGORIA: niekompletność (program poprawny, odrzucany).
+# OBECNIE: TypeCheckError `cannot unify ...` — chain `lewy_syn drzewa` ma dwóch
+#   kandydatów (Drzewo i Węzeł), więc `filar` dostaje dysjunkcję typów pól
+#   {Drzewo | Gałąź}; unifikacja z {Węzeł[t]} nie ma wspólnych głów, a przycinanie
+#   do unii wymaga, by JEDNA strona była dokładnie unią (len==1) — {Drzewo, Gałąź}
+#   ma dwie głowy, więc spada do _widening_union, które żąda jednej unii
+#   pokrywającej wszystkie głowy naraz i jej nie znajduje.
+# POWINNO: istnieje spójna interpretacja (filar : Gałąź, bo Węzeł ∈ Gałąź) —
+#   pełna obsługa wymaga dysjunkcji ograniczeń (odroczone constrainty / solver),
+#   nie punktowego przycinania.
+
+definicja Drzewa dla rzeczy:
+    wartość (rzecz)
+    lewy_syn (Drzewo dla rzeczy)
+
+definicja Węzła z elementem:
+    wartość (element)
+    wysokość (Liczba)
+    lewy_syn (Gałąź)
+
+Gałąź to Węzeł albo Nic
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby zbadać drzewo:
+    filar to lewy_syn drzewa
+    filar to Węzeł o wartości jeden o wysokości jeden o lewym_synu Nic
+    wypisz "ok"
+
+aby działać:
+    zbadaj Węzeł o wartości dwa o wysokości jeden o lewym_synu Nic

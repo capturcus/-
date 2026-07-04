@@ -1,0 +1,27 @@
+# KATEGORIA: unsoundness (typuje się, wywala się w runtime).
+# OBECNIE: unia wymazuje parametry typu („unia nie niesie parametrów"), więc
+#   Węzeł[Tekst] przechodzi do pola `ogon (Reszta)` węzła z Liczbą — jedna
+#   lista miesza elementy. Porównanie Liczba < Tekst pada w runtime gołym
+#   TypeError z Pythona.
+# POWINNO: unie parametryzowane (`Reszta z elementem to Węzeł albo Nic`) —
+#   wtedy ogon Liczbowego węzła przyjmuje tylko Węzeł[Liczba]. Duży ficzer,
+#   świadomy trade-off do czasu implementacji.
+
+definicja Węzła z elementem:
+    wartość (element)
+    ogon (Reszta)
+
+Reszta to Węzeł albo Nic
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby zmieszać:
+    głowa to Węzeł o wartości pięć o ogonie (Węzeł o wartości "abc" o ogonie Nic)
+    ogon głowy jest:
+        Węzłem z wartością:
+            wypisz (wartość głowy mniejsze od wartości)
+        Niczym:
+            wypisz "pusto"
+
+aby działać:
+    zmieszaj

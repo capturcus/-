@@ -1,0 +1,22 @@
+# KATEGORIA: dziura wykonawcza (typuje się, executor pada — bug interpretera,
+#   nie systemu typów).
+# OBECNIE: cel przypisania z adnotacją (`zwierzę (Zwierzę) to ...`) rezolwuje
+#   się do węzła Typed, którego gałąź Assignment w execute_block nie zna:
+#   AttributeError `'Typed' object has no attribute 'scope_keys'`.
+# POWINNO: executor rozpakowuje Typed (adnotacja w runtime jest bez znaczenia)
+#   i przypisuje pod identyfikator jak zwykle.
+
+definicja Kota:
+    imię (Tekst)
+
+Zwierzę to Kot albo Nic
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    zwierzę (Zwierzę) to Nic
+    zwierzę jest:
+        Kotem z imieniem:
+            wypisz imię
+        Niczym:
+            wypisz "pusto"
