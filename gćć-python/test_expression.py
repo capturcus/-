@@ -588,6 +588,21 @@ def test_undeclared_identifier_reference_raises(parse):
     assert "nie jest zadeklarowaną zmienną" in msg
 
 
+def test_struct_creation_requires_all_fields(parse):
+    """Konstrukcja struktury wymaga WSZYSTKICH pól definicji — częściowa
+    konstrukcja (dawny idiom dołączania pól po fakcie) jest odrzucana
+    z listą braków (dawne bad/niepełna_konstrukcja.ć)."""
+    src = (
+        "definicja Kota:\n"
+        "    imię (Tekst)\n"
+        "    przydomek (Tekst)\n"
+        "aby działać:\n"
+        "    kot to Kot o imieniu \"Filemon\"\n"
+    )
+    with pytest.raises(ast.ResolveError, match="wymaga wszystkich pól"):
+        parse(src)
+
+
 def test_diag_leftover_after_struct_field_missing(parse):
     """`Punkt o nazwie ...` — pole `nazwa` nie istnieje w typie `Punkt`
     (dostępne tylko `x`). Diagnostyka mówi nazwę struct'a i listę dostępnych
@@ -1047,12 +1062,12 @@ def test_field_canonical_lemma_picks_min_rest_for_adj_noun(parse):
         "    pierwsze_pole (Tekst)\n"
         "    drugie_pole (Tekst)\n"
         "aby działać:\n"
-        "    s to Struktura o pierwszym_polu \"v\"\n"
+        "    s to Struktura o pierwszym_polu \"v\" o drugim_polu \"w\"\n"
     )
     m = parse(src)
     sc = m.body[1].body[0].value.resolved
     assert isinstance(sc, ast.StructCreation)
-    assert len(sc.args) == 1
+    assert len(sc.args) == 2
     assert sc.args[0].field_name == (("pierwszy", "pole"), "sg", "n")
 
 
@@ -1309,7 +1324,8 @@ def test_param_nested_type_annotation(parse):
     src = (
         "definicja Listy z elementem:\n    wartość (element)\n"
         "definicja Mapy z klucza na wartość:\n    klucz (klucz)\n    wartość (wartość)\n"
-        "aby działać:\n    x (Lista z (Mapa z klucza na wartość)) to Lista\n"
+        "aby działać:\n    x (Lista z (Mapa z klucza na wartość)) to Lista "
+        "o wartości (Mapa o kluczu zero o wartości zero)\n"
     )
     m = parse(src)
     fn = next(n for n in m.body if isinstance(n, ast.FunctionDef))

@@ -680,7 +680,8 @@ def test_module_struct_creation_infers_struct_type(parse):
         "    identyfikator (Liczba)\n"
         "\n"
         "aby działać:\n"
-        "    użytkownik to UżytkownikSerwis o imieniu \"Marcin\"\n"
+        "    użytkownik to UżytkownikSerwis o imieniu \"Marcin\" "
+        "o identyfikatorze siedem\n"
     )
     module = parse(src)
     typechecker.resolve_module(module)
@@ -894,7 +895,8 @@ def test_struct_out_of_order_typechecks(parse):
 def test_struct_field_type_mismatch_raises(parse):
     src = _STRUCT_DEF + (
         "aby działać:\n"
-        "    u to UżytkownikSerwisu o imieniu cztery\n"  # Liczba w pole Tekst
+        "    u to UżytkownikSerwisu o imieniu cztery "
+        "o identyfikatorze pięć\n"  # Liczba w pole Tekst
     )
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(parse(src))
@@ -906,7 +908,7 @@ def test_struct_shorthand_typechecks(parse):
     src = _STRUCT_DEF + (
         "aby działać:\n"
         "    imię to \"Marcin\"\n"
-        "    użytkownik to UżytkownikSerwisu z imieniem\n"
+        "    użytkownik to UżytkownikSerwisu z imieniem o identyfikatorze dwa\n"
     )
     typechecker.resolve_module(parse(src))  # bez błędu
 
@@ -917,7 +919,7 @@ def test_struct_shorthand_type_mismatch_raises(parse):
     src = _STRUCT_DEF + (
         "aby działać:\n"
         "    imię to pięć\n"
-        "    użytkownik to UżytkownikSerwisu z imieniem\n"
+        "    użytkownik to UżytkownikSerwisu z imieniem o identyfikatorze dwa\n"
     )
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(parse(src))
@@ -1265,7 +1267,7 @@ def test_parameterized_types_invariant_over_union(parse):
         "    zwróć zero\n"
         "\n"
         "aby działać:\n"
-        "    lista (Lista z (Wynik)) to Lista\n"
+        "    lista (Lista z (Wynik)) to Lista o wartości (Wynik o wyniku zero)\n"
         "    n to bierz listę\n"
     )
     with pytest.raises(typechecker.TypeCheckError):

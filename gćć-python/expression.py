@@ -876,6 +876,26 @@ class ExpressionParser:
                     ))
         finally:
             self.struct_stack.pop()
+        # Konstrukcja jest zawsze pełna: każde pole definicji musi dostać
+        # wartość (typy bez wpisu — Nic/unie — nie wymagają niczego).
+        # Wyjątek diagnostyczny: niedopasowane `o/z <słowo>` tuż za konstrukcją
+        # wygląda na literówkę w nazwie pola — nie zgłaszaj braków, leftover
+        # opisze problem trafniej (nazwa struct'a + dostępne pola).
+        required = self.ctx.fields_by_type.get(type_name, frozenset())
+        missing = required - ctx.assigned
+        p1, p2 = self.peek(), self.peek(1)
+        looks_like_failed_field = (
+            p1 is not None and p1[0] is lexer.Token.WORD
+            and canonical(p1) in (("o",), ("z",))
+            and p2 is not None and p2[0] is lexer.Token.WORD
+        )
+        if missing and not looks_like_failed_field:
+            braki = ", ".join(sorted(_format_scope_key(k) for k in missing))
+            raise ResolveError(
+                f"tworzenie struktury '{'_'.join(type_name)}' wymaga "
+                f"wszystkich pól — brakuje: {braki}",
+                line=self._last_line(),
+            )
         self.last_production = {
             "kind": "struct",
             "type_name": type_name,

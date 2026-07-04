@@ -20,13 +20,13 @@ def _field_value(struct, keys):
     raise RuntimeError(f"pole nie znalezione {keys}")
 
 def _field_set(struct, keys, value):
-    """Zapis pola po scope-keys; pole bez wpisu (konstrukcja częściowa)
-    dostaje nowy wpis."""
+    """Zapis pola po scope-keys; konstrukcja jest zawsze pełna, więc brak
+    wpisu to błąd interpretera."""
     for stored_key in struct.value:
         if any(ast.scope_key_matches(k, stored_key) for k in keys):
             struct.value[stored_key] = value
             return
-    struct.value[next(iter(keys))] = value
+    raise RuntimeError(f"pole nie znalezione {keys}")
 
 def _tekst(rv):
     if rv.type == "Przełącznik":

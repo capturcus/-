@@ -1,4 +1,8 @@
-# Typy parametryzowane — test parsera (typechecker czyta tylko głowy typów).
+# Typy parametryzowane — test parsera (definicje samoreferencyjne i
+# zagnieżdżone adnotacje). Konstrukcja jest zawsze pełna, więc struktur
+# samoreferencyjnych (Lista, Drzewo) nie da się utworzyć — deklaracje
+# i adnotacje pozostają legalne, a rekurencyjne WARTOŚCI buduje się na
+# uniach (AVL niżej).
 
 definicja Listy z elementem:
     wartość (element)
@@ -14,13 +18,14 @@ definicja Drzewa dla rzeczy:
     prawy_syn (Drzewo dla rzeczy)
 
 aby zbudować_mapę:
-    moja_mapa (Mapa z klucza na wartość) to Mapa
-    lista_map (Lista z (Mapa z klucza na wartość)) to Lista
+    moja_mapa (Mapa z klucza na wartość) to Mapa o kluczu zero o wartości zero
     zwróć moja_mapa
 
-aby dodać do szeregu (Lista z elementem) element:
-    nowy_węzeł to Lista
-    zwróć nowy_węzeł
+aby dodać do spisu (Lista z elementem) element:
+    zwróć spis
+
+aby przejrzeć listę_map (Lista z (Mapa z klucza na wartość)):
+    zwróć listę_map
 
 
 # --- Drzewo AVL (samobalansujące BST), parametryzowane elementem ---

@@ -9,7 +9,9 @@ definicja Ogrodu:
 
 definicja Węzła:
     wartość (Liczba)
-    następnik (Węzeł)
+    następnik (Ogniwo)
+
+Ogniwo to Węzeł albo Nic
 
 można wypisać coś (Cokolwiek) -> Nic
 
@@ -34,10 +36,22 @@ aby działać:
     wypisz (płatek tulipana rabaty ogrodu)
     płatek tulipana rabaty ogrodu to "biały"
     wypisz (płatek tulipana)
-    koniec to Węzeł o wartości trzy
+    koniec to Węzeł o wartości trzy o następniku Nic
     początek to Węzeł o wartości jeden o następniku końca
-    wypisz (wartość następnika początku)
-    wartość następnika początku to pięć
+    następnik początku jest:
+        Węzłem jako ogniwo z wartością:
+            wypisz wartość
+            wartość ogniwa to pięć
+        Niczym:
+            wypisz "puste"
     wypisz (wartość końca)
-    następnik końca to Węzeł o wartości siedem
-    wypisz (wartość następnika następnika początku)
+    następnik końca to Węzeł o wartości siedem o następniku Nic
+    następnik początku jest:
+        Węzłem jako środek:
+            następnik środka jest:
+                Węzłem z wartością:
+                    wypisz wartość
+                Niczym:
+                    wypisz "puste"
+        Niczym:
+            wypisz "puste"
