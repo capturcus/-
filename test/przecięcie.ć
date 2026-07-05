@@ -1,0 +1,40 @@
+# Typechecker przecięciowy: `pupil` bez adnotacji dostaje dwa ograniczenia
+# górne (≤ Domownik z pierwszego wywołania, ≤ Futrzak z drugiego); ich
+# przecięcie {Kot} to jedyny typ argumentu — wywołanie z Kotem przechodzi
+# i program działa. (Wywołanie z Psem pinuje pytest: odrzucane.)
+
+definicja Kota:
+    imię (Tekst)
+
+definicja Psa:
+    kość (Tekst)
+
+definicja Chomika:
+    futro (Tekst)
+
+Domownik to Kot albo Pies
+
+Futrzak to Kot albo Chomik
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby przygarnąć domownika:
+    domownik jest:
+        Kotem z imieniem:
+            wypisz imię
+        Psem z kością:
+            wypisz kość
+
+aby wyczesać futrzaka:
+    futrzak jest:
+        Kotem:
+            wypisz "wyczesany kot"
+        Chomikiem z futrem:
+            wypisz futro
+
+aby doglądać pupila:
+    przygarnij pupila
+    wyczesz pupila
+
+aby działać:
+    doglądaj Kot o imieniu "Mruczek"

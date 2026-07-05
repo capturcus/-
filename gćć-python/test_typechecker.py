@@ -1340,6 +1340,79 @@ def test_match_branch_reassignment_unifies_with_outer_var(parse):
     typechecker.resolve_module(parse(src))  # komunikat/wiadomość: Tekst
 
 
+def _reset_typechecker_state():
+    typechecker.last_type = 0
+    typechecker.fun_decls = []
+    typechecker.fun_scopes = []
+    typechecker.module = None
+
+
+@pytest.mark.integration
+def test_intersection_of_union_bounds(parse):
+    """Typechecker przecięciowy: parametr ograniczony DWIEMA uniami
+    (≤ Domownik i ≤ Futrzak) zawęża się do wspólnego wariantu (Kot) —
+    wywołanie z Kotem przechodzi, z Psem (tylko Domownik) odrzucane."""
+    prelude = (
+        "definicja Kota:\n    imię (Tekst)\n"
+        "\n"
+        "definicja Psa:\n    kość (Tekst)\n"
+        "\n"
+        "definicja Chomika:\n    futro (Tekst)\n"
+        "\n"
+        "Domownik to Kot albo Pies\n"
+        "\n"
+        "Futrzak to Kot albo Chomik\n"
+        "\n"
+        "można wypisać coś (Cokolwiek) -> Nic\n"
+        "\n"
+        "aby przygarnąć domownika (Domownik):\n"
+        "    wypisz \"przygarnięty\"\n"
+        "\n"
+        "aby wyczesać futrzaka (Futrzak):\n"
+        "    wypisz \"wyczesany\"\n"
+        "\n"
+        "aby doglądać pupila:\n"
+        "    przygarnij pupila\n"
+        "    wyczesz pupila\n"
+        "\n"
+    )
+    typechecker.resolve_module(parse(
+        prelude + "aby działać:\n    doglądaj Kot o imieniu \"Mruczek\"\n"))
+    _reset_typechecker_state()
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(
+            prelude + "aby działać:\n    doglądaj Pies o kości \"szynka\"\n"))
+
+
+@pytest.mark.integration
+def test_union_value_into_variant_slot_raises(parse):
+    """Bramkarz: wartość typu unii NIE przechodzi do parametru typu
+    wariantu — wymagaj zawężenia przez `jest:` (dawne
+    bad/unia_do_wariantu.ć typowało się i padało w runtime)."""
+    src = (
+        "definicja Kota:\n    imię (Tekst)\n"
+        "\n"
+        "Zwierzę to Kot albo Nic\n"
+        "\n"
+        "można wypisać coś (Cokolwiek) -> Nic\n"
+        "\n"
+        "aby wybrać flagę:\n"
+        "    jeśli flaga:\n"
+        "        zwróć Kot o imieniu \"Mruczek\"\n"
+        "    zwróć Nic\n"
+        "\n"
+        "aby przedstawić kota (Kot):\n"
+        "    wypisz (imię kota)\n"
+        "\n"
+        "aby działać:\n"
+        "    zwierzę to wybierz fałsz\n"
+        "    przedstaw zwierzę\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError,
+                       match="nie mieści się w slocie"):
+        typechecker.resolve_module(parse(src))
+
+
 @pytest.mark.integration
 def test_fallthrough_unifies_nic_into_return(parse):
     """Ścieżka bez `zwróć` = niejawne `zwróć Nic`: funkcja częściowa

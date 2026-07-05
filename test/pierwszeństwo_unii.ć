@@ -1,0 +1,33 @@
+# Pin porządkoniezależności inferencji (dawne bad/pierwszeństwo_unii.ć):
+# pierwsze użycie wolnego parametru w pozycji slotu unijnego (`zmierz
+# drzewo`) daje ograniczenie górne ≤ Gałąź zamiast równości, więc późniejszy
+# chain (`lewy_syn drzewa`) zawęża kandydatów przez to ograniczenie
+# ({Drzewo, Węzeł} ∩ dozwolone → Węzeł) — obie kolejności linijek się typują.
+
+definicja Drzewa dla rzeczy:
+    wartość (rzecz)
+    lewy_syn (Drzewo dla rzeczy)
+
+definicja Węzła z elementem:
+    wartość (element)
+    wysokość (Liczba)
+    lewy_syn (Gałąź)
+
+Gałąź to Węzeł albo Nic
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby zmierzyć gałąź -> Liczba:
+    gałąź jest:
+        Węzłem z wysokością:
+            zwróć wysokość
+        Niczym:
+            zwróć zero
+
+aby testować drzewo:
+    głębia to zmierz drzewo
+    filar to lewy_syn drzewa
+    wypisz głębia
+
+aby działać:
+    testuj Węzeł o wartości dwa o wysokości jeden o lewym_synu Nic

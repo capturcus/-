@@ -12,6 +12,11 @@ type_regex = re.compile(r"t[0-9]+")
 class TypeVar:
     number: int
     next: object = None
+    # Ograniczenie górne (typechecker przecięciowy): zbiór dopuszczalnych
+    # głów (frozenset[str]) albo None (bez ograniczeń). Zasilane na pozycjach
+    # SPRAWDŹ (wolna wartość do znanego slotu — fakt „≤ slot", nie „= slot"),
+    # PRZECINANE przy każdym kolejnym ograniczeniu; egzekwowane przy wiązaniu.
+    upper: object = None
 
     def __repr__(self):
         return f"t{self.number}"
@@ -122,19 +127,51 @@ def _widening_union(heads):
     return cands[0][1]
 
 
-def _union_members(vv):
-    """Zbiór głów-członków, jeśli `vv` to dokładnie zadeklarowana unia
-    (pojedyncza głowa będąca nazwą unii); inaczej None."""
-    if module is None or len(vv.variants) != 1:
+def _union_members_by_head(head):
+    """Zbiór głów-członków zadeklarowanej unii o głowie `head`; None gdy
+    `head` nie jest unią (albo nie ma modułu — testy jednostkowe)."""
+    if module is None:
         return None
-    head = next(iter(vv.variants)).head
     for decl in module.body:
         if isinstance(decl, ast.UnionDef) and "".join(decl.name) == head:
             return {"".join(m) for m in decl.members}
     return None
 
 
-def _unify_variants(ft0, ft1, widen=False, bind_member=True):
+def _union_members(vv):
+    """Zbiór głów-członków, jeśli `vv` to dokładnie zadeklarowana unia
+    (pojedyncza głowa będąca nazwą unii); inaczej None."""
+    if len(vv.variants) != 1:
+        return None
+    return _union_members_by_head(next(iter(vv.variants)).head)
+
+
+def _allowed_heads(vv):
+    """Zbiór głów dopuszczalnych w slocie typu `vv` (ograniczenie górne):
+    głowy wprost, a dla głów-unii — także ich członkowie."""
+    allowed = set()
+    for a in vv.variants:
+        allowed.add(a.head)
+        members = _union_members_by_head(a.head)
+        if members:
+            allowed |= members
+    return frozenset(allowed)
+
+
+def _default_from_upper(upper):
+    """Domyślkowanie zmiennej znanej WYŁĄCZNIE z ograniczeń górnych (nigdy
+    nie związanej strukturalnie): zbiór będący dokładnie unią+członkami →
+    ta unia; singleton → ta głowa; inaczej None (grounding zgłosi błąd)."""
+    for u in upper:
+        members = _union_members_by_head(u)
+        if members is not None and upper == frozenset(members | {u}):
+            return variant([u])
+    if len(upper) == 1:
+        return variant(upper)
+    return None
+
+
+def _unify_variants(ft0, ft1, widen=False, mode="equate"):
     """Unifikacja dwóch konkretów: przecięcie po GŁOWIE, a dla wspólnych głów
     rekurencyjna unifikacja argumentów (strukturalnie). Przy pustych args
     redukuje się do przecięcia zbiorów (zachowanie sprzed generyków).
@@ -144,12 +181,17 @@ def _unify_variants(ft0, ft1, widen=False, bind_member=True):
     niesie parametrów typu (parametryzacja to sprawa struktur), więc
     argumenty wariantów są przy rozszerzeniu porzucane.
 
-    `bind_member=False` (subsumpcja, pozycje wartość-do-slotu; ft0 = slot,
-    ft1 = wartość): gdy SLOT już jest unią pokrywającą, zaakceptuj bez
-    wiązania klasy wartości — wariant płynący do slotu unijnego zachowuje
-    swój konkretny typ (destrukcyjne wiązanie odbierało zmiennej chainy
-    w fixpoincie). Kierunek odwrotny (wartość-unia do slotu-wariantu) wiąże
-    slot jak dawniej — to akumulacja inferencji (np. ret przez sztafetę)."""
+    `mode` — tryb pozycji (ft0 = slot, ft1 = wartość):
+    - "equate": historyczna symetria — obie strony stają się unią.
+    - "accumulate" (slot INFEROWANY — ret bez adnotacji, zmienna): slot
+      rośnie od poszlak (wartość-unia rozszerza slot-wariant — sztafeta),
+      ale wartość-wariant do slotu-unii NIE jest wiązana (subsumpcja —
+      destrukcyjne wiązanie odbierało zmiennej chainy w fixpoincie).
+    - "check" (slot ZNANY — argument, pole, adnotowany ret): bramkarz.
+      Subsumpcja wariant≤unia przechodzi bez wiązania; unia do slotu-
+      wariantu i wariant do obcego wariantu są ODRZUCANE — slot niczego
+      się nie uczy, a wartość może być w runtime czymś, czego slot nie
+      przyjmuje."""
     by0, by1 = {}, {}
     for a in ft0.variants:
         by0.setdefault(a.head, []).append(a)
@@ -173,19 +215,26 @@ def _unify_variants(ft0, ft1, widen=False, bind_member=True):
                 if surviving and surviving != set(other.variants):
                     other.next = VariantVar(variants=surviving)
                     return _unify_variants(
-                        find_type(ft0), find_type(ft1), widen, bind_member)
+                        find_type(ft0), find_type(ft1), widen, mode)
             u = _widening_union(by0.keys() | by1.keys())
             if u is not None:
                 u_set = {AppliedType(u, ())}
                 # Reużyj stronę będącą już unią (jak optymalizacja niżej) —
                 # zero śmieci, gdy fixpoint trafia w ten sam widening co przebieg.
                 if u_set == ft0.variants:
-                    if bind_member:
+                    if mode == "equate":
                         ft1.next = ft0
                     return ft0
                 if u_set == ft1.variants:
+                    if mode == "check":
+                        raise TypeCheckError(
+                            f"wartość typu unijnego {ft1} nie mieści się "
+                            f"w slocie typu {ft0} — zawęź dopasowaniem `jest:`")
                     ft0.next = ft1
                     return ft1
+                if mode == "check":
+                    raise TypeCheckError(
+                        f"wartość typu {ft1} nie pasuje do oczekiwanego {ft0}")
                 widened = VariantVar(variants=u_set)
                 ft0.next = widened
                 ft1.next = widened
@@ -228,23 +277,63 @@ def _unify_variants(ft0, ft1, widen=False, bind_member=True):
     return new_variant
 
 
-def unify_types(t0, t1, widen=False, bind_member=True):
+def unify_types(t0, t1, widen=False, mode="equate"):
     """`widen=True` dopuszcza rozszerzenie struktura→unia przy konflikcie głów
     — używane na POZYCJACH TOP-LEVEL (przypisanie, return, argument wywołania,
-    wartość pola, adnotacja). Te pozycje przekazują też `bind_member=False`
-    (subsumpcja — patrz _unify_variants); dopasowanie `jest:` wiąże podmiot
-    destrukcyjnie (podmiot szerzy się do unii). Rekurencyjna unifikacja
-    argumentów typów jest zawsze ścisła (typy parametryzowane są inwariantne)."""
+    wartość pola, adnotacja). `mode` rozróżnia pozycje (t0 = slot):
+    "check" (slot znany: argumenty, pola, adnotowany ret) — bramkarz,
+    wolna wartość dostaje ograniczenie górne zamiast równości; "accumulate"
+    (slot inferowany: ret bez adnotacji, przypisanie, podmiot `jest:`) —
+    detektyw, slot rośnie od poszlak. Rekurencyjna unifikacja argumentów
+    typów jest zawsze ścisła (typy parametryzowane są inwariantne)."""
     ft0 = find_type(t0)
     ft1 = find_type(t1)
     if ft0 is ft1:
         return ft0
+    if mode == "check" and isinstance(ft1, TypeVar) and isinstance(ft0, VariantVar):
+        # Wolna wartość w znanym slocie: jedyny uprawniony fakt to
+        # `wartość ≤ slot`. Gdy zbiór dopuszczalnych głów ma >1 element
+        # (slot unijny — prawdziwy luz podtypowania), zapisz ograniczenie
+        # górne (przecinając z dotychczasowymi) i NIE wiąż równości.
+        # Singleton: ≤ do jednej głowy TO równość (struktura nie ma
+        # podtypów) — przepuść do zwykłego wiązania niżej, żeby sygnatury
+        # wnioskowały się z użycia jak dotąd.
+        allowed = _allowed_heads(ft0)
+        if len(allowed) > 1:
+            ft1.upper = allowed if ft1.upper is None else ft1.upper & allowed
+            if not ft1.upper:
+                raise TypeCheckError(
+                    f"sprzeczne ograniczenia górne: {ft0} nie przecina się "
+                    f"z wcześniejszymi wymaganiami wobec {ft1}")
+            return ft0
     if isinstance(ft0, VariantVar) and isinstance(ft1, VariantVar):
-        return _unify_variants(ft0, ft1, widen, bind_member)
+        return _unify_variants(ft0, ft1, widen, mode)
     # Co najmniej jedna strona to wolna zmienna — przepnij ją na drugą.
     concrete, abstract = (ft0, ft1) if isinstance(ft0, VariantVar) else (ft1, ft0)
-    if isinstance(concrete, VariantVar) and _occurs(abstract, concrete):
-        raise TypeCheckError(f"occurs check: {abstract} w {concrete}")
+    if isinstance(concrete, VariantVar):
+        if _occurs(abstract, concrete):
+            raise TypeCheckError(f"occurs check: {abstract} w {concrete}")
+        if abstract.upper is not None:
+            # Wiązanie zmiennej z ograniczeniem górnym: głowy spoza
+            # ograniczenia odpadają (zawężenie zbioru niejednoznaczności);
+            # pusty wynik = wartość nie spełnia zebranych wymagań.
+            surviving = {a for a in concrete.variants
+                         if a.head in abstract.upper}
+            if not surviving:
+                raise TypeCheckError(
+                    f"typ {concrete} nie mieści się w ograniczeniu górnym "
+                    f"{{{', '.join(sorted(abstract.upper))}}}")
+            if surviving != concrete.variants:
+                narrowed = VariantVar(variants=surviving)
+                concrete.next = narrowed
+                concrete = narrowed
+    elif abstract.upper is not None:
+        # Dwie wolne zmienne — ograniczenia górne się przecinają.
+        concrete.upper = (abstract.upper if concrete.upper is None
+                          else concrete.upper & abstract.upper)
+        if not concrete.upper:
+            raise TypeCheckError(
+                "sprzeczne ograniczenia górne łączonych zmiennych typowych")
     abstract.next = concrete
     return concrete
 
@@ -324,6 +413,9 @@ class FunDefTypes:
     name: ast.FunctionIdentifier
     arg_types: list
     ret_type: str
+    # Adnotowany ret = pozycja SPRAWDŹ w `zwróć` (bramkarz);
+    # inferowany = AKUMULUJ (poszlaki rosną do unii — sztafeta).
+    ret_annotated: bool = False
 
 fun_decls = []
 
@@ -352,6 +444,7 @@ def instantiate(fdt):
         if isinstance(t, TypeVar):
             if t not in subst:
                 subst[t] = new_type()
+                subst[t].upper = t.upper  # ograniczenia jadą z instancją
             return subst[t]
         # VariantVar: świeża kopia z REKURENCYJNIE świeżonymi argumentami, żeby
         # funkcja polimorficzna (∀W. (Lista[W], W)→…) dostała niezależne zmienne
@@ -383,6 +476,13 @@ def _check_grounded(decl, scope):
     wtedy w scope'ie wołającego (tu)."""
     for s in scope.walk():
         for ident, t in s.types:
+            ft = find_type(t)
+            if isinstance(ft, TypeVar) and ft.upper:
+                # Zmienna znana wyłącznie z ograniczeń górnych — domyślkuj:
+                # dokładna unia → unia, singleton → głowa.
+                d = _default_from_upper(ft.upper)
+                if d is not None:
+                    ft.next = d
             if not _is_concrete(t):
                 line = getattr(ident, "line", None)
                 raise TypeCheckError(
@@ -438,13 +538,14 @@ def resolve_module(node):
                     unify_types(fdt.arg_types[i], elaborate(p.type, fenv, fresh_unknown=True))
             if decl.return_type is not None:
                 unify_types(fdt.ret_type, elaborate(decl.return_type, fenv, fresh_unknown=True))
+                fdt.ret_annotated = True
             if not _returns_totally(decl.body):
                 # Ścieżka bez `zwróć` zwraca Nic — dounifikuj jak niejawne
                 # `zwróć Nic`: adnotowana/wywnioskowana unia z Nic przyjmie
                 # przez subsumpcję, ret bez wspólnej unii da konflikt —
                 # słusznie (dawne bad/nietotalny_zwrot.ć).
-                unify_types(fdt.ret_type, variant(["Nic"]),
-                            widen=True, bind_member=False)
+                unify_types(fdt.ret_type, variant(["Nic"]), widen=True,
+                            mode="check" if fdt.ret_annotated else "accumulate")
             fun_decls.append((decl.name, fdt))
             module_funcs.append((decl, fdt))
         elif isinstance(decl, ast.ExternFunctionDef):
@@ -460,6 +561,7 @@ def resolve_module(node):
                     for p in decl.params
                 ],
                 ret_type=elaborate(decl.return_type, fenv, fresh_unknown=True),
+                ret_annotated=True,
             )
             fun_decls.append((decl.name, fdt))
 
@@ -575,7 +677,7 @@ def resolve_expression(node, scope):
     if isinstance(node, ast.Typed):
         expr_t = resolve_expression(node.expr, scope)
         explicit_t = elaborate(node.type, {}, fresh_unknown=True)
-        return unify_types(explicit_t, expr_t, widen=True, bind_member=False)
+        return unify_types(explicit_t, expr_t, widen=True, mode="accumulate")
     if isinstance(node, ast.BinOp):
         return resolve_bin_op(node, scope)
     if isinstance(node, ast.UnaryOp):
@@ -612,7 +714,7 @@ def resolve_expression(node, scope):
 def resolve_assignment(node, scope):
     target_type = resolve_expression(node.target.resolved, scope)
     value_type = resolve_expression(node.value.resolved, scope)
-    unify_types(target_type, value_type, widen=True, bind_member=False)
+    unify_types(target_type, value_type, widen=True, mode="accumulate")
     # # target to krotka — element pojedynczy lub łańcuch getterów
     # if isinstance(node.target, tuple):
     #     for t in node.target:
@@ -673,7 +775,8 @@ def resolve_return(node, scope):
         t = resolve_expression(node.value, scope)
         # widen: gałęzie zwracające różne warianty jednej unii typują
         # funkcję tą unią; warianty bez wspólnej unii → TypeCheckError.
-        unify_types(scope.root_fdt.ret_type, t, widen=True, bind_member=False)
+        unify_types(scope.root_fdt.ret_type, t, widen=True,
+                    mode="check" if scope.root_fdt.ret_annotated else "accumulate")
     else:
         unify_types(scope.root_fdt.ret_type, variant(["Nic"]))
 
@@ -792,13 +895,13 @@ def resolve_match(node, scope):
         # w fixpoincie; nierozstrzygnięty w `działać` wpada w grounding.
         heads = {AppliedType("".join(c.name), ()) for c in cands}
         unify_types(VariantVar(variants=heads), subject_t,
-                    widen=len(cands) == 1, bind_member=False)
+                    widen=len(cands) == 1, mode="accumulate")
     else:
         ud = _union_for_match(subject_t, branch_heads, node.line)
         unify_types(
             VariantVar(variants={AppliedType("".join(ud.name), ())}),
             subject_t,
-            widen=True, bind_member=False,
+            widen=True, mode="accumulate",
         )
     for br in node.branches:
         if br.type_name is None:
@@ -871,7 +974,7 @@ def resolve_function_call(node, scope):
     arg_types, ret_type = instantiate(fdt)
     for (t0, p) in zip(arg_types, node.params):
         t1 = resolve_expression(p, scope)
-        unify_types(t0, t1, widen=True, bind_member=False)
+        unify_types(t0, t1, widen=True, mode="check")
     return ret_type
 
 
@@ -908,7 +1011,7 @@ def resolve_apply(node, scope):
     unify_types(t_f, arrow(arg_types, ret_type))
     for (t0, p) in zip(arg_types, node.args):
         t1 = resolve_expression(p, scope)
-        unify_types(t0, t1, widen=True, bind_member=False)
+        unify_types(t0, t1, widen=True, mode="check")
     return ret_type
 
 
@@ -1146,10 +1249,10 @@ def resolve_struct_arg(node, scope, struct_creation):
     field_t = elaborate(field.type, env)   # pole-parametr → współdzielona zmienna instancji
     if node.value is not None:
         unify_types(field_t, resolve_expression(node.value, scope),
-                    widen=True, bind_member=False)
+                    widen=True, mode="check")
     else:
         unify_types(field_t, scope.get_type(field.name),
-                    widen=True, bind_member=False)
+                    widen=True, mode="check")
 
 
 def resolve_identifier(node, scope):
