@@ -56,3 +56,9 @@ v kolekcja nie może być liczbą mnogą nazwy w zasięgu — ogniwa (lista) obo
 v Sukcesem z wartością jako żeton
 jedna piąta
 nazwa użytkownika równa nazwie kandydata
+
+
+diagnostyka
+parser wykłada się na konstrukcji struktury w nawiasie argumentu wywołania (oczekiwano WORD, otrzymano TEXT — znalezione sondą, nieskatalogowane);
+brak dzielenia (operatory to tylko plus/minus/razy + porównania);
+równość = na structach porównuje słowniki Pythona — semantyka nieprzemyślana i nietestowana; głęboka rekursja utknie na limicie Pythona.

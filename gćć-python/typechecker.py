@@ -164,6 +164,71 @@ def _allowed_heads(vv):
     return frozenset(allowed)
 
 
+def _union_param_names(head):
+    """NIEJAWNE parametry unii (bez własnej składni): unia dziedziczy
+    parametry typów swoich członków-struktur, po nazwach, w kolejności
+    pierwszego wystąpienia. Każdy parametr to frozenset nazw-aliasów
+    (warianty morfologiczne lematu). Unia bez sparametryzowanych
+    członków → [] (arność 0, zachowanie sprzed zmiany)."""
+    ud = find_union_def(head) if module is not None else None
+    if ud is None:
+        return []
+    params = []
+    for m in ud.members:
+        sd = find_struct_def(m)
+        if sd is None:
+            continue
+        for p in sd.params:
+            names = frozenset("".join(l) for l in p.name.lemmas_set)
+            if not any(names & s for s in params):
+                params.append(names)
+    return params
+
+
+def _union_applied(head, env=None):
+    """Węzeł AppliedType unii z niejawnymi argumentami: nazwa parametru
+    widoczna w `env` (wnętrze definicji struktury) → przechwyt — to czyni
+    rekurencyjne struktury jednorodnymi; poza definicją → świeża zmienna
+    per wystąpienie (równości wyprowadza ciało; externy zostają luźne
+    świadomie — konkretyzacja przez użycie)."""
+    args = []
+    for names in _union_param_names(head):
+        captured = None
+        if env:
+            for n in names:
+                if n in env:
+                    captured = env[n]
+                    break
+        args.append(captured if captured is not None else new_type())
+    return AppliedType(head, tuple(args))
+
+
+def _union_vv(head, env=None):
+    return VariantVar(variants={_union_applied(head, env)})
+
+
+def _link_member_args(member_at, union_at):
+    """Zwiąż argumenty wariantu-struktury z niejawnymi argumentami unii
+    (po nazwach parametrów). To jest właściwa łata na wymazywanie: element
+    Węzła płynącego do slotu Ogon[e] unifikuje się z `e`, więc lista nie
+    przyjmie ogona o innym elemencie."""
+    sd = find_struct_def(member_at.head)
+    if sd is None or not member_at.args:
+        return
+    u_params = _union_param_names(union_at.head)
+    for i, p in enumerate(sd.params):
+        names = {"".join(l) for l in p.name.lemmas_set}
+        for j, u_names in enumerate(u_params):
+            if names & u_names and i < len(member_at.args) and j < len(union_at.args):
+                # Join poszlak elementu (jak slot wartości pola): różne
+                # warianty elementów z wielu wystąpień łączą się do ich
+                # unii, a konkret-wariant do slotu-unii przechodzi przez
+                # subsumpcję bez wiązania.
+                unify_types(member_at.args[i], union_at.args[j],
+                            widen=True, mode="accumulate")
+                break
+
+
 def _force_lowers(t):
     """Scal KONKRETNE poszlaki dolne zmiennej (fakty `x ≤ t` zebrane, gdy
     `x` było wolne) w jej typ — join przez widening, jakby kolejne `zwróć`
@@ -201,7 +266,7 @@ def _default_from_upper(upper):
     for u in upper:
         members = _union_members_by_head(u)
         if members is not None and upper == frozenset(members | {u}):
-            return variant([u])
+            return _union_vv(u)
     if len(upper) == 1:
         return variant(upper)
     return None
@@ -272,24 +337,37 @@ def _unify_variants(ft0, ft1, widen=False, mode="equate"):
                         find_type(ft0), find_type(ft1), widen, mode)
             u = _widening_union(by0.keys() | by1.keys())
             if u is not None:
-                u_set = {AppliedType(u, ())}
+                def _is_exactly(vv):
+                    return (len(vv.variants) == 1
+                            and next(iter(vv.variants)).head == u)
                 # Reużyj stronę będącą już unią (jak optymalizacja niżej) —
-                # zero śmieci, gdy fixpoint trafia w ten sam widening co przebieg.
-                if u_set == ft0.variants:
+                # zero śmieci, gdy fixpoint trafia w ten sam widening co
+                # przebieg. Argumenty wariantów NIE są porzucane: wiążą się
+                # z niejawnymi argumentami unii po nazwach parametrów.
+                if _is_exactly(ft0):
+                    u_at = next(iter(ft0.variants))
+                    for a in ft1.variants:
+                        _link_member_args(a, u_at)
                     if mode == "equate":
                         ft1.next = ft0
                     return ft0
-                if u_set == ft1.variants:
+                if _is_exactly(ft1):
                     if mode == "check":
                         raise TypeCheckError(
                             f"wartość typu unijnego {ft1} nie mieści się "
                             f"w slocie typu {ft0} — zawęź dopasowaniem `jest:`")
+                    u_at = next(iter(ft1.variants))
+                    for a in ft0.variants:
+                        _link_member_args(a, u_at)
                     ft0.next = ft1
                     return ft1
                 if mode == "check":
                     raise TypeCheckError(
                         f"wartość typu {ft1} nie pasuje do oczekiwanego {ft0}")
-                widened = VariantVar(variants=u_set)
+                u_at = _union_applied(u)
+                widened = VariantVar(variants={u_at})
+                for a in ft0.variants | ft1.variants:
+                    _link_member_args(a, u_at)
                 ft0.next = widened
                 ft1.next = widened
                 return widened
@@ -537,6 +615,11 @@ def _is_concrete(t):
     if len(t.variants) != 1:
         return False
     a = next(iter(t.variants))
+    if _union_members_by_head(a.head) is not None:
+        # Niejawne argumenty unii mogą zostać wolne (konkretyzacja przez
+        # użycie — jeśli nikt elementu nie obserwuje, runtime go nie
+        # potrzebuje; wartości i tak niosą własne tagi).
+        return True
     return all(_is_concrete(x) for x in a.args)
 
 
@@ -971,13 +1054,17 @@ def resolve_match(node, scope):
         # jego inferencja. Wiele → wielogłowy ambiguity-set BEZ widen:
         # przecięcia z pozostałych wystąpień zmiennej zawężają go
         # w fixpoincie; nierozstrzygnięty w `działać` wpada w grounding.
-        heads = {AppliedType("".join(c.name), ()) for c in cands}
+        heads = {_union_applied("".join(c.name)) for c in cands}
         unify_types(VariantVar(variants=heads), subject_t,
                     widen=len(cands) == 1, mode="accumulate")
+        # Jedna kandydatka → gałęzie zwiążą swoje instancje z argumentami
+        # unii podmiotu (precyzyjne typy wiązań); wiele → bez linkowania.
+        linked = next(iter(heads)) if len(cands) == 1 else None
     else:
         ud = _union_for_match(subject_t, branch_heads, node.line)
+        linked = _union_applied("".join(ud.name))
         unify_types(
-            VariantVar(variants={AppliedType("".join(ud.name), ())}),
+            VariantVar(variants={linked}),
             subject_t,
             widen=True, mode="accumulate",
         )
@@ -1001,6 +1088,10 @@ def resolve_match(node, scope):
         # pola-parametry wariantu zaczynają jako wolne zmienne i konkretyzują
         # się przez użycie w ciele gałęzi.
         inst, env = instantiate_struct(sd)
+        if linked is not None:
+            # Instancja gałęzi dziedziczy argumenty unii podmiotu — wiązania
+            # pól dostają precyzyjne typy (element z Ogon[Liczba] to Liczba).
+            _link_member_args(next(iter(inst.variants)), linked)
         br_scope = scope.child_for(br, "body")
         for fid in br.fields:
             field = find_field_for_ident(sd, fid)
@@ -1115,7 +1206,7 @@ def resolve_try_call(node, scope):
     else:
         t = resolve_function_call(node.call, scope)
     # Wołana funkcja musi dawać Rezultat (Sukces/Błąd też ujdą — widening).
-    unify_types(t, variant(["Rezultat"]), widen=True)
+    unify_types(t, _union_vv("Rezultat"), widen=True)
     # Gałąź-Błąd propaguje się returnem z funkcji otaczającej.
     unify_types(scope.root_fdt.ret_type, variant(["Błąd"]), widen=True)
     # Odpakowana wartość Sukcesu — unia wymazuje parametry, więc typ jest
@@ -1261,11 +1352,12 @@ def elaborate(tref, env, fresh_unknown=False):
     sd = find_struct_def(tref.head)
     if sd is None:
         if find_union_def(tref.head) is not None:
-            # Unia jest zawsze 0-arg — parametryzacja to sprawa struktur.
+            # Unia bez własnej składni argumentów — parametry ma NIEJAWNE
+            # (dziedziczone od członków, przechwytywane z env definicji).
             if tref.args:
                 raise TypeCheckError(
                     f"typ wariantowy '{h}' nie przyjmuje argumentów typu")
-            return VariantVar(variants={AppliedType(h, ())})
+            return VariantVar(variants={_union_applied(h, env)})
         if fresh_unknown and h not in BUILTINS:
             v = new_type()
             env[h] = v

@@ -1384,6 +1384,53 @@ def test_intersection_of_union_bounds(parse):
             prelude + "aby działać:\n    doglądaj Pies o kości \"szynka\"\n"))
 
 
+_LISTA_LICZB = (
+    "definicja Węzła z elementem:\n"
+    "    wartość (element)\n"
+    "    ogon (Ogon)\n"
+    "\n"
+    "Ogon to Węzeł albo Nic\n"
+    "\n"
+    "definicja Kota:\n"
+    "    imię (Tekst)\n"
+    "\n"
+)
+
+
+@pytest.mark.integration
+def test_union_params_reject_mixed_elements(parse):
+    """Niejawne parametry unii (dawne bad/wymazany_element.ć): pole
+    `ogon (Ogon)` przechwytuje `element` z definicji Węzła, więc ogon
+    Liczbowego węzła nie przyjmie węzła z Tekstem — lista jest jednorodna."""
+    src = _LISTA_LICZB + (
+        "aby działać:\n"
+        "    głowa to Węzeł o wartości pięć o ogonie "
+        "(Węzeł o wartości \"abc\" o ogonie Nic)\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_union_params_flow_into_match_bindings(parse):
+    """Argumenty unii płyną do wiązań gałęzi: element z Ogon[Liczba] to
+    Liczba, więc traktowanie związanej `wartości` jak Kota (chain `imię`)
+    jest odrzucane — dawniej element był wolny i konkretyzował się
+    dowolnie (crash w runtime)."""
+    src = _LISTA_LICZB + (
+        "aby działać:\n"
+        "    głowa to Węzeł o wartości pięć o ogonie Nic\n"
+        "    ogon (Ogon) to głowa\n"
+        "    ogon jest:\n"
+        "        Węzłem z wartością:\n"
+        "            zdobycz to imię wartości\n"
+        "        Niczym:\n"
+        "            nic to zero\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
 @pytest.mark.integration
 def test_for_loop_is_loudly_rejected(parse):
     """Decyzja językowa: `dla ... w ...:` czeka na protokół iteracji
@@ -1521,10 +1568,11 @@ def test_fallthrough_without_union_raises(parse):
 @pytest.mark.integration
 def test_unused_parameterized_alias_fails_grounding(parse):
     """Nieużyty alias `jako` sparametryzowanego wariantu w `działać`:
-    element zostaje wolny i wpada w grounding — alias jest pisany przez
-    użytkownika (jak wiązanie pola), więc błąd jest naprawialny (usuń
-    martwy binder). NIEJAWNY cień podmiotu w tej samej gałęzi nie
-    przeszkadza (Scope.shadows poza groundingiem)."""
+    element zostaje wolny (podmiot z externa — czysta świeżość, więc
+    niejawny argument unii nie niesie konkretu) i wpada w grounding —
+    alias jest pisany przez użytkownika (jak wiązanie pola), więc błąd
+    jest naprawialny (usuń martwy binder). NIEJAWNY cień podmiotu w tej
+    samej gałęzi nie przeszkadza (Scope.shadows poza groundingiem)."""
     src = (
         "definicja Wyniku z elementem:\n"
         "    wynik (element)\n"
@@ -1534,8 +1582,10 @@ def test_unused_parameterized_alias_fails_grounding(parse):
         "\n"
         "Rezultat to Wynik albo Błąd\n"
         "\n"
+        "można zapisać dane (Tekst) -> Rezultat\n"
+        "\n"
         "aby działać:\n"
-        "    rezultat (Rezultat) to Wynik o wyniku zero\n"
+        "    rezultat to zapisz \"abc\"\n"
         "    rezultat jest:\n"
         "        Wynikiem jako paczka:\n"
         "            komunikat to \"ok\"\n"
