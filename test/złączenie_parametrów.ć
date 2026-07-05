@@ -1,0 +1,29 @@
+# Pełne więzy podtypowania: `zwróć kot` / `zwróć pies` to poszlaki DOLNE
+# (kot ≤ ret, pies ≤ ret) — parametry nie sklejają się w jedną zmienną,
+# a ret jest ich kresem: w tym wywołaniu Kot ⊔ Pies = Domownik.
+# (Dawne bad/złączenie_parametrów.ć: odrzucane przez splątanie równością.)
+
+definicja Kota:
+    imię (Tekst)
+
+definicja Psa:
+    kość (Tekst)
+
+Domownik to Kot albo Pies
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby wybrać flagę kota psa:
+    jeśli flaga:
+        zwróć kot
+    zwróć pies
+
+aby działać:
+    kot to Kot o imieniu "Mruczek"
+    pies to Pies o kości "szynka"
+    pupil to wybierz prawda kota psa
+    pupil jest:
+        Kotem z imieniem:
+            wypisz imię
+        Psem z kością:
+            wypisz kość

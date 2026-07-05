@@ -1,0 +1,26 @@
+# Odroczona alternatywa więzów: chain `lewy_syn drzewa` ma dwóch kandydatów
+# (Drzewo i Węzeł), więc `filar` startuje jako dysjunkcja typów ich pól
+# {Drzewo | Gałąź}. Przybycie konkretu (`filar to Węzeł ...`) rozstrzyga:
+# przeżywa gałąź-unia absorbująca wariant (Węzeł ∈ Gałąź), Drzewo odpada.
+# (Dawne bad/dysjunkcja_kontra_wariant.ć: `cannot unify`.)
+
+definicja Drzewa dla rzeczy:
+    wartość (rzecz)
+    lewy_syn (Drzewo dla rzeczy)
+
+definicja Węzła z elementem:
+    wartość (element)
+    wysokość (Liczba)
+    lewy_syn (Gałąź)
+
+Gałąź to Węzeł albo Nic
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby zbadać drzewo:
+    filar to lewy_syn drzewa
+    filar to Węzeł o wartości jeden o wysokości jeden o lewym_synu Nic
+    wypisz "ok"
+
+aby działać:
+    zbadaj Węzeł o wartości dwa o wysokości jeden o lewym_synu Nic

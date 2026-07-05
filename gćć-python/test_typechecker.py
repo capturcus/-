@@ -1385,6 +1385,60 @@ def test_intersection_of_union_bounds(parse):
 
 
 @pytest.mark.integration
+def test_join_of_two_free_params(parse):
+    """Pełne więzy podtypowania: `zwróć kot` / `zwróć pies` to poszlaki
+    dolne — parametry pozostają niezależne (bez sklejania równością),
+    a ret jest ich kresem: Kot ⊔ Pies = Domownik w miejscu wywołania."""
+    src = (
+        "definicja Kota:\n    imię (Tekst)\n"
+        "\n"
+        "definicja Psa:\n    kość (Tekst)\n"
+        "\n"
+        "Domownik to Kot albo Pies\n"
+        "\n"
+        "aby wybrać flagę kota psa:\n"
+        "    jeśli flaga:\n"
+        "        zwróć kot\n"
+        "    zwróć pies\n"
+        "\n"
+        "aby działać:\n"
+        "    kot to Kot o imieniu \"Mruczek\"\n"
+        "    pies to Pies o kości \"szynka\"\n"
+        "    pupil to wybierz prawda kota psa\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["pupil"] == "Domownik"
+    # parametry NIE splątane — każdy zachował własny konkret z wywołania
+    assert _var_types()["kot"] == "Kot"
+    assert _var_types()["pies"] == "Pies"
+
+
+@pytest.mark.integration
+def test_deferred_disjunction_resolves_by_join(parse):
+    """Dysjunkcja typów pól z wielu kandydatów chaina rozstrzyga się
+    przybyciem konkretu: przeżywa gałąź-unia absorbująca wariant
+    (Węzeł ∈ Gałąź), kandydat Drzewo odpada."""
+    src = (
+        "definicja Drzewa dla rzeczy:\n"
+        "    wartość (rzecz)\n"
+        "    lewy_syn (Drzewo dla rzeczy)\n"
+        "\n"
+        "definicja Węzła z elementem:\n"
+        "    wartość (element)\n"
+        "    wysokość (Liczba)\n"
+        "    lewy_syn (Gałąź)\n"
+        "\n"
+        "Gałąź to Węzeł albo Nic\n"
+        "\n"
+        "aby zbadać drzewo:\n"
+        "    filar to lewy_syn drzewa\n"
+        "    filar to Węzeł o wartości jeden o wysokości jeden o lewym_synu Nic\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["filar"] == "Gałąź"
+
+
+@pytest.mark.integration
 def test_union_value_into_variant_slot_raises(parse):
     """Bramkarz: wartość typu unii NIE przechodzi do parametru typu
     wariantu — wymagaj zawężenia przez `jest:` (dawne

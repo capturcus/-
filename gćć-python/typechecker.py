@@ -17,6 +17,12 @@ class TypeVar:
     # SPRAWDŹ (wolna wartość do znanego slotu — fakt „≤ slot", nie „= slot"),
     # PRZECINANE przy każdym kolejnym ograniczeniu; egzekwowane przy wiązaniu.
     upper: object = None
+    # Więzy dolne (pełne więzy podtypowania): poszlaki `x ≤ ta zmienna`
+    # z pozycji AKUMULUJ, gdy `x` było jeszcze wolne (np. `zwróć parametr`) —
+    # zamiast sklejania równością, które splątywałoby niezależne zmienne
+    # (∀k,p → k⊔p). KONKRETNE poszlaki są scalane joinem (widening) przez
+    # `_force_lowers`; wolne czekają na instancję/kolejny przebieg.
+    lowers: list = field(default_factory=list)
 
     def __repr__(self):
         return f"t{self.number}"
@@ -158,6 +164,36 @@ def _allowed_heads(vv):
     return frozenset(allowed)
 
 
+def _force_lowers(t):
+    """Scal KONKRETNE poszlaki dolne zmiennej (fakty `x ≤ t` zebrane, gdy
+    `x` było wolne) w jej typ — join przez widening, jakby kolejne `zwróć`
+    dostarczyło konkret. Wolne poszlaki zostają na liście (schemat pozostaje
+    polimorficzny); w instancji konkretyzują je argumenty wywołania, a tu
+    scala je pierwszy dotyk unifikacji. Zwraca reprezentanta po scaleniu."""
+    ft = find_type(t)
+    while isinstance(ft, TypeVar) and ft.lowers:
+        lowers, ft.lowers = ft.lowers, []
+        pending, folded = [], False
+        for lo in lowers:
+            flo = find_type(lo)
+            if flo is ft or isinstance(flo, TypeVar):
+                if flo is not ft:
+                    pending.append(flo)
+                continue
+            # Scal MIGAWKĘ poszlaki, nie jej klasę — widening przy joinie
+            # wiąże obie strony, a klasa poszlaki (np. argument wywołania)
+            # nie może urosnąć do unii tylko dlatego, że ret jest kresem.
+            snapshot = VariantVar(variants=set(flo.variants))
+            unify_types(ft, snapshot, widen=True, mode="accumulate")
+            folded = True
+            ft = find_type(ft)
+        if isinstance(ft, TypeVar):
+            ft.lowers = pending + ft.lowers
+        if not folded:
+            break
+    return find_type(t)
+
+
 def _default_from_upper(upper):
     """Domyślkowanie zmiennej znanej WYŁĄCZNIE z ograniczeń górnych (nigdy
     nie związanej strukturalnie): zbiór będący dokładnie unią+członkami →
@@ -214,6 +250,24 @@ def _unify_variants(ft0, ft1, widen=False, mode="equate"):
                              if a.head == u_head or a.head in members}
                 if surviving and surviving != set(other.variants):
                     other.next = VariantVar(variants=surviving)
+                    return _unify_variants(
+                        find_type(ft0), find_type(ft1), widen, mode)
+            # Dysjunkcja miękka kontra pojedynczy wariant: z gałęzi zbioru
+            # niejednoznaczności (np. typy pól z wielu kandydatów chaina)
+            # przeżywają te, które ABSORBUJĄ drugą stronę — głowy-unie
+            # zawierające jej wariant. To odroczona alternatywa więzów:
+            # rozstrzyga ją dopiero przybycie konkretu.
+            for multi, single in ((ft0, ft1), (ft1, ft0)):
+                if len(multi.variants) < 2 or len(single.variants) != 1:
+                    continue
+                s_head = next(iter(single.variants)).head
+                surviving = {
+                    a for a in multi.variants
+                    if (lambda m: m is not None and s_head in m)
+                       (_union_members_by_head(a.head))
+                }
+                if surviving and surviving != set(multi.variants):
+                    multi.next = VariantVar(variants=surviving)
                     return _unify_variants(
                         find_type(ft0), find_type(ft1), widen, mode)
             u = _widening_union(by0.keys() | by1.keys())
@@ -286,9 +340,24 @@ def unify_types(t0, t1, widen=False, mode="equate"):
     (slot inferowany: ret bez adnotacji, przypisanie, podmiot `jest:`) —
     detektyw, slot rośnie od poszlak. Rekurencyjna unifikacja argumentów
     typów jest zawsze ścisła (typy parametryzowane są inwariantne)."""
-    ft0 = find_type(t0)
-    ft1 = find_type(t1)
+    ft0 = _force_lowers(t0)
+    ft1 = _force_lowers(t1)
     if ft0 is ft1:
+        return ft0
+    if (mode == "accumulate" and isinstance(ft0, TypeVar)
+            and isinstance(ft1, TypeVar)):
+        # Pełne więzy: dwie wolne zmienne na pozycji akumulacji NIE sklejają
+        # się równością (to splątywałoby np. parametry przez wspólny ret) —
+        # slot zapamiętuje poszlakę dolną `wartość ≤ slot`, a wartość
+        # dziedziczy ograniczenia górne slotu (≤ przechodnie).
+        if all(find_type(lo) is not ft1 for lo in ft0.lowers):
+            ft0.lowers.append(ft1)
+        if ft0.upper is not None:
+            ft1.upper = (ft0.upper if ft1.upper is None
+                         else ft1.upper & ft0.upper)
+            if not ft1.upper:
+                raise TypeCheckError(
+                    "sprzeczne ograniczenia górne poszlaki dolnej")
         return ft0
     if mode == "check" and isinstance(ft1, TypeVar) and isinstance(ft0, VariantVar):
         # Wolna wartość w znanym slocie: jedyny uprawniony fakt to
@@ -445,6 +514,10 @@ def instantiate(fdt):
             if t not in subst:
                 subst[t] = new_type()
                 subst[t].upper = t.upper  # ograniczenia jadą z instancją
+                # Więzy dolne też — świeży ret dostaje świeże poszlaki
+                # (np. świeże kopie parametrów), które argumenty wywołania
+                # zaraz skonkretyzują.
+                subst[t].lowers = [fresh(lo) for lo in t.lowers]
             return subst[t]
         # VariantVar: świeża kopia z REKURENCYJNIE świeżonymi argumentami, żeby
         # funkcja polimorficzna (∀W. (Lista[W], W)→…) dostała niezależne zmienne
@@ -476,7 +549,7 @@ def _check_grounded(decl, scope):
     wtedy w scope'ie wołającego (tu)."""
     for s in scope.walk():
         for ident, t in s.types:
-            ft = find_type(t)
+            ft = _force_lowers(t)
             if isinstance(ft, TypeVar) and ft.upper:
                 # Zmienna znana wyłącznie z ograniczeń górnych — domyślkuj:
                 # dokładna unia → unia, singleton → głowa.
