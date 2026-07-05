@@ -1,0 +1,23 @@
+# Idiom kursora (dawne wiszenie wyrażenia.ć): przypisanie do nazwy PODMIOTU
+# dopasowania w jego gałęzi pisze NA ZEWNĄTRZ (jak każda reasignacja) —
+# `reszta to ogon` przesuwa pętlę `dopóki`, a cień zawężenia żyje tylko
+# w typecheckerze. Dawniej zapis trafiał w cień i pętla mieliła w miejscu.
+
+definicja Węzła:
+    głowa (Liczba)
+    ogon (Spis)
+
+Spis to Węzeł albo Nic
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    reszta to Węzeł o głowie jeden o ogonie (Węzeł o głowie dwa o ogonie Nic)
+    dopóki prawda:
+        reszta jest:
+            Niczym:
+                stop
+            Węzłem z głową z ogonem:
+                wypisz głowa
+                reszta to ogon
+    wypisz "koniec"

@@ -220,10 +220,11 @@ def execute_block(stmts, scope):
                     br_scope.vars.append((fid.scope_keys, _field_value(subject, fid.scope_keys)))
                 if br.alias is not None:
                     br_scope.vars.append((br.alias.scope_keys, subject))
-                # Cień podmiotu-zmiennej — lustrzany do zawężenia w typechecku;
-                # przypisanie do tej nazwy w gałęzi trafia w cień, nie na zewnątrz.
-                if br.type_name is not None and isinstance(stmt.subject.resolved, ast.Identifier):
-                    br_scope.vars.append((stmt.subject.resolved.scope_keys, subject))
+                # Podmiot-zmienna NIE dostaje wpisu w scope gałęzi: odczyty
+                # i tak widzą tę samą wartość u przodka, a zapis (`reszta to
+                # ogon` — idiom kursora) ma pisać NA ZEWNĄTRZ, jak każda
+                # reasignacja. Zawężenie typu podmiotu żyje wyłącznie
+                # w typecheckerze (Scope.shadows).
                 execute_block(br.body, br_scope)
                 break
             else:

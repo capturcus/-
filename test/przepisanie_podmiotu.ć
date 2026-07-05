@@ -1,0 +1,26 @@
+# Zapis do nazwy podmiotu w gałęzi jest widoczny PO bloku dopasowania:
+# pierwszy match podmienia zwierzę na Psa, drugi widzi już Psa. Typ
+# zewnętrzny akumuluje zapis (Zwierzę), więc oba matche są wyczerpujące.
+
+definicja Kota:
+    imię (Tekst)
+
+definicja Psa:
+    kość (Tekst)
+
+Zwierzę to Kot albo Pies
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    zwierzę to Kot o imieniu "Mruczek"
+    zwierzę jest:
+        Kotem:
+            zwierzę to Pies o kości "szynka"
+        Psem:
+            zwierzę to Kot o imieniu "Filemon"
+    zwierzę jest:
+        Kotem z imieniem:
+            wypisz imię
+        Psem z kością:
+            wypisz kość

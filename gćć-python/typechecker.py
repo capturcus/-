@@ -518,6 +518,37 @@ class Scope:
         if self._find_local(identifier) is None:
             self.shadows.append((identifier, t))
 
+    def assign_target_type(self, identifier):
+        """Cel przypisania: zmienna widoczna w łańcuchu scope'ów Z POMINIĘCIEM
+        cieni zawężeń — zapis do nazwy podmiotu `jest:` idzie na zewnątrz
+        (idiom kursora: `reszta to ogon` przesuwa pętlę), a nie w cień.
+        Niewidoczna nigdzie → deklaracja lokalna (block scoping)."""
+        keys = identifier.scope_keys
+        s = self
+        while s is not None:
+            for (v, t) in s.types:
+                if any(ast.scope_key_matches(a, b)
+                       for a in keys for b in v.scope_keys):
+                    return t
+            s = s.parent
+        new_t = new_type()
+        self.types.append((identifier, new_t))
+        return new_t
+
+    def find_shadow(self, identifier):
+        """Najbliższy cień zawężenia dla nazwy (albo None) — przypisanie
+        do podmiotu dolewa wartość także do cienia, żeby dalsze zawężone
+        odczyty w gałęzi widziały typ uczciwie zdegradowany."""
+        keys = identifier.scope_keys
+        s = self
+        while s is not None:
+            for (v, t) in s.shadows:
+                if any(ast.scope_key_matches(a, b)
+                       for a in keys for b in v.scope_keys):
+                    return t
+            s = s.parent
+        return None
+
     def _find(self, identifier):
         # Czytanie: idź w górę drzewa — widać zmienne z przodków.
         s = self
@@ -868,16 +899,21 @@ def resolve_expression(node, scope):
         return variant(["Przełącznik"])
 
 def resolve_assignment(node, scope):
-    target_type = resolve_expression(node.target.resolved, scope)
+    target = node.target.resolved
     value_type = resolve_expression(node.value.resolved, scope)
+    if isinstance(target, ast.Identifier):
+        # Zapis do nazwy idzie na ZEWNĄTRZ (z pominięciem cienia zawężenia)
+        # — idiom kursora `reszta to ogon` przesuwa zmienną pętli. Jeśli
+        # nazwa ma w gałęzi cień, wartość dolewa się TAKŻE do niego: dalsze
+        # zawężone odczyty widzą typ zdegradowany, nie kłamliwie wąski.
+        outer_t = scope.assign_target_type(target)
+        unify_types(outer_t, value_type, widen=True, mode="accumulate")
+        shadow_t = scope.find_shadow(target)
+        if shadow_t is not None and find_type(shadow_t) is not find_type(outer_t):
+            unify_types(shadow_t, value_type, widen=True, mode="accumulate")
+        return
+    target_type = resolve_expression(target, scope)
     unify_types(target_type, value_type, widen=True, mode="accumulate")
-    # # target to krotka — element pojedynczy lub łańcuch getterów
-    # if isinstance(node.target, tuple):
-    #     for t in node.target:
-    #         check(t)
-    # else:
-    #     check(node.target)
-    # check(node.value)
 
 
 # Operatory porównania (CMP_OP) zwracają Przełącznik; arytmetyczne — Liczbę.

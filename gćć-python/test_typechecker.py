@@ -1384,6 +1384,55 @@ def test_intersection_of_union_bounds(parse):
             prelude + "aby działać:\n    doglądaj Pies o kości \"szynka\"\n"))
 
 
+@pytest.mark.integration
+def test_subject_reassign_widens_outer_rejecting_later_chain(parse):
+    """Zapis do nazwy podmiotu w gałęzi idzie NA ZEWNĄTRZ i akumuluje typ
+    zewnętrzny do unii — chain po bloku, zakładający stary wariant,
+    jest odrzucany (dawniej zapis szedł w cień i chain przechodził)."""
+    src = (
+        "definicja Tulipana:\n    płatek (Tekst)\n"
+        "\n"
+        "definicja Róży:\n    wysokość (Liczba)\n"
+        "\n"
+        "Kwiatki to Róża albo Tulipan\n"
+        "\n"
+        "aby działać:\n"
+        "    kwiatek to Tulipan o płatku \"x\"\n"
+        "    kwiatek jest:\n"
+        "        Tulipanem:\n"
+        "            kwiatek to Róża o wysokości pięć\n"
+        "        inaczej:\n"
+        "            nic to zero\n"
+        "    ozdoba to płatek kwiatka\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_subject_reassign_degrades_shadow_for_later_reads(parse):
+    """Po przypisaniu do podmiotu w jego gałęzi cień zawężenia jest
+    zdegradowany do unii — dalszy zawężony odczyt (chain zakładający
+    wariant) w tej samej gałęzi jest odrzucany."""
+    src = (
+        "definicja Węzła:\n"
+        "    głowa (Liczba)\n"
+        "    ogon (Spis)\n"
+        "\n"
+        "Spis to Węzeł albo Nic\n"
+        "\n"
+        "aby badać spis:\n"
+        "    spis jest:\n"
+        "        Węzłem z ogonem:\n"
+        "            spis to ogon\n"
+        "            suma to głowa spisu\n"
+        "        Niczym:\n"
+        "            nic to zero\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
 _LISTA_LICZB = (
     "definicja Węzła z elementem:\n"
     "    wartość (element)\n"
