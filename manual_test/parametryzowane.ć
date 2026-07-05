@@ -91,7 +91,7 @@ aby obrócić_lewo drzewo:
         Niczym:
             zwróć drzewo
 
-aby zbalansować drzewo (DrzewoZbalansowane z elementem) -> DrzewoZbalansowane z elementem:
+aby zbalansować drzewo:
     wychylenie to wychyl drzewo
     jeśli wychylenie większe od jeden:
         filar to lewy_syn drzewa
