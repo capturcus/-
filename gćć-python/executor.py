@@ -12,6 +12,12 @@ class ReturnUnwind(Exception):
     def __init__(self, value):
         self.value = value
 
+class BreakUnwind(Exception):
+    """`stop` — przerywa najbliższą pętlę `dopóki`."""
+
+class ContinueUnwind(Exception):
+    """`dalej` — przeskakuje do następnej iteracji `dopóki`."""
+
 def _field_value(struct, keys):
     """Wartość pola struktury (RuntimeValue) po scope-keys pola."""
     for stored_key, value in struct.value.items():
@@ -163,6 +169,10 @@ def execute_function(function_lemmas, args):
         return r.value
     except ErrorPropagation as e:
         return e.value
+    except BreakUnwind:
+        raise RuntimeError("'stop' poza pętlą 'dopóki'")
+    except ContinueUnwind:
+        raise RuntimeError("'dalej' poza pętlą 'dopóki'")
     return RuntimeValue(value=None, type="Nic")
 
 def execute_block(stmts, scope):
@@ -190,7 +200,16 @@ def execute_block(stmts, scope):
             execute_block(branch, RuntimeScope(parent=scope))
         if isinstance(stmt, ast.While):
             while execute_expression(stmt.cond.resolved, scope).value:
-                execute_block(stmt.body, RuntimeScope(parent=scope))
+                try:
+                    execute_block(stmt.body, RuntimeScope(parent=scope))
+                except ContinueUnwind:
+                    continue
+                except BreakUnwind:
+                    break
+        if isinstance(stmt, ast.Break):
+            raise BreakUnwind()
+        if isinstance(stmt, ast.Continue):
+            raise ContinueUnwind()
         if isinstance(stmt, ast.Match):
             subject = execute_expression(stmt.subject.resolved, scope)
             for br in stmt.branches:

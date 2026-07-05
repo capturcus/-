@@ -836,11 +836,16 @@ def resolve_while(node, scope):
 
 
 def resolve_for(node, scope):
-    resolve_expression(node.collection, scope)
-    body_scope = scope.child_for(node, "body")
-    body_scope.get_type(node.var)
-    for stmt in node.body:
-        resolve_statement(stmt, body_scope)
+    """Głośna odmowa (decyzja językowa, lipiec 2026): `dla X w Y:` to
+    iteracja po kolekcji, a kolekcje w Ć są biblioteczne (Lista, Mapa, AVL
+    pisane w samym Ć) — pętla wymagałaby protokołu typ→iterowanie
+    (typeclassy/traity), którego język świadomie jeszcze nie ma. Gramatyka
+    i rezolucja zostają (składnia zarezerwowana); typowanie odmawia."""
+    raise TypeCheckError(
+        f"konstrukcja `dla ... w ...:` wymaga protokołu iteracji, którego "
+        f"język jeszcze nie ma (linia {getattr(node.var, 'line', None)}) — "
+        f"użyj rekursji z dopasowaniem `jest:`, pętli `dopóki` albo "
+        f"złożenia przez `zastosuj`")
 
 
 def resolve_return(node, scope):

@@ -1385,6 +1385,21 @@ def test_intersection_of_union_bounds(parse):
 
 
 @pytest.mark.integration
+def test_for_loop_is_loudly_rejected(parse):
+    """Decyzja językowa: `dla ... w ...:` czeka na protokół iteracji
+    (kolekcje są biblioteczne, nie wbudowane) — typechecker odmawia
+    głośno zamiast cichego pomijania pętli w executorze."""
+    src = (
+        "aby działać lista:\n"
+        "    dla elementu w liście:\n"
+        "        wynik to element\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError,
+                       match="protokołu iteracji"):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
 def test_join_of_two_free_params(parse):
     """Pełne więzy podtypowania: `zwróć kot` / `zwróć pies` to poszlaki
     dolne — parametry pozostają niezależne (bez sklejania równością),

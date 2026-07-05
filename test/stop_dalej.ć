@@ -1,0 +1,15 @@
+# `stop` przerywa najbliższą pętlę `dopóki`, `dalej` przeskakuje do
+# następnej iteracji — oba działają przez zagnieżdżone bloki (`jeśli`).
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    licznik to zero
+    dopóki prawda:
+        licznik to licznik plus jeden
+        jeśli licznik równe trzy:
+            dalej
+        jeśli licznik większe od pięć:
+            stop
+        wypisz licznik
+    wypisz "koniec"
