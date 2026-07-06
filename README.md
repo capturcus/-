@@ -109,20 +109,15 @@ Prawie każdy program zaczyna się tak:
 ```
 uwzględnij przygrywka.ć
 
-można wypisać coś (Cokolwiek) -> Nic
-
 aby działać:
     wypisz "siemka"
 ```
 
 - `uwzględnij przygrywka.ć` dołącza bibliotekę standardową
   ([przygrywkę](#przygrywka--biblioteka-standardowa)) — m.in. typ `Tekst`,
-  bez którego literały tekstowe się nie typują. Ścieżka jest względna
+  bez którego literały tekstowe się nie typują; funkcja `wypisać`. Ścieżka jest względna
   wobec pliku, więc program poza katalogiem `test/` wskazuje ją np. jako
   `uwzględnij ../test/przygrywka.ć`.
-- `można wypisać coś (Cokolwiek) -> Nic` deklaruje wbudowaną funkcję
-  wypisującą — interpreter ma jej implementację, ale sygnaturę deklaruje
-  się w programie (przygrywka jej nie zawiera).
 - `aby działać:` to punkt wejścia — interpreter po sprawdzeniu typów
   wywołuje funkcję o lemacie `działać` (bez argumentów).
 
@@ -351,8 +346,7 @@ można wypisać tekst (Tekst) -> Nic
 można czytać_plik ze ścieżki (Tekst) -> Rezultat o elemencie Tekst
 ```
 
-Interpreter ma wbudowane implementacje siedmiu funkcji — sygnatury
-sześciu z nich deklaruje przygrywka, `wypisać` deklaruje się samemu:
+Interpreter ma wbudowane implementacje siedmiu funkcji, zadeklarowane w przygrywce:
 
 | funkcja | znaczenie |
 |---|---|
@@ -448,10 +442,18 @@ definicja Psa:
 Zwierzę to Kot albo Pies
 ```
 
-Wariantem może być każda struktura zdefiniowana w programie oraz
-wbudowane `Nic` — jedyny typ zeroargumentowy (`Opcja to Coś albo Nic`).
-Unie nie zagnieżdżają się w uniach i nie przyjmują własnych parametrów
-typu (dziedziczą [parametry swoich członków](#typy-parametryzowane-i-aliasy)).
+Wariantem może być struktura zdefiniowana w programie, wbudowane `Nic`
+— jedyny typ zeroargumentowy (`Opcja to Coś albo Nic`) — oraz **inna
+unia**. Unie tworzą więc hierarchię, a podtypowanie jest przechodnie:
+
+```
+Pies to Jamnik albo Pudel
+Zwierzę to Kot albo Pies          # Jamnik ≤ Pies ≤ Zwierzę
+```
+
+Cykl w hierarchii (`A to B …`, `B to A …`) to błąd. Unie nie przyjmują
+własnych parametrów typu (dziedziczą [parametry swoich
+członków](#typy-parametryzowane-i-aliasy) — przez wszystkie poziomy).
 
 **Dopasowanie** to polski orzecznik — „X *jest* (czym?) *Kotem*".
 Gałęzie w **narzędniku**, dekonstrukcja pól przez `z polem`:
@@ -472,9 +474,14 @@ Zasady:
 - Podmiotem może być **dowolne wyrażenie**, nie tylko zmienna:
   `szukaj po pięciu jest:` dopasowuje wynik wywołania,
   `zawartość pudełka jest:` — wartość pola.
-- Gałęzie muszą pokryć **wszystkie** warianty unii; `Nic` obsługuje
-  gałąź `Niczym:`. Alternatywnie ostatnią gałęzią może być `inaczej:` —
-  pokrywa pozostałe warianty (bez wiązania pól).
+- Gałęzie muszą **rozłącznie pokryć wszystkie** warianty unii; `Nic`
+  obsługuje gałąź `Niczym:`. Alternatywnie ostatnią gałęzią może być
+  `inaczej:` — pokrywa pozostałe warianty (bez wiązania pól).
+- Gałęzią może być też **pod-unia** — `Psem:` łapie i Jamnika, i Pudla
+  (także w runtime); wolno mieszać poziomy (`Kotem`/`Jamnikiem`/`Pudlem`
+  na `Zwierzęciu`), ale gałęzie nakładające się (`Psem:` obok
+  `Jamnikiem:`) to błąd. Pod-unia nie wiąże pól — całość bierze się
+  przez `jako`.
 - Wiązać można podzbiór pól (również żadne: `Kotem:`); pola związane są
   lokalne dla gałęzi. Przed słowem zaczynającym się od „z" przyimek
   przybiera formę `ze`: `Krokiem ze znakiem:`.
@@ -740,19 +747,21 @@ bo komunikaty o błędach odwołują się wprost do nich.
 
 ### Relacja podtypowania — kompletna definicja
 
-Podtypowanie jest **wyłącznie nominalne** i wyczerpuje się w trzech
+Podtypowanie jest **wyłącznie nominalne** i wyczerpuje się w dwóch
 regułach:
 
 1. każdy typ jest podtypem samego siebie,
-2. struktura jest podtypem unii, której jest **zadeklarowanym** członkiem
-   (`Kot ≤ Zwierzę`, gdy `Zwierzę to Kot albo Pies`),
-3. unia jest podtypem unii tylko wtedy, gdy to **ta sama** unia.
+2. typ (struktura albo unia) jest podtypem unii, której jest
+   **zadeklarowanym** członkiem — przechodnio przez poziomy hierarchii:
+   przy `Pies to Jamnik albo Pudel` i `Zwierzę to Kot albo Pies` mamy
+   `Jamnik ≤ Pies ≤ Zwierzę`, więc też `Jamnik ≤ Zwierzę`.
 
 Nic więcej. Nie ma podtypowania strukturalnego (dwie struktury o tych
-samych polach to obce typy), nie ma relacji między różnymi uniami (nawet
-gdy jedna zawiera warianty drugiej), unia nigdy nie jest podtypem swojego
-członka, nie ma typu „wszystko" ani „nic-nie-ma" (`Nic` to zwykła
-wartość, nie dno kraty), nie ma niejawnych konwersji.
+samych polach to obce typy), nie ma relacji między uniami spoza
+zadeklarowanej hierarchii (nawet gdy jedna wylicza warianty drugiej),
+unia nigdy nie jest podtypem swojego członka, nie ma typu „wszystko"
+ani „nic-nie-ma" (`Nic` to zwykła wartość, nie dno kraty), nie ma
+niejawnych konwersji.
 
 Dwie konsekwencje wariancji:
 
@@ -779,7 +788,9 @@ rodzaje informacji:
   funkcji oczekującej Zwierzęcia").
 
 Typ to **podsumowanie faktów**: pojedyncza głowa, a gdy faktów jest
-więcej — najmniejsza zadeklarowana unia, która pokrywa je wszystkie.
+więcej — najmniejsza zadeklarowana unia, która pokrywa je wszystkie
+(mierzona liczbą liści hierarchii, więc wybiera najciaśniejszy poziom:
+`Jamnik ⊔ Pudel = Pies`, ale `Jamnik ⊔ Kot = Zwierzę`).
 Wymagania niczego nie „ustalają" — tylko filtrują i sprawdzają. Stąd
 cztery zachowania, które warto znać:
 
@@ -837,9 +848,10 @@ Trzy narzędzia o różnej semantyce:
 
 `X jest:` to jednocześnie kontrola wariantów i zawężanie typów:
 
-- Gałęzie muszą dokładnie odpowiadać członkom **jednej zadeklarowanej
-  unii** (brak gałęzi, gałąź spoza unii i powtórka to osobne, precyzyjne
-  błędy). Z `inaczej:` wystarczy podzbiór wariantów.
+- Gałęzie muszą **rozłącznie pokrywać liście jednej zadeklarowanej
+  unii** — wprost, pod-uniami albo mieszanką poziomów (brak gałęzi,
+  gałąź spoza unii, powtórka i nakładające się gałęzie to osobne,
+  precyzyjne błędy). Z `inaczej:` wystarczy podzbiór wariantów.
 - W gałęzi `Kotem:` podmiot **jest Kotem** — pola wariantu dostępne
   wprost, przez wiązania `z polem` i przez łańcuchy na podmiocie.
   Gałąź `inaczej:` **nie zawęża** (nie ma „negatywnego" wnioskowania).
@@ -947,6 +959,7 @@ obecnym interpreterem, a `*.wynik` pokazuje jego wyjście:
 | `struktury.ć`, `unie.ć`, `dopasowanie.ć`, `jako.ć` | struktury, unie, dopasowanie |
 | `podmiot.ć`, `podmiot_wyrażenie.ć`, `przepisanie_podmiotu.ć`, `kursor.ć` | dopasowanie na wyrażeniu, zapis do podmiotu, idiom kursora |
 | `zawężenie.ć`, `przecięcie.ć`, `pierwszeństwo_unii.ć`, `dysjunkcja.ć`, `ujednoznacznienie.ć` | system typów w akcji |
+| `hierarchia.ć` | zagnieżdżone unie: podtypowanie przechodnie, gałąź-unia w dopasowaniu |
 | `adnotowana_deklaracja.ć`, `adnotowane_przepisanie.ć`, `aliasy.ć` | adnotacje i aliasy |
 | `tożsamość.ć`, `cykl.ć` | `równe` vs `tożsame`, struktury cykliczne |
 | `tekst_lista.ć`, `znak.ć`, `znak_liczba.ć`, `łańcuchy.ć`, `dna.ć` | teksty, znaki, most Znak↔Liczba |

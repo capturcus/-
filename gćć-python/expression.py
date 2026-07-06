@@ -143,11 +143,15 @@ class _Ctx:
     - `field_lemmas`: set[lemma_tuple] — projekcja `fields_by_type` po
       lemmie, do szybkiego "czy ten token to w ogóle field" w detekcji
       chain. Konkretne dopasowanie (number/gender) robi `find_in_set`."""
-    def __init__(self, function_defs, types, fields_by_type, field_lemmas):
+    def __init__(self, function_defs, types, fields_by_type, field_lemmas,
+                 unions=frozenset()):
         self.function_defs = function_defs
         self.types = types
         self.fields_by_type = fields_by_type
         self.field_lemmas = field_lemmas
+        # Nazwy typów wariantowych — gałęzie dopasowań mogą być uniami
+        # (hierarchia nominalna), a unie nie wiążą pól.
+        self.unions = unions
 
 
 class _Scope:
@@ -1130,7 +1134,8 @@ def _build_ctx(module):
             f"polem i funkcją: {names}"
         )
     _validate_unions(unions, fields_by_type)
-    return _Ctx(function_defs, types, fields_by_type, field_lemmas)
+    return _Ctx(function_defs, types, fields_by_type, field_lemmas,
+                frozenset(unions))
 
 
 def _validate_unions(unions, fields_by_type):
@@ -1161,19 +1166,32 @@ def _validate_unions(unions, fields_by_type):
             if m == ("Nic",):
                 continue  # wbudowany wariant pusty — zawsze dozwolony
             if m in unions:
-                raise ResolveError(
-                    f"wariant '{m_name}' typu wariantowego '{name}' sam "
-                    f"jest typem wariantowym — zagnieżdżanie unii jest "
-                    f"niedozwolone",
-                    line=ud.line,
-                )
+                # Zagnieżdżona unia: wariantem może być inna unia —
+                # hierarchia nominalna (Labrador ≤ Pies ≤ Zwierzę).
+                # Cykle wykrywa przebieg poniżej.
+                continue
             if m not in fields_by_type:
                 raise ResolveError(
                     f"wariant '{m_name}' typu wariantowego '{name}' nie "
-                    f"jest zdefiniowaną strukturą — wariantem może być "
-                    f"tylko struktura z 'definicja'",
+                    f"jest zdefiniowaną strukturą ani unią — wariantem "
+                    f"może być struktura z 'definicja', inna unia albo "
+                    f"wbudowane 'Nic'",
                     line=ud.line,
                 )
+    # Cykl w hierarchii unii (Pies ≤ Zwierzę ≤ … ≤ Pies) nie ma liści —
+    # wykrywany od razu, z pełną ścieżką.
+    def _cykl(start, u, ścieżka):
+        for m in unions[u].members:
+            if m == start:
+                trasa = " → ".join("_".join(x) for x in ścieżka + [m])
+                raise ResolveError(
+                    f"cykl typów wariantowych: {trasa}",
+                    line=unions[start].line,
+                )
+            if m in unions and m not in ścieżka:
+                _cykl(start, m, ścieżka + [m])
+    for u in unions:
+        _cykl(u, u, [u])
 
 
 def _describe_leftover(tokens, max_show=3):
@@ -1468,10 +1486,15 @@ def _resolve_match(stmt, ctx, preps, scope):
         type_str = "_".join(br.type_name)
         if br.type_name == ("Nic",):
             field_set = frozenset()  # wbudowane Nic — brak pól do związania
+        elif br.type_name in ctx.unions:
+            # Gałąź-unia (hierarchia): pokrywa wszystkie swoje warianty,
+            # nie wiąże pól (pól wspólnych nie ma z definicji nominalnej);
+            # całą wartość można wziąć przez `jako`.
+            field_set = frozenset()
         elif br.type_name not in ctx.fields_by_type:
             raise ResolveError(
-                f"wariant '{type_str}' w dopasowaniu 'jest:' nie jest zdefiniowaną "
-                f"strukturą",
+                f"wariant '{type_str}' w dopasowaniu 'jest:' nie jest "
+                f"zdefiniowaną strukturą ani unią",
                 line=br.line,
             )
         else:

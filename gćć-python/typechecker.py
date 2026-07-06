@@ -147,19 +147,51 @@ def członkowie(głowa):
     return {"".join(m) for m in ud.members}
 
 
-def czy_głowa_podtypem(pod, nad):
-    """S ≤ S; S ≤ U gdy S jest członkiem U. Unia ≤ inna unia tylko gdy
-    to ta sama unia."""
+def czy_głowa_podtypem(pod, nad, _widziane=None):
+    """Podtypowanie nominalne PRZECHODNIE: S ≤ S; S ≤ U gdy S jest
+    członkiem U albo członkiem członka-unii (hierarchia:
+    Labrador ≤ Pies ≤ Zwierzę). Cykle unii odrzuca resolver, ale
+    strażnik `_widziane` i tak chroni przed zapętleniem."""
     if pod == nad:
         return True
     czł = członkowie(nad)
-    return czł is not None and pod in czł
+    if czł is None:
+        return False
+    if pod in czł:
+        return True
+    if _widziane is None:
+        _widziane = set()
+    if nad in _widziane:
+        return False
+    _widziane.add(nad)
+    return any(członkowie(m) is not None
+               and czy_głowa_podtypem(pod, m, _widziane)
+               for m in czł)
+
+
+def członkowie_przechodni(głowa, _widziane=None):
+    """LIŚCIE hierarchii unii: struktury (i Nic) osiągalne przez
+    zagnieżdżone unie. None gdy `głowa` nie jest unią."""
+    czł = członkowie(głowa)
+    if czł is None:
+        return None
+    if _widziane is None:
+        _widziane = set()
+    if głowa in _widziane:
+        return set()
+    _widziane.add(głowa)
+    liście = set()
+    for m in czł:
+        pod = członkowie_przechodni(m, _widziane)
+        liście |= pod if pod is not None else {m}
+    return liście
 
 
 def najmniejsza_unia(głowy):
     """Najmniejsza zadeklarowana unia pokrywająca wszystkie `głowy`
-    (każda głowa jest tą unią albo jej członkiem). None gdy żadna nie
-    pokrywa; remis minimalnych → błąd."""
+    (przechodnio — głowa może być liściem zagnieżdżonej unii).
+    Rozmiar mierzony liczbą LIŚCI. None gdy żadna nie pokrywa;
+    remis minimalnych → błąd."""
     if module is None:
         return None
     kandydatki = []
@@ -167,9 +199,8 @@ def najmniejsza_unia(głowy):
         if not isinstance(decl, ast.UnionDef):
             continue
         uh = "".join(decl.name)
-        czł = {"".join(m) for m in decl.members}
-        if all(g == uh or g in czł for g in głowy):
-            kandydatki.append((len(czł), uh))
+        if all(czy_głowa_podtypem(g, uh) for g in głowy):
+            kandydatki.append((len(członkowie_przechodni(uh)), uh))
     if not kandydatki:
         return None
     kandydatki.sort()
@@ -181,34 +212,50 @@ def najmniejsza_unia(głowy):
     return kandydatki[0][1]
 
 
-def _union_param_names(głowa):
-    """Niejawne parametry unii: dziedziczone po nazwach od członków-struktur,
+def _union_param_names(głowa, _widziane=None):
+    """Niejawne parametry unii: dziedziczone po nazwach od członków —
+    struktur wprost, a przez zagnieżdżone unie rekurencyjnie —
     w kolejności pierwszego wystąpienia; [] gdy brak."""
     ud = find_union_def((głowa,)) if module is not None else None
     if ud is None:
         return []
+    if _widziane is None:
+        _widziane = set()
+    if głowa in _widziane:
+        return []
+    _widziane.add(głowa)
     params = []
     for m in ud.members:
         sd = find_struct_def(m)
-        if sd is None:
-            continue
-        for p in sd.params:
-            names = frozenset("".join(l) for l in p.name.lemmas_set)
+        if sd is not None:
+            nowe = [frozenset("".join(l) for l in p.name.lemmas_set)
+                    for p in sd.params]
+        else:
+            nowe = _union_param_names("".join(m), _widziane)
+        for names in nowe:
             if not any(names & s for s in params):
                 params.append(names)
     return params
 
 
+def _param_names_dla(głowa):
+    """Nazwy parametrów typu (struktura → własne, unia → niejawne)."""
+    sd = find_struct_def((głowa,))
+    if sd is not None:
+        return [frozenset("".join(l) for l in p.name.lemmas_set)
+                for p in sd.params]
+    if członkowie(głowa) is not None:
+        return _union_param_names(głowa)
+    return []
+
+
 def _mapowanie_członka(członek, unia):
-    """Pary (i, j): i-ty parametr struktury-członka odpowiada j-temu
-    niejawnemu argumentowi unii (po nazwach)."""
-    sd = find_struct_def(członek)
-    if sd is None:
-        return []
+    """Pary (i, j): i-ty parametr członka (struktury ALBO pod-unii)
+    odpowiada j-temu niejawnemu argumentowi unii (po nazwach)."""
+    m_params = _param_names_dla(członek)
     u_params = _union_param_names(unia)
     pary = []
-    for i, p in enumerate(sd.params):
-        names = {"".join(l) for l in p.name.lemmas_set}
+    for i, names in enumerate(m_params):
         for j, u_names in enumerate(u_params):
             if names & u_names:
                 pary.append((i, j))
@@ -389,7 +436,7 @@ def _sugestia_unii(głowy):
             continue
         uh = "".join(decl.name)
         czł = {"".join(m) for m in decl.members}
-        pokryte = {g for g in głowy if g == uh or g in czł}
+        pokryte = {g for g in głowy if czy_głowa_podtypem(g, uh)}
         if pokryte and pokryte != set(głowy):
             poza = sorted(set(głowy) - pokryte)
             linie.append(f"    • {_unia_ze_składem(uh)} — nie obejmuje: "
@@ -634,7 +681,8 @@ def _zmaterializuj(t, wymagaj=False, widziane=None):
                 if t.alternatywy_nota else "")
         # Dyskryminatory: członkowie występujący tylko w jednej opcji.
         wskazówka = ""
-        składy = {h: (członkowie(h) or {h}) for h in t.alternatywy}
+        składy = {h: (członkowie_przechodni(h) or {h})
+                  for h in t.alternatywy}
         unikaty = []
         for h, czł in składy.items():
             reszta = set().union(*(c for g, c in składy.items() if g != h))
@@ -1384,13 +1432,30 @@ def _fakty_dolne(t, widziane=None):
     return głowy
 
 
+def _liście_gałęzi(b):
+    return członkowie_przechodni(b) or {b}
+
+
 def _union_for_match(subject_t, branch_heads, line):
     branch_set = set(branch_heads)
-    cands = [
-        decl for decl in module.body
-        if isinstance(decl, ast.UnionDef)
-        and {"".join(m) for m in decl.members} == branch_set
-    ]
+    # Wyczerpujące dopasowanie w hierarchii: gałęzie (struktury albo
+    # pod-unie) muszą ROZŁĄCZNIE pokrywać wszystkie liście unii —
+    # {Kot, Pies} i {Kot, Labrador, Chihuahua} pokrywają Zwierzę.
+    cands = []
+    for decl in module.body:
+        if not isinstance(decl, ast.UnionDef):
+            continue
+        liście_u = członkowie_przechodni("".join(decl.name))
+        pokryte = set()
+        ok = True
+        for b in branch_set:
+            lb = _liście_gałęzi(b)
+            if not lb <= liście_u or pokryte & lb:
+                ok = False
+                break
+            pokryte |= lb
+        if ok and pokryte == liście_u:
+            cands.append(decl)
     znane = _głowy_znane(subject_t)
     if len(cands) > 1 and znane:
         zawężone = [c for c in cands
@@ -1402,10 +1467,23 @@ def _union_for_match(subject_t, branch_heads, line):
         return cands[0]
     if not cands:
         for głowa in znane:
-            czł = członkowie(głowa)
+            czł = członkowie_przechodni(głowa)
             if czł is not None:
-                brakuje = czł - branch_set
-                nadmiar = branch_set - czł
+                pokryte, nakładki = set(), []
+                for b in sorted(branch_set):
+                    lb = _liście_gałęzi(b)
+                    if pokryte & lb:
+                        nakładki.append(b)
+                    pokryte |= lb
+                if nakładki:
+                    raise TypeCheckError(
+                        f"dopasowanie 'jest:' (linia {line}) ma "
+                        f"nakładające się gałęzie — "
+                        f"{', '.join(nakładki)} pokrywa warianty ujęte "
+                        f"już w innej gałęzi (np. pod-unia obok jej "
+                        f"członka); usuń węższą albo szerszą gałąź")
+                brakuje = czł - pokryte
+                nadmiar = pokryte - czł
                 skąd = _nota_o_głowie(subject_t, głowa)
                 pochodzenie = (f" (podmiot jest "
                                f"'{_unia_ze_składem(głowa)}'"
@@ -1454,7 +1532,8 @@ def _unions_for_partial_match(subject_t, branch_heads, line):
     cands = [
         decl for decl in module.body
         if isinstance(decl, ast.UnionDef)
-        and branch_set <= {"".join(m) for m in decl.members}
+        and all(czy_głowa_podtypem(b, "".join(decl.name))
+                for b in branch_set)
     ]
     if not cands:
         raise TypeCheckError(
@@ -1530,9 +1609,24 @@ def resolve_match(node, scope):
             continue
         sd = find_struct_def(br.type_name)
         if sd is None:
+            # Gałąź bez struktury: wbudowane Nic albo POD-UNIA
+            # (hierarchia) — pod-unia zawęża podmiot do siebie i dzieli
+            # niejawne argumenty z unią podmiotu (po nazwach).
             br_scope = scope.child_for(br, "body")
-            if br.alias is not None:
-                br_scope.declare(br.alias, Konkret("".join(br.type_name)))
+            głowa_br = "".join(br.type_name)
+            if członkowie(głowa_br) is not None:
+                inst = _unia_applied(głowa_br)
+                if linked is not None:
+                    for i, j in _mapowanie_członka(głowa_br, linked.głowa):
+                        ogranicz(inst.args[i], linked.args[j])
+                        ogranicz(linked.args[j], inst.args[i])
+                if br.alias is not None:
+                    br_scope.declare(br.alias, inst)
+                subject = node.subject.resolved
+                if isinstance(subject, ast.Identifier):
+                    br_scope.declare_shadow(subject, inst)
+            elif br.alias is not None:
+                br_scope.declare(br.alias, Konkret(głowa_br))
             for stmt in br.body:
                 resolve_statement(stmt, br_scope)
             continue
@@ -1945,7 +2039,7 @@ def resolve_getter_chain(node, scope):
         for g, _ in base_t.górne:
             if isinstance(g, Konkret):
                 dozwolone.add(g.głowa)
-                dozwolone |= (członkowie(g.głowa) or set())
+                dozwolone |= (członkowie_przechodni(g.głowa) or set())
         if dozwolone:
             przefiltrowani = [c for c in candidates
                               if "".join(c[0].name) in dozwolone]
@@ -1956,7 +2050,7 @@ def resolve_getter_chain(node, scope):
         if not przeżyli:
             # Chain przez wartość typu unii: podpowiedz zawężenie.
             for głowa in znane:
-                czł = członkowie(głowa)
+                czł = członkowie_przechodni(głowa)
                 if czł is not None:
                     warianty = sorted(
                         "".join(s.name) for s, _, _ in candidates

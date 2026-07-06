@@ -80,6 +80,29 @@ def _field_set(struct, keys, value):
 # aliasu `Tekst` (literały tekstowe są wtedy nielegalne — typechecker).
 tekst_lista = None
 
+# Hierarchia unii: nazwa unii → zbiór LIŚCI (struktur) osiągalnych przez
+# zagnieżdżone unie — gałąź-unia dopasowania łapie każdy swój liść.
+unie_liście = {}
+
+
+def _wylicz_unie(module_node):
+    człony = {"".join(n.name): ["".join(m) for m in n.members]
+              for n in module_node.body if isinstance(n, ast.UnionDef)}
+
+    def liście(u, widziane):
+        if u in widziane:
+            return set()
+        widziane.add(u)
+        out = set()
+        for m in człony.get(u, ()):
+            if m in człony:
+                out |= liście(m, widziane)
+            else:
+                out.add(m)
+        return out
+
+    return {u: liście(u, set()) for u in człony}
+
 def _wykryj_tekst_listowy(module_node):
     """Klucze reprezentacji tekstu Z MODUŁU (nie hardkodowane): alias
     `Tekst` → (łańcuch aliasów) → unia → jej członek-struktura o dwóch
@@ -501,8 +524,12 @@ def execute_block(stmts, scope):
         if isinstance(stmt, ast.Match):
             subject = execute_expression(stmt.subject.resolved, scope)
             for br in stmt.branches:
-                if br.type_name is not None and "".join(br.type_name) != subject.type:
-                    continue
+                if br.type_name is not None:
+                    głowa_br = "".join(br.type_name)
+                    if (głowa_br != subject.type
+                            and subject.type
+                            not in unie_liście.get(głowa_br, ())):
+                        continue
                 br_scope = RuntimeScope(parent=scope)
                 for fid in br.fields:
                     br_scope.vars.append((fid.scope_keys, _field_value(subject, fid.scope_keys)))
@@ -523,9 +550,10 @@ def execute_block(stmts, scope):
             raise ReturnUnwind(execute_expression(stmt.value.resolved, scope))
 
 def execute(module_node):
-    global module_funcs, tekst_lista
+    global module_funcs, tekst_lista, unie_liście
     module_funcs = [node for node in module_node.body if isinstance(node, ast.FunctionDef)]
     tekst_lista = _wykryj_tekst_listowy(module_node)
+    unie_liście = _wylicz_unie(module_node)
     call_stack.clear()
     try:
         execute_function([("działać",)], [])

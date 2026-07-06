@@ -1205,3 +1205,143 @@ def test_pętla_dla_odmawia_głośno(parse):
     )
     with pytest.raises(TypeCheckError, match="protokół iteracji"):
         typechecker.resolve_module(parse(src))
+
+
+# =====================================================================
+# Hierarchia unii (unie jako warianty unii)
+# =====================================================================
+
+def _moduł_hierarchii():
+    typechecker.module = ast.Module(body=[
+        ast.StructDef(name=("Kot",), fields=[], params=[]),
+        ast.StructDef(name=("Labrador",), fields=[], params=[]),
+        ast.StructDef(name=("Chihuahua",), fields=[], params=[]),
+        ast.UnionDef(name=("Pies",),
+                     members=[("Labrador",), ("Chihuahua",)]),
+        ast.UnionDef(name=("Zwierzę",), members=[("Kot",), ("Pies",)]),
+    ])
+
+
+def test_podtypowanie_przechodnie_przez_poziomy():
+    _moduł_hierarchii()
+    assert typechecker.czy_głowa_podtypem("Labrador", "Pies")
+    assert typechecker.czy_głowa_podtypem("Pies", "Zwierzę")
+    assert typechecker.czy_głowa_podtypem("Labrador", "Zwierzę")
+    assert not typechecker.czy_głowa_podtypem("Zwierzę", "Pies")
+    assert not typechecker.czy_głowa_podtypem("Kot", "Pies")
+
+
+def test_członkowie_przechodni_to_liście():
+    _moduł_hierarchii()
+    assert typechecker.członkowie_przechodni("Zwierzę") == {
+        "Kot", "Labrador", "Chihuahua"}
+    assert typechecker.członkowie_przechodni("Pies") == {
+        "Labrador", "Chihuahua"}
+
+
+def test_najmniejsza_unia_wybiera_poziom():
+    _moduł_hierarchii()
+    assert typechecker.najmniejsza_unia(
+        {"Labrador", "Chihuahua"}) == "Pies"
+    assert typechecker.najmniejsza_unia({"Labrador", "Kot"}) == "Zwierzę"
+    assert typechecker.najmniejsza_unia({"Pies", "Kot"}) == "Zwierzę"
+
+
+def test_ogranicz_liść_do_unii_babki():
+    _moduł_hierarchii()
+    ogranicz(Konkret("Labrador"), Konkret("Zwierzę"))  # nie rzuca
+    ogranicz(Konkret("Pies"), Konkret("Zwierzę"))      # nie rzuca
+    v = new_type()
+    ogranicz(Konkret("Labrador"), v)
+    ogranicz(Konkret("Kot"), v)
+    assert ty(v) == "Zwierzę"
+
+
+_HIERARCHIA = (
+    "definicja Kota:\n    imię (Znak)\n"
+    "\n"
+    "definicja Jamnika:\n    kość (Znak)\n"
+    "\n"
+    "definicja Pudla:\n    fryzura (Znak)\n"
+    "\n"
+    "Pies to Jamnik albo Pudel\n"
+    "\n"
+    "Zwierzę to Kot albo Pies\n"
+    "\n"
+)
+
+
+@pytest.mark.integration
+def test_dopasowanie_gałęzią_unią(parse):
+    """Gałąź `Psem:` pokrywa oba liście pod-unii — dopasowanie
+    {Kot, Pies} na Zwierzęciu jest wyczerpujące."""
+    src = _HIERARCHIA + (
+        "aby opisać zwierzę (Zwierzę) -> Znak:\n"
+        "    zwierzę jest:\n"
+        "        Kotem z imieniem:\n"
+        "            zwróć imię\n"
+        "        Psem:\n"
+        "            zwróć 'p'\n"
+        "\n"
+        "aby działać:\n"
+        "    litera to opisz Jamnik o kości 'j'\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["litera"] == "Znak"
+
+
+@pytest.mark.integration
+def test_dopasowanie_liśćmi_przez_poziomy(parse):
+    """Wyczerpująco także mieszanką poziomów: {Kot, Jamnik, Pudel}."""
+    src = _HIERARCHIA + (
+        "aby opisać zwierzę (Zwierzę) -> Znak:\n"
+        "    zwierzę jest:\n"
+        "        Kotem z imieniem:\n"
+        "            zwróć imię\n"
+        "        Jamnikiem z kością:\n"
+        "            zwróć kość\n"
+        "        Pudlem z fryzurą:\n"
+        "            zwróć fryzura\n"
+    )
+    typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_nakładające_się_gałęzie_rzucają(parse):
+    src = _HIERARCHIA + (
+        "aby opisać zwierzę (Zwierzę) -> Znak:\n"
+        "    zwierzę jest:\n"
+        "        Kotem z imieniem:\n"
+        "            zwróć imię\n"
+        "        Psem:\n"
+        "            zwróć 'p'\n"
+        "        Jamnikiem:\n"
+        "            zwróć 'j'\n"
+    )
+    with pytest.raises(TypeCheckError,
+                       match="nakładające się gałęzie"):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_join_wybiera_najciaśniejszy_poziom(parse):
+    src = _HIERARCHIA + (
+        "aby działać:\n"
+        "    pupil to Jamnik o kości 'a'\n"
+        "    pupil to Pudel o fryzurze 'b'\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["pupil"] == "Pies"
+
+
+@pytest.mark.integration
+def test_liść_przechodzi_do_slotu_babki(parse):
+    src = _HIERARCHIA + (
+        "aby przyjąć zwierzę (Zwierzę) -> Liczba:\n"
+        "    zwróć zero\n"
+        "\n"
+        "aby działać:\n"
+        "    n to przyjmij Jamnik o kości 'x'\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["n"] == "Liczba"

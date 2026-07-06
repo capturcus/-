@@ -1,0 +1,46 @@
+# Hierarchia unii: unia może być wariantem innej unii — podtypowanie
+# jest przechodnie (Jamnik ≤ Pies ≤ Zwierzę). Dopasowanie łapie
+# gałęzią-unią (`Psem:`) każdy jej liść, także w runtime; join
+# przypisań wybiera najciaśniejszy poziom (Jamnik ⊔ Pudel = Pies).
+
+definicja Kota:
+    imię (Znak)
+
+definicja Jamnika:
+    kość (Znak)
+
+definicja Pudla:
+    fryzura (Znak)
+
+Pies to Jamnik albo Pudel
+
+Zwierzę to Kot albo Pies
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby opisać zwierzę (Zwierzę) -> Znak:
+    zwierzę jest:
+        Kotem z imieniem:
+            zwróć imię
+        Psem:
+            zwróć 'p'
+
+aby rozpoznać psa (Pies) -> Znak:
+    pies jest:
+        Jamnikiem z kością:
+            zwróć kość
+        Pudlem z fryzurą:
+            zwróć fryzura
+
+aby działać:
+    wypisz (opisz Kot o imieniu 'k')
+    wypisz (opisz Jamnik o kości 'j')
+    wypisz (opisz Pudel o fryzurze 'f')
+    wypisz (rozpoznaj Jamnik o kości 'x')
+    pupil to Jamnik o kości 'a'
+    pupil to Pudel o fryzurze 'b'
+    pupil jest:
+        Jamnikiem:
+            wypisz 'J'
+        Pudlem:
+            wypisz 'P'

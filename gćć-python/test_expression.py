@@ -1378,14 +1378,25 @@ def test_union_builtin_member_raises(parse):
         parse(src)
 
 
-def test_union_member_being_union_raises(parse):
+def test_union_member_may_be_union(parse):
+    """Hierarchia nominalna: unia może być wariantem innej unii."""
     src = (
         _UNION_BASE
         + "definicja Pustki:\n    nic (Liczba)\n\n"
         "Rezultat to Wynik albo Błąd\n"
         "Wszystko to Rezultat albo Pustka\n"
     )
-    with pytest.raises(ast.ResolveError, match="zagnieżdżanie unii"):
+    parse(src)  # nie rzuca
+
+
+def test_union_cycle_raises(parse):
+    src = (
+        _UNION_BASE
+        + "definicja Pustki:\n    nic (Liczba)\n\n"
+        "Rezultat to Wszystko albo Błąd\n"
+        "Wszystko to Rezultat albo Pustka\n"
+    )
+    with pytest.raises(ast.ResolveError, match="cykl typów wariantowych"):
         parse(src)
 
 
