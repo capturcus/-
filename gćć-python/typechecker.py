@@ -347,18 +347,30 @@ def _param_pedigree(head, i):
     return None, None
 
 
+# Prawda podczas scalania poszlak w `_force_lowers`: wyłącza odroczenie
+# `wartość ≤ slot` w unify_types — scalanie JEST momentem joinu i ponowne
+# odkładanie poszlaki na listę zapętlałoby scalanie w nieskończoność.
+_scalanie_poszlak = False
+
+
 def _force_lowers(t):
     """Scal KONKRETNE poszlaki dolne zmiennej (fakty `x ≤ t` zebrane, gdy
     `x` było wolne) w jej typ — join przez widening, jakby kolejne `zwróć`
     dostarczyło konkret. Wolne poszlaki zostają na liście (schemat pozostaje
     polimorficzny); w instancji konkretyzują je argumenty wywołania, a tu
     scala je pierwszy dotyk unifikacji. Zwraca reprezentanta po scaleniu."""
+    global _scalanie_poszlak
     ft = find_type(t)
     while isinstance(ft, TypeVar) and ft.lowers:
         lowers, ft.lowers = ft.lowers, []
         pending, folded = [], False
         for lo in lowers:
-            flo = find_type(lo)
+            # Rekurencyjnie: poszlaka sama bywa zmienną z odroczonymi
+            # poszlakami (slot argumentu po odroczeniu `wartość ≤ slot`) —
+            # bez zejścia join nigdy by ich nie zobaczył. Cykl poszlak
+            # jest bezpieczny: lista jest zdejmowana PRZED iteracją, więc
+            # ponowne wejście widzi pustą i wraca od razu.
+            flo = _force_lowers(lo)
             if flo is ft or isinstance(flo, TypeVar):
                 if flo is not ft:
                     pending.append(flo)
@@ -367,7 +379,11 @@ def _force_lowers(t):
             # wiąże obie strony, a klasa poszlaki (np. argument wywołania)
             # nie może urosnąć do unii tylko dlatego, że ret jest kresem.
             snapshot = VariantVar(variants=set(flo.variants))
-            unify_types(ft, snapshot, widen=True, mode="accumulate")
+            poprzednie, _scalanie_poszlak = _scalanie_poszlak, True
+            try:
+                unify_types(ft, snapshot, widen=True, mode="accumulate")
+            finally:
+                _scalanie_poszlak = poprzednie
             folded = True
             ft = find_type(ft)
         if isinstance(ft, TypeVar):
@@ -553,6 +569,20 @@ def _unify_variants(ft0, ft1, widen=False, mode="equate"):
     return new_variant
 
 
+def _członek_unii(vv):
+    """Czy jednogłowy konkret jest członkiem jakiejś zadeklarowanej unii —
+    wtedy fakt `wartość ≤ slot` ma na slocie więcej niż jedno rozwiązanie
+    (wariant albo unia) i nie wolno go betonować równością."""
+    if module is None or len(vv.variants) != 1:
+        return False
+    h = next(iter(vv.variants)).head
+    for decl in module.body:
+        if (isinstance(decl, ast.UnionDef)
+                and h in {"".join(m) for m in decl.members}):
+            return True
+    return False
+
+
 def unify_types(t0, t1, widen=False, mode="equate"):
     """`widen=True` dopuszcza rozszerzenie struktura→unia przy konflikcie głów
     — używane na POZYCJACH TOP-LEVEL (przypisanie, return, argument wywołania,
@@ -562,8 +592,19 @@ def unify_types(t0, t1, widen=False, mode="equate"):
     (slot inferowany: ret bez adnotacji, przypisanie, podmiot `jest:`) —
     detektyw, slot rośnie od poszlak. Rekurencyjna unifikacja argumentów
     typów jest zawsze ścisła (typy parametryzowane są inwariantne)."""
-    ft0 = _force_lowers(t0)
-    ft1 = _force_lowers(t1)
+    r0, r1 = find_type(t0), find_type(t1)
+    if ((isinstance(r0, TypeVar) and r0.lowers and isinstance(r1, VariantVar))
+            or (isinstance(r1, TypeVar) and r1.lowers
+                and isinstance(r0, VariantVar))):
+        # Wolna zmienna z poszlakami dolnymi kontra KONKRET: nie scalaj
+        # poszlak przed unifikacją (fold-first robił z poszlaki `w ≤ α`
+        # przedwczesną równość i wynik zależał od kolejności ograniczeń)
+        # — najpierw właściwa unifikacja, poszlaki dołoży ścieżka
+        # wiązania joinem.
+        ft0, ft1 = r0, r1
+    else:
+        ft0 = _force_lowers(t0)
+        ft1 = _force_lowers(t1)
     _note_trail(ft0, ft1)
     if ft0 is ft1:
         return ft0
@@ -606,6 +647,22 @@ def unify_types(t0, t1, widen=False, mode="equate"):
     # Co najmniej jedna strona to wolna zmienna — przepnij ją na drugą.
     concrete, abstract = (ft0, ft1) if isinstance(ft0, VariantVar) else (ft1, ft0)
     if isinstance(concrete, VariantVar):
+        if (widen and mode == "check" and abstract is ft0
+                and abstract.upper is None
+                and not _scalanie_poszlak and _członek_unii(concrete)):
+            # Wolny SLOT w trybie check (pole konstrukcji, argument
+            # wywołania) kontra wartość-wariant należący do unii: jedyny
+            # uprawniony fakt to `wartość ≤ slot` (slot może się jeszcze
+            # okazać unią) — poszlaka dolna zamiast równości. Betonowanie
+            # równością czyniło wynik inferencji zależnym od KOLEJNOŚCI
+            # pól konstrukcji (`o głowie (Krok …) o ogonie (Lista[Rozkaz])`
+            # padało, a po zamianie kolejności przechodziło). Tryb
+            # accumulate (zwroty — sztafeta wideningu) wiąże jak dotąd:
+            # tam join następuje na bieżąco i schematy mają konkretne typy.
+            if all(find_type(lo) is not concrete for lo in abstract.lowers):
+                abstract.lowers.append(concrete)
+            _absorb_trail(abstract, concrete)
+            return abstract
         if _occurs(abstract, concrete):
             raise TypeCheckError(f"occurs check: {abstract} w {concrete}")
         if abstract.upper is not None:
@@ -630,9 +687,22 @@ def unify_types(t0, t1, widen=False, mode="equate"):
         if not concrete.upper:
             raise TypeCheckError(
                 "sprzeczne ograniczenia górne łączonych zmiennych typowych")
+    # Wiązanie z konkretem: czekające KONKRETNE poszlaki dolne zmiennej
+    # scala się z wynikiem joinem (widening) PO równości — fold przed
+    # równością zamieniał poszlakę ≤ w równość. Wolne poszlaki zostają
+    # odłączone (jak dotąd — schemat odświeży je przy instancjonowaniu).
+    pending = abstract.lowers
+    abstract.lowers = []
     _absorb_trail(concrete, abstract)
     abstract.next = concrete
-    return concrete
+    wynik = concrete
+    for lo in pending:
+        flo = find_type(lo)
+        if flo is find_type(wynik) or isinstance(flo, TypeVar):
+            continue
+        snapshot = VariantVar(variants=set(flo.variants))
+        wynik = unify_types(wynik, snapshot, widen=True, mode="accumulate")
+    return find_type(wynik)
 
 class Scope:
     """Węzeł drzewa scope'ów. Korzeń = ciało funkcji; dzieci = ciała bloków

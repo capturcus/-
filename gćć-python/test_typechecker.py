@@ -3184,6 +3184,47 @@ def test_equality_union_var_vs_member_keeps_var_type(parse):
 
 
 @pytest.mark.integration
+def test_union_element_inference_is_field_order_independent(parse):
+    """Wariant w slocie-elemencie PRZED unią i PO niej — oba szyki pól
+    konstrukcji dają Lista[Rozkaz]. Dawniej `o głowie (Krok …)` betonowało
+    element listy równością na wariancie (poszlaka `Krok ≤ element`
+    czytana jako `element = Krok`) i ogon-unia nie pasował — wynik
+    inferencji zależał od kolejności pól."""
+    base = (
+        "definicja Kroku:\n"
+        "    znak (Znak)\n"
+        "\n"
+        "definicja Cyklu:\n"
+        "    numer (Liczba)\n"
+        "\n"
+        "Rozkaz to Krok albo Cykl\n"
+        "\n"
+        "definicja Ogniwa z elementem:\n"
+        "    głowa (element)\n"
+        "    ogon (Lista)\n"
+        "\n"
+        "Lista to Ogniwo albo Nic\n"
+        "\n"
+        "Program to Lista o elemencie Rozkaz\n"
+        "\n"
+        "aby brać program (Program) -> Liczba:\n"
+        "    zwróć zero\n"
+        "\n"
+        "aby działać:\n"
+        "    próżnia (Program) to Nic\n"
+    )
+    głowa_najpierw = base + (
+        "    a to bierz (Ogniwo o głowie (Krok o znaku 'k') o ogonie próżni)\n"
+    )
+    ogon_najpierw = base + (
+        "    a to bierz (Ogniwo o ogonie próżni o głowie (Krok o znaku 'k'))\n"
+    )
+    typechecker.resolve_module(parse(głowa_najpierw))
+    _reset_typechecker_state()
+    typechecker.resolve_module(parse(ogon_najpierw))
+
+
+@pytest.mark.integration
 def test_przygrywka_dzielenie_types_as_liczba(parse):
     """Wbudowane `podzielić`/`wziąć_resztę_z_dzielenia` (deklaracje
     w przygrywce) typują się jak każdy ekstern: Liczba → Liczba."""

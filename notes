@@ -61,7 +61,7 @@ v Tekst to Lista Znaków
 v diagnostyka
 v brak dzielenia (operatory to tylko plus/minus/razy + porównania);
 
-Kolejność pól konstrukcji wpływa na wynik inferencji
+v Kolejność pól konstrukcji wpływa na wynik inferencji
 input/output do pliku
 chr/ord do przygrywki - i guess
 ulepszyć przygrywkę: brak mapy, filtra, folda (mimo że język ma wartości funkcyjne i zastosuj!), indeksowania listy, pokazać liczbę -> Tekst. Auto-include przygrywki też by zdjął rytuał z każdego pliku
