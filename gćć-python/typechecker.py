@@ -911,6 +911,11 @@ def resolve_expression(node, scope):
     if isinstance(node, ast.IntLit):
         return variant(["Liczba"])
     if isinstance(node, ast.StrLit):
+        # Moduł z aliasem `Tekst` (przygrywka): literał tekstowy jest listą
+        # znaków — typ przez przezroczystą ekspansję aliasu. Bez aliasu
+        # Tekst pozostaje wbudowanym konkretem.
+        if find_type_alias("Tekst") is not None:
+            return elaborate(ast.TypeRef(head=("Tekst",), args=[]), {})
         return variant(["Tekst"])
     if isinstance(node, ast.BoolLit):
         return variant(["Przełącznik"])
@@ -946,12 +951,50 @@ def resolve_assignment(node, scope):
 # Operatory porównania (CMP_OP) zwracają Przełącznik; arytmetyczne — Liczbę.
 _COMPARISON_OPS = {"<", ">", "<=", ">=", "=", "!=", "≡"}
 
+_EQUALITY_OPS = {"=", "!=", "≡"}
+
+
+def _equality_subsumes(t0, t1):
+    """Porównywalność równościowa przez wspólną unię, BEZ wiązania klas
+    operandów — porównanie nie jest przepływem wartości, więc nie może
+    degradować typu zmiennej do unii (`ogniwo równe Nic` zostawia ogniwu
+    jego chainy). Obejmuje członek≤unia ORAZ członek≤członek (wspólna
+    zadeklarowana unia, np. `ogniwo równe Nic`); argumenty członków wiążą
+    się z argumentami unii (lista znaków ≠ lista liczb → błąd). False →
+    zwykła ścisła unifikacja (wspólne głowy, linkowanie zmiennych)."""
+    r0, r1 = _force_lowers(t0), _force_lowers(t1)
+    if not (isinstance(r0, VariantVar) and isinstance(r1, VariantVar)):
+        return False
+    if {a.head for a in r0.variants} & {a.head for a in r1.variants}:
+        return False
+    # Strona będąca dokładnie unią zostaje slotem; inaczej wspólna unia
+    # pokrywająca obie strony (świeża aplikacja, żyje tylko w porównaniu).
+    u_at = None
+    for u, m in ((r0, r1), (r1, r0)):
+        members = _union_members(u)
+        if members is not None and all(a.head in members for a in m.variants):
+            u_at = next(iter(u.variants))
+            break
+    if u_at is None:
+        u = _widening_union({a.head for a in r0.variants}
+                            | {a.head for a in r1.variants})
+        if u is None:
+            return False
+        u_at = _union_applied(u)
+    for a in r0.variants | r1.variants:
+        if a.head != u_at.head:
+            _link_member_args(a, u_at)
+    return True
+
+
 def resolve_bin_op(node, scope):
     t0 = resolve_expression(node.left, scope)
     t1 = resolve_expression(node.right, scope)
-    unify_types(t0, t1)
     if node.op in _COMPARISON_OPS:
+        if not (node.op in _EQUALITY_OPS and _equality_subsumes(t0, t1)):
+            unify_types(t0, t1)
         return variant(["Przełącznik"])
+    unify_types(t0, t1)
     unify_types(t0, variant(["Liczba"]))
     return t0
 

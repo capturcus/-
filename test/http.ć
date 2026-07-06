@@ -1,0 +1,85 @@
+# Parser żądania HTTP na Tekście (liście znaków). Rozkłada surowe
+# żądanie na strukturę: wiersz żądania (metoda, ścieżka, wersja) oraz
+# listę nagłówków (nazwa + treść). Parsowanie jest funkcyjne — tnie tekst
+# rekurencyjnie po znakach-rozdzielnikach, bez żadnych mutacji.
+#
+# `Żądanie` jest sparametryzowane elementem listy nagłówków (niejawnie,
+# jak każda struktura z polem listowym): pole `metoda (Tekst)` wiąże swój
+# element na Znak przez alias, więc nie miesza się z elementem nagłówków.
+
+uwzględnij przygrywka.ć
+
+można wypisać coś (Cokolwiek) -> Nic
+
+definicja Nagłówka:
+    nazwa (Tekst)
+    treść (Tekst)
+
+definicja Żądania z elementem:
+    metoda (Tekst)
+    ścieżka (Tekst)
+    wersja (Tekst)
+    nagłówki (Lista)
+
+# Prefiks tekstu przed pierwszym wystąpieniem rozdzielnika (całość, gdy
+# rozdzielnika brak).
+aby uciąć tekst (Tekst) przed rozdzielnikiem (Znak) -> Tekst:
+    tekst jest:
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa rozdzielnikowi:
+                zwróć Nic
+            inaczej:
+                zwróć Ogniwo o głowie głowa o ogonie (utnij ogon przed rozdzielnikiem)
+        Niczym:
+            zwróć Nic
+
+# Sufiks tekstu za pierwszym wystąpieniem rozdzielnika (Nic, gdy brak).
+aby odciąć tekst (Tekst) za rozdzielnikiem (Znak) -> Tekst:
+    tekst jest:
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa rozdzielnikowi:
+                zwróć ogon
+            inaczej:
+                zwróć odetnij ogon za rozdzielnikiem
+        Niczym:
+            zwróć Nic
+
+aby odczytać_nagłówek wiersz (Tekst) -> Nagłówek:
+    nazwa to utnij wiersz przed (wyłuskać ":")
+    treść to odetnij wiersz za (wyłuskać ":")
+    zwróć Nagłówek o nazwie nazwa o treści treść
+
+# Nagłówki aż do pustego wiersza (koniec sekcji) albo końca tekstu.
+aby zebrać_nagłówki tekst (Tekst) -> Lista:
+    wiersz to utnij tekst przed (wyłuskać "\n")
+    reszta to odetnij tekst za (wyłuskać "\n")
+    wiersz jest:
+        Niczym:
+            zwróć Nic
+        inaczej:
+            zwróć Ogniwo o głowie (odczytaj_nagłówek wiersz) o ogonie (zebrać_nagłówki reszta)
+
+aby rozłożyć żądanie (Tekst) -> Żądanie:
+    wiersz to utnij żądanie przed (wyłuskać "\n")
+    reszta to odetnij żądanie za (wyłuskać "\n")
+    metoda to utnij wiersz przed (wyłuskać " ")
+    końcówka to odetnij wiersz za (wyłuskać " ")
+    ścieżka to utnij końcówkę przed (wyłuskać " ")
+    wersja to odetnij końcówkę za (wyłuskać " ")
+    zwróć Żądanie o metodzie metoda o ścieżce ścieżka o wersji wersja o nagłówkach (zebrać_nagłówki reszta)
+
+aby wypisać_nagłówki lista (Lista) -> Nic:
+    lista jest:
+        Ogniwem z głową z ogonem:
+            wypisz (sklej (nazwa głowy) z (sklej ":" z (treść głowy)))
+            wypisz_nagłówki ogon
+        Niczym:
+            zwróć Nic
+
+aby działać:
+    surowe to "GET /index.html HTTP/1.1\nHost: example.com\nAccept: text/html\n\n"
+    żądanie to rozłóż surowe
+    wypisz (metoda żądania)
+    wypisz (ścieżka żądania)
+    wypisz (wersja żądania)
+    wypisz_nagłówki (nagłówki żądania)

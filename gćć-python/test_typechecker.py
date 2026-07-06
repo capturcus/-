@@ -2911,9 +2911,25 @@ def test_alias_name_collides_with_union(parse):
 
 
 @pytest.mark.integration
-def test_alias_name_collides_with_builtin(parse):
+def test_alias_shadows_builtin_tekst(parse):
+    """Builtin `Tekst` wolno przesłonić aliasem (migracja tekstu na listę
+    znaków) — literał tekstowy typuje się wtedy przez alias."""
     src = _OGNIWA + (
         "Tekst to Łańcuszek o elemencie Znak\n"
+        "\n"
+        "aby działać:\n"
+        "    napis to \"abc\"\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    assert _var_types()["napis"] == "Łańcuszek"
+
+
+@pytest.mark.integration
+def test_alias_shadowing_other_builtin_rejected(parse):
+    """Przesłonić wolno TYLKO `Tekst` — pozostałe builtiny kolidują."""
+    src = _OGNIWA + (
+        "Liczba to Łańcuszek\n"
     )
     with pytest.raises(expression.ResolveError,
                        match="zadeklarowany dwukrotnie"):
@@ -3006,3 +3022,120 @@ def test_alias_construction_rejected(parse):
     )
     with pytest.raises(SyntaxError):
         parse(src)
+
+
+# =====================================================================
+# Tekst jako lista znaków (przygrywka)
+# =====================================================================
+
+_PRZYGRYWKA = (
+    "definicja Ogniwa z elementem:\n"
+    "    głowa (element)\n"
+    "    ogon (Lista)\n"
+    "\n"
+    "Lista to Ogniwo albo Nic\n"
+    "\n"
+    "Tekst to Lista o elemencie Znak\n"
+    "\n"
+)
+
+
+@pytest.mark.integration
+def test_przygrywka_literal_types_as_lista(parse):
+    src = _PRZYGRYWKA + (
+        "aby działać:\n"
+        "    napis to \"abc\"\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    assert _var_types()["napis"] == "Lista"
+
+
+@pytest.mark.integration
+def test_przygrywka_tekst_annotation_accepts_literal(parse):
+    src = _PRZYGRYWKA + (
+        "aby ocenić napis (Tekst):\n"
+        "    zwróć jeden\n"
+        "\n"
+        "aby działać:\n"
+        "    wynik to oceń \"abc\"\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    assert _var_types()["wynik"] == "Liczba"
+
+
+@pytest.mark.integration
+def test_przygrywka_literal_rejected_by_number_list(parse):
+    """Element literału to Znak — lista liczb go nie przyjmie."""
+    src = _PRZYGRYWKA + (
+        "Ciąg to Lista o elemencie Liczba\n"
+        "\n"
+        "aby ocenić spis (Ciąg):\n"
+        "    zwróć jeden\n"
+        "\n"
+        "aby działać:\n"
+        "    wynik to oceń \"abc\"\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_przygrywka_match_on_literal_binds_znak(parse):
+    """Dopasowanie na literale: głowa ogniwa jest Znakiem."""
+    src = _PRZYGRYWKA + (
+        "aby działać:\n"
+        "    \"abc\" jest:\n"
+        "        Ogniwem z głową:\n"
+        "            pierwszy to głowa\n"
+        "        Niczym:\n"
+        "            nic to zero\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    assert _var_types()["pierwszy"] == "Znak"
+
+
+@pytest.mark.integration
+def test_przygrywka_empty_text_equals_nic_typechecks(parse):
+    """Pusty tekst ≡ Nic — porównanie literału z Nic przechodzi
+    (Nic jest członkiem Listy)."""
+    src = _PRZYGRYWKA + (
+        "aby działać:\n"
+        "    pustka to \"\" równa Nic\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    assert _var_types()["pustka"] == "Przełącznik"
+
+
+@pytest.mark.integration
+def test_przygrywka_equality_rejects_mixed_elements(parse):
+    """Subsumpcja równościowa wiąże argumenty: tekst (lista znaków)
+    nieporównywalny z ogniwem liczb."""
+    src = _PRZYGRYWKA + (
+        "aby działać:\n"
+        "    pustka to \"abc\" równe (Ogniwo o głowie jeden o ogonie Nic)\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_equality_union_var_vs_member_keeps_var_type(parse):
+    """`ogniwo równe Nic` nie degraduje typu zmiennej do unii —
+    porównanie nie jest przepływem wartości."""
+    src = _PRZYGRYWKA + (
+        "aby działać:\n"
+        "    ogniwo to Ogniwo o głowie jeden o ogonie Nic\n"
+        "    pustka to ogniwo równe Nic\n"
+        "    wartość to głowa ogniwa\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    types = _var_types()
+    assert types["ogniwo"] == "Ogniwo"
+    assert types["wartość"] == "Liczba"

@@ -11,9 +11,13 @@ from pathlib import Path
 KATALOG = Path(__file__).resolve().parent
 GCC = KATALOG.parent / "gćć-python" / "gćć.py"
 
+# Pliki biblioteczne (dołączane przez `uwzględnij`) — nie są testami,
+# nie mają `aby działać` ani pliku .wynik.
+BIBLIOTEKI = {"przygrywka.ć"}
+
 
 def main():
-    pliki = sorted(KATALOG.glob("*.ć"))
+    pliki = sorted(p for p in KATALOG.glob("*.ć") if p.name not in BIBLIOTEKI)
     if not pliki:
         print("brak plików .ć w katalogu testów")
         return 1

@@ -1,6 +1,7 @@
 import sys
 
 import ast_nodes as ast
+from expression import _field_canonical_lemma
 from dataclasses import dataclass, field
 
 # Limit Pythona (~1000 ramek) jest za niski dla tree-walkera: głęboka
@@ -44,6 +45,77 @@ def _field_set(struct, keys, value):
             return
     raise RuntimeError(f"pole nie znalezione {keys}")
 
+# Moduł z aliasem `Tekst` (przygrywka) reprezentuje tekst listą znaków:
+# (nazwa ogniwa, klucz pola-głowy, klucz pola-ogona). None → Tekst
+# wbudowany (skalarny string, dotychczasowe zachowanie).
+tekst_lista = None
+
+def _wykryj_tekst_listowy(module_node):
+    """Klucze reprezentacji tekstu Z MODUŁU (nie hardkodowane): alias
+    `Tekst` → (łańcuch aliasów) → unia → jej członek-struktura o dwóch
+    polach, z których dokładnie jedno ma typ tej unii (ogon); drugie to
+    głowa. None gdy moduł nie ma aliasu `Tekst` albo kształt się nie
+    składa (wtedy literały zostają skalarne)."""
+    aliasy = {"".join(n.name): n for n in module_node.body
+              if isinstance(n, ast.TypeAlias)}
+    alias = aliasy.get("Tekst")
+    if alias is None:
+        return None
+    tref = alias.target
+    while "".join(tref.head) in aliasy:
+        tref = aliasy["".join(tref.head)].target
+    union_name = "".join(tref.head)
+    union = next((n for n in module_node.body
+                  if isinstance(n, ast.UnionDef)
+                  and "".join(n.name) == union_name), None)
+    if union is None:
+        return None
+    member_names = {"".join(m) for m in union.members}
+    for n in module_node.body:
+        if not isinstance(n, ast.StructDef):
+            continue
+        if "".join(n.name) not in member_names or len(n.fields) != 2:
+            continue
+        ogony = [f for f in n.fields
+                 if f.type is not None and "".join(f.type.head) == union_name]
+        if len(ogony) != 1:
+            continue
+        głowa = next(f for f in n.fields if f is not ogony[0])
+        return ("".join(n.name),
+                _field_canonical_lemma(głowa.name),
+                _field_canonical_lemma(ogony[0].name))
+    return None
+
+def _lista_znaków(napis):
+    """Desugar literału tekstowego: łańcuch ogniw znaków budowany od
+    końca. Pusty tekst ≡ Nic (świadoma decyzja przygrywki)."""
+    ogniwo, klucz_głowy, klucz_ogona = tekst_lista
+    wynik = RuntimeValue(value=None, type="Nic")
+    for znak in reversed(napis):
+        wynik = RuntimeValue(
+            value={klucz_głowy: RuntimeValue(value=znak, type="Znak"),
+                   klucz_ogona: wynik},
+            type=ogniwo)
+    return wynik
+
+def _znaki_ogniw(rv):
+    """Łańcuch ogniw znaków → python str; None gdy to nie tekst (głowa
+    inna niż Znak, urwany łańcuch, cykl/limit — wtedy zwykły wypis
+    struktur, który sam się obcina)."""
+    ogniwo, klucz_głowy, klucz_ogona = tekst_lista
+    znaki = []
+    while rv.type == ogniwo:
+        if len(znaki) > LIMIT_WYPISU:
+            return None
+        głowa = rv.value[klucz_głowy]
+        if głowa.type != "Znak":
+            return None
+        znaki.append(głowa.value)
+        rv = rv.value[klucz_ogona]
+    if rv.type != "Nic":
+        return None
+    return "".join(znaki)
+
 def _tekst(rv, depth=0):
     if depth > LIMIT_WYPISU:
         return "…"
@@ -52,6 +124,10 @@ def _tekst(rv, depth=0):
     if rv.type == "Nic":
         return "Nic"
     if isinstance(rv.value, dict):
+        if tekst_lista is not None and rv.type == tekst_lista[0]:
+            napis = _znaki_ogniw(rv)
+            if napis is not None:
+                return napis
         fields = ", ".join(f"{'_'.join(k[0])}: {_tekst(v, depth + 1)}"
                            for k, v in rv.value.items())
         return f"{rv.type}({fields})"
@@ -131,6 +207,8 @@ class RuntimeScope:
 
 def execute_expression(expr_node, scope):
     if isinstance(expr_node, ast.StrLit):
+        if tekst_lista is not None:
+            return _lista_znaków(str(expr_node.value))
         return RuntimeValue(value=str(expr_node.value), type="Tekst")
     if isinstance(expr_node, ast.IntLit):
         return RuntimeValue(value=int(expr_node.value), type="Liczba")
@@ -153,6 +231,11 @@ def execute_expression(expr_node, scope):
         args = [execute_expression(w.value, scope) for w in expr_node.args]
         return execute_function([fn.value], args)
     if isinstance(expr_node, ast.StructCreation):
+        # Jawne `Nic` (konstrukcja bez pól) normalizuje się do kanonicznej
+        # wartości None — tej samej, którą daje fall-through funkcji i
+        # desugar pustego tekstu; dwie reprezentacje psuły `równe`/`tożsame`.
+        if "".join(expr_node.type_name) == "Nic":
+            return RuntimeValue(value=None, type="Nic")
         fields = {}
         for arg in expr_node.args:
             if arg.value is None:  # skrót `z polem` — zmienna o nazwie pola
@@ -279,6 +362,7 @@ def execute_block(stmts, scope):
             raise ReturnUnwind(execute_expression(stmt.value.resolved, scope))
 
 def execute(module_node):
-    global module_funcs
+    global module_funcs, tekst_lista
     module_funcs = [node for node in module_node.body if isinstance(node, ast.FunctionDef)]
+    tekst_lista = _wykryj_tekst_listowy(module_node)
     execute_function([("działać",)], [])

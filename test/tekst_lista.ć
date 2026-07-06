@@ -1,0 +1,27 @@
+# Tekst jako lista znaków (przygrywka): literały desugarują się do
+# ogniw, wypis skleja łańcuch znaków z powrotem, dopasowanie widzi
+# ogniwa, równość jest strukturalna, a pusty tekst ≡ Nic.
+
+uwzględnij przygrywka.ć
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby policzyć tekst (Tekst) -> Liczba:
+    tekst jest:
+        Ogniwem z ogonem:
+            zwróć jeden plus policz ogon
+        Niczym:
+            zwróć zero
+
+aby działać:
+    powitanie to "Witaj świecie"
+    wypisz powitanie
+    wypisz (policz powitanie)
+    wypisz (powitanie równe "Witaj świecie")
+    wypisz (powitanie równe "witaj świecie")
+    wypisz ("" równe Nic)
+    powitanie jest:
+        Ogniwem z głową:
+            wypisz głowę
+        Niczym:
+            wypisz "pusto"

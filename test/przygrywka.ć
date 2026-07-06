@@ -1,0 +1,54 @@
+# Przygrywka: wspólne typy i operacje listowo-tekstowe. W module z
+# przygrywką `Tekst` przestaje być typem wbudowanym — alias przesłania
+# builtin i tekst staje się listą znaków. Literały tekstowe desugarują
+# się w wykonaniu do łańcucha ogniw; pusty tekst ≡ Nic (świadoma decyzja).
+#
+# Funkcje listowe są generyczne po elemencie (niejawny parametr unii
+# `element`): działają zarówno na Tekście (Lista o elemencie Znak), jak
+# i na dowolnej innej liście. Wszystko rekurencyjnie i bez adnotacji
+# poza tymi wymuszonymi przez granice (externy, samoreferencja).
+
+definicja Ogniwa z elementem:
+    głowa (element)
+    ogon (Lista)
+
+Lista to Ogniwo albo Nic
+
+Tekst to Lista o elemencie Znak
+
+# Długość listy — liczba ogniw.
+aby zmierzyć listę (Lista) -> Liczba:
+    lista jest:
+        Ogniwem z ogonem:
+            zwróć jeden plus zmierz ogon
+        Niczym:
+            zwróć zero
+
+# Sklejenie dwóch list: elementy pierwszej, potem drugiej.
+aby skleić listę (Lista) z resztą (Lista) -> Lista:
+    lista jest:
+        Ogniwem z głową z ogonem:
+            zwróć Ogniwo o głowie głowa o ogonie (sklej ogon z resztą)
+        Niczym:
+            zwróć resztę
+
+# Odwrócenie listy przez akumulator (element po elemencie na przód).
+aby przełożyć listę (Lista) na stos (Lista) -> Lista:
+    lista jest:
+        Ogniwem z głową z ogonem:
+            zwróć przełóż ogon na (Ogniwo o głowie głowa o ogonie stos)
+        Niczym:
+            zwróć stos
+
+aby odwrócić listę (Lista) -> Lista:
+    zwróć przełóż listę na Nic
+
+# Pierwszy znak tekstu. Tekst bywa pusty (≡ Nic), a Znak nie ma wartości
+# neutralnej — dla pustego zwracamy znak zapytania (`wyłuskać "?"` kończy
+# się natychmiast, bo "?" ma dokładnie jedno ogniwo).
+aby wyłuskać tekst (Tekst) -> Znak:
+    tekst jest:
+        Ogniwem z głową:
+            zwróć głowa
+        inaczej:
+            zwróć wyłuskać "?"

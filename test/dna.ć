@@ -1,0 +1,76 @@
+# Sekwencje DNA/RNA jako Tekst (lista znaków-zasad). Program pokazuje
+# pracę na tekście: transkrypcję DNA→RNA, nić komplementarną, odwrotne
+# dopełnienie oraz zliczanie zasad — wszystko rekurencyjnie, mapując
+# każdą zasadę osobno. Kod jest funkcyjny: żadnych mutacji, nowe nici
+# powstają ze starych.
+
+uwzględnij przygrywka.ć
+
+można wypisać coś (Cokolwiek) -> Nic
+
+# --- pojedyncza zasada ---
+
+# Transkrypcja: w RNA tyminę (T) zastępuje uracyl (U); reszta bez zmian.
+aby przepisać zasadę (Znak) -> Znak:
+    jeśli zasada równa (wyłuskać "T"):
+        zwróć wyłuskać "U"
+    inaczej:
+        zwróć zasada
+
+# Zasada komplementarna w parowaniu Watsona-Cricka: A-T, C-G.
+aby sparować zasadę (Znak) -> Znak:
+    jeśli zasada równa (wyłuskać "A"):
+        zwróć wyłuskać "T"
+    inaczej:
+        jeśli zasada równa (wyłuskać "T"):
+            zwróć wyłuskać "A"
+        inaczej:
+            jeśli zasada równa (wyłuskać "C"):
+                zwróć wyłuskać "G"
+            inaczej:
+                jeśli zasada równa (wyłuskać "G"):
+                    zwróć wyłuskać "C"
+                inaczej:
+                    zwróć zasada
+
+# --- cała nić ---
+
+aby transkrybować nić (Tekst) -> Tekst:
+    nić jest:
+        Ogniwem z głową z ogonem:
+            zwróć Ogniwo o głowie (przepisz głowę) o ogonie (transkrybuj ogon)
+        Niczym:
+            zwróć Nic
+
+aby dopełnić nić (Tekst) -> Tekst:
+    nić jest:
+        Ogniwem z głową z ogonem:
+            zwróć Ogniwo o głowie (sparuj głowę) o ogonie (dopełnij ogon)
+        Niczym:
+            zwróć Nic
+
+# Odwrotne dopełnienie: nić komplementarna czytana od końca — tak zapisuje
+# się drugą nić helisy.
+aby odwrócić_dopełnienie nici (Tekst) -> Tekst:
+    zwróć odwróć (dopełnij nić)
+
+aby zliczyć zasadę (Znak) w nici (Tekst) -> Liczba:
+    nić jest:
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa zasadzie:
+                zwróć jeden plus zlicz zasadę w ogonie
+            inaczej:
+                zwróć zlicz zasadę w ogonie
+        Niczym:
+            zwróć zero
+
+aby działać:
+    nić to "GATTACA"
+    wypisz nić
+    wypisz (zmierz nić)
+    wypisz (transkrybuj nić)
+    wypisz (dopełnij nić)
+    wypisz (odwróć_dopełnienie nici)
+    wypisz (zlicz (wyłuskać "A") w nici)
+    wypisz (zlicz (wyłuskać "G") w nici)
+    wypisz (transkrybuj nić równe "GAUUACA")

@@ -963,7 +963,13 @@ def _build_ctx(module):
             unions[node.name] = node
             types.add(node.name)
         elif isinstance(node, TypeAlias):
-            if node.name in types:
+            # Wbudowany `Tekst` wolno przesłonić aliasem (przygrywka:
+            # `Tekst to Lista o elemencie Znak` — migracja tekstu na listę
+            # znaków); każda inna kolizja nazw pozostaje błędem.
+            collides = (node.name in unions or node.name in fields_by_type
+                        or node.name in aliases
+                        or (node.name in types and node.name != ("Tekst",)))
+            if collides:
                 raise ResolveError(
                     f"typ '{'_'.join(node.name)}' zadeklarowany dwukrotnie",
                     line=node.line,
