@@ -1,238 +1,185 @@
+"""Typechecker Ć — MLsub (simple-sub) z niepełną kratą nominalną.
+
+Rdzeń: zmienne typowe to węzły grafu GRANIC (dolne = co wpływa, górne =
+czego się wymaga), a jedyną operacją jest biunifikacja `ogranicz(pod, nad)`
+— granice wyłącznie PRZYBYWAJĄ, nie ma destrukcyjnego przepinania klas
+union-find, więc wynik nie zależy od kolejności ograniczeń.
+
+Krata typów jest NOMINALNA i NIEPEŁNA: struktura ≤ unia tylko przez
+zadeklarowane `U to A albo B`; join dwóch struktur nie jest liczony
+zachłannie — materializuje się dopiero przy groundingu (najmniejsza
+pokrywająca unia). Łączliwość granic dolnych sprawdzana jest jednak
+ZACHŁANNIE (decyzja projektowa): dolanie granicy, której nie pokrywa
+żadna unia razem z dotychczasowymi, to błąd w linii sprawcy.
+
+Pola struktur są INWARIANTNE (mutowalne przez zapis łańcuchowy —
+wymóg poprawności), strzałki kontrawariantne w argumentach i
+kowariantne w wyniku. Rekursja (także wzajemna) jest MONOMORFICZNA
+w obrębie silnie spójnej składowej grafu wywołań: składowe typuje się
+topologicznie, wywołania wewnątrz składowej współdzielą zmienne
+sygnatury, między składowymi sygnatura jest instancjonowana przez
+skopiowanie osiągalnego grafu granic. Fixpoint nie istnieje.
+
+Rozszerzenie poza teorię MLsub: DYSJUNKCJE kandydatów (`alternatywy`
+na zmiennej) dla częściowych dopasowań `inaczej:` i łańcuchów
+o wielu kandydatach — zbiór możliwych głów zawężany kolejnymi
+granicami; nierozstrzygnięty w punkcie wejścia → błąd ujednoznacznienia.
+"""
+
 import ast_nodes as ast
-import re
 from dataclasses import dataclass, field
 from type_parser import match_args_to_slots
 
-last_type = 0
-type_regex = re.compile(r"t[0-9]+")
-
-# Węzły union-find. eq=False → tożsamość obiektu jest kluczem (hashowalne,
-# porównywane po identyczności), bo łączymy je przez wskaźnik `next`.
-@dataclass(eq=False, repr=False)
-class TypeVar:
-    number: int
-    next: object = None
-    # Ograniczenie górne (typechecker przecięciowy): zbiór dopuszczalnych
-    # głów (frozenset[str]) albo None (bez ograniczeń). Zasilane na pozycjach
-    # SPRAWDŹ (wolna wartość do znanego slotu — fakt „≤ slot", nie „= slot"),
-    # PRZECINANE przy każdym kolejnym ograniczeniu; egzekwowane przy wiązaniu.
-    upper: object = None
-    # Więzy dolne (pełne więzy podtypowania): poszlaki `x ≤ ta zmienna`
-    # z pozycji AKUMULUJ, gdy `x` było jeszcze wolne (np. `zwróć parametr`) —
-    # zamiast sklejania równością, które splątywałoby niezależne zmienne
-    # (∀k,p → k⊔p). KONKRETNE poszlaki są scalane joinem (widening) przez
-    # `_force_lowers`; wolne czekają na instancję/kolejny przebieg.
-    lowers: list = field(default_factory=list)
-    # Ślad wnioskowania: miejsca ("linia N: kontekst"), w których o tej
-    # klasie typów cokolwiek wywnioskowano. Wypisywany przy błędzie
-    # unifikacji, żeby programista widział poszlaki obu stron.
-    trail: list = field(default_factory=list)
-
-    def __repr__(self):
-        return f"t{self.number}"
-
-# Głowa typu strzałkowego (wartości funkcyjne z referencji gerundialnych).
-# Strzałka to zwykły AppliedType: args = (a1, …, ak, ret), arność = len-1 —
-# dzięki temu unifikacja, instantiate i occurs check działają bez zmian.
-ARROW = "→"
-
-
-@dataclass(frozen=True)
-class AppliedType:
-    """Typ konstruktora zaaplikowany do argumentów (zinstancjonowany generyk).
-
-    `head` — nazwa konstruktora (np. "Liczba", "Lista"). `args` — krotka
-    argumentów typu (na razie zawsze pusta; parametryzacja dojdzie później).
-    frozen=True → hashowalne i porównywane po wartości, więc `AppliedType`
-    może być elementem zbioru `VariantVar.variants` i działa przecięcie."""
-    head: str
-    args: tuple = ()
-
-    def __repr__(self):
-        if not self.args:
-            return self.head
-        # Pokazuj REPREZENTANTA argumentu (find_type), nie zapisaną zmienną —
-        # po unifikacji `t35` może już wskazywać np. na Liczbę.
-        args = [repr(find_type(x)) for x in self.args]
-        if self.head == ARROW:
-            return f"({', '.join(args[:-1])}) → {args[-1]}"
-        return f"{self.head}[{', '.join(args)}]"
-
-
-@dataclass(eq=False, repr=False)
-class VariantVar:
-    variants: set = field(default_factory=set)  # set[AppliedType]
-    next: object = None
-    trail: list = field(default_factory=list)  # ślad wnioskowania, jak w TypeVar
-
-    def __repr__(self):
-        return "|".join(sorted(repr(a) for a in self.variants)) if self.variants else "⊥"
 
 class TypeCheckError(Exception):
-    """Konflikt typów — np. unifikacja dwóch konkretów o pustym przecięciu."""
+    """Konflikt typów: niełączliwe granice, głowa poza kratą, itp."""
 
 
-# ---------- kontekst diagnostyczny: bieżąca linia/funkcja + ślad ----------
+# ---------- kontekst diagnostyczny ----------
 
-# Ustawiane przez resolve_statement / resolve_function_def; unify_types
-# dopisuje bieżącą notę do śladu obu stron, a błędy bez lokalizacji
-# dostają dopisek "podczas typowania linii N".
 _ctx_line = None
 _ctx_fun = None
 _current_note = None
 
 
 def _set_note(text):
-    """Nota śladu wnioskowania dla nadchodzących unifikacji — z linią
-    bieżącej instrukcji, jeśli znana."""
     global _current_note
     _current_note = (f"linia {_ctx_line}: {text}"
                      if _ctx_line is not None else text)
 
 
-def _note_trail(*ts):
-    """Dopisz bieżącą notę do śladu reprezentantów podanych typów
-    (bez duplikatów — fixpoint odwiedza te same miejsca wielokrotnie)."""
-    if _current_note is None:
-        return
-    for t in ts:
-        tr = find_type(t).trail
-        if _current_note not in tr:
-            tr.append(_current_note)
+# ---------- typy ----------
+
+last_type = 0
+
+ARROW = "→"
+
+# Zbiór odwiedzonych par (id, id) biunifikacji — terminacja na typach
+# rekurencyjnych; czyszczony w resolve_module. `_pary_żywe` przypina
+# referencje: bez tego odśmiecony tymczasowy Konkret oddaje swój id
+# nowemu obiektowi i świeże ograniczenie bywa fałszywie „już widziane".
+_pary = set()
+_pary_żywe = []
 
 
-def _absorb_trail(dst, *srcs):
-    """Po scaleniu klas union-find nowy reprezentant przejmuje ślady
-    wchłoniętych węzłów."""
-    for src in srcs:
-        if src is dst:
-            continue
-        for e in src.trail:
-            if e not in dst.trail:
-                dst.trail.append(e)
+@dataclass(eq=False, repr=False)
+class Zmienna:
+    """Węzeł grafu granic. `dolne`/`górne` to listy par (typ, nota) —
+    nota niesie linię i kontekst powstania granicy (poszlaka).
+    `alternatywy`: None albo dict głowa→Konkret — dysjunkcja kandydatów."""
+    number: int
+    dolne: list = field(default_factory=list)
+    górne: list = field(default_factory=list)
+    alternatywy: object = None
+    ślad: list = field(default_factory=list)
+
+    def __repr__(self):
+        return f"t{self.number}"
 
 
-def _unify_fail_msg(ft0, ft1):
-    """Komunikat konfliktu unifikacji z poszlakami: wszystkie miejsca,
-    w których cokolwiek wywnioskowano o każdej ze stron."""
-    msg = f"nie można zunifikować {ft0!r} z {ft1!r}"
-    clues = []
-    for side in (ft0, ft1):
-        if side.trail:
-            shown = side.trail[-8:]
-            pominięte = len(side.trail) - len(shown)
-            suffix = f" (i {pominięte} wcześniejszych)" if pominięte else ""
-            clues.append(f"  poszlaki o {side!r}: "
-                         + "; ".join(shown) + suffix)
-    if clues:
-        msg += " — zdecyduj, która poszlaka jest błędna:\n" + "\n".join(clues)
-    return msg
+@dataclass(frozen=True)
+class Konkret:
+    """Aplikacja konstruktora: struktura/unia/builtin/strzałka.
+    Dla strzałki args = (a1..ak, ret)."""
+    głowa: str
+    args: tuple = ()
 
-def variant(heads):
-    # Typ konkretny/wariantowy z iterowalnej kolekcji nazw-głów (stringów).
-    return VariantVar(variants={AppliedType(h) for h in heads})
+    def __repr__(self):
+        if not self.args:
+            return self.głowa
+        args = [repr(a) for a in self.args]
+        if self.głowa == ARROW:
+            return f"({', '.join(args[:-1])}) → {args[-1]}"
+        return f"{self.głowa}[{', '.join(args)}]"
 
-def arrow(arg_types, ret_type):
-    """Typ strzałkowy (a1, …, ak) → ret jako jednogłowy VariantVar."""
-    return VariantVar(variants={
-        AppliedType(ARROW, tuple(arg_types) + (ret_type,))
-    })
 
 def new_type():
     global last_type
-    ret = TypeVar(number=last_type, next=None)
+    v = Zmienna(number=last_type)
     last_type += 1
-    return ret
-
-def find_type(t):
-    # Reprezentant: idź po `next` aż do końca łańcucha union-find.
-    root = t
-    while root.next is not None:
-        root = root.next
-    # Kompresja ścieżki — węzły po drodze wskazują wprost na root, więc
-    # żywa ścieżka od zmiennej zostaje krótka, a stare węzły pośrednie
-    # przestają być osiągalne (GC). Bez tego łańcuchy rosną co przebieg.
-    while t is not root:
-        t.next, t = root, t.next
-    return root
-
-def _occurs(var, t):
-    """Czy `var` (TypeVar) występuje wewnątrz `t` — zapobiega nieskończonym
-    typom (np. α = Lista[α]). Schodzi w argumenty AppliedType."""
-    t = find_type(t)
-    if t is var:
-        return True
-    if isinstance(t, VariantVar):
-        return any(_occurs(var, arg) for a in t.variants for arg in a.args)
-    return False
+    return v
 
 
-def _widening_union(heads):
-    """Głowa zadeklarowanej unii pokrywającej wszystkie `heads` (każda głowa
-    jest tą unią albo jej wariantem-strukturą). To jedyna dopuszczana relacja
-    podtypowania: struktura < typ wariantowy. Przy wielu kandydatach wygrywa
-    najmniejsza (minimalne pokrycie); remis → TypeCheckError. None gdy żadna
-    unia nie pokrywa."""
+def konkret(głowa):
+    return Konkret(głowa)
+
+
+BUILTINS = {"Liczba", "Przełącznik", "Nic", "Znak"}
+
+
+# ---------- krata nominalna ----------
+
+module = None
+
+
+def _find_type_decl(type_name, decl_cls):
     if module is None:
         return None
-    cands = []
+    target = "".join(type_name)
+    for decl in module.body:
+        if isinstance(decl, decl_cls) and "".join(decl.name) == target:
+            return decl
+    return None
+
+
+def find_struct_def(type_name):
+    return _find_type_decl(type_name, ast.StructDef)
+
+
+def find_union_def(type_name):
+    return _find_type_decl(type_name, ast.UnionDef)
+
+
+def find_type_alias(type_name):
+    return _find_type_decl(type_name, ast.TypeAlias)
+
+
+def członkowie(głowa):
+    """Zbiór głów-członków zadeklarowanej unii; None gdy to nie unia."""
+    ud = find_union_def((głowa,)) if module is not None else None
+    if ud is None:
+        return None
+    return {"".join(m) for m in ud.members}
+
+
+def czy_głowa_podtypem(pod, nad):
+    """S ≤ S; S ≤ U gdy S jest członkiem U. Unia ≤ inna unia tylko gdy
+    to ta sama unia."""
+    if pod == nad:
+        return True
+    czł = członkowie(nad)
+    return czł is not None and pod in czł
+
+
+def najmniejsza_unia(głowy):
+    """Najmniejsza zadeklarowana unia pokrywająca wszystkie `głowy`
+    (każda głowa jest tą unią albo jej członkiem). None gdy żadna nie
+    pokrywa; remis minimalnych → błąd."""
+    if module is None:
+        return None
+    kandydatki = []
     for decl in module.body:
         if not isinstance(decl, ast.UnionDef):
             continue
         uh = "".join(decl.name)
-        members = {"".join(m) for m in decl.members}
-        if all(h == uh or h in members for h in heads):
-            cands.append((len(members), uh))
-    if not cands:
+        czł = {"".join(m) for m in decl.members}
+        if all(g == uh or g in czł for g in głowy):
+            kandydatki.append((len(czł), uh))
+    if not kandydatki:
         return None
-    cands.sort()
-    if len(cands) > 1 and cands[0][0] == cands[1][0]:
-        opts = " i ".join(sorted(uh for _, uh in cands[:2]))
+    kandydatki.sort()
+    if len(kandydatki) > 1 and kandydatki[0][0] == kandydatki[1][0]:
         raise TypeCheckError(
-            f"niejednoznaczne rozszerzenie do typu wariantowego: "
-            f"{', '.join(sorted(heads))} pasuje do {opts}"
-        )
-    return cands[0][1]
+            f"głowy {sorted(głowy)} pokrywa więcej niż jedna minimalna "
+            f"unia: {kandydatki[0][1]}, {kandydatki[1][1]} — dodaj "
+            f"adnotację typu")
+    return kandydatki[0][1]
 
 
-def _union_members_by_head(head):
-    """Zbiór głów-członków zadeklarowanej unii o głowie `head`; None gdy
-    `head` nie jest unią (albo nie ma modułu — testy jednostkowe)."""
-    if module is None:
-        return None
-    for decl in module.body:
-        if isinstance(decl, ast.UnionDef) and "".join(decl.name) == head:
-            return {"".join(m) for m in decl.members}
-    return None
-
-
-def _union_members(vv):
-    """Zbiór głów-członków, jeśli `vv` to dokładnie zadeklarowana unia
-    (pojedyncza głowa będąca nazwą unii); inaczej None."""
-    if len(vv.variants) != 1:
-        return None
-    return _union_members_by_head(next(iter(vv.variants)).head)
-
-
-def _allowed_heads(vv):
-    """Zbiór głów dopuszczalnych w slocie typu `vv` (ograniczenie górne):
-    głowy wprost, a dla głów-unii — także ich członkowie."""
-    allowed = set()
-    for a in vv.variants:
-        allowed.add(a.head)
-        members = _union_members_by_head(a.head)
-        if members:
-            allowed |= members
-    return frozenset(allowed)
-
-
-def _union_param_names(head):
-    """NIEJAWNE parametry unii (bez własnej składni): unia dziedziczy
-    parametry typów swoich członków-struktur, po nazwach, w kolejności
-    pierwszego wystąpienia. Każdy parametr to frozenset nazw-aliasów
-    (warianty morfologiczne lematu). Unia bez sparametryzowanych
-    członków → [] (arność 0, zachowanie sprzed zmiany)."""
-    ud = find_union_def(head) if module is not None else None
+def _union_param_names(głowa):
+    """Niejawne parametry unii: dziedziczone po nazwach od członków-struktur,
+    w kolejności pierwszego wystąpienia; [] gdy brak."""
+    ud = find_union_def((głowa,)) if module is not None else None
     if ud is None:
         return []
     params = []
@@ -247,89 +194,34 @@ def _union_param_names(head):
     return params
 
 
-def _union_applied(head, env=None, bound=None):
-    """Węzeł AppliedType unii z niejawnymi argumentami: nazwa parametru
-    widoczna w `env` (wnętrze definicji struktury) → przechwyt — to czyni
-    rekurencyjne struktury jednorodnymi; poza definicją → świeża zmienna
-    per wystąpienie (równości wyprowadza ciało; externy zostają luźne
-    świadomie — konkretyzacja przez użycie).
-
-    `bound` (tylko ekspansja celu aliasu): mapa nazwa-parametru → GOTOWY
-    węzeł typu z aplikacji nazwanej (`o elemencie Znak`). Parametr związany
-    bierze węzeł z mapy Z POMINIĘCIEM przechwytu — wiązanie aliasu nie może
-    wyciec do parametru struktury, w której alias został użyty; parametry
-    niezwiązane przechwytują/świeżą się jak zwykle (alias przezroczysty)."""
-    args = []
-    for names in _union_param_names(head):
-        if bound:
-            b = next((bound[n] for n in names if n in bound), None)
-            if b is not None:
-                args.append(b)
-                continue
-        captured = None
-        if env:
-            for n in names:
-                if n in env:
-                    captured = env[n]
-                    break
-        args.append(captured if captured is not None else new_type())
-    return AppliedType(head, tuple(args))
-
-
-def _union_vv(head, env=None):
-    return VariantVar(variants={_union_applied(head, env)})
-
-
-def _link_member_args(member_at, union_at):
-    """Zwiąż argumenty wariantu-struktury z niejawnymi argumentami unii
-    (po nazwach parametrów). To jest właściwa łata na wymazywanie: element
-    Węzła płynącego do slotu Ogon[e] unifikuje się z `e`, więc lista nie
-    przyjmie ogona o innym elemencie."""
-    sd = find_struct_def(member_at.head)
-    if sd is None or not member_at.args:
-        return
-    u_params = _union_param_names(union_at.head)
+def _mapowanie_członka(członek, unia):
+    """Pary (i, j): i-ty parametr struktury-członka odpowiada j-temu
+    niejawnemu argumentowi unii (po nazwach)."""
+    sd = find_struct_def(członek)
+    if sd is None:
+        return []
+    u_params = _union_param_names(unia)
+    pary = []
     for i, p in enumerate(sd.params):
         names = {"".join(l) for l in p.name.lemmas_set}
         for j, u_names in enumerate(u_params):
-            if names & u_names and i < len(member_at.args) and j < len(union_at.args):
-                # Join poszlak elementu (jak slot wartości pola): różne
-                # warianty elementów z wielu wystąpień łączą się do ich
-                # unii, a konkret-wariant do slotu-unii przechodzi przez
-                # subsumpcję bez wiązania. SLOTEM (t0) jest argument UNII —
-                # odwrotna kolejność wpuszczała gałąź sztafety, która
-                # destrukcyjnie przepinała klasę argumentu wartości na unię
-                # i psuła kolejny przebieg fixpointu (ujawnione przez aliasy
-                # wiążące argument unii konkretem).
-                try:
-                    unify_types(union_at.args[j], member_at.args[i],
-                                widen=True, mode="accumulate")
-                except TypeCheckError as e:
-                    if "niejawny argument" in str(e):
-                        raise
-                    pname = min(("".join(l) for l in p.name.lemmas_set),
-                                key=len)
-                    raise TypeCheckError(
-                        f"niejawny argument '{pname}' typu "
-                        f"'{union_at.head}' (parametr '{pname}' z definicji "
-                        f"'{member_at.head}') nie zgadza się między "
-                        f"wystąpieniami — {e}") from None
+            if names & u_names:
+                pary.append((i, j))
                 break
+    return pary
 
 
-def _param_pedigree(head, i):
-    """(nazwa, definicja) i-tego parametru typu `head`: struktura ma
-    własne parametry, unia dziedziczy je od członków — zwracamy nazwę
-    parametru i nazwę struktury, która go wprowadza. (None, None) gdy
-    `head` nie ma parametrów albo indeks poza zakresem."""
-    sd = find_struct_def(head)
+def _param_pedigree(głowa, i):
+    """(nazwa, definicja) i-tego parametru typu `głowa` — do rodowodu
+    niejawnych argumentów w komunikatach."""
+    sd = find_struct_def(głowa)
     if sd is not None:
         if i < len(sd.params):
             p = sd.params[i]
             return (min(("".join(l) for l in p.name.lemmas_set), key=len),
-                    head)
+                    głowa)
         return None, None
-    ud = find_union_def(head)
+    ud = find_union_def(głowa)
     if ud is None:
         return None, None
     params = []
@@ -347,376 +239,282 @@ def _param_pedigree(head, i):
     return None, None
 
 
-# Prawda podczas scalania poszlak w `_force_lowers`: wyłącza odroczenie
-# `wartość ≤ slot` w unify_types — scalanie JEST momentem joinu i ponowne
-# odkładanie poszlaki na listę zapętlałoby scalanie w nieskończoność.
-_scalanie_poszlak = False
-
-
-def _force_lowers(t):
-    """Scal KONKRETNE poszlaki dolne zmiennej (fakty `x ≤ t` zebrane, gdy
-    `x` było wolne) w jej typ — join przez widening, jakby kolejne `zwróć`
-    dostarczyło konkret. Wolne poszlaki zostają na liście (schemat pozostaje
-    polimorficzny); w instancji konkretyzują je argumenty wywołania, a tu
-    scala je pierwszy dotyk unifikacji. Zwraca reprezentanta po scaleniu."""
-    global _scalanie_poszlak
-    ft = find_type(t)
-    while isinstance(ft, TypeVar) and ft.lowers:
-        lowers, ft.lowers = ft.lowers, []
-        pending, folded = [], False
-        for lo in lowers:
-            # Rekurencyjnie: poszlaka sama bywa zmienną z odroczonymi
-            # poszlakami (slot argumentu po odroczeniu `wartość ≤ slot`) —
-            # bez zejścia join nigdy by ich nie zobaczył. Cykl poszlak
-            # jest bezpieczny: lista jest zdejmowana PRZED iteracją, więc
-            # ponowne wejście widzi pustą i wraca od razu.
-            flo = _force_lowers(lo)
-            if flo is ft or isinstance(flo, TypeVar):
-                if flo is not ft:
-                    pending.append(flo)
+def _unia_applied(głowa, env=None, bound=None):
+    """Konkret unii z niejawnymi argumentami: nazwa widoczna w `env`
+    (wnętrze definicji struktury) → przechwyt; `bound` (aplikacja
+    nazwana) → gotowy węzeł; inaczej świeża zmienna per wystąpienie."""
+    args = []
+    for names in _union_param_names(głowa):
+        if bound:
+            b = next((bound[n] for n in names if n in bound), None)
+            if b is not None:
+                args.append(b)
                 continue
-            # Scal MIGAWKĘ poszlaki, nie jej klasę — widening przy joinie
-            # wiąże obie strony, a klasa poszlaki (np. argument wywołania)
-            # nie może urosnąć do unii tylko dlatego, że ret jest kresem.
-            snapshot = VariantVar(variants=set(flo.variants))
-            poprzednie, _scalanie_poszlak = _scalanie_poszlak, True
-            try:
-                unify_types(ft, snapshot, widen=True, mode="accumulate")
-            finally:
-                _scalanie_poszlak = poprzednie
-            folded = True
-            ft = find_type(ft)
-        if isinstance(ft, TypeVar):
-            ft.lowers = pending + ft.lowers
-        if not folded:
-            break
-    return find_type(t)
+        captured = None
+        if env:
+            for n in names:
+                if n in env:
+                    captured = env[n]
+                    break
+        args.append(captured if captured is not None else new_type())
+    return Konkret(głowa, tuple(args))
 
 
-def _default_from_upper(upper):
-    """Domyślkowanie zmiennej znanej WYŁĄCZNIE z ograniczeń górnych (nigdy
-    nie związanej strukturalnie): zbiór będący dokładnie unią+członkami →
-    ta unia; singleton → ta głowa; inaczej None (grounding zgłosi błąd)."""
-    for u in upper:
-        members = _union_members_by_head(u)
-        if members is not None and upper == frozenset(members | {u}):
-            return _union_vv(u)
-    if len(upper) == 1:
-        return variant(upper)
+def _instancja_struktury(sd):
+    """Świeża instancja struktury: Konkret(nazwa, świeże argi) + env
+    nazwa-parametru → arg."""
+    fresh = [new_type() for _ in sd.params]
+    env = {}
+    for p, a in zip(sd.params, fresh):
+        for lemmas in p.name.lemmas_set:
+            env["".join(lemmas)] = a
+    return Konkret("".join(sd.name), tuple(fresh)), env
+
+
+# ---------- biunifikacja ----------
+
+def _głowy_dolnych(var):
+    return {t.głowa for t, _ in var.dolne if isinstance(t, Konkret)}
+
+
+def _poszlaki(var):
+    noty = [n for _, n in var.dolne if n] + [n for _, n in var.górne if n]
+    widziane, out = set(), []
+    for n in noty:
+        if n not in widziane:
+            widziane.add(n)
+            out.append(n)
+    return out
+
+
+def _msg_konflikt(a, b, noty_a=(), noty_b=()):
+    msg = f"nie można zunifikować {a!r} z {b!r}"
+    linie = []
+    if noty_a:
+        linie.append(f"  poszlaki o {a!r}: " + "; ".join(noty_a[-8:]))
+    if noty_b:
+        linie.append(f"  poszlaki o {b!r}: " + "; ".join(noty_b[-8:]))
+    if linie:
+        msg += " — zdecyduj, która poszlaka jest błędna:\n" + "\n".join(linie)
+    return msg
+
+
+def _zawęź_alternatywy(var, głowa_faktu):
+    """Konkretna granica zawęża dysjunkcję kandydatów: zostają alternatywy
+    zgodne z głową faktu (ta sama, członek, unia zawierająca)."""
+    if var.alternatywy is None:
+        return
+    zgodne = {
+        h: inst for h, inst in var.alternatywy.items()
+        if h == głowa_faktu
+        or czy_głowa_podtypem(głowa_faktu, h)
+        or czy_głowa_podtypem(h, głowa_faktu)
+    }
+    if not zgodne:
+        opcje = ", ".join(sorted(var.alternatywy))
+        raise TypeCheckError(
+            f"typ '{głowa_faktu}' nie pasuje do żadnej z możliwości "
+            f"{{{opcje}}} zebranych z wcześniejszych użyć")
+    var.alternatywy = zgodne
+    if len(zgodne) == 1:
+        (jedyna_inst,) = zgodne.values()
+        var.alternatywy = None
+        ogranicz(var, jedyna_inst)
+
+
+def _dodaj_dolną(var, typ):
+    """Nowa granica dolna + ZACHŁANNY test łączliwości: głowy wszystkich
+    konkretnych dolnych muszą mieć wspólną głowę albo pokrywającą unię."""
+    if any(t is typ or t == typ for t, _ in var.dolne):
+        return False
+    if isinstance(typ, Konkret) and typ.głowa != ARROW:
+        głowy = {g for g in _głowy_dolnych(var) if g != ARROW}
+        nowe = głowy | {typ.głowa}
+        if len(nowe) > 1 and najmniejsza_unia(nowe) is None:
+            stare = next(t for t, _ in var.dolne
+                         if isinstance(t, Konkret) and t.głowa != ARROW)
+            raise TypeCheckError(_msg_konflikt(
+                stare, typ,
+                _poszlaki(var),
+                [_current_note] if _current_note else ()))
+        _zawęź_alternatywy(var, typ.głowa)
+    var.dolne.append((typ, _current_note))
+    if _current_note and _current_note not in var.ślad:
+        var.ślad.append(_current_note)
+    return True
+
+
+def _dodaj_górną(var, typ):
+    if any(t is typ or t == typ for t, _ in var.górne):
+        return False
+    if isinstance(typ, Konkret) and typ.głowa != ARROW:
+        _zawęź_alternatywy(var, typ.głowa)
+    var.górne.append((typ, _current_note))
+    if _current_note and _current_note not in var.ślad:
+        var.ślad.append(_current_note)
+    return True
+
+
+def ogranicz(pod, nad):
+    """Biunifikacja: `pod` (typ produkowany) płynie w `nad` (wymaganie).
+    Granice tylko przybywają; para (pod, nad) przetwarzana raz."""
+    if pod is nad:
+        return
+    klucz = (id(pod), id(nad))
+    if klucz in _pary:
+        return
+    _pary.add(klucz)
+    _pary_żywe.append((pod, nad))
+    if isinstance(pod, Konkret) and isinstance(nad, Konkret):
+        _ogranicz_konkrety(pod, nad)
+    elif isinstance(pod, Zmienna) and isinstance(nad, Zmienna):
+        # Krawędź var–var zapisywana OBUSTRONNIE: górna na pod, dolna na
+        # nad — grounding i materializacja czytają dolne, poszlaki płyną
+        # w obie strony.
+        _dodaj_górną(pod, nad)
+        _dodaj_dolną(nad, pod)
+        for d, nota in list(pod.dolne):
+            if d is not nad:
+                _przepchnij(d, nad, nota)
+        for g, nota in list(nad.górne):
+            if g is not pod:
+                _przepchnij(pod, g, nota)
+    elif isinstance(pod, Zmienna):
+        if _dodaj_górną(pod, nad):
+            for d, nota in list(pod.dolne):
+                _przepchnij(d, nad, nota)
+    else:
+        if _dodaj_dolną(nad, pod):
+            for g, nota in list(nad.górne):
+                _przepchnij(pod, g, nota)
+
+
+def _przepchnij(pod, nad, nota):
+    """Domknięcie przechodnie z dekoracją poszlaką granicy pośredniczącej."""
+    try:
+        ogranicz(pod, nad)
+    except TypeCheckError as e:
+        if nota and nota not in str(e):
+            raise TypeCheckError(f"{e}\n  przez granicę: {nota}") from None
+        raise
+
+
+def _ogranicz_konkrety(pod, nad):
+    if pod.głowa == ARROW or nad.głowa == ARROW:
+        if pod.głowa != nad.głowa:
+            raise TypeCheckError(_msg_konflikt(pod, nad))
+        if len(pod.args) != len(nad.args):
+            raise TypeCheckError(
+                f"niezgodna liczba argumentów funkcji: {pod!r} vs {nad!r}")
+        *pa, pret = pod.args
+        *na, nret = nad.args
+        for x, y in zip(pa, na):
+            ogranicz(y, x)          # argumenty kontrawariantnie
+        ogranicz(pret, nret)        # wynik kowariantnie
+        return
+    if pod.głowa == nad.głowa:
+        if len(pod.args) != len(nad.args):
+            raise TypeCheckError(
+                f"niezgodna arność '{pod.głowa}': "
+                f"{len(pod.args)} vs {len(nad.args)}")
+        for i, (x, y) in enumerate(zip(pod.args, nad.args)):
+            _inwariantnie(pod.głowa, i, x, y)
+        return
+    if czy_głowa_podtypem(pod.głowa, nad.głowa):
+        # struktura ≤ unia: argumenty członka ↔ niejawne argumenty unii
+        # po nazwach parametrów, inwariantnie.
+        for i, j in _mapowanie_członka(pod.głowa, nad.głowa):
+            if i < len(pod.args) and j < len(nad.args):
+                _inwariantnie(nad.głowa, j, pod.args[i], nad.args[j])
+        return
+    raise TypeCheckError(_msg_konflikt(pod, nad))
+
+
+def _inwariantnie(głowa, i, x, y):
+    """Argument konstruktora: inwariantny (pola są mutowalne). Konflikt
+    dekorowany rodowodem niejawnego parametru."""
+    try:
+        ogranicz(x, y)
+        ogranicz(y, x)
+    except TypeCheckError as e:
+        if "niejawny argument" in str(e):
+            raise
+        pname, origin = _param_pedigree(głowa, i)
+        if pname is None:
+            raise
+        raise TypeCheckError(
+            f"niejawny argument '{pname}' typu '{głowa}' (parametr "
+            f"'{pname}' z definicji '{origin}') nie zgadza się między "
+            f"wystąpieniami — {e}") from None
+
+
+# ---------- materializacja (grounding / wypis) ----------
+
+def _zmaterializuj(t, wymagaj=False, widziane=None):
+    """Najlepszy konkret dla typu: konkret → on sam; zmienna → join głów
+    dolnych (pojedyncza głowa albo najmniejsza pokrywająca unia), w braku
+    dolnych default z górnych (singleton / dokładna unia+członkowie).
+    `wymagaj=True` → None zamiast wolnej zmiennej (grounding zgłosi błąd
+    z kontekstem)."""
+    if widziane is None:
+        widziane = set()
+    if isinstance(t, Konkret):
+        return t
+    if t in widziane:
+        return None
+    widziane.add(t)
+    if t.alternatywy is not None and len(t.alternatywy) > 1:
+        opcje = ", ".join(sorted(t.alternatywy))
+        raise TypeCheckError(
+            f"typ pasuje do wielu możliwości: {opcje} — dodaj adnotację "
+            f"typu")
+    konkrety = [x for x, _ in t.dolne if isinstance(x, Konkret)]
+    dolne_vars = [x for x, _ in t.dolne if isinstance(x, Zmienna)]
+    for dv in dolne_vars:
+        m = _zmaterializuj(dv, widziane=widziane)
+        if m is not None:
+            konkrety.append(m)
+    if konkrety:
+        strzałki = [k for k in konkrety if k.głowa == ARROW]
+        if strzałki:
+            return strzałki[0]
+        głowy = {k.głowa for k in konkrety}
+        if len(głowy) == 1:
+            return konkrety[0]
+        unia = najmniejsza_unia(głowy)
+        if unia is None:
+            raise TypeCheckError(_msg_konflikt(
+                konkrety[0], konkrety[-1], _poszlaki(t)))
+        return _unia_applied(unia)
+    górne = [x for x, _ in t.górne if isinstance(x, Konkret)]
+    if górne:
+        głowy = {g.głowa for g in górne}
+        if len(głowy) == 1:
+            return górne[0]
+        for g in głowy:
+            czł = członkowie(g)
+            if czł is not None and głowy == (czł | {g}):
+                return _unia_applied(g)
     return None
 
 
-def _unify_variants(ft0, ft1, widen=False, mode="equate"):
-    """Unifikacja dwóch konkretów: przecięcie po GŁOWIE, a dla wspólnych głów
-    rekurencyjna unifikacja argumentów (strukturalnie). Przy pustych args
-    redukuje się do przecięcia zbiorów (zachowanie sprzed generyków).
-
-    `widen`: przy pustym przecięciu spróbuj rozszerzyć obie strony do
-    wspólnej zadeklarowanej unii (struktura < typ wariantowy). Unia nie
-    niesie parametrów typu (parametryzacja to sprawa struktur), więc
-    argumenty wariantów są przy rozszerzeniu porzucane.
-
-    `mode` — tryb pozycji (ft0 = slot, ft1 = wartość):
-    - "equate": historyczna symetria — obie strony stają się unią.
-    - "accumulate" (slot INFEROWANY — ret bez adnotacji, zmienna): slot
-      rośnie od poszlak (wartość-unia rozszerza slot-wariant — sztafeta),
-      ale wartość-wariant do slotu-unii NIE jest wiązana (subsumpcja —
-      destrukcyjne wiązanie odbierało zmiennej chainy w fixpoincie).
-    - "check" (slot ZNANY — argument, pole, adnotowany ret): bramkarz.
-      Subsumpcja wariant≤unia przechodzi bez wiązania; unia do slotu-
-      wariantu i wariant do obcego wariantu są ODRZUCANE — slot niczego
-      się nie uczy, a wartość może być w runtime czymś, czego slot nie
-      przyjmuje."""
-    by0, by1 = {}, {}
-    for a in ft0.variants:
-        by0.setdefault(a.head, []).append(a)
-    for a in ft1.variants:
-        by1.setdefault(a.head, []).append(a)
-    common_heads = by0.keys() & by1.keys()
-    if not common_heads:
-        if widen:
-            # Zbiór niejednoznaczności kontra unia: zbiór głów to DYSJUNKCJA
-            # („jedno z tych"), nie koniunkcja — głowy spoza unii z drugiej
-            # strony odpadają. Zawężenie to zysk informacji (jak przecięcie
-            # z kolejnego wystąpienia w chainach), więc wiąże destrukcyjnie;
-            # po nim unifikacja biegnie od nowa (zwykle w subsumpcję unii).
-            for u_side, other in ((ft0, ft1), (ft1, ft0)):
-                members = _union_members(u_side)
-                if members is None:
-                    continue
-                u_head = next(iter(u_side.variants)).head
-                surviving = {a for a in other.variants
-                             if a.head == u_head or a.head in members}
-                if surviving and surviving != set(other.variants):
-                    narrowed = VariantVar(variants=surviving)
-                    _absorb_trail(narrowed, other)
-                    other.next = narrowed
-                    return _unify_variants(
-                        find_type(ft0), find_type(ft1), widen, mode)
-            # Dysjunkcja miękka kontra pojedynczy wariant: z gałęzi zbioru
-            # niejednoznaczności (np. typy pól z wielu kandydatów chaina)
-            # przeżywają te, które ABSORBUJĄ drugą stronę — głowy-unie
-            # zawierające jej wariant. To odroczona alternatywa więzów:
-            # rozstrzyga ją dopiero przybycie konkretu.
-            for multi, single in ((ft0, ft1), (ft1, ft0)):
-                if len(multi.variants) < 2 or len(single.variants) != 1:
-                    continue
-                s_head = next(iter(single.variants)).head
-                surviving = {
-                    a for a in multi.variants
-                    if (lambda m: m is not None and s_head in m)
-                       (_union_members_by_head(a.head))
-                }
-                if surviving and surviving != set(multi.variants):
-                    narrowed = VariantVar(variants=surviving)
-                    _absorb_trail(narrowed, multi)
-                    multi.next = narrowed
-                    return _unify_variants(
-                        find_type(ft0), find_type(ft1), widen, mode)
-            u = _widening_union(by0.keys() | by1.keys())
-            if u is not None:
-                def _is_exactly(vv):
-                    return (len(vv.variants) == 1
-                            and next(iter(vv.variants)).head == u)
-                # Reużyj stronę będącą już unią (jak optymalizacja niżej) —
-                # zero śmieci, gdy fixpoint trafia w ten sam widening co
-                # przebieg. Argumenty wariantów NIE są porzucane: wiążą się
-                # z niejawnymi argumentami unii po nazwach parametrów.
-                if _is_exactly(ft0):
-                    u_at = next(iter(ft0.variants))
-                    for a in ft1.variants:
-                        _link_member_args(a, u_at)
-                    if mode == "equate":
-                        _absorb_trail(ft0, ft1)
-                        ft1.next = ft0
-                    return ft0
-                if _is_exactly(ft1):
-                    if mode == "check":
-                        raise TypeCheckError(
-                            f"wartość typu unijnego {ft1} nie mieści się "
-                            f"w slocie typu {ft0} — zawęź dopasowaniem `jest:`")
-                    u_at = next(iter(ft1.variants))
-                    for a in ft0.variants:
-                        _link_member_args(a, u_at)
-                    _absorb_trail(ft1, ft0)
-                    ft0.next = ft1
-                    return ft1
-                if mode == "check":
-                    raise TypeCheckError(
-                        f"wartość typu {ft1} nie pasuje do oczekiwanego {ft0}")
-                u_at = _union_applied(u)
-                widened = VariantVar(variants={u_at})
-                for a in ft0.variants | ft1.variants:
-                    _link_member_args(a, u_at)
-                _absorb_trail(widened, ft0, ft1)
-                ft0.next = widened
-                ft1.next = widened
-                return widened
-        raise TypeCheckError(_unify_fail_msg(ft0, ft1))
-    result = set()
-    for h in common_heads:
-        for a0 in by0[h]:
-            for a1 in by1[h]:
-                if len(a0.args) != len(a1.args):
-                    if h == ARROW:
-                        raise TypeCheckError(
-                            f"niezgodna liczba argumentów funkcji: "
-                            f"{a0!r} vs {a1!r}")
-                    raise TypeCheckError(
-                        f"arity mismatch for {h}: {len(a0.args)} vs {len(a1.args)}")
-                for i, (x, y) in enumerate(zip(a0.args, a1.args)):
-                    # Zwrot strzałki (ostatni arg "→") to pozycja top-level —
-                    # widening przechodzi w głąb. Bez tego przejściowy,
-                    # niedoszacowany zwrot funkcji w fixpoincie (np. Błąd
-                    # zanim kolejny przebieg rozszerzy go do Rezultatu)
-                    # zabijałby ścisłą unifikację wnętrza strzałki, a funkcja
-                    # zwracająca jeden wariant unii nie przeszłaby tam, gdzie
-                    # slot oczekuje zwrotu-unii. Argumenty strzałki i typy
-                    # parametryzowane pozostają inwariantne (ścisłe).
-                    ret_pos = h == ARROW and i == len(a0.args) - 1
-                    try:
-                        unify_types(x, y, widen=widen and ret_pos)
-                    except TypeCheckError as e:
-                        if h == ARROW or "niejawny argument" in str(e):
-                            raise
-                        # Niejawny argument typu: użytkownik go nie napisał,
-                        # więc błąd nazywa parametr z rodowodem (definicja,
-                        # która go wprowadza) — poszlaki z liniami niesie
-                        # komunikat wewnętrzny.
-                        pname, origin = _param_pedigree(h, i)
-                        if pname is None:
-                            raise
-                        raise TypeCheckError(
-                            f"niejawny argument '{pname}' typu '{h}' "
-                            f"(parametr '{pname}' z definicji '{origin}') "
-                            f"nie zgadza się między wystąpieniami — {e}"
-                        ) from None
-                result.add(AppliedType(h, a0.args))
-    # Reużyj istniejący węzeł, gdy wynik równa się jednej ze stron — przy
-    # pustych args to dokładnie stara optymalizacja (zero śmieci w fixpoincie).
-    if result == ft0.variants:
-        _absorb_trail(ft0, ft1)
-        ft1.next = ft0
-        return ft0
-    if result == ft1.variants:
-        _absorb_trail(ft1, ft0)
-        ft0.next = ft1
-        return ft1
-    new_variant = VariantVar(variants=result)
-    _absorb_trail(new_variant, ft0, ft1)
-    ft0.next = new_variant
-    ft1.next = new_variant
-    return new_variant
-
-
-def _członek_unii(vv):
-    """Czy jednogłowy konkret jest członkiem jakiejś zadeklarowanej unii —
-    wtedy fakt `wartość ≤ slot` ma na slocie więcej niż jedno rozwiązanie
-    (wariant albo unia) i nie wolno go betonować równością."""
-    if module is None or len(vv.variants) != 1:
+def _czy_ugruntowany(t):
+    """Czy typ jest dostatecznie konkretny dla punktu wejścia: ma
+    materializację, a jej argumenty (poza uniami — konkretyzacja przez
+    użycie) też są ugruntowane."""
+    m = _zmaterializuj(t)
+    if m is None:
         return False
-    h = next(iter(vv.variants)).head
-    for decl in module.body:
-        if (isinstance(decl, ast.UnionDef)
-                and h in {"".join(m) for m in decl.members}):
-            return True
-    return False
+    if członkowie(m.głowa) is not None or m.głowa == ARROW:
+        return True
+    return all(_czy_ugruntowany(a) for a in m.args)
 
 
-def unify_types(t0, t1, widen=False, mode="equate"):
-    """`widen=True` dopuszcza rozszerzenie struktura→unia przy konflikcie głów
-    — używane na POZYCJACH TOP-LEVEL (przypisanie, return, argument wywołania,
-    wartość pola, adnotacja). `mode` rozróżnia pozycje (t0 = slot):
-    "check" (slot znany: argumenty, pola, adnotowany ret) — bramkarz,
-    wolna wartość dostaje ograniczenie górne zamiast równości; "accumulate"
-    (slot inferowany: ret bez adnotacji, przypisanie, podmiot `jest:`) —
-    detektyw, slot rośnie od poszlak. Rekurencyjna unifikacja argumentów
-    typów jest zawsze ścisła (typy parametryzowane są inwariantne)."""
-    r0, r1 = find_type(t0), find_type(t1)
-    if ((isinstance(r0, TypeVar) and r0.lowers and isinstance(r1, VariantVar))
-            or (isinstance(r1, TypeVar) and r1.lowers
-                and isinstance(r0, VariantVar))):
-        # Wolna zmienna z poszlakami dolnymi kontra KONKRET: nie scalaj
-        # poszlak przed unifikacją (fold-first robił z poszlaki `w ≤ α`
-        # przedwczesną równość i wynik zależał od kolejności ograniczeń)
-        # — najpierw właściwa unifikacja, poszlaki dołoży ścieżka
-        # wiązania joinem.
-        ft0, ft1 = r0, r1
-    else:
-        ft0 = _force_lowers(t0)
-        ft1 = _force_lowers(t1)
-    _note_trail(ft0, ft1)
-    if ft0 is ft1:
-        return ft0
-    if (mode == "accumulate" and isinstance(ft0, TypeVar)
-            and isinstance(ft1, TypeVar)):
-        # Pełne więzy: dwie wolne zmienne na pozycji akumulacji NIE sklejają
-        # się równością (to splątywałoby np. parametry przez wspólny ret) —
-        # slot zapamiętuje poszlakę dolną `wartość ≤ slot`, a wartość
-        # dziedziczy ograniczenia górne slotu (≤ przechodnie).
-        if all(find_type(lo) is not ft1 for lo in ft0.lowers):
-            ft0.lowers.append(ft1)
-        # Poszlaka dolna nie scala klas — rodowód wartości (np. „pochodzi
-        # z externa") przepływa do slotu jawnie, dla diagnostyki groundingu.
-        _absorb_trail(ft0, ft1)
-        if ft0.upper is not None:
-            ft1.upper = (ft0.upper if ft1.upper is None
-                         else ft1.upper & ft0.upper)
-            if not ft1.upper:
-                raise TypeCheckError(
-                    "sprzeczne ograniczenia górne poszlaki dolnej")
-        return ft0
-    if mode == "check" and isinstance(ft1, TypeVar) and isinstance(ft0, VariantVar):
-        # Wolna wartość w znanym slocie: jedyny uprawniony fakt to
-        # `wartość ≤ slot`. Gdy zbiór dopuszczalnych głów ma >1 element
-        # (slot unijny — prawdziwy luz podtypowania), zapisz ograniczenie
-        # górne (przecinając z dotychczasowymi) i NIE wiąż równości.
-        # Singleton: ≤ do jednej głowy TO równość (struktura nie ma
-        # podtypów) — przepuść do zwykłego wiązania niżej, żeby sygnatury
-        # wnioskowały się z użycia jak dotąd.
-        allowed = _allowed_heads(ft0)
-        if len(allowed) > 1:
-            ft1.upper = allowed if ft1.upper is None else ft1.upper & allowed
-            if not ft1.upper:
-                raise TypeCheckError(
-                    f"sprzeczne ograniczenia górne: {ft0} nie przecina się "
-                    f"z wcześniejszymi wymaganiami wobec {ft1}")
-            return ft0
-    if isinstance(ft0, VariantVar) and isinstance(ft1, VariantVar):
-        return _unify_variants(ft0, ft1, widen, mode)
-    # Co najmniej jedna strona to wolna zmienna — przepnij ją na drugą.
-    concrete, abstract = (ft0, ft1) if isinstance(ft0, VariantVar) else (ft1, ft0)
-    if isinstance(concrete, VariantVar):
-        if (widen and mode == "check" and abstract is ft0
-                and abstract.upper is None
-                and not _scalanie_poszlak and _członek_unii(concrete)):
-            # Wolny SLOT w trybie check (pole konstrukcji, argument
-            # wywołania) kontra wartość-wariant należący do unii: jedyny
-            # uprawniony fakt to `wartość ≤ slot` (slot może się jeszcze
-            # okazać unią) — poszlaka dolna zamiast równości. Betonowanie
-            # równością czyniło wynik inferencji zależnym od KOLEJNOŚCI
-            # pól konstrukcji (`o głowie (Krok …) o ogonie (Lista[Rozkaz])`
-            # padało, a po zamianie kolejności przechodziło). Tryb
-            # accumulate (zwroty — sztafeta wideningu) wiąże jak dotąd:
-            # tam join następuje na bieżąco i schematy mają konkretne typy.
-            if all(find_type(lo) is not concrete for lo in abstract.lowers):
-                abstract.lowers.append(concrete)
-            _absorb_trail(abstract, concrete)
-            return abstract
-        if _occurs(abstract, concrete):
-            raise TypeCheckError(f"occurs check: {abstract} w {concrete}")
-        if abstract.upper is not None:
-            # Wiązanie zmiennej z ograniczeniem górnym: głowy spoza
-            # ograniczenia odpadają (zawężenie zbioru niejednoznaczności);
-            # pusty wynik = wartość nie spełnia zebranych wymagań.
-            surviving = {a for a in concrete.variants
-                         if a.head in abstract.upper}
-            if not surviving:
-                raise TypeCheckError(
-                    f"typ {concrete} nie mieści się w ograniczeniu górnym "
-                    f"{{{', '.join(sorted(abstract.upper))}}}")
-            if surviving != concrete.variants:
-                narrowed = VariantVar(variants=surviving)
-                _absorb_trail(narrowed, concrete)
-                concrete.next = narrowed
-                concrete = narrowed
-    elif abstract.upper is not None:
-        # Dwie wolne zmienne — ograniczenia górne się przecinają.
-        concrete.upper = (abstract.upper if concrete.upper is None
-                          else concrete.upper & abstract.upper)
-        if not concrete.upper:
-            raise TypeCheckError(
-                "sprzeczne ograniczenia górne łączonych zmiennych typowych")
-    # Wiązanie z konkretem: czekające KONKRETNE poszlaki dolne zmiennej
-    # scala się z wynikiem joinem (widening) PO równości — fold przed
-    # równością zamieniał poszlakę ≤ w równość. Wolne poszlaki zostają
-    # odłączone (jak dotąd — schemat odświeży je przy instancjonowaniu).
-    pending = abstract.lowers
-    abstract.lowers = []
-    _absorb_trail(concrete, abstract)
-    abstract.next = concrete
-    wynik = concrete
-    for lo in pending:
-        flo = find_type(lo)
-        if flo is find_type(wynik) or isinstance(flo, TypeVar):
-            continue
-        snapshot = VariantVar(variants=set(flo.variants))
-        wynik = unify_types(wynik, snapshot, widen=True, mode="accumulate")
-    return find_type(wynik)
+# ---------- scope (drzewo zasięgów + cienie zawężeń) ----------
 
 class Scope:
-    """Węzeł drzewa scope'ów. Korzeń = ciało funkcji; dzieci = ciała bloków
-    (`then`/`else`/`body`). Dzieci są trwałe (cache na węźle AST), więc żyją
-    między przebiegami fixpointu, a zmienne wprowadzone w gałęzi są lokalne —
-    ta sama nazwa w `then` i `else` to różne zmienne."""
     def __init__(self, parent=None):
         self.types = []
-        # Cienie zawężeń (`jest:` — NIEJAWNY cień podmiotu-zmiennej w gałęzi):
-        # widoczne dla odczytów jak types, ale POZA walk()/groundingiem.
-        # Zasada: grounding sprawdza nazwy pisane przez użytkownika (błąd musi
-        # być naprawialny adnotacją/usunięciem); cień wstrzykuje kompilator,
-        # a jego wolny parametr to wymazanie unii, nie porażka inferencji.
-        # Aliasy `jako` i wiązania pól są pisane ręcznie → idą do types.
         self.shadows = []
         self.parent = parent
         self.children = []
@@ -727,10 +525,12 @@ class Scope:
     def _find_local(self, identifier):
         keys = identifier.scope_keys
         for (v, t) in self.types:
-            if any(ast.scope_key_matches(a, b) for a in keys for b in v.scope_keys):
+            if any(ast.scope_key_matches(a, b) for a in keys
+                   for b in v.scope_keys):
                 return t
         for (v, t) in self.shadows:
-            if any(ast.scope_key_matches(a, b) for a in keys for b in v.scope_keys):
+            if any(ast.scope_key_matches(a, b) for a in keys
+                   for b in v.scope_keys):
                 return t
         return None
 
@@ -739,16 +539,15 @@ class Scope:
             self.shadows.append((identifier, t))
 
     def assign_target_type(self, identifier):
-        """Cel przypisania: zmienna widoczna w łańcuchu scope'ów Z POMINIĘCIEM
-        cieni zawężeń — zapis do nazwy podmiotu `jest:` idzie na zewnątrz
-        (idiom kursora: `reszta to ogon` przesuwa pętlę), a nie w cień.
-        Niewidoczna nigdzie → deklaracja lokalna (block scoping)."""
+        """Cel przypisania: zmienna widoczna w łańcuchu Z POMINIĘCIEM
+        cieni (zapis idzie na zewnątrz — idiom kursora); niewidoczna →
+        deklaracja lokalna."""
         keys = identifier.scope_keys
         s = self
         while s is not None:
             for (v, t) in s.types:
-                if any(ast.scope_key_matches(a, b)
-                       for a in keys for b in v.scope_keys):
+                if any(ast.scope_key_matches(a, b) for a in keys
+                       for b in v.scope_keys):
                     return t
             s = s.parent
         new_t = new_type()
@@ -756,21 +555,17 @@ class Scope:
         return new_t
 
     def find_shadow(self, identifier):
-        """Najbliższy cień zawężenia dla nazwy (albo None) — przypisanie
-        do podmiotu dolewa wartość także do cienia, żeby dalsze zawężone
-        odczyty w gałęzi widziały typ uczciwie zdegradowany."""
         keys = identifier.scope_keys
         s = self
         while s is not None:
             for (v, t) in s.shadows:
-                if any(ast.scope_key_matches(a, b)
-                       for a in keys for b in v.scope_keys):
+                if any(ast.scope_key_matches(a, b) for a in keys
+                       for b in v.scope_keys):
                     return t
             s = s.parent
         return None
 
     def _find(self, identifier):
-        # Czytanie: idź w górę drzewa — widać zmienne z przodków.
         s = self
         while s is not None:
             t = s._find_local(identifier)
@@ -780,22 +575,18 @@ class Scope:
         return None
 
     def declare(self, identifier, t):
-        # Deklaracja zawsze lokalna (np. typ parametru w korzeniu funkcji).
         if self._find_local(identifier) is None:
             self.types.append((identifier, t))
 
     def get_type(self, identifier):
-        t = self._find(identifier)   # widoczna w przodku → reużyj
+        t = self._find(identifier)
         if t is not None:
             return t
-        new_t = new_type()           # inaczej → nowa, lokalna w tym węźle
+        new_t = new_type()
         self.types.append((identifier, new_t))
         return new_t
 
     def child_for(self, node, role):
-        # Trwałe dziecko per blok: cache trzymany NA WĘŹLE AST (identyczność
-        # z węzła, slot z roli), więc sąsiednie bloki się nie zlewają i nie
-        # trzeba id(node). Tworzone raz, reużywane co przebieg.
         slots = node.__dict__.setdefault("_scopes", {})
         if role not in slots:
             slots[role] = Scope(self)
@@ -806,117 +597,204 @@ class Scope:
         for c in self.children:
             yield from c.walk()
 
+
+# ---------- schematy funkcji ----------
+
 @dataclass
 class FunDefTypes:
     name: ast.FunctionIdentifier
     arg_types: list
-    ret_type: str
-    # Adnotowany ret = pozycja SPRAWDŹ w `zwróć` (bramkarz);
-    # inferowany = AKUMULUJ (poszlaki rosną do unii — sztafeta).
+    ret_type: object
     ret_annotated: bool = False
-    # Deklaracja `można` — bez ciała; wolny typ z sygnatury to czysta
-    # świeżość (konkretyzacja wyłącznie przez użycie) — grounding wskazuje
-    # ekstern jako źródło nieustalonego typu.
     extern: bool = False
 
-fun_decls = []
 
-# (decl, scope) po ostatnim resolve_module — introspekcja wyinferowanych
-# typów zmiennych (testy) bez polegania na stdout.
+fun_decls = []
 fun_scopes = []
 
+
 def find_fdt(func_id):
-    global fun_decls
     for (name, fdt) in fun_decls:
         if name.lemmas_set & func_id.lemmas_set:
             return fdt
 
+
 def find_fdt_by_key(key):
-    """Lookup schematu po rozwiązanym kluczu funkcji (FunctionRef niesie
-    pojedynczy klucz, nie FunctionIdentifier z lemmas_set)."""
-    global fun_decls
     for (name, fdt) in fun_decls:
         if key in name.lemmas_set:
             return fdt
 
+
+def _kopiuj(t, memo):
+    """Instancjacja: głęboka kopia osiągalnego grafu granic (memoizowana,
+    bezpieczna dla cykli)."""
+    if isinstance(t, Konkret):
+        if not t.args:
+            return t
+        return Konkret(t.głowa, tuple(_kopiuj(a, memo) for a in t.args))
+    if t in memo:
+        return memo[t]
+    n = new_type()
+    memo[t] = n
+    n.ślad = list(t.ślad)
+    if t.alternatywy is not None:
+        n.alternatywy = {h: _kopiuj(k, memo)
+                         for h, k in t.alternatywy.items()}
+    n.dolne = [(_kopiuj(x, memo), nota) for x, nota in t.dolne]
+    n.górne = [(_kopiuj(x, memo), nota) for x, nota in t.górne]
+    return n
+
+
 def instantiate(fdt):
-    subst = {}
-    def fresh(t):
-        t = find_type(t)
-        if isinstance(t, TypeVar):
-            if t not in subst:
-                subst[t] = new_type()
-                subst[t].upper = t.upper  # ograniczenia jadą z instancją
-                # Więzy dolne też — świeży ret dostaje świeże poszlaki
-                # (np. świeże kopie parametrów), które argumenty wywołania
-                # zaraz skonkretyzują.
-                subst[t].lowers = [fresh(lo) for lo in t.lowers]
-            return subst[t]
-        # VariantVar: świeża kopia z REKURENCYJNIE świeżonymi argumentami, żeby
-        # funkcja polimorficzna (∀W. (Lista[W], W)→…) dostała niezależne zmienne
-        # elementu per call-site. Przy pustych args = stara płytka kopia.
-        return VariantVar(variants={
-            AppliedType(a.head, tuple(fresh(x) for x in a.args)) for a in t.variants
-        })
-    return [fresh(a) for a in fdt.arg_types], fresh(fdt.ret_type)
+    memo = {}
+    return ([_kopiuj(a, memo) for a in fdt.arg_types],
+            _kopiuj(fdt.ret_type, memo))
 
 
-def _is_concrete(t):
-    """Czy typ jest W PEŁNI skonkretyzowany: jedna głowa, argumenty rekurencyjnie
-    skonkretyzowane. Wolna zmienna (t27) → nie; niejednoznaczny wariant (A|B) → nie."""
-    t = find_type(t)
-    if isinstance(t, TypeVar):
-        return False
-    if len(t.variants) != 1:
-        return False
-    a = next(iter(t.variants))
-    if _union_members_by_head(a.head) is not None:
-        # Niejawne argumenty unii mogą zostać wolne (konkretyzacja przez
-        # użycie — jeśli nikt elementu nie obserwuje, runtime go nie
-        # potrzebuje; wartości i tak niosą własne tagi).
-        return True
-    return all(_is_concrete(x) for x in a.args)
+# ---------- elaborate: TypeRef (składnia) → typ (semantyka) ----------
 
-
-def _check_grounded(decl, scope):
-    """Punkt wejścia (działać) jest wykonywany na konkretnych wartościach, więc
-    KAŻDA jego zmienna musi mieć jeden w pełni skonkretyzowany typ — runtime nie
-    wie, jak reprezentować zmienną wolną (t27) ani niejednoznaczną (A|B). Funkcje
-    generyczne mają wolne zmienne w sygnaturze (to polimorfizm) i NIE są tu
-    sprawdzane — konkretyzują się przy wywołaniu, a niedookreślenie wychodzi
-    wtedy w scope'ie wołającego (tu)."""
-    for s in scope.walk():
-        for ident, t in s.types:
-            ft = _force_lowers(t)
-            if isinstance(ft, TypeVar) and ft.upper:
-                # Zmienna znana wyłącznie z ograniczeń górnych — domyślkuj:
-                # dokładna unia → unia, singleton → głowa.
-                d = _default_from_upper(ft.upper)
-                if d is not None:
-                    ft.next = d
-            if not _is_concrete(t):
-                line = getattr(ident, "line", None)
-                ft2 = find_type(t)
-                trail = getattr(ft2, "trail", [])
-                źródło = ("; " + "; ".join(trail[-4:])) if trail else ""
+def elaborate(tref, env, fresh_unknown=False, alias_args=False):
+    h = "".join(tref.head)
+    if h in env:
+        return env[h]
+    al = find_type_alias(tref.head)
+    if al is not None:
+        if tref.args:
+            raise TypeCheckError(
+                f"alias typu '{h}' nie przyjmuje argumentów typu — jawna "
+                f"aplikacja parametrów jest dozwolona tylko w deklaracji "
+                f"aliasu")
+        return elaborate(al.target, env, fresh_unknown, alias_args=True)
+    sd = find_struct_def(tref.head)
+    if sd is None:
+        if find_union_def(tref.head) is not None:
+            if tref.args and not (alias_args
+                                  or all(ta.name is not None
+                                         for ta in tref.args)):
                 raise TypeCheckError(
-                    f"nie można wywnioskować konkretnego typu zmiennej "
-                    f"'{'_'.join(ident.surface)}' (linia {line}); "
-                    f"pozostało {ft2!r}{źródło} — użyj wartości "
-                    f"strukturalnie albo dodaj adnotację typu"
-                )
+                    f"typ wariantowy '{h}' nie przyjmuje argumentów typu")
+            bound = {
+                "".join(ta.name): elaborate(ta.type, env, fresh_unknown,
+                                            alias_args=True)
+                for ta in tref.args
+            } if tref.args else None
+            if bound:
+                znane = _union_param_names(h)
+                for nm in bound:
+                    if not any(nm in names for names in znane):
+                        dostępne = ", ".join(
+                            sorted(min(ns, key=len) for ns in znane)) or "brak"
+                        raise TypeCheckError(
+                            f"typ wariantowy '{h}' nie ma parametru '{nm}' "
+                            f"— parametry: {dostępne}")
+            return _unia_applied(h, env, bound)
+        if fresh_unknown and h not in BUILTINS:
+            v = new_type()
+            env[h] = v
+            return v
+        if h in BUILTINS and tref.args:
+            raise TypeCheckError(
+                f"typ wbudowany '{h}' nie przyjmuje argumentów typu")
+        return Konkret(h)
+    sloty = [new_type() for _ in sd.params]
+    if tref.args and (alias_args
+                      or all(ta.name is not None for ta in tref.args)):
+        for ta in tref.args:
+            nm = "".join(ta.name)
+            trafiony = False
+            for slot, p in zip(sloty, sd.params):
+                if any(nm == "".join(l) for l in p.name.lemmas_set):
+                    val = elaborate(ta.type, env, fresh_unknown,
+                                    alias_args=True)
+                    ogranicz(val, slot)
+                    ogranicz(slot, val)
+                    trafiony = True
+                    break
+            if not trafiony:
+                dostępne = ", ".join(sorted(
+                    min(("".join(l) for l in p.name.lemmas_set), key=len)
+                    for p in sd.params)) or "brak"
+                raise TypeCheckError(
+                    f"typ '{h}' nie ma parametru '{nm}' — parametry: "
+                    f"{dostępne}")
+    elif tref.args and len(tref.args) == len(sd.params):
+        arg_meta = [(ta.prep, ta.case, ta) for ta in tref.args]
+        slot_to_arg = match_args_to_slots(
+            arg_meta, sd.params,
+            on_error=lambda **kw: TypeCheckError(
+                f"argumenty typu nie pasują do parametrów '{h}'"))
+        for slot_i, arg_i in slot_to_arg.items():
+            val = elaborate(tref.args[arg_i].type, env, fresh_unknown)
+            ogranicz(val, sloty[slot_i])
+            ogranicz(sloty[slot_i], val)
+    elif tref.args:
+        raise TypeCheckError(
+            f"typ '{h}' oczekuje {len(sd.params)} argumentów, "
+            f"otrzymał {len(tref.args)}")
+    return Konkret(h, tuple(sloty))
 
 
-module = None
+# ---------- walidacja aliasów (pass 0) ----------
 
+def _check_aliases(node):
+    for decl in node.body:
+        if isinstance(decl, ast.TypeAlias):
+            _validate_alias_tref(decl.target, ["".join(decl.name)])
+
+
+def _validate_alias_tref(tref, seen):
+    h = "".join(tref.head)
+    al = find_type_alias(tref.head)
+    if al is not None:
+        if h in seen:
+            raise TypeCheckError(
+                f"cykl aliasów typów: {' → '.join([*seen, h])}")
+        if tref.args:
+            raise TypeCheckError(
+                f"alias typu '{h}' nie przyjmuje argumentów typu — "
+                f"zastosuj parametry w jego własnej deklaracji")
+        _validate_alias_tref(al.target, [*seen, h])
+        return
+    sd = find_struct_def(tref.head)
+    ud = find_union_def(tref.head)
+    if sd is None and ud is None:
+        if h in BUILTINS:
+            if tref.args:
+                raise TypeCheckError(
+                    f"typ wbudowany '{h}' nie przyjmuje argumentów typu")
+            return
+        raise TypeCheckError(
+            f"nieznany typ '{h}' w deklaracji aliasu '{seen[0]}'")
+    if sd is not None:
+        params = [frozenset("".join(l) for l in p.name.lemmas_set)
+                  for p in sd.params]
+    else:
+        params = _union_param_names(h)
+    bound = set()
+    for ta in tref.args:
+        nm = "".join(ta.name) if ta.name else None
+        if nm is None:
+            raise TypeCheckError(
+                f"aplikacja parametru typu w aliasie wymaga formy "
+                f"'o NAZWIE Typ' (deklaracja aliasu '{seen[0]}')")
+        slot = next(
+            (i for i, names in enumerate(params) if nm in names), None)
+        if slot is None:
+            known = ", ".join(sorted(min(ns, key=len) for ns in params))
+            raise TypeCheckError(
+                f"typ '{h}' nie ma parametru '{nm}' (deklaracja aliasu "
+                f"'{seen[0]}'); parametry: {known or 'brak'}")
+        if slot in bound:
+            raise TypeCheckError(
+                f"parametr '{nm}' typu '{h}' związany wielokrotnie "
+                f"w deklaracji aliasu '{seen[0]}'")
+        bound.add(slot)
+        _validate_alias_tref(ta.type, seen)
+
+
+# ---------- totalność zwrotów ----------
 
 def _returns_totally(stmts):
-    """Czy KAŻDA ścieżka przez ciało kończy się `zwróć`. Ścieżka bez `zwróć`
-    zwraca Nic — wykrycie jej dounifikowuje Nic do retu (jak niejawne
-    `zwróć Nic` na końcu). Konserwatywnie: pętle mogą się nie wykonać ani
-    razu (nigdy nie są totalne), `jeśli` wymaga totalnych OBU gałęzi,
-    dopasowanie — totalnych wszystkich (wyczerpującość gwarantuje
-    resolve_match). Instrukcje za totalnym blokiem są nieosiągalne."""
     for stmt in stmts:
         if isinstance(stmt, ast.Return):
             return True
@@ -932,139 +810,176 @@ def _returns_totally(stmts):
     return False
 
 
+# ---------- graf wywołań i SCC ----------
+
+def _wywoływane(node, out):
+    """Zbierz FunctionIdentifiery/klucze wywołań z poddrzewa AST."""
+    if node is None or isinstance(node, (str, int, bool, tuple, frozenset)):
+        return
+    if isinstance(node, ast.FunctionCall):
+        out.append(("id", node.name))
+    if isinstance(node, ast.FunctionRef):
+        out.append(("key", node.key))
+    if isinstance(node, list):
+        for x in node:
+            _wywoływane(x, out)
+        return
+    if hasattr(node, "__dict__"):
+        for k, v in node.__dict__.items():
+            if k in ("analyses", "variants", "_scopes"):
+                continue
+            _wywoływane(v, out)
+
+
+def _scc_kolejność(module_funcs):
+    """Tarjan po grafie wywołań; zwraca listę składowych (list indeksów)
+    w kolejności odwrotnie topologicznej (liście najpierw)."""
+    indeks_fdt = {id(fdt): i for i, (_, fdt) in enumerate(module_funcs)}
+    krawędzie = [set() for _ in module_funcs]
+    for i, (decl, _) in enumerate(module_funcs):
+        cele = []
+        _wywoływane(decl.body, cele)
+        for rodzaj, ref in cele:
+            fdt = find_fdt(ref) if rodzaj == "id" else find_fdt_by_key(ref)
+            if fdt is not None and id(fdt) in indeks_fdt:
+                krawędzie[i].add(indeks_fdt[id(fdt)])
+    indeksy = {}
+    low = {}
+    stos, na_stosie = [], set()
+    wynik = []
+    licznik = [0]
+
+    def strong(v):
+        indeksy[v] = low[v] = licznik[0]
+        licznik[0] += 1
+        stos.append(v)
+        na_stosie.add(v)
+        for w in krawędzie[v]:
+            if w not in indeksy:
+                strong(w)
+                low[v] = min(low[v], low[w])
+            elif w in na_stosie:
+                low[v] = min(low[v], indeksy[w])
+        if low[v] == indeksy[v]:
+            skł = []
+            while True:
+                w = stos.pop()
+                na_stosie.discard(w)
+                skł.append(w)
+                if w == v:
+                    break
+            wynik.append(skł)
+
+    for v in range(len(module_funcs)):
+        if v not in indeksy:
+            strong(v)
+    return wynik
+
+
+# ---------- moduł ----------
+
+_bieżąca_składowa = set()   # id(fdt) funkcji typowanych właśnie razem
+
+
 def resolve_module(node):
-    global fun_decls
-    global module
-    global _ctx_line, _ctx_fun, _current_note
-    _ctx_line = _ctx_fun = _current_note = None
+    global module, fun_decls, fun_scopes
+    global _ctx_line, _ctx_fun, _current_note, _bieżąca_składowa
     module = node
-    # PASS 0: walidacja aliasów typów — sygnatury niżej już je elaborują.
+    _ctx_line = _ctx_fun = _current_note = None
+    _pary.clear()
+    _pary_żywe.clear()
+    _bieżąca_składowa = set()
     _check_aliases(node)
-    # PASS 1 (raz): zadeklaruj schematy funkcji. module_funcs to lokalna lista
-    # (decl, fdt) — używana w pass 2 zamiast kruchego indeksowania globalnego
-    # fun_decls; fun_decls.append zostaje, bo find_fdt po nim chodzi.
     module_funcs = []
     for decl in node.body:
         if isinstance(decl, ast.FunctionDef):
-            fdt = FunDefTypes(
-                name=decl.name,
-                arg_types=[new_type() for _ in range(len(decl.params))],
-                ret_type=new_type()
-            )
-            fenv = {}  # niejawne parametry typu funkcji: nieznana mała-litera → świeża zmienna
-            for i, p in enumerate(decl.params):
-                if p.type is not None:
-                    unify_types(fdt.arg_types[i], elaborate(p.type, fenv, fresh_unknown=True))
+            fenv = {}
+            arg_types = [
+                elaborate(p.type, fenv, fresh_unknown=True)
+                if p.type is not None else new_type()
+                for p in decl.params
+            ]
             if decl.return_type is not None:
-                unify_types(fdt.ret_type, elaborate(decl.return_type, fenv, fresh_unknown=True))
-                fdt.ret_annotated = True
-            if not _returns_totally(decl.body):
-                # Ścieżka bez `zwróć` zwraca Nic — dounifikuj jak niejawne
-                # `zwróć Nic`: adnotowana/wywnioskowana unia z Nic przyjmie
-                # przez subsumpcję, ret bez wspólnej unii da konflikt —
-                # słusznie (dawne bad/nietotalny_zwrot.ć).
-                unify_types(fdt.ret_type, variant(["Nic"]), widen=True,
-                            mode="check" if fdt.ret_annotated else "accumulate")
+                ret = elaborate(decl.return_type, fenv, fresh_unknown=True)
+                annotated = True
+            else:
+                ret = new_type()
+                annotated = False
+            fdt = FunDefTypes(name=decl.name, arg_types=arg_types,
+                              ret_type=ret, ret_annotated=annotated)
             fun_decls.append((decl.name, fdt))
             module_funcs.append((decl, fdt))
         elif isinstance(decl, ast.ExternFunctionDef):
-            # Extern: sygnatura w całości jawna (wymusza to parser), brak
-            # ciała do inferencji — schemat budowany wprost z adnotacji.
-            # Wspólny fenv: nieznana głowa (np. Miejsce) działa jak parametr
-            # typu współdzielony w obrębie sygnatury.
             fenv = {}
             fdt = FunDefTypes(
                 name=decl.name,
-                arg_types=[
-                    elaborate(p.type, fenv, fresh_unknown=True)
-                    for p in decl.params
-                ],
-                ret_type=elaborate(decl.return_type, fenv, fresh_unknown=True),
-                ret_annotated=True,
-                extern=True,
-            )
+                arg_types=[elaborate(p.type, fenv, fresh_unknown=True)
+                           for p in decl.params],
+                ret_type=elaborate(decl.return_type, fenv,
+                                   fresh_unknown=True),
+                ret_annotated=True, extern=True)
             fun_decls.append((decl.name, fdt))
 
-    # PASS 2 (do fixpointu): inferuj ciała, reużywając schematów + all_types.
-    global fun_scopes
-    fun_scopes = [(decl, scope) for (decl, _), scope
-                  in zip(module_funcs, _infer_to_fixpoint(module_funcs))]
-
-    # Punkty wejścia (działać) są wykonywane — ich zmienne muszą być w pełni
-    # skonkretyzowane (HM "type annotations needed" / Rust E0282).
+    scopes = {}
+    for składowa in _scc_kolejność(module_funcs):
+        _bieżąca_składowa = {id(module_funcs[i][1]) for i in składowa}
+        for i in składowa:
+            decl, fdt = module_funcs[i]
+            scope = Scope()
+            scope.root_fdt = fdt
+            scopes[i] = scope
+            resolve_function_def(decl, scope)
+            if not _returns_totally(decl.body):
+                _set_note(f"niejawny zwrot Nic z '{_ctx_fun}'")
+                ogranicz(Konkret("Nic"), fdt.ret_type)
+    _bieżąca_składowa = set()
+    fun_scopes = [(decl, scopes[i])
+                  for i, (decl, _) in enumerate(module_funcs)]
     for decl, scope in fun_scopes:
         if ("działać",) in decl.name.lemmas_set:
             _check_grounded(decl, scope)
 
 
-def _infer_bodies(module_funcs, scopes):
-    """Jeden przebieg inferencji ciał na TRWAŁYCH scope'ach. Lokalne zmienne
-    przeżywają między przebiegami, więc zawężenia (np. twoja_stara → Człowiek)
-    propagują się do fixpointu. declare/get_type są idempotentne, a unifikacje
-    monotoniczne (tylko przecinają/wiążą), więc ponowne przejście jest bezpieczne."""
-    for (decl, _), scope in zip(module_funcs, scopes):
-        resolve_function_def(decl, scope)
+def _ślady_z_grafu(var, widziane=None):
+    """Ślady zmiennej i jej poszlak-zmiennych (rodowód płynie krawędziami
+    grafu granic — np. nota „pochodzi z externa" siedzi na zmiennej
+    wyniku wywołania, nie na zmiennej użytkownika)."""
+    if widziane is None:
+        widziane = set()
+    if var in widziane:
+        return []
+    widziane.add(var)
+    out = list(var.ślad)
+    for d, _ in var.dolne:
+        if isinstance(d, Zmienna):
+            for n in _ślady_z_grafu(d, widziane):
+                if n not in out:
+                    out.append(n)
+    return out
 
 
-def _type_sig(r):
-    # Strukturalna sygnatura: wolne zmienne → '?' (normalizuje dryf numerów tN
-    # między przebiegami, żeby fixpoint dla typów parametryzowanych zbiegał),
-    # rekurencyjnie w argumenty AppliedType. Sortuj po głowie (unikalna w zbiorze).
-    r = find_type(r)
-    if isinstance(r, TypeVar):
-        return "?"
-    return tuple(sorted(
-        ((a.head, tuple(_type_sig(x) for x in a.args)) for a in r.variants),
-        key=lambda e: e[0],
-    ))
+def _check_grounded(decl, scope):
+    for s in scope.walk():
+        for ident, t in s.types:
+            try:
+                ok = _czy_ugruntowany(t)
+            except TypeCheckError as e:
+                line = getattr(ident, "line", None)
+                raise TypeCheckError(
+                    f"typ zmiennej '{'_'.join(ident.surface)}' "
+                    f"(linia {line}): {e}") from None
+            if not ok:
+                line = getattr(ident, "line", None)
+                ślad = _ślady_z_grafu(t) if isinstance(t, Zmienna) else []
+                źródło = ("; " + "; ".join(ślad[-4:])) if ślad else ""
+                raise TypeCheckError(
+                    f"nie można wywnioskować konkretnego typu zmiennej "
+                    f"'{'_'.join(ident.surface)}' (linia {line}); "
+                    f"pozostało {t!r}{źródło} — użyj wartości "
+                    f"strukturalnie albo dodaj adnotację typu")
 
 
-def _signature(module_funcs, scopes):
-    """Sygnatura całego stanu: schematy funkcji + typy WSZYSTKICH zmiennych
-    lokalnych. Wolne zmienne znormalizowane do '?'. Lokale muszą tu być, bo
-    inaczej pętla zatrzyma się gdy ustabilizują się same schematy — zanim
-    zawężenia lokalne dojdą do fixpointu. Równość dwóch kolejnych = fixpoint."""
-    sig = []
-    for (_, fdt) in module_funcs:
-        for t in list(fdt.arg_types) + [fdt.ret_type]:
-            sig.append(_type_sig(find_type(t)))
-    for root in scopes:
-        for s in root.walk():
-            for (_, t) in s.types:
-                sig.append(_type_sig(find_type(t)))
-    return tuple(sig)
-
-
-def _infer_to_fixpoint(module_funcs):
-    # Górna granica przebiegów: informacja o typie przechodzi najwyżej jedną
-    # krawędź wywołania na przebieg, więc jedna "fala" zmian potrzebuje co
-    # najwyżej N przebiegów (N = długość najdłuższego łańcucha wywołań ≤
-    # liczba funkcji). Węzeł schematu ma trzy fazy: wolna zmienna →
-    # struktura/zbiór kandydatów → unia (widening) — każde przejście może
-    # wywołać osobną falę. Pesymistycznie (fale sekwencyjne, bez nakładania):
-    # 3 fazy × N + zapas na lokale i scope'y gałęzi. Externy nie wnoszą
-    # opóźnienia (sygnatury stałe od rejestracji) i słusznie nie są wliczane.
-    # Empirycznie (łańcuchy forward-ref, cykle rekurencyjne z dwiema bazami
-    # różnych wariantów, sztafeta wideningu) zbieżność następuje po ~N+1
-    # przebiegach, bo fale się nakładają — 3N+5 trzyma margines na wypadki,
-    # w których kolejność iteracji ciał psuje nakładanie.
-    cap = 3 * len(module_funcs) + 5
-    # Trwałe scope per funkcja — tworzone RAZ, reużywane co przebieg.
-    scopes = []
-    for (_, fdt) in module_funcs:
-        scope = Scope()
-        scope.root_fdt = fdt
-        scopes.append(scope)
-    prev = None
-    for _ in range(cap):
-        _infer_bodies(module_funcs, scopes)
-        sig = _signature(module_funcs, scopes)
-        if sig == prev:
-            return scopes
-        prev = sig
-    print(f"OSTRZEŻENIE: typecheck nie osiągnął fixpointu po {cap} przebiegach")
-    return scopes
-
+# ---------- funkcje i instrukcje ----------
 
 def resolve_function_def(node, scope):
     global _ctx_fun
@@ -1076,7 +991,6 @@ def resolve_function_def(node, scope):
 
 
 def _node_line(node):
-    """Linia instrukcji: z Phrase/Match wprost, inaczej z frazy składowej."""
     if isinstance(node, ast.Phrase):
         return node.line
     if isinstance(node, ast.Assignment):
@@ -1099,27 +1013,284 @@ def resolve_statement(node, scope):
         _set_note("wnioskowanie")
     try:
         if isinstance(node, ast.Assignment):
-            resolve_assignment(node, scope)
+            return resolve_assignment(node, scope)
         if isinstance(node, ast.If):
-            resolve_if(node, scope)
+            return resolve_if(node, scope)
         if isinstance(node, ast.While):
-            resolve_while(node, scope)
+            return resolve_while(node, scope)
         if isinstance(node, ast.For):
-            resolve_for(node, scope)
+            raise TypeCheckError(
+                "pętla 'dla' czeka na protokół iteracji (kolekcje są "
+                "biblioteczne) — użyj 'dopóki' albo rekurencji")
         if isinstance(node, ast.Match):
-            resolve_match(node, scope)
+            return resolve_match(node, scope)
         if isinstance(node, ast.Return):
-            resolve_return(node, scope)
+            return resolve_return(node, scope)
+        if isinstance(node, (ast.Break, ast.Continue)):
+            return
         resolve_expression(node, scope)
     except TypeCheckError as e:
-        # Błąd bez lokalizacji dostaje kontekst instrukcji; zagnieżdżony
-        # resolve_statement (gałęzie) dekoruje pierwszy — tu przechodzi.
         if "lini" in str(e) or line is None:
             raise
         ctx = f"podczas typowania linii {line}"
         if _ctx_fun:
             ctx += f", w funkcji '{_ctx_fun}'"
         raise TypeCheckError(f"{e} ({ctx})") from None
+
+
+def resolve_assignment(node, scope):
+    target = node.target.resolved
+    value_type = resolve_expression(node.value.resolved, scope)
+    explicit_t = None
+    if isinstance(target, ast.Typed) and isinstance(target.expr,
+                                                    ast.Identifier):
+        explicit_t = elaborate(target.type, {}, fresh_unknown=True)
+        target = target.expr
+    if isinstance(target, ast.Identifier):
+        _set_note(f"przypisanie do '{'_'.join(target.surface)}'")
+        outer_t = scope.assign_target_type(target)
+        if explicit_t is not None:
+            # Adnotowana deklaracja przybija typ: wartości sprawdzane
+            # względem adnotacji, odczyty widzą adnotację.
+            ogranicz(value_type, explicit_t)
+            ogranicz(explicit_t, outer_t)
+            ogranicz(outer_t, explicit_t)
+        else:
+            ogranicz(value_type, outer_t)
+        # Zapis do nazwy podmiotu idzie WYŁĄCZNIE na zewnątrz — cień
+        # zawężenia zostaje wąski (idiom kursora czyta głowę i przesuwa
+        # wskaźnik w tej samej gałęzi); odczyty PO bloku widzą typ
+        # zewnętrzny, uczciwie poszerzony o zapis.
+        return
+    target_type = resolve_expression(target, scope)
+    _set_note("zapis pola przez łańcuch dopełniaczowy")
+    ogranicz(value_type, target_type)
+
+
+def resolve_return(node, scope):
+    if node.value is not None:
+        t = resolve_expression(node.value, scope)
+        _set_note(f"zwrot z funkcji '{_ctx_fun}'")
+        ogranicz(t, scope.root_fdt.ret_type)
+    else:
+        _set_note(f"gołe 'zwróć' z funkcji '{_ctx_fun}'")
+        ogranicz(Konkret("Nic"), scope.root_fdt.ret_type)
+
+
+def resolve_if(node, scope):
+    cond = resolve_expression(node.cond, scope)
+    ogranicz(cond, Konkret("Przełącznik"))
+    for stmt in node.then_body:
+        resolve_statement(stmt, scope.child_for(node, "then"))
+    for stmt in node.else_body:
+        resolve_statement(stmt, scope.child_for(node, "else"))
+
+
+def resolve_while(node, scope):
+    cond = resolve_expression(node.cond, scope)
+    ogranicz(cond, Konkret("Przełącznik"))
+    for stmt in node.body:
+        resolve_statement(stmt, scope.child_for(node, "body"))
+
+
+# ---------- dopasowanie `jest:` ----------
+
+def _głowy_znane(t):
+    """Głowy konkretów znanych o typie (materializacja miękka) — do
+    rozstrzygania kandydatów dopasowań i łańcuchów."""
+    if isinstance(t, Konkret):
+        return {t.głowa}
+    m = None
+    try:
+        m = _zmaterializuj(t)
+    except TypeCheckError:
+        pass
+    return {m.głowa} if m is not None else set()
+
+
+def _fakty_dolne(t, widziane=None):
+    """Głowa wywiedziona WYŁĄCZNIE z granic dolnych (faktów o wartości) —
+    bez domyślkowania z górnych, które są dozwoleniem, nie faktem."""
+    if isinstance(t, Konkret):
+        return {t.głowa}
+    if widziane is None:
+        widziane = set()
+    if t in widziane:
+        return set()
+    widziane.add(t)
+    głowy = set()
+    for d, _ in t.dolne:
+        if isinstance(d, Konkret):
+            głowy.add(d.głowa)
+        else:
+            głowy |= _fakty_dolne(d, widziane)
+    if len(głowy) > 1:
+        unia = najmniejsza_unia(głowy)
+        if unia is not None:
+            return {unia}
+    return głowy
+
+
+def _union_for_match(subject_t, branch_heads, line):
+    branch_set = set(branch_heads)
+    cands = [
+        decl for decl in module.body
+        if isinstance(decl, ast.UnionDef)
+        and {"".join(m) for m in decl.members} == branch_set
+    ]
+    znane = _głowy_znane(subject_t)
+    if len(cands) > 1 and znane:
+        zawężone = [c for c in cands
+                    if "".join(c.name) in znane
+                    or znane & {"".join(m) for m in c.members}]
+        if zawężone:
+            cands = zawężone
+    if len(cands) == 1:
+        return cands[0]
+    if not cands:
+        for głowa in znane:
+            czł = członkowie(głowa)
+            if czł is not None:
+                brakuje = czł - branch_set
+                nadmiar = branch_set - czł
+                if brakuje:
+                    raise TypeCheckError(
+                        f"dopasowanie 'jest:' (linia {line}) na wartości "
+                        f"typu '{głowa}' — brakuje gałęzi: "
+                        f"{', '.join(sorted(brakuje))}")
+                if nadmiar:
+                    raise TypeCheckError(
+                        f"dopasowanie 'jest:' (linia {line}) ma gałęzie "
+                        f"spoza unii: {', '.join(sorted(nadmiar))}")
+        raise TypeCheckError(
+            f"gałęzie dopasowania 'jest:' (linia {line}) — "
+            f"{', '.join(sorted(branch_set))} — nie odpowiadają członkom "
+            f"żadnego zadeklarowanego typu wariantowego")
+    opts = ", ".join(sorted("".join(c.name) for c in cands))
+    raise TypeCheckError(
+        f"dopasowanie 'jest:' (linia {line}) pasuje do wielu typów "
+        f"wariantowych: {opts} — dodaj adnotację typu")
+
+
+def _unions_for_partial_match(subject_t, branch_heads, line):
+    branch_set = set(branch_heads)
+    cands = [
+        decl for decl in module.body
+        if isinstance(decl, ast.UnionDef)
+        and branch_set <= {"".join(m) for m in decl.members}
+    ]
+    if not cands:
+        raise TypeCheckError(
+            f"gałęzie dopasowania z 'inaczej:' (linia {line}) — "
+            f"{', '.join(sorted(branch_set))} — nie są podzbiorem "
+            f"wariantów żadnego zadeklarowanego typu wariantowego")
+    znane = _głowy_znane(subject_t)
+    if znane:
+        zawężone = [
+            c for c in cands
+            if "".join(c.name) in znane
+            or znane & {"".join(m) for m in c.members}
+        ]
+        if len(zawężone) > 1:
+            opts = ", ".join(sorted("".join(c.name) for c in zawężone))
+            raise TypeCheckError(
+                f"dopasowanie z 'inaczej:' (linia {line}) pasuje do wielu "
+                f"typów wariantowych: {opts} — dodaj adnotację typu")
+        if zawężone:
+            return zawężone
+    return cands
+
+
+def resolve_match(node, scope):
+    subject_t = resolve_expression(node.subject, scope)
+    _set_note("podmiot dopasowania 'jest:'")
+    branch_heads = []
+    has_default = False
+    for br in node.branches:
+        if br.type_name is None:
+            has_default = True
+            continue
+        h = "".join(br.type_name)
+        if h in branch_heads:
+            raise TypeCheckError(
+                f"powtórzona gałąź '{h}' w dopasowaniu 'jest:' "
+                f"(linia {node.line})")
+        branch_heads.append(h)
+    if has_default:
+        cands = _unions_for_partial_match(subject_t, branch_heads,
+                                          node.line)
+        if len(cands) == 1:
+            u_inst = _unia_applied("".join(cands[0].name))
+            ogranicz(subject_t, u_inst)
+            linked = u_inst
+        else:
+            linked = None
+            if isinstance(subject_t, Zmienna):
+                alt = {"".join(c.name): _unia_applied("".join(c.name))
+                       for c in cands}
+                if subject_t.alternatywy is None:
+                    subject_t.alternatywy = alt
+                else:
+                    wspólne = {h: k for h, k in subject_t.alternatywy.items()
+                               if h in alt}
+                    if not wspólne:
+                        raise TypeCheckError(
+                            f"dopasowanie z 'inaczej:' (linia {node.line}) "
+                            f"nie przecina się z wcześniejszymi "
+                            f"możliwościami podmiotu")
+                    subject_t.alternatywy = wspólne
+    else:
+        ud = _union_for_match(subject_t, branch_heads, node.line)
+        linked = _unia_applied("".join(ud.name))
+        ogranicz(subject_t, linked)
+    for br in node.branches:
+        if br.type_name is None:
+            br_scope = scope.child_for(br, "body")
+            for stmt in br.body:
+                resolve_statement(stmt, br_scope)
+            continue
+        sd = find_struct_def(br.type_name)
+        if sd is None:
+            br_scope = scope.child_for(br, "body")
+            if br.alias is not None:
+                br_scope.declare(br.alias, Konkret("".join(br.type_name)))
+            for stmt in br.body:
+                resolve_statement(stmt, br_scope)
+            continue
+        inst, env = _instancja_struktury(sd)
+        if linked is not None:
+            for i, j in _mapowanie_członka(inst.głowa, linked.głowa):
+                ogranicz(inst.args[i], linked.args[j])
+                ogranicz(linked.args[j], inst.args[i])
+        br_scope = scope.child_for(br, "body")
+        for fid in br.fields:
+            f = _find_field_for_ident(sd, fid)
+            if f is None:
+                raise TypeCheckError(
+                    f"'{'_'.join(fid.surface)}' nie jest polem struktury "
+                    f"'{'_'.join(br.type_name)}' (linia {br.line})")
+            br_scope.declare(fid, elaborate(f.type, env))
+        if br.alias is not None:
+            br_scope.declare(br.alias, inst)
+        subject = node.subject.resolved
+        if isinstance(subject, ast.Identifier):
+            br_scope.declare_shadow(subject, inst)
+        for stmt in br.body:
+            resolve_statement(stmt, br_scope)
+
+
+def _find_field_for_ident(struct_def, ident):
+    for key in ident.scope_keys:
+        for f in struct_def.fields:
+            if any(ast.scope_key_matches(key, k) for k in f.name.scope_keys):
+                return f
+    return None
+
+
+# ---------- wyrażenia ----------
+
+_COMPARISON_OPS = {"<", ">", "<=", ">="}
+_EQUALITY_OPS = {"=", "!=", "≡"}
 
 
 def resolve_expression(node, scope):
@@ -1130,17 +1301,23 @@ def resolve_expression(node, scope):
     if isinstance(node, ast.Typed):
         expr_t = resolve_expression(node.expr, scope)
         explicit_t = elaborate(node.type, {}, fresh_unknown=True)
-        return unify_types(explicit_t, expr_t, widen=True, mode="accumulate")
+        ogranicz(expr_t, explicit_t)
+        return explicit_t
     if isinstance(node, ast.BinOp):
         return resolve_bin_op(node, scope)
     if isinstance(node, ast.UnaryOp):
-        return resolve_unary_op(node, scope)
+        t = resolve_expression(node.operand, scope)
+        ogranicz(t, Konkret("Liczba"))
+        return Konkret("Liczba")
     if isinstance(node, ast.Not):
-        return resolve_not(node, scope)
-    if isinstance(node, ast.And):
-        return resolve_and(node, scope)
-    if isinstance(node, ast.Or):
-        return resolve_or(node, scope)
+        t = resolve_expression(node.operand, scope)
+        ogranicz(t, Konkret("Przełącznik"))
+        return Konkret("Przełącznik")
+    if isinstance(node, (ast.And, ast.Or)):
+        for strona in (node.left, node.right):
+            t = resolve_expression(strona, scope)
+            ogranicz(t, Konkret("Przełącznik"))
+        return Konkret("Przełącznik")
     if isinstance(node, ast.FunctionCall):
         return resolve_function_call(node, scope)
     if isinstance(node, ast.FunctionRef):
@@ -1158,417 +1335,126 @@ def resolve_expression(node, scope):
             "wewnętrzny błąd interpretera: argument konstrukcji struktury "
             "poza konstrukcją — zgłoś ten program jako bug")
     if isinstance(node, ast.Identifier):
-        return resolve_identifier(node, scope)
+        return scope.get_type(node)
     if isinstance(node, ast.IntLit):
-        return variant(["Liczba"])
+        return Konkret("Liczba")
     if isinstance(node, ast.StrLit):
-        # Literał tekstowy jest listą znaków — typ przez przezroczystą
-        # ekspansję aliasu `Tekst` (przygrywka). `Tekst` nie jest już
-        # typem wbudowanym, więc bez aliasu literał nie ma typu.
         if find_type_alias("Tekst") is None:
             raise TypeCheckError(
                 "literał tekstowy wymaga aliasu typu 'Tekst' "
                 "(np. uwzględnij przygrywka.ć)")
         return elaborate(ast.TypeRef(head=("Tekst",), args=[]), {})
     if isinstance(node, ast.CharLit):
-        return variant(["Znak"])
+        return Konkret("Znak")
     if isinstance(node, ast.BoolLit):
-        return variant(["Przełącznik"])
+        return Konkret("Przełącznik")
 
-def resolve_assignment(node, scope):
-    target = node.target.resolved
-    value_type = resolve_expression(node.value.resolved, scope)
-    explicit_t = None
-    if isinstance(target, ast.Typed) and isinstance(target.expr, ast.Identifier):
-        # Adnotowany cel-identyfikator rozpakowuje się PRZED rozstrzyganiem
-        # (dawne bad/adnotowany_podmiot.ć: Typed omijał zapis-na-zewnątrz,
-        # rozjeżdżając typechecker z runtime). Adnotacja wiąże się z celem
-        # zewnętrznym, nie z cieniem.
-        explicit_t = elaborate(target.type, {}, fresh_unknown=True)
-        target = target.expr
-    if isinstance(target, ast.Identifier):
-        _set_note(f"przypisanie do '{'_'.join(target.surface)}'")
-        # Zapis do nazwy idzie na ZEWNĄTRZ (z pominięciem cienia zawężenia)
-        # — idiom kursora `reszta to ogon` przesuwa zmienną pętli. Jeśli
-        # nazwa ma w gałęzi cień, wartość dolewa się TAKŻE do niego: dalsze
-        # zawężone odczyty widzą typ zdegradowany, nie kłamliwie wąski.
-        outer_t = scope.assign_target_type(target)
-        if explicit_t is not None:
-            unify_types(explicit_t, outer_t, widen=True, mode="accumulate")
-        unify_types(outer_t, value_type, widen=True, mode="accumulate")
-        shadow_t = scope.find_shadow(target)
-        if shadow_t is not None and find_type(shadow_t) is not find_type(outer_t):
-            unify_types(shadow_t, value_type, widen=True, mode="accumulate")
+
+def _porównywalne(t0, t1, op):
+    """Porównywalność równościowa BEZ przepływu wartości: głowy znanych
+    konkretów muszą być identyczne albo mieć wspólną unię; argumenty
+    porównywanych konkretów wiążą się wzajemnie (lista znaków ≠ lista
+    liczb)."""
+    g0 = _głowy_znane(t0)
+    g1 = _głowy_znane(t1)
+    if not g0 or not g1:
         return
-    target_type = resolve_expression(target, scope)
-    _set_note("zapis pola przez łańcuch dopełniaczowy")
-    unify_types(target_type, value_type, widen=True, mode="accumulate")
-
-
-# Operatory porównania (CMP_OP) zwracają Przełącznik; arytmetyczne — Liczbę.
-_COMPARISON_OPS = {"<", ">", "<=", ">=", "=", "!=", "≡"}
-
-_EQUALITY_OPS = {"=", "!=", "≡"}
-
-
-def _equality_subsumes(t0, t1):
-    """Porównywalność równościowa przez wspólną unię, BEZ wiązania klas
-    operandów — porównanie nie jest przepływem wartości, więc nie może
-    degradować typu zmiennej do unii (`ogniwo równe Nic` zostawia ogniwu
-    jego chainy). Obejmuje członek≤unia ORAZ członek≤członek (wspólna
-    zadeklarowana unia, np. `ogniwo równe Nic`); argumenty członków wiążą
-    się z argumentami unii (lista znaków ≠ lista liczb → błąd). False →
-    zwykła ścisła unifikacja (wspólne głowy, linkowanie zmiennych)."""
-    r0, r1 = _force_lowers(t0), _force_lowers(t1)
-    if not (isinstance(r0, VariantVar) and isinstance(r1, VariantVar)):
-        return False
-    if {a.head for a in r0.variants} & {a.head for a in r1.variants}:
-        return False
-    # Strona będąca dokładnie unią zostaje slotem; inaczej wspólna unia
-    # pokrywająca obie strony (świeża aplikacja, żyje tylko w porównaniu).
-    u_at = None
-    for u, m in ((r0, r1), (r1, r0)):
-        members = _union_members(u)
-        if members is not None and all(a.head in members for a in m.variants):
-            u_at = next(iter(u.variants))
-            break
-    if u_at is None:
-        u = _widening_union({a.head for a in r0.variants}
-                            | {a.head for a in r1.variants})
-        if u is None:
-            return False
-        u_at = _union_applied(u)
-    for a in r0.variants | r1.variants:
-        if a.head != u_at.head:
-            _link_member_args(a, u_at)
-    return True
+    wspólna = najmniejsza_unia(g0 | g1)
+    if g0 != g1 and wspólna is None:
+        raise TypeCheckError(
+            f"wartości typów {sorted(g0)} i {sorted(g1)} są "
+            f"nieporównywalne ('{op}') — nie łączy ich żadna unia")
+    m0, m1 = _zmaterializuj(t0), _zmaterializuj(t1)
+    if (m0 is not None and m1 is not None and m0.głowa == m1.głowa
+            and m0.args and len(m0.args) == len(m1.args)):
+        for i, (x, y) in enumerate(zip(m0.args, m1.args)):
+            _inwariantnie(m0.głowa, i, x, y)
+    elif m0 is not None and m1 is not None and wspólna is not None:
+        u = _unia_applied(wspólna)
+        for m in (m0, m1):
+            if m.głowa != wspólna:
+                for i, j in _mapowanie_członka(m.głowa, wspólna):
+                    ogranicz(m.args[i], u.args[j])
+                    ogranicz(u.args[j], m.args[i])
 
 
 def resolve_bin_op(node, scope):
     t0 = resolve_expression(node.left, scope)
     t1 = resolve_expression(node.right, scope)
+    if node.op in _EQUALITY_OPS:
+        _porównywalne(t0, t1, node.op)
+        return Konkret("Przełącznik")
+    ogranicz(t0, Konkret("Liczba"))
+    ogranicz(t1, Konkret("Liczba"))
     if node.op in _COMPARISON_OPS:
-        if not (node.op in _EQUALITY_OPS and _equality_subsumes(t0, t1)):
-            unify_types(t0, t1)
-        return variant(["Przełącznik"])
-    unify_types(t0, t1)
-    unify_types(t0, variant(["Liczba"]))
-    return t0
-
-
-def resolve_unary_op(node, scope):
-    t = resolve_expression(node.operand, scope)
-    unify_types(t, variant(["Liczba"]))
-    return t
-
-
-def resolve_if(node, scope):
-    t = resolve_expression(node.cond, scope)
-    unify_types(t, variant(["Przełącznik"]))
-    then_scope = scope.child_for(node, "then")
-    for stmt in node.then_body:
-        resolve_statement(stmt, then_scope)
-    else_scope = scope.child_for(node, "else")
-    for stmt in node.else_body:
-        resolve_statement(stmt, else_scope)
-
-
-def resolve_while(node, scope):
-    t = resolve_expression(node.cond, scope)
-    unify_types(t, variant(["Przełącznik"]))
-    body_scope = scope.child_for(node, "body")
-    for stmt in node.body:
-        resolve_statement(stmt, body_scope)
-
-
-def resolve_for(node, scope):
-    """Głośna odmowa (decyzja językowa, lipiec 2026): `dla X w Y:` to
-    iteracja po kolekcji, a kolekcje w Ć są biblioteczne (Lista, Mapa, AVL
-    pisane w samym Ć) — pętla wymagałaby protokołu typ→iterowanie
-    (typeclassy/traity), którego język świadomie jeszcze nie ma. Gramatyka
-    i rezolucja zostają (składnia zarezerwowana); typowanie odmawia."""
-    raise TypeCheckError(
-        f"konstrukcja `dla ... w ...:` wymaga protokołu iteracji, którego "
-        f"język jeszcze nie ma (linia {getattr(node.var, 'line', None)}) — "
-        f"użyj rekursji z dopasowaniem `jest:`, pętli `dopóki` albo "
-        f"złożenia przez `zastosuj`")
-
-
-def resolve_return(node, scope):
-    if node.value is not None:
-        t = resolve_expression(node.value, scope)
-        _set_note(f"zwrot z funkcji '{_ctx_fun}'")
-        # widen: gałęzie zwracające różne warianty jednej unii typują
-        # funkcję tą unią; warianty bez wspólnej unii → TypeCheckError.
-        unify_types(scope.root_fdt.ret_type, t, widen=True,
-                    mode="check" if scope.root_fdt.ret_annotated else "accumulate")
-    else:
-        _set_note(f"gołe 'zwróć' z funkcji '{_ctx_fun}'")
-        unify_types(scope.root_fdt.ret_type, variant(["Nic"]))
-
-
-def _union_for_match(subject_t, branch_heads, line):
-    """Unia, do której należy subject dopasowania `jest:`. Kandydaci: unie, których
-    zbiór wariantów RÓWNA SIĘ zbiorowi gałęzi (każdy wariant unii musi mieć
-    gałąź — wyczerpujące dopasowanie; gałąź spoza unii też dyskwalifikuje).
-    Przy wielu kandydatach rozstrzyga znany typ subjectu. Gdy brak kandydata,
-    a typ subjectu to znana unia — komunikat wskazuje brakujące/nadmiarowe
-    gałęzie."""
-    branch_set = set(branch_heads)
-    ft = find_type(subject_t)
-    subj_head = None
-    if isinstance(ft, VariantVar) and len(ft.variants) == 1:
-        subj_head = next(iter(ft.variants)).head
-    cands = [
-        decl for decl in module.body
-        if isinstance(decl, ast.UnionDef)
-        and {"".join(m) for m in decl.members} == branch_set
-    ]
-    if len(cands) == 1:
-        return cands[0]
-    if len(cands) > 1:
-        for c in cands:
-            if "".join(c.name) == subj_head:
-                return c
-        opts = ", ".join(sorted("".join(c.name) for c in cands))
-        raise TypeCheckError(
-            f"gałęzie dopasowania 'jest:' (linia {line}) pasują do wielu typów "
-            f"wariantowych: {opts} — dodaj adnotację typu")
-    if subj_head is not None:
-        ud = find_union_def((subj_head,))
-        if ud is not None:
-            members = {"".join(m) for m in ud.members}
-            problems = []
-            missing = members - branch_set
-            if missing:
-                problems.append(f"brakuje gałęzi: {', '.join(sorted(missing))}")
-            extra = branch_set - members
-            if extra:
-                problems.append(
-                    f"gałęzie spoza unii: {', '.join(sorted(extra))}")
-            raise TypeCheckError(
-                f"dopasowanie 'jest:' (linia {line}) na typie '{subj_head}': "
-                f"{'; '.join(problems)}")
-    raise TypeCheckError(
-        f"gałęzie dopasowania 'jest:' (linia {line}) — "
-        f"{', '.join(sorted(branch_set))} — nie odpowiadają wariantom "
-        f"żadnego zadeklarowanego typu wariantowego")
-
-
-def _unions_for_partial_match(subject_t, branch_heads, line):
-    """Unie-kandydatki dla dopasowania z gałęzią `inaczej:` — wystarczy,
-    żeby jawne gałęzie były PODZBIOREM członków unii (resztę wariantów
-    pokrywa `inaczej`; podzbiór niewłaściwy też OK — martwe `inaczej`
-    nie jest błędem, kod ewoluuje). Przy wielu kandydatkach rozstrzyga
-    znany typ podmiotu; nierozstrzygnięte zwraca wszystkie — caller
-    unifikuje podmiot z wielogłowym ambiguity-setem, który zawężą
-    POZOSTAŁE wystąpienia zmiennej (przecięcie w _unify_variants)."""
-    branch_set = set(branch_heads)
-    cands = [
-        decl for decl in module.body
-        if isinstance(decl, ast.UnionDef)
-        and branch_set <= {"".join(m) for m in decl.members}
-    ]
-    if not cands:
-        raise TypeCheckError(
-            f"gałęzie dopasowania z 'inaczej:' (linia {line}) — "
-            f"{', '.join(sorted(branch_set))} — nie są podzbiorem wariantów "
-            f"żadnego zadeklarowanego typu wariantowego")
-    ft = find_type(subject_t)
-    if isinstance(ft, VariantVar) and len(ft.variants) == 1:
-        subj_head = next(iter(ft.variants)).head
-        # Podmiot już jest jedną z unii-kandydatek → ona rozstrzyga.
-        for c in cands:
-            if "".join(c.name) == subj_head:
-                return [c]
-        # Podmiot jest strukturą → zostają unie, które go zawierają;
-        # wciąż wiele → ta sama wieloznaczność co w pełnym dopasowaniu.
-        containing = [
-            c for c in cands
-            if subj_head in {"".join(m) for m in c.members}
-        ]
-        if len(containing) > 1:
-            opts = ", ".join(sorted("".join(c.name) for c in containing))
-            raise TypeCheckError(
-                f"dopasowanie z 'inaczej:' (linia {line}) na wartości typu "
-                f"'{subj_head}' pasuje do wielu typów wariantowych: {opts} "
-                f"— dodaj adnotację typu")
-        if containing:
-            cands = containing
-    return cands
-
-
-def resolve_match(node, scope):
-    subject_t = resolve_expression(node.subject, scope)
-    _set_note("podmiot dopasowania 'jest:'")
-    branch_heads = []
-    has_default = False
-    for br in node.branches:
-        if br.type_name is None:
-            has_default = True
-            continue
-        h = "".join(br.type_name)
-        if h in branch_heads:
-            raise TypeCheckError(
-                f"powtórzona gałąź '{h}' w dopasowaniu 'jest:' (linia {node.line})")
-        branch_heads.append(h)
-    if has_default:
-        cands = _unions_for_partial_match(subject_t, branch_heads, node.line)
-        # Jedna kandydatka → subsumpcja (unia jako slot): KONKRETNY podmiot
-        # zachowuje swój typ — dopasowanie nie wymazuje faktu `kwiatek :
-        # Tulipan`; wolny podmiot (np. parametr) wiąże się z unią, bo to
-        # jego inferencja. Wiele → wielogłowy ambiguity-set BEZ widen:
-        # przecięcia z pozostałych wystąpień zmiennej zawężają go
-        # w fixpoincie; nierozstrzygnięty w `działać` wpada w grounding.
-        heads = {_union_applied("".join(c.name)) for c in cands}
-        unify_types(VariantVar(variants=heads), subject_t,
-                    widen=len(cands) == 1, mode="accumulate")
-        # Jedna kandydatka → gałęzie zwiążą swoje instancje z argumentami
-        # unii podmiotu (precyzyjne typy wiązań); wiele → bez linkowania.
-        linked = next(iter(heads)) if len(cands) == 1 else None
-    else:
-        ud = _union_for_match(subject_t, branch_heads, node.line)
-        linked = _union_applied("".join(ud.name))
-        unify_types(
-            VariantVar(variants={linked}),
-            subject_t,
-            widen=True, mode="accumulate",
-        )
-    for br in node.branches:
-        if br.type_name is None:
-            br_scope = scope.child_for(br, "body")
-            for stmt in br.body:
-                resolve_statement(stmt, br_scope)
-            continue
-        sd = find_struct_def(br.type_name)
-        if sd is None:
-            # Wbudowane `Nic` — wariant bez pól (pass 2 gwarantuje, że
-            # gałąź niczego nie wiąże); samo ciało do przejścia.
-            br_scope = scope.child_for(br, "body")
-            if br.alias is not None:
-                br_scope.declare(br.alias, variant(["".join(br.type_name)]))
-            for stmt in br.body:
-                resolve_statement(stmt, br_scope)
-            continue
-        # Świeża instancja per gałąź: unia nie niesie parametrów typu, więc
-        # pola-parametry wariantu zaczynają jako wolne zmienne i konkretyzują
-        # się przez użycie w ciele gałęzi.
-        inst, env = instantiate_struct(sd)
-        if linked is not None:
-            # Instancja gałęzi dziedziczy argumenty unii podmiotu — wiązania
-            # pól dostają precyzyjne typy (element z Ogon[Liczba] to Liczba).
-            _link_member_args(next(iter(inst.variants)), linked)
-        br_scope = scope.child_for(br, "body")
-        for fid in br.fields:
-            field = find_field_for_ident(sd, fid)
-            if field is None:
-                raise TypeCheckError(
-                    f"'{'_'.join(fid.surface)}' nie jest polem struktury "
-                    f"'{'_'.join(br.type_name)}' (linia {br.line})")
-            br_scope.declare(fid, elaborate(field.type, env))
-        # Zawężenie podmiotu-zmiennej (smart cast): świeża deklaracja
-        # przesłaniająca w scope gałęzi — bez unifikacji z klasą zewnętrzną,
-        # żeby nie wymazać typu poza gałęzią. Wiązania pól deklarowane
-        # wcześniej wygrywają przy kolizji nazw.
-        # Alias `jako` jest pisany przez użytkownika — jak wiązanie pola
-        # podlega groundingowi (nieużyty binder sparametryzowanego wariantu
-        # to martwy kod do usunięcia). Niejawny cień podmiotu — nie.
-        if br.alias is not None:
-            br_scope.declare(br.alias, inst)
-        subject = node.subject.resolved
-        if isinstance(subject, ast.Identifier):
-            br_scope.declare_shadow(subject, inst)
-        for stmt in br.body:
-            resolve_statement(stmt, br_scope)
-
-
-def resolve_not(node, scope):
-    t = resolve_expression(node.operand, scope)
-    unify_types(t, variant(["Przełącznik"]))
-    return t
-
-
-def resolve_and(node, scope):
-    t0 = resolve_expression(node.left, scope)
-    t1 = resolve_expression(node.right, scope)
-    unify_types(t0, t1)
-    unify_types(t0, variant(["Przełącznik"]))
-    return t0
-
-
-def resolve_or(node, scope):
-    t0 = resolve_expression(node.left, scope)
-    t1 = resolve_expression(node.right, scope)
-    unify_types(t0, t1)
-    unify_types(t0, variant(["Przełącznik"]))
-    return t0
+        return Konkret("Przełącznik")
+    return Konkret("Liczba")
 
 
 def resolve_function_call(node, scope):
     fdt = find_fdt(node.name)
-    arg_types, ret_type = instantiate(fdt)
+    if fdt is None:
+        raise TypeCheckError(
+            f"wywołanie niezadeklarowanej funkcji "
+            f"'{'_'.join(node.name.surface)}'")
     fname = "_".join(node.name.surface)
-    ret_root = find_type(ret_type)
-    if fdt.extern and isinstance(ret_root, TypeVar):
-        # Rodowód dla groundingu: wolny wynik externa nie ma ciała, z
-        # którego mógłby się skonkretyzować — tylko użycie go ustala.
+    if id(fdt) in _bieżąca_składowa:
+        # Rekursja (także wzajemna) monomorficzna: współdzielimy zmienne
+        # sygnatury zamiast instancjonować.
+        arg_types, ret_type = fdt.arg_types, fdt.ret_type
+    else:
+        arg_types, ret_type = instantiate(fdt)
+    if fdt.extern and isinstance(ret_type, Zmienna):
         nota = (f"pochodzi z externa '{fname}' (czysta świeżość) i musi "
                 f"zostać ustalony przez użycie")
-        if nota not in ret_root.trail:
-            ret_root.trail.append(nota)
-    for i, (t0, p) in enumerate(zip(arg_types, node.params)):
-        t1 = resolve_expression(p, scope)
+        if nota not in ret_type.ślad:
+            ret_type.ślad.append(nota)
+    for i, (slot, p) in enumerate(zip(arg_types, node.params)):
+        t = resolve_expression(p, scope)
         _set_note(f"argument {i + 1} wywołania '{fname}'")
-        unify_types(t0, t1, widen=True, mode="check")
+        ogranicz(t, slot)
     return ret_type
 
 
 def resolve_function_ref(node, scope):
-    """Referencja gerundialna: świeża instancja sygnatury (rank-1) opakowana
-    w strzałkę — generyczna funkcja dostaje niezależne zmienne per miejsce
-    użycia. W fixpoincie zachowuje się jak wywołanie: re-instancjonuje
-    aktualny stan schematu co przebieg."""
     fdt = find_fdt_by_key(node.key)
     if fdt is None:
         raise TypeCheckError(
             f"referencja do nieznanej funkcji '{'_'.join(node.key)}' "
             f"(linia {node.line})")
-    arg_types, ret_type = instantiate(fdt)
-    return arrow(arg_types, ret_type)
+    if id(fdt) in _bieżąca_składowa:
+        arg_types, ret_type = fdt.arg_types, fdt.ret_type
+    else:
+        arg_types, ret_type = instantiate(fdt)
+    return Konkret(ARROW, tuple(arg_types) + (ret_type,))
 
 
 def resolve_apply(node, scope):
-    """`zastosuj F z X z Y`: typ F unifikowany ze strzałką o arności
-    z miejsca wywołania; argumenty jak w zwykłym wywołaniu (widen na
-    pozycjach top-level). Zwraca typ wyniku."""
     t_f = resolve_expression(node.fn, scope)
-    ft = find_type(t_f)
-    if isinstance(ft, VariantVar):
-        arities = {len(a.args) - 1 for a in ft.variants if a.head == ARROW}
-        if arities and len(node.args) not in arities:
-            expected = " lub ".join(str(a) for a in sorted(arities))
+    args = [new_type() for _ in node.args]
+    ret = new_type()
+    strzałka = Konkret(ARROW, tuple(args) + (ret,))
+    try:
+        ogranicz(t_f, strzałka)
+    except TypeCheckError as e:
+        if "liczba argumentów" in str(e):
             raise TypeCheckError(
                 f"zastosowanie (linia {node.line}) przekazuje "
-                f"{len(node.args)} argument(ów), a wartość funkcyjna "
-                f"przyjmuje {expected}")
-    arg_types = [new_type() for _ in node.args]
-    ret_type = new_type()
-    unify_types(t_f, arrow(arg_types, ret_type))
-    for (t0, p) in zip(arg_types, node.args):
-        t1 = resolve_expression(p, scope)
-        unify_types(t0, t1, widen=True, mode="check")
-    return ret_type
+                f"{len(node.args)} argument(ów) — {e}") from None
+        raise
+    for slot, w in zip(args, node.args):
+        t = resolve_expression(w.value, scope)
+        _set_note(f"argument zastosowania (linia {node.line})")
+        ogranicz(t, slot)
+    return ret
 
 
 def _require_rezultat(line):
-    """Wywołanie z obsługą błędu wymaga zadeklarowanej w module unii
-    `Rezultat to Sukces albo Błąd` — dokładnie tych nazw i tego składu."""
     ud = find_union_def(("Rezultat",))
     if ud is None or {"".join(m) for m in ud.members} != {"Sukces", "Błąd"}:
         raise TypeCheckError(
             f"wywołanie z obsługą błędu '?' (linia {line}) wymaga "
-            f"zadeklarowanej unii 'Rezultat to Sukces albo Błąd'"
-        )
+            f"zadeklarowanej unii 'Rezultat to Sukces albo Błąd'")
 
 
 def resolve_try_call(node, scope):
@@ -1581,67 +1467,108 @@ def resolve_try_call(node, scope):
         t = resolve_apply(node.call, scope)
     else:
         t = resolve_function_call(node.call, scope)
-    # Wołana funkcja musi dawać Rezultat (Sukces/Błąd też ujdą — widening).
-    unify_types(t, _union_vv("Rezultat"), widen=True)
-    # Gałąź-Błąd propaguje się returnem z funkcji otaczającej.
-    unify_types(scope.root_fdt.ret_type, variant(["Błąd"]), widen=True)
-    # Odpakowana wartość Sukcesu — unia wymazuje parametry, więc typ jest
-    # wolny i konkretyzuje się przez użycie (jak pole wiązane w `jest:`).
+    r_inst = _unia_applied("Rezultat")
+    ogranicz(t, r_inst)
+    _set_note(f"propagacja Błędu przez '?' (linia {node.line})")
+    ogranicz(Konkret("Błąd"), scope.root_fdt.ret_type)
+    # Odpakowana wartość Sukcesu = niejawny argument-element Rezultatu.
+    mapa = _mapowanie_członka("Sukces", "Rezultat")
+    if mapa and r_inst.args:
+        return r_inst.args[mapa[0][1]]
     return new_type()
 
 
-def find_field_for_ident(struct_def, ident):
-    for key in ident.scope_keys:
-        f = find_field(struct_def, key)
-        if f is not None:
+def resolve_struct_creation(node, scope):
+    sd = find_struct_def(node.type_name)
+    if sd is None and find_type_alias(node.type_name) is not None:
+        raise TypeCheckError(
+            f"nie można utworzyć wartości przez alias typu "
+            f"'{'_'.join(node.type_name)}' — użyj bezpośrednio typu "
+            f"docelowego")
+    if sd is None and find_union_def(node.type_name) is not None:
+        raise TypeCheckError(
+            f"nie można utworzyć wartości typu wariantowego "
+            f"'{'_'.join(node.type_name)}' — utwórz jedną z jego struktur")
+    if sd is None:
+        for a in node.args:
+            if a.value is not None:
+                resolve_expression(a.value, scope)
+        return Konkret("".join(node.type_name))
+    inst, env = _instancja_struktury(sd)
+    for a in node.args:
+        f = _find_field(sd, a.field_name)
+        field_t = elaborate(f.type, env)
+        if a.value is not None:
+            value_t = resolve_expression(a.value, scope)
+            _set_note(f"pole '{'_'.join(a.field_name[0])}' konstrukcji "
+                      f"'{'_'.join(node.type_name)}'")
+        else:
+            value_t = scope.get_type(f.name)
+            _set_note(f"skrót 'z {'_'.join(a.field_name[0])}' konstrukcji "
+                      f"'{'_'.join(node.type_name)}'")
+        ogranicz(value_t, field_t)
+    return inst
+
+
+def _find_field(struct_def, field_key):
+    for f in struct_def.fields:
+        if any(ast.scope_key_matches(field_key, k)
+               for k in f.name.scope_keys):
             return f
     return None
 
-def find_struct_defs_by_field(field_name):
+
+# ---------- łańcuchy dopełniaczowe ----------
+
+def _struktury_z_polem(field_name):
     ret = []
     for decl in module.body:
         if isinstance(decl, ast.StructDef):
-            if not find_field_for_ident(decl, field_name) is None:
+            if _find_field_for_ident(decl, field_name) is not None:
                 ret.append(decl)
     return ret
 
-def can_resolve_chain_with_struct(chain, struct):
-    """Czy `chain` (ogniwa łańcucha dopełniaczowego BEZ ostatniego słowa,
-    w kolejności od tyłu do przodu) daje się zresolvować, gdy ostatnie słowo ma typ
-    `struct`? Zwraca typ całego łańcucha (typ pola ogniwa chain[0]) jeśli się
-    udało, inaczej None.
 
-    Idziemy od najpóźniejszego ogniwa (chain[-1] — pole `struct`) ku
-    najwcześniejszemu (chain[0]). Typ każdego pola wyznacza strukturę,
-    w której szukamy ogniwa poprzedzającego; gdy pole nie jest strukturą,
-    a łańcuch chce iść dalej — nie pasuje (None)."""
-    base_inst, cur_env = instantiate_struct(struct)
-    cur_struct = struct
+def _chain_przez_strukturę(chain, struct):
+    """Czy łańcuch (bez ostatniego słowa, od zewnątrz) domyka się na
+    strukturze `struct`? → (instancja bazy, typ wyniku) albo None."""
+    base_inst, cur_env = _instancja_struktury(struct)
+    cur_sd = struct
     result_t = None
     for ident in reversed(chain):
-        if cur_struct is None:
+        if cur_sd is None:
             return None
-        field = find_field_for_ident(cur_struct, ident)
-        if field is None:
+        f = _find_field_for_ident(cur_sd, ident)
+        if f is None:
             return None
-        result_t = elaborate(field.type, cur_env)   # pole-parametr → zmienna instancji
-        cur_struct, cur_env = _as_struct(result_t)   # zejdź głębiej, jeśli pole to struktura
+        result_t = elaborate(f.type, cur_env)
+        cur_sd, cur_env = _jako_struktura(result_t)
     return base_inst, result_t
 
 
+def _jako_struktura(t):
+    """Struktura, na którą typ wskazuje (do zejścia w głąb łańcucha)."""
+    m = t if isinstance(t, Konkret) else None
+    if m is None:
+        return None, {}
+    sd = find_struct_def((m.głowa,))
+    if sd is None:
+        return None, {}
+    env = {}
+    for p, a in zip(sd.params, m.args):
+        for lemmas in p.name.lemmas_set:
+            env["".join(lemmas)] = a
+    return sd, env
+
+
 def resolve_getter_chain(node, scope):
-    # Najmniej wiemy o ostatnim słowie — jego typ inferujemy z łańcucha.
-    # Przedostatnie słowo musi być polem struktury ostatniego, więc kandydaci
-    # na typ ostatniego słowa to wszystkie struktury mające to pole.
     penultimate_word = node.chain[-2]
-    structs = find_struct_defs_by_field(penultimate_word)
-    # trójki (struktura, jej świeża instancja, typ wynikowy całego łańcucha)
+    structs = _struktury_z_polem(penultimate_word)
     candidates = []
     for s in structs:
-        res = can_resolve_chain_with_struct(node.chain[:-1], s)
+        res = _chain_przez_strukturę(node.chain[:-1], s)
         if res is not None:
-            base_inst, result_t = res
-            candidates.append((s, base_inst, result_t))
+            candidates.append((s, res[0], res[1]))
     field_surface = "_".join(penultimate_word.surface)
     line = getattr(node.chain[0], "line", None)
     if not candidates:
@@ -1655,361 +1582,69 @@ def resolve_getter_chain(node, scope):
         raise TypeCheckError(
             f"nie można zresolvować łańcucha dopełniaczowego '{surfaces}' "
             f"(linia {line}) — {detail}")
-    # Zawęź ostatnie słowo do unii instancji kandydatów — strukturalna unifikacja
-    # przecina po głowie I wiąże argumenty (np. drugi getter na tej zmiennej).
-    base_union = set()
-    for _, base_inst, _ in candidates:
-        base_union |= base_inst.variants
     base_t = scope.get_type(node.chain[-1])
-    bt = find_type(base_t)
-    try:
-        last_word_t = find_type(unify_types(
-            base_t, VariantVar(variants=base_union)))
-    except TypeCheckError:
-        # Chain przez wartość typu unii (Problem A): pole należy do
-        # wariantu, a wartość może być w runtime innym wariantem — zamiast
-        # surowego konfliktu unifikacji podpowiedz zawężenie.
-        if isinstance(bt, VariantVar) and len(bt.variants) == 1:
-            u_head = next(iter(bt.variants)).head
-            members = _union_members_by_head(u_head)
-            if members is not None:
-                warianty = sorted(
-                    "".join(s.name) for s, _, _ in candidates
-                    if "".join(s.name) in members)
-                if warianty:
-                    nic = " (może być Niczym)" if "Nic" in members else ""
-                    raise TypeCheckError(
-                        f"pole '{field_surface}' czytane z wartości typu "
-                        f"unii '{u_head}'{nic} (linia {line}) — zawęź "
-                        f"dopasowaniem `jest:`; pole ma wariant "
-                        f"{', '.join(warianty)}") from None
-        raise
-    surv_heads = ({a.head for a in last_word_t.variants}
-                  if isinstance(last_word_t, VariantVar) else None)
-    surviving = [rt for s, _, rt in candidates
-                 if surv_heads is None or "".join(s.name) in surv_heads]
-    if len(surviving) == 1:
-        return surviving[0]   # jednoznaczny kandydat — zachowaj parametr (zmienną)
-    # Wielu ocalałych → unia konkretnych głów ich typów wynikowych (jak dawniej:
-    # np. imię z UżytkownikSerwis|Pies → Tekst, z Człowiek → Liczba ⇒ Tekst|Liczba).
-    union = set()
-    for rt in surviving:
-        rt = find_type(rt)
-        if isinstance(rt, VariantVar):
-            union |= rt.variants
-    return VariantVar(variants=union) if union else surviving[0]
-
-
-def find_struct_def(type_name):
-    # type_name bywa krotką lemm (z StructCreation) albo sklejonym stringiem
-    # (typ ze scope) — "".join normalizuje oba do tej samej postaci.
-    return _find_type_decl(type_name, ast.StructDef)
-
-
-def find_union_def(type_name):
-    return _find_type_decl(type_name, ast.UnionDef)
-
-
-def find_type_alias(type_name):
-    return _find_type_decl(type_name, ast.TypeAlias)
-
-
-def _param_names_for(head):
-    """Lista frozensetów nazw parametrów typu `head` (str): struktura →
-    nazwy własnych parametrów, unia → parametry niejawne (dziedziczone).
-    None gdy `head` nie jest ani strukturą, ani unią."""
-    sd = find_struct_def(head)
-    if sd is not None:
-        return [frozenset("".join(l) for l in p.name.lemmas_set)
-                for p in sd.params]
-    if find_union_def(head) is not None:
-        return _union_param_names(head)
-    return None
-
-
-def _check_aliases(node):
-    """Walidacja deklaracji aliasów typów (pre-pass, przed elaboracją
-    sygnatur): każda głowa w celu to znany typ, wiązanie nazwane trafia
-    w istniejący parametr (bez duplikatów), brak cykli aliasów. Ekspansja
-    (`elaborate` z alias_args=True) zakłada cel po tej walidacji."""
-    for decl in node.body:
-        if isinstance(decl, ast.TypeAlias):
-            _validate_alias_tref(decl.target, ["".join(decl.name)])
-
-
-def _validate_alias_tref(tref, seen):
-    """Rekurencyjna walidacja celu aliasu. `seen` — łańcuch nazw aliasów
-    na ścieżce ekspansji (pierwszy element = deklarowany alias); cykl
-    obejmuje też odwołanie przez wartość argumentu (`A to Lista o
-    elemencie A` — typ rekurencyjny przez alias jest nielegalny;
-    rekursję wyrażają unie)."""
-    h = "".join(tref.head)
-    al = find_type_alias(tref.head)
-    if al is not None:
-        if h in seen:
-            raise TypeCheckError(
-                f"cykl aliasów typów: {' → '.join([*seen, h])}")
-        if tref.args:
-            raise TypeCheckError(
-                f"alias typu '{h}' nie przyjmuje argumentów typu — "
-                f"zastosuj parametry w jego własnej deklaracji")
-        _validate_alias_tref(al.target, [*seen, h])
-        return
-    params = _param_names_for(h)
-    if params is None:
-        if h in BUILTINS:
-            if tref.args:
-                raise TypeCheckError(
-                    f"typ wbudowany '{h}' nie przyjmuje argumentów typu")
-            return
-        raise TypeCheckError(
-            f"nieznany typ '{h}' w deklaracji aliasu '{seen[0]}'")
-    bound = set()
-    for ta in tref.args:
-        nm = "".join(ta.name)
-        slot = next(
-            (i for i, names in enumerate(params) if nm in names), None)
-        if slot is None:
-            known = ", ".join(sorted(min(ns, key=len) for ns in params))
-            raise TypeCheckError(
-                f"typ '{h}' nie ma parametru '{nm}' (deklaracja aliasu "
-                f"'{seen[0]}'); parametry: {known or 'brak'}")
-        if slot in bound:
-            raise TypeCheckError(
-                f"parametr '{nm}' typu '{h}' związany wielokrotnie "
-                f"w deklaracji aliasu '{seen[0]}'")
-        bound.add(slot)
-        _validate_alias_tref(ta.type, seen)
-
-
-def _find_type_decl(type_name, decl_cls):
-    if module is None:
-        return None
-    target = "".join(type_name)
-    for decl in module.body:
-        if isinstance(decl, decl_cls) and "".join(decl.name) == target:
-            return decl
-    return None
-
-
-def find_field(struct_def, field_key):
-    for f in struct_def.fields:
-        if any(ast.scope_key_matches(field_key, k) for k in f.name.scope_keys):
-            return f
-    return None
-
-
-BUILTINS = {"Liczba", "Przełącznik", "Nic", "Znak"}
-
-
-def _struct_env(struct_def, args):
-    """Mapa nazwa-parametru (lemma) → węzeł typu, z `args` (równoległe do params)."""
-    env = {}
-    for p, a in zip(struct_def.params, args):
-        for lemmas in p.name.lemmas_set:
-            env["".join(lemmas)] = a
-    return env
-
-
-def instantiate_struct(struct_def):
-    """Świeża instancja struktury: AppliedType(name, (α1..αn)) + env param→αi."""
-    fresh = [new_type() for _ in struct_def.params]
-    inst = VariantVar(variants={AppliedType("".join(struct_def.name), tuple(fresh))})
-    return inst, _struct_env(struct_def, fresh)
-
-
-def elaborate(tref, env, fresh_unknown=False, alias_args=False):
-    """TypeRef (składnia) → węzeł typu (semantyka), względem `env` (nazwa
-    parametru → węzeł). Głowa będąca parametrem → jego węzeł. Głowa będąca
-    ALIASEM → przezroczysta ekspansja celu (cel zwalidowany wcześniej przez
-    `_check_aliases`). Głowa będąca strukturą → AppliedType(name, args ułożone
-    w kolejności parametrów przez dopasowanie (prep, case)). Builtin/nieznana
-    0-arg → konkret. `fresh_unknown` (sygnatury funkcji/adnotacje): nieznana
-    mała-litera głowa → świeża zmienna (niejawny parametr typu), memoizowana
-    w `env`. `alias_args=True` WYŁĄCZNIE przy elaboracji celu aliasu —
-    licencjonuje nazwane argumenty (`o elemencie Znak`) na głowie-unii/strukturze;
-    poza deklaracją aliasu aplikacja jawna pozostaje nielegalna."""
-    h = "".join(tref.head)
-    if h in env:
-        return find_type(env[h])
-    al = find_type_alias(tref.head)
-    if al is not None:
-        if tref.args:
-            raise TypeCheckError(
-                f"alias typu '{h}' nie przyjmuje argumentów typu — jawna "
-                f"aplikacja parametrów jest dozwolona tylko w deklaracji aliasu")
-        return elaborate(al.target, env, fresh_unknown, alias_args=True)
-    sd = find_struct_def(tref.head)
-    if sd is None:
-        if find_union_def(tref.head) is not None:
-            # Unia bez własnej składni argumentów POZYCYJNYCH — parametry
-            # ma NIEJAWNE (dziedziczone od członków, przechwytywane z env
-            # definicji). Aplikacja NAZWANA (`Rezultat o elemencie Tekst`)
-            # jest legalna wszędzie: w celu aliasu i w adnotacjach
-            # (sygnatury externów plikowych tego wymagają).
-            if tref.args and not (alias_args
-                                  or all(ta.name is not None
-                                         for ta in tref.args)):
-                raise TypeCheckError(
-                    f"typ wariantowy '{h}' nie przyjmuje argumentów typu")
-            bound = {
-                "".join(ta.name): elaborate(ta.type, env, fresh_unknown,
-                                            alias_args=True)
-                for ta in tref.args
-            } if tref.args else None
-            if bound:
-                znane = _union_param_names(h)
-                for nm in bound:
-                    if not any(nm in names for names in znane):
-                        dostępne = ", ".join(
-                            sorted(min(ns, key=len) for ns in znane)) or "brak"
+    znane = _fakty_dolne(base_t)
+    if not znane and isinstance(base_t, Zmienna):
+        # Brak faktów — górne granice działają jak FILTR kandydatów
+        # (`x ≤ Gałąź` dopuszcza członków unii, nie orzeka, że x nią jest).
+        dozwolone = set()
+        for g, _ in base_t.górne:
+            if isinstance(g, Konkret):
+                dozwolone.add(g.głowa)
+                dozwolone |= (członkowie(g.głowa) or set())
+        if dozwolone:
+            przefiltrowani = [c for c in candidates
+                              if "".join(c[0].name) in dozwolone]
+            if przefiltrowani:
+                candidates = przefiltrowani
+    if znane:
+        przeżyli = [c for c in candidates if "".join(c[0].name) in znane]
+        if not przeżyli:
+            # Chain przez wartość typu unii: podpowiedz zawężenie.
+            for głowa in znane:
+                czł = członkowie(głowa)
+                if czł is not None:
+                    warianty = sorted(
+                        "".join(s.name) for s, _, _ in candidates
+                        if "".join(s.name) in czł)
+                    if warianty:
+                        nic = " (może być Niczym)" if "Nic" in czł else ""
                         raise TypeCheckError(
-                            f"typ wariantowy '{h}' nie ma parametru '{nm}' "
-                            f"— parametry: {dostępne}")
-            return VariantVar(variants={_union_applied(h, env, bound)})
-        if fresh_unknown and h not in BUILTINS:
-            v = new_type()
-            env[h] = v
-            return v
-        return VariantVar(variants={AppliedType(h, ())})
-    # struktura: sloty per parametr, argumenty dopasowane (prep, case) i ułożone
-    slots = [new_type() for _ in sd.params]
-    if tref.args and (alias_args
-                      or all(ta.name is not None for ta in tref.args)):
-        # Wiązanie nazwane per parametr (cel aliasu ALBO nazwana aplikacja
-        # w adnotacji; sloty świeże, bez przechwytu — brak ryzyka wycieku
-        # do env użycia).
-        for ta in tref.args:
-            nm = "".join(ta.name)
-            for slot, p in zip(slots, sd.params):
-                if any(nm == "".join(l) for l in p.name.lemmas_set):
-                    unify_types(slot, elaborate(ta.type, env, fresh_unknown,
-                                                alias_args=True))
-                    break
-    elif tref.args and len(tref.args) == len(sd.params):
-        arg_meta = [(ta.prep, ta.case, ta) for ta in tref.args]
-        slot_to_arg = match_args_to_slots(
-            arg_meta, sd.params,
-            on_error=lambda **kw: TypeCheckError(
-                f"argumenty typu nie pasują do parametrów '{h}'"))
-        for slot_i, arg_i in slot_to_arg.items():
-            unify_types(slots[slot_i],
-                        elaborate(tref.args[arg_i].type, env, fresh_unknown))
-    return VariantVar(variants={AppliedType(h, tuple(slots))})
-
-
-def _as_struct(result_t):
-    """Jeśli `result_t` to pojedyncza struktura (AppliedType), zwróć
-    (struct_def, env) do zejścia głębiej w łańcuchu; inaczej (None, None).
-    env mapuje parametry struktury na jej AKTUALNE argumenty (nie świeże)."""
-    rt = find_type(result_t)
-    if isinstance(rt, VariantVar) and len(rt.variants) == 1:
-        at = next(iter(rt.variants))
-        sd = find_struct_def((at.head,))
-        if sd is not None:
-            return sd, _struct_env(sd, at.args)
-    return None, None
-
-
-def resolve_struct_creation(node, scope):
-    sd = find_struct_def(node.type_name)
-    if sd is None and find_type_alias(node.type_name) is not None:
-        raise TypeCheckError(
-            f"nie można utworzyć wartości przez alias typu "
-            f"'{'_'.join(node.type_name)}' — użyj bezpośrednio typu docelowego")
-    if sd is None and find_union_def(node.type_name) is not None:
-        raise TypeCheckError(
-            f"nie można utworzyć wartości typu wariantowego "
-            f"'{'_'.join(node.type_name)}' — utwórz jedną z jego struktur")
-    if sd is None:
-        # Nieznana struktura (builtin / test bez `module`) — zachowanie sprzed generyków.
-        for a in node.args:
-            resolve_struct_arg(a, scope, node)
-        return variant(["".join(node.type_name)])
-    inst, env = instantiate_struct(sd)
-    node.__dict__["_struct_env"] = env   # env per instancja, dla resolve_struct_arg
-    for a in node.args:
-        resolve_struct_arg(a, scope, node)
-    return inst
-
-
-def resolve_struct_arg(node, scope, struct_creation):
-    struct_def = find_struct_def(struct_creation.type_name)
-    if struct_def is None:
-        if node.value is not None:
-            resolve_expression(node.value, scope)
-        return
-    field = find_field(struct_def, node.field_name)
-    env = struct_creation.__dict__.get("_struct_env", {})
-    field_t = elaborate(field.type, env)   # pole-parametr → współdzielona zmienna instancji
-    if node.value is not None:
-        value_t = resolve_expression(node.value, scope)
-        _set_note(f"pole '{'_'.join(node.field_name[0])}' konstrukcji "
-                  f"'{'_'.join(struct_creation.type_name)}'")
-        unify_types(field_t, value_t, widen=True, mode="check")
-    else:
-        _set_note(f"skrót 'z {'_'.join(node.field_name[0])}' konstrukcji "
-                  f"'{'_'.join(struct_creation.type_name)}'")
-        unify_types(field_t, scope.get_type(field.name),
-                    widen=True, mode="check")
-
-
-def resolve_identifier(node, scope):
-    return scope.get_type(node)
-
-
-# _DISPATCH = {
-#     ast.Module: resolve_module,
-#     ast.FunctionDef: resolve_function_def,
-#     ast.ExternFunctionDef: resolve_extern_function_def,
-#     ast.Param: resolve_param,
-#     ast.StructDef: resolve_struct_def,
-#     ast.Field: resolve_field,
-#     ast.Phrase: resolve_phrase,
-#     ast.Word: resolve_word,
-#     ast.Assignment: resolve_assignment,
-#     ast.IntLit: resolve_int_lit,
-#     ast.StrLit: resolve_str_lit,
-#     ast.BinOp: resolve_bin_op,
-#     ast.UnaryOp: resolve_unary_op,
-#     ast.If: resolve_if,
-#     ast.While: resolve_while,
-#     ast.For: resolve_for,
-#     ast.Break: resolve_break,
-#     ast.Continue: resolve_continue,
-#     ast.Return: resolve_return,
-#     ast.Not: resolve_not,
-#     ast.And: resolve_and,
-#     ast.Or: resolve_or,
-#     ast.FunctionCall: resolve_function_call,
-#     ast.GetterChain: resolve_getter_chain,
-#     ast.StructCreation: resolve_struct_creation,
-#     ast.StructArg: resolve_struct_arg,
-#     ast.Identifier: resolve_identifier,
-# }
-
-# statements
-#     ast.Assignment: resolve_assignment,
-#     ast.If: resolve_if,
-#     ast.While: resolve_while,
-#     ast.For: resolve_for,
-#     ast.Return: resolve_return,
-
-
-# definitions
-#     ast.FunctionDef: resolve_function_def,
-#     ast.ExternFunctionDef: resolve_extern_function_def,
-#     ast.StructDef: resolve_struct_def,
-
-# expressions
-#     ast.BinOp: resolve_bin_op,
-#     ast.UnaryOp: resolve_unary_op,
-#     ast.Not: resolve_not,
-#     ast.And: resolve_and,
-#     ast.Or: resolve_or,
-#     ast.FunctionCall: resolve_function_call,
-#     ast.GetterChain: resolve_getter_chain,
-#     ast.StructCreation: resolve_struct_creation,
-#     ast.StructArg: resolve_struct_arg,
-#     ast.Identifier: resolve_identifier,
-# }
+                            f"pole '{field_surface}' czytane z wartości "
+                            f"typu unii '{głowa}'{nic} (linia {line}) — "
+                            f"zawęź dopasowaniem `jest:`; pole ma wariant "
+                            f"{', '.join(warianty)}")
+            raise TypeCheckError(
+                f"pole '{field_surface}' (linia {line}) nie występuje "
+                f"w typie {sorted(znane)} podstawy łańcucha")
+        candidates = przeżyli
+    if len(candidates) == 1:
+        s, base_inst, result_t = candidates[0]
+        _set_note(f"łańcuch '{field_surface} …' (linia {line})")
+        ogranicz(base_t, base_inst)
+        ogranicz(base_inst, base_t)
+        return result_t
+    # Wielu kandydatów: dysjunkcja na bazie; wynik = świeża zmienna
+    # z dysjunkcją głów wyników (rozstrzygną inne wystąpienia).
+    if isinstance(base_t, Zmienna):
+        alt = {"".join(s.name): inst for s, inst, _ in candidates}
+        if base_t.alternatywy is None:
+            base_t.alternatywy = alt
+        else:
+            wspólne = {h: k for h, k in base_t.alternatywy.items()
+                       if h in alt}
+            if wspólne:
+                base_t.alternatywy = wspólne
+                if len(wspólne) == 1:
+                    (h,) = wspólne
+                    wybrany = next(c for c in candidates
+                                   if "".join(c[0].name) == h)
+                    return wybrany[2]
+    wynik = new_type()
+    for _, _, rt in candidates:
+        m = rt if isinstance(rt, Konkret) else _zmaterializuj(rt)
+        if m is not None:
+            if wynik.alternatywy is None:
+                wynik.alternatywy = {}
+            wynik.alternatywy.setdefault(m.głowa, m)
+    return wynik

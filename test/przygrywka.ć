@@ -112,10 +112,7 @@ aby przesiewać listę (Lista) przez warunek:
             zwróć Nic
 
 # Indeksowanie listy (pozycje liczone od jednego): Sukces z elementem
-# na pozycji albo Błąd, gdy pozycja wypada poza listą. Adnotacja wiąże
-# element wyniku z elementem listy wspólnym parametrem `rzecz` —
-# granica jak w externach: bez niej element ginie w generalizacji.
-aby wskazać pozycję na liście (Lista o elemencie rzecz) -> Rezultat o elemencie rzecz:
+aby wskazać pozycję na liście (Lista):
     lista jest:
         Ogniwem z głową z ogonem:
             jeśli pozycja równa jeden:
