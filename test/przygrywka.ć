@@ -38,6 +38,16 @@ można podzielić pierwszą_liczbę (Liczba) przez drugą_liczbę (Liczba) -> Li
 
 można wziąć_resztę_z_dzielenia pierwszej_liczby (Liczba) przez drugą_liczbę (Liczba) -> Liczba
 
+# Most między Znakiem a jego punktem kodowym Unicode (jak `chr`/`ord`
+# w Pythonie) — wbudowane w interpreter. Ć nie ma tablicy ASCII, więc
+# to jedyna droga między znakiem a liczbą (porównania i arytmetyka
+# działają wyłącznie na Liczbie). `zapisz_znakiem sześćdziesiąt pięć`
+# → 'A'; `zapisz_liczbą 'A'` → 65. Punkt kodowy poza zakresem Unicode
+# to błąd wykonania.
+można zapisać_znakiem liczbę (Liczba) -> Znak
+
+można zapisać_liczbą znak (Znak) -> Liczba
+
 # Długość listy — liczba ogniw.
 aby zmierzyć listę (Lista) -> Liczba:
     lista jest:

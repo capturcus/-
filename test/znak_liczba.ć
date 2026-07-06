@@ -1,0 +1,33 @@
+# Wbudowany most Znak↔Liczba (deklaracje w przygrywce): `zapisz_znakiem`
+# to `chr` (punkt kodowy Unicode → Znak), `zapisz_liczbą` to `ord`
+# (Znak → punkt kodowy). To jedyna droga między znakiem a liczbą —
+# operatory (porównania, arytmetyka) działają wyłącznie na Liczbie —
+# więc dzięki nim znaki da się rozpoznawać (cyfra?) i przeliczać.
+
+uwzględnij przygrywka.ć
+
+można wypisać coś (Cokolwiek) -> Nic
+
+# Cyfra ('0'–'9') jako jej wartość liczbowa: różnica punktów kodowych.
+aby odczytać_cyfrę znak:
+    zwróć (zapisz_liczbą znak) minus (zapisz_liczbą '0')
+
+# Przesunięcie znaku o zadaną liczbę pozycji w tablicy kodów (bez
+# zawijania) — pokaz arytmetyki na punktach kodowych.
+aby przesunąć znak o krok:
+    zwróć zapisz_znakiem ((zapisz_liczbą znak) plus krok)
+
+aby działać:
+    # ord, chr i ich złożenie (round-trip Znak → kod → Znak)
+    wypisz (zapisz_liczbą 'A')
+    wypisz (zapisz_znakiem sześćdziesiąt pięć)
+    wypisz (zapisz_znakiem (zapisz_liczbą 'ż'))
+    # cyfry jako liczby — i arytmetyka na nich
+    wypisz (odczytaj_cyfrę '7')
+    wypisz ((odczytaj_cyfrę '4') razy (odczytaj_cyfrę '9'))
+    # arytmetyka na kodach: 'a' + 2 = 'c', 'A' + 25 = 'Z'
+    wypisz (przesuń 'a' o dwa)
+    wypisz (przesuń 'A' o dwadzieścia pięć)
+    # punkty kodowe znaków sterujących
+    wypisz (zapisz_liczbą ' ')
+    wypisz (zapisz_liczbą '\n')

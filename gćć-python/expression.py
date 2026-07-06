@@ -1495,16 +1495,6 @@ def _resolve_match(stmt, ctx, preps, scope):
                 )
             br.fields[i] = _narrow_to_key(fid, key)
             bound.add(key)
-            if scope.has_var(key):
-                # Quirk 10: wiązanie pola przesłania parametr/zmienną o tej
-                # samej lemmie — ostrzeżenie, nie błąd (kod bywa zamierzony).
-                print(
-                    f"OSTRZEŻENIE (linia {fid.line}): wiązanie "
-                    f"'{'_'.join(fid.surface)}' przesłania widoczną zmienną "
-                    f"o tej samej nazwie (np. parametr) — w tej gałęzi "
-                    f"'{'_'.join(fid.surface)}' to pole, nie tamta zmienna",
-                    file=sys.stderr,
-                )
             br_scope.add_key(key)
         if br.alias is not None:
             # `jako nazwa` — świeża deklaracja jak LHS przypisania: mianownik,

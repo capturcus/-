@@ -1,0 +1,334 @@
+# Deserializer JSON w Ć: wczytuje plik o ustalonej nazwie, parsuje jego
+# treść (Tekst = lista Znaków) do struktur wariantowych i wypisuje z
+# wcięciami. Parser jest rekursywnym zejściem w stylu funkcyjnym — stan
+# nosimy jako nieskonsumowaną resztę tekstu (jak `Rozbiór`/`reszta`
+# w brainfucku), a niepowodzenia płyną przez `Rezultat` + tryb
+# przypuszczający `?` (odpakowuje Sukces, propaguje Błąd zwrotem).
+#
+# Zakres: obiekty, tablice, napisy (z ucieczkami \" \\ \/ \n \t \r),
+# liczby CAŁKOWITE (Ć nie ma ułamków), prawda/fałsz, null (≡ Nic).
+# Świadome uproszczenia: brak \uXXXX i ułamków/wykładników; wypis nie
+# eskejpuje z powrotem znaków specjalnych (to podgląd, nie serializacja).
+
+uwzględnij ../test/przygrywka.ć
+
+można wypisać coś (Cokolwiek) -> Nic
+
+# ---------- drzewo wartości JSON ----------
+
+definicja Pary:
+    klucz (Tekst)
+    wartość (Wartość)
+
+definicja Obiektu:
+    wpisy (Lista o elemencie Para)
+
+definicja Tablicy:
+    pozycje (Lista o elemencie Wartość)
+
+definicja Napisu:
+    treść (Tekst)
+
+definicja Numeru:
+    liczba (Liczba)
+
+definicja Flagi:
+    stan (Przełącznik)
+
+# null to po prostu wbudowane Nic — jedyny wariant zeroargumentowy.
+Wartość to Obiekt albo Tablica albo Napis albo Numer albo Flaga albo Nic
+
+# ---------- nośnik wyniku parsowania (wynik + nieskonsumowana reszta) ----------
+# JEDEN nośnik generyczny na wszystko: `wynik` przyjmuje typ, jaki dana
+# funkcja produkuje (Wartość, Tekst, Liczba, Para albo listę tych), bo
+# każda funkcja używa go w jednej, spójnej instancji. W dyspozytorze
+# wartości solver złącza dolne poszlaki gałęzi do wspólnej unii Wartość.
+
+definicja Rozbioru z elementem:
+    wynik (element)
+    reszta (Tekst)
+
+# ---------- znaki: cyfry i ucieczki ----------
+
+aby rozpoznać_cyfrę znak:
+    kod to zapisz_liczbą znak
+    zwróć kod większe równe (zapisz_liczbą '0') i kod mniejsze równe (zapisz_liczbą '9')
+
+aby odczytać_cyfrę znak:
+    zwróć (zapisz_liczbą znak) minus (zapisz_liczbą '0')
+
+aby przetłumaczyć_ucieczkę znak:
+    jeśli znak równy '"':
+        zwróć Sukces o wartości '"'
+    jeśli znak równy '\\':
+        zwróć Sukces o wartości '\\'
+    jeśli znak równy '/':
+        zwróć Sukces o wartości '/'
+    jeśli znak równy 'n':
+        zwróć Sukces o wartości '\n'
+    jeśli znak równy 't':
+        zwróć Sukces o wartości '\t'
+    jeśli znak równy 'r':
+        zwróć Sukces o wartości '\r'
+    zwróć Błąd o opisie "nieobsługiwana sekwencja ucieczki w napisie"
+
+# ---------- białe znaki ----------
+
+aby pominąć_odstępy tekst:
+    tekst jest:
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa ' ' lub głowa równa '\n' lub głowa równa '\t' lub głowa równa '\r':
+                zwróć pomiń_odstępy ogon
+            zwróć tekst
+        Niczym:
+            zwróć Nic
+
+# ---------- słowa kluczowe: dopasuj literał na przodzie ----------
+
+aby dopasować_przedrostek wzór do tekstu:
+    wzór jest:
+        Niczym:
+            zwróć Sukces o wartości tekst
+        Ogniwem z głową z ogonem:
+            czoło to głowa
+            reszta to ogon
+            tekst jest:
+                Niczym:
+                    zwróć Błąd o opisie "słowo kluczowe urwane na końcu wejścia"
+                Ogniwem z głową z ogonem:
+                    jeśli głowa nierówna czoło:
+                        zwróć Błąd o opisie "nieoczekiwany znak w słowie kluczowym"
+                    zwróć dopasuj_przedrostek resztę do ogona
+
+aby rozłożyć_słowo z tekstu według wzoru na drzewie:
+    ogon to dopasowałbyś_przedrostek wzór do tekstu?
+    zwróć Sukces o wartości (Rozbiór o wyniku drzewo o reszcie ogon)
+
+# ---------- liczby całkowite ----------
+
+aby zebrać_cyfry z tekstu przy liczbie:
+    tekst jest:
+        Ogniwem z głową z ogonem:
+            jeśli rozpoznaj_cyfrę głowę:
+                suma to liczba razy dziesięć plus odczytaj_cyfrę głowę
+                zwróć zbierz_cyfry z ogona przy sumie
+            zwróć Rozbiór o wyniku liczba o reszcie tekst
+        Niczym:
+            zwróć Rozbiór o wyniku liczba o reszcie Nic
+
+aby rozłożyć_liczbę z tekstu:
+    tekst jest:
+        Niczym:
+            zwróć Błąd o opisie "oczekiwano liczby, napotkano koniec wejścia"
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa '-':
+                rozbiór to zbierz_cyfry z ogona przy zero
+                zwróć Sukces o wartości (Rozbiór o wyniku (Numer o liczbie (zero minus (wynik rozbioru))) o reszcie (reszta rozbioru))
+            jeśli rozpoznaj_cyfrę głowę:
+                rozbiór to zbierz_cyfry z tekstu przy zero
+                zwróć Sukces o wartości (Rozbiór o wyniku (Numer o liczbie (wynik rozbioru)) o reszcie (reszta rozbioru))
+            zwróć Błąd o opisie "oczekiwano wartości JSON"
+
+# ---------- napisy ----------
+
+aby zebrać_znaki z tekstu:
+    tekst jest:
+        Niczym:
+            zwróć Błąd o opisie "niezakończony napis (brak zamykającego cudzysłowu)"
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa '"':
+                zwróć Sukces o wartości (Rozbiór o wyniku Nic o reszcie ogon)
+            jeśli głowa równa '\\':
+                ogon jest:
+                    Niczym:
+                        zwróć Błąd o opisie "backslash na końcu wejścia"
+                    Ogniwem z głową z ogonem:
+                        znak to przetłumaczyłbyś_ucieczkę głowę?
+                        zbiór to zebrałbyś_znaki z ogona?
+                        zwróć Sukces o wartości (Rozbiór o wyniku (Ogniwo o głowie znak o ogonie (wynik zbioru)) o reszcie (reszta zbioru))
+            zbiór to zebrałbyś_znaki z ogona?
+            zwróć Sukces o wartości (Rozbiór o wyniku (Ogniwo o głowie głowa o ogonie (wynik zbioru)) o reszcie (reszta zbioru))
+
+aby rozłożyć_napis z tekstu:
+    zbiór to zebrałbyś_znaki z tekstu?
+    zwróć Sukces o wartości (Rozbiór o wyniku (Napis o treści (wynik zbioru)) o reszcie (reszta zbioru))
+
+# ---------- tablice ----------
+
+aby zebrać_pozycje z tekstu:
+    rozbiór to rozłożyłbyś_wartość z tekstu?
+    ciąg to pomiń_odstępy (reszta rozbioru)
+    ciąg jest:
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa ']':
+                zwróć Sukces o wartości (Rozbiór o wyniku (Ogniwo o głowie (wynik rozbioru) o ogonie Nic) o reszcie ogon)
+            jeśli głowa równa ',':
+                zbiór to zebrałbyś_pozycje z ogona?
+                lista to Ogniwo o głowie (wynik rozbioru) o ogonie (wynik zbioru)
+                zwróć Sukces o wartości (Rozbiór o wyniku lista o reszcie (reszta zbioru))
+            zwróć Błąd o opisie "oczekiwano ',' albo ']' w tablicy"
+        Niczym:
+            zwróć Błąd o opisie "niezakończona tablica (brak ']')"
+
+aby rozłożyć_tablicę z tekstu:
+    ciąg to pomiń_odstępy tekst
+    ciąg jest:
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa ']':
+                zwróć Sukces o wartości (Rozbiór o wyniku (Tablica o pozycjach Nic) o reszcie ogon)
+            zbiór to zebrałbyś_pozycje z ciągu?
+            zwróć Sukces o wartości (Rozbiór o wyniku (Tablica o pozycjach (wynik zbioru)) o reszcie (reszta zbioru))
+        Niczym:
+            zwróć Błąd o opisie "niezakończona tablica (brak ']')"
+
+# ---------- obiekty ----------
+
+aby odczytać_parę z tekstu:
+    ciąg to pomiń_odstępy tekst
+    ciąg jest:
+        Niczym:
+            zwróć Błąd o opisie "oczekiwano klucza w obiekcie"
+        Ogniwem z głową z ogonem:
+            jeśli głowa nierówna '"':
+                zwróć Błąd o opisie "klucz obiektu musi być napisem"
+            klucz to zebrałbyś_znaki z ogona?
+            środek to pomiń_odstępy (reszta klucza)
+            środek jest:
+                Niczym:
+                    zwróć Błąd o opisie "oczekiwano ':' po kluczu"
+                Ogniwem z głową z ogonem:
+                    jeśli głowa nierówna ':':
+                        zwróć Błąd o opisie "oczekiwano ':' po kluczu"
+                    rozbiór to rozłożyłbyś_wartość z ogona?
+                    zwróć Sukces o wartości (Rozbiór o wyniku (Para o kluczu (wynik klucza) o wartości (wynik rozbioru)) o reszcie (reszta rozbioru))
+
+aby zebrać_pary z tekstu:
+    łup to odczytałbyś_parę z tekstu?
+    ciąg to pomiń_odstępy (reszta łupu)
+    ciąg jest:
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa '}':
+                zwróć Sukces o wartości (Rozbiór o wyniku (Ogniwo o głowie (wynik łupu) o ogonie Nic) o reszcie ogon)
+            jeśli głowa równa ',':
+                zbiór to zebrałbyś_pary z ogona?
+                lista to Ogniwo o głowie (wynik łupu) o ogonie (wynik zbioru)
+                zwróć Sukces o wartości (Rozbiór o wyniku lista o reszcie (reszta zbioru))
+            zwróć Błąd o opisie "oczekiwano ',' albo '}' w obiekcie"
+        Niczym:
+            zwróć Błąd o opisie "niezakończony obiekt (brak '}')"
+
+aby rozłożyć_obiekt z tekstu:
+    ciąg to pomiń_odstępy tekst
+    ciąg jest:
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa '}':
+                zwróć Sukces o wartości (Rozbiór o wyniku (Obiekt o wpisach Nic) o reszcie ogon)
+            zbiór to zebrałbyś_pary z ciągu?
+            zwróć Sukces o wartości (Rozbiór o wyniku (Obiekt o wpisach (wynik zbioru)) o reszcie (reszta zbioru))
+        Niczym:
+            zwróć Błąd o opisie "niezakończony obiekt (brak '}')"
+
+# ---------- dyspozytor: dowolna wartość ----------
+
+aby rozłożyć_wartość z tekstu:
+    ciąg to pomiń_odstępy tekst
+    ciąg jest:
+        Niczym:
+            zwróć Błąd o opisie "oczekiwano wartości JSON, napotkano koniec wejścia"
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa '{':
+                zwróć rozłóż_obiekt z ogona
+            jeśli głowa równa '[':
+                zwróć rozłóż_tablicę z ogona
+            jeśli głowa równa '"':
+                zwróć rozłóż_napis z ogona
+            jeśli głowa równa 't':
+                zwróć rozłóż_słowo z ciągu według "true" na (Flaga o stanie prawda)
+            jeśli głowa równa 'f':
+                zwróć rozłóż_słowo z ciągu według "false" na (Flaga o stanie fałsz)
+            jeśli głowa równa 'n':
+                zwróć rozłóż_słowo z ciągu według "null" na Nic
+            zwróć rozłóż_liczbę z ciągu
+
+# ---------- wypis z wcięciami ----------
+
+aby zbudować_wcięcie z głębi:
+    jeśli głębia równe zero:
+        zwróć ""
+    zwróć sklej "  " z (zbuduj_wcięcie z (głębia minus jeden))
+
+aby pokazać_parę para przy głębi:
+    zwróć sklej "\"" z (sklej (klucz pary) z (sklej "\": " z (pokaż_wartość (wartość pary) przy głębi)))
+
+aby pokazać_wpisy wpisy przy głębi:
+    wpisy są:
+        Ogniwem z głową z ogonem:
+            ogon jest:
+                Niczym:
+                    zwróć sklej (zbuduj_wcięcie z głębi) z (pokaż_parę głowę przy głębi)
+                Ogniwem:
+                    zwróć sklej (zbuduj_wcięcie z głębi) z (sklej (pokaż_parę głowę przy głębi) z (sklej ",\n" z (pokaż_wpisy ogon przy głębi)))
+        Niczym:
+            zwróć ""
+
+aby pokazać_pozycje pozycje przy głębi:
+    pozycje są:
+        Ogniwem z głową z ogonem:
+            ogon jest:
+                Niczym:
+                    zwróć sklej (zbuduj_wcięcie z głębi) z (pokaż_wartość głowę przy głębi)
+                Ogniwem:
+                    zwróć sklej (zbuduj_wcięcie z głębi) z (sklej (pokaż_wartość głowę przy głębi) z (sklej ",\n" z (pokaż_pozycje ogon przy głębi)))
+        Niczym:
+            zwróć ""
+
+aby pokazać_obiekt wpisy przy głębi:
+    wpisy są:
+        Niczym:
+            zwróć "{}"
+        Ogniwem:
+            wnętrze to pokaż_wpisy wpisy przy (głębia plus jeden)
+            zwróć sklej "{\n" z (sklej wnętrze z (sklej "\n" z (sklej (zbuduj_wcięcie z głębi) z "}")))
+
+aby pokazać_tablicę pozycje przy głębi:
+    pozycje są:
+        Niczym:
+            zwróć "[]"
+        Ogniwem:
+            wnętrze to pokaż_pozycje pozycje przy (głębia plus jeden)
+            zwróć sklej "[\n" z (sklej wnętrze z (sklej "\n" z (sklej (zbuduj_wcięcie z głębi) z "]")))
+
+aby pokazać_wartość drzewo przy głębi:
+    drzewo jest:
+        Niczym:
+            zwróć "null"
+        Napisem z treścią:
+            zwróć sklej "\"" z (sklej treść z "\"")
+        Numerem z liczbą:
+            zwróć pokaż liczbę
+        Flagą ze stanem:
+            jeśli stan:
+                zwróć "true"
+            zwróć "false"
+        Tablicą z pozycjami:
+            zwróć pokaż_tablicę pozycje przy głębi
+        Obiektem z wpisami:
+            zwróć pokaż_obiekt wpisy przy głębi
+
+# ---------- punkt wejścia ----------
+
+aby wypisać_rozbiór rozbiór:
+    rozbiór jest:
+        Błędem z opisem:
+            wypisz (sklej "błąd parsowania JSON: " z opisem)
+        Sukcesem z wartością:
+            wypisz (pokaż_wartość (wynik wartości) przy zero)
+
+aby działać:
+    ścieżka to "manual_test/dane.json"
+    zawartość to czytaj_plik ze ścieżki
+    zawartość jest:
+        Błędem z opisem:
+            wypisz (sklej "nie udało się wczytać pliku: " z opisem)
+        Sukcesem z wartością:
+            wypisz_rozbiór (rozłóż_wartość z wartości)

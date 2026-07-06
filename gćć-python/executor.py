@@ -213,6 +213,20 @@ def _błąd(opis):
                         type="Błąd")
 
 
+def _zapisz_znakiem(args):
+    """chr: punkt kodowy Unicode → Znak. Odpowiednik pythonowego `chr`."""
+    kod = args[0].value
+    if kod < 0 or kod > 0x10FFFF:
+        raise RuntimeError(
+            f"punkt kodowy poza zakresem Unicode (0..1114111): {kod}")
+    return RuntimeValue(value=chr(kod), type="Znak")
+
+
+def _zapisz_liczbą(args):
+    """ord: Znak → punkt kodowy Unicode. Odpowiednik pythonowego `ord`."""
+    return RuntimeValue(value=ord(args[0].value), type="Liczba")
+
+
 def _czytaj_plik(args):
     ścieżka = _tekst_do_pythona(args[0])
     if ścieżka is None:
@@ -247,6 +261,8 @@ BUILTIN_FUNCTIONS = [
     ([("wypisać",)], lambda args: print(_tekst(args[0]))),
     ([("podzielić",)], _podziel),
     ([("wziąć", "reszta", "z", "dzielenie")], _reszta_z_dzielenia),
+    ([("zapisać", "znak")], _zapisz_znakiem),
+    ([("zapisać", "liczba")], _zapisz_liczbą),
     ([("czytać", "plik")], _czytaj_plik),
     ([("zapisać", "plik")], _zapisz_plik),
 ]

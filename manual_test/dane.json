@@ -1,0 +1,15 @@
+{
+  "nazwa": "Ćwiczenie z Ć",
+  "wersja": 3,
+  "aktywny": true,
+  "tagi": ["json", "ćma", "test"],
+  "autor": {
+    "imię": "Ada",
+    "wiek": 30,
+    "email": null
+  },
+  "wynik": -42,
+  "puste": {},
+  "lista_pusta": [],
+  "cytat": "rzekł: \"cześć\"\ndrugi wiersz"
+}

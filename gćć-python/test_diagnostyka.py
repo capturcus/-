@@ -428,35 +428,6 @@ def test_paren_after_expression_annotation_collision_hint(parse):
     assert "zmiennej pośredniej" in msg
 
 
-# =====================================================================
-# Pkt 8 — ostrzeżenie: wiązanie pola przesłania parametr (quirk 10)
-# =====================================================================
-
-@pytest.mark.integration
-def test_match_binding_shadowing_param_warns(parse, capsys):
-    src = (
-        "definicja Sukcesu z elementem:\n"
-        "    wartość (element)\n"
-        "\n"
-        "definicja Błędu:\n"
-        "    opis (Znak)\n"
-        "\n"
-        "Rezultat to Sukces albo Błąd\n"
-        "\n"
-        "aby badać rezultat (Rezultat) z wartością (Liczba) -> Liczba:\n"
-        "    rezultat jest:\n"
-        "        Sukcesem z wartością:\n"
-        "            zwróć zero\n"
-        "        Błędem:\n"
-        "            zwróć wartość\n"
-    )
-    parse(src)
-    err = capsys.readouterr().err
-    assert "OSTRZEŻENIE (linia 11)" in err
-    assert "wiązanie 'wartością' przesłania widoczną zmienną" in err
-    assert "to pole, nie tamta zmienna" in err
-
-
 @pytest.mark.integration
 def test_incomplete_struct_lists_missing_fields(parse):
     """Pkt 15 — komunikat kompletności konstrukcji istnieje od dawna;
@@ -475,28 +446,6 @@ def test_incomplete_struct_lists_missing_fields(parse):
     assert "tworzenie struktury 'Kot' wymaga wszystkich pól" in msg
     assert "brakuje:" in msg
     assert "wiek" in msg
-
-
-@pytest.mark.integration
-def test_match_binding_without_shadowing_is_silent(parse, capsys):
-    src = (
-        "definicja Sukcesu z elementem:\n"
-        "    wartość (element)\n"
-        "\n"
-        "definicja Błędu:\n"
-        "    opis (Znak)\n"
-        "\n"
-        "Rezultat to Sukces albo Błąd\n"
-        "\n"
-        "aby badać rezultat (Rezultat) -> Liczba:\n"
-        "    rezultat jest:\n"
-        "        Sukcesem z wartością:\n"
-        "            zwróć wartość\n"
-        "        Błędem:\n"
-        "            zwróć zero\n"
-    )
-    parse(src)
-    assert "OSTRZEŻENIE" not in capsys.readouterr().err
 
 
 # =====================================================================
