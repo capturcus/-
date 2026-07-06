@@ -227,10 +227,13 @@ class TypeArg:
     """Jeden argument aplikacji typu: opcjonalny przyimek + (rekurencyjny) TypeRef.
     `case` — przypadek gramatyczny argumentu (jak `Param.case`), do dopasowania
     arg→param tym samym silnikiem (prep, case) co wywołania funkcji. None dla
-    argumentów zagnieżdżonych w nawiasach (brak pojedynczego słowa rządzącego)."""
+    argumentów zagnieżdżonych w nawiasach (brak pojedynczego słowa rządzącego).
+    `name` — krotka lemm nazwy parametru przy aplikacji NAZWANEJ
+    (`o elemencie Znak` w deklaracji aliasu); None w pozycjach anotacji."""
     prep: tuple
     type: "TypeRef"
     case: frozenset = None
+    name: tuple = None
 
 
 @dataclass
@@ -275,6 +278,18 @@ class UnionDef:
     struktur (unia tylko grupuje głowy)."""
     name: tuple
     members: list  # list[tuple]
+    line: int = None
+
+
+@dataclass
+class TypeAlias:
+    """Alias typu: `Napis to Lista o elemencie Znak` (top-level, bez `albo`).
+    Jedyne miejsce jawnej aplikacji parametrów typowych — wyłącznie NAZWANEJ
+    (`o NAZWIE Typ`, apozycja mianownikowa jak „o imieniu Jan"); parametry
+    niezwiązane zostają wolne (świeże per wystąpienie). Alias jest
+    przezroczysty (rozwijany przy elaboracji)."""
+    name: tuple
+    target: object  # TypeRef
     line: int = None
 
 

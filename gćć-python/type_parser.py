@@ -11,7 +11,7 @@ Argumenty identyfikujemy po lemmie, bezprzypadkowo (`required_case=None`)."""
 import lexer
 from identifier import is_prep, canonical_type, make_identifier
 from morph_anal import canonical
-from ast_nodes import TypeRef, TypeArg
+from ast_nodes import TypeRef, TypeArg, InterpreterError
 
 
 def read_prep(cursor, preps):
@@ -66,6 +66,52 @@ def match_args_to_slots(arg_meta, sig, on_error):
         assigned[ai] = si
         used.add(si)
     return {assigned[ai]: ai for ai in range(n_slots)}
+
+
+def parse_alias_target(cursor, preps, *, terminator=None):
+    """Cel deklaracji aliasu typu:  HEAD ("o" NAZWA wartość)*  — jedyne
+    miejsce jawnej aplikacji parametrów typowych. Wiązanie wyłącznie PO
+    NAZWIE parametru; nazwa w miejscowniku po `o`, wartość w apozycji
+    mianownikowej (`o elemencie Znak` jak „o imieniu Jan"). Gołe argumenty
+    pozycyjne (`Lista Znaków`) są NIElegalne — głośny błąd z podpowiedzią.
+    wartość := WORD (mianownik) | "(" cel ")" (zagnieżdżona aplikacja).
+    Parametry niezwiązane zostają wolne. Nie konsumuje terminatora."""
+    head_tok = cursor.expect(lexer.Token.WORD)
+    head = canonical_type(head_tok, required_case="nom")
+    args = []
+    while cursor.peek() is not None and (
+            terminator is None or cursor.peek()[0] is not terminator):
+        pair_tok = cursor.peek()
+        prep = read_prep(cursor, preps)
+        if prep != ("o",):
+            raise InterpreterError(
+                f"aplikacja parametru typu w aliasie wymaga formy "
+                f"'o NAZWIE Typ' (np. 'o elemencie Znak'); "
+                f"otrzymano '{_surface(pair_tok)}'",
+                line=getattr(pair_tok, "line", None),
+            )
+        name_tok = cursor.expect(lexer.Token.WORD)
+        name = canonical_type(name_tok, required_case="loc",
+                              label="nazwa parametru typu")
+        if cursor.peek() is not None and cursor.peek()[0] is lexer.Token.LPAREN:
+            cursor.advance()
+            val = parse_alias_target(cursor, preps,
+                                     terminator=lexer.Token.RPAREN)
+            cursor.expect(lexer.Token.RPAREN)
+        else:
+            val_tok = cursor.expect(lexer.Token.WORD)
+            val = TypeRef(head=canonical_type(val_tok, required_case="nom"),
+                          args=[], line=getattr(val_tok, "line", None))
+        args.append(TypeArg(prep=prep, type=val, case=None, name=name))
+    return TypeRef(head=head, args=args, line=getattr(head_tok, "line", None))
+
+
+def _surface(tok):
+    if tok is None:
+        return "koniec wyrażenia"
+    if tok[0] is lexer.Token.WORD and isinstance(tok[1], tuple):
+        return "_".join(tok[1])
+    return repr(tok[1]) if len(tok) > 1 else tok[0].name
 
 
 def parse_type(cursor, preps, *, terminator, head_case="nom"):

@@ -185,14 +185,25 @@ def _union_param_names(head):
     return params
 
 
-def _union_applied(head, env=None):
+def _union_applied(head, env=None, bound=None):
     """Węzeł AppliedType unii z niejawnymi argumentami: nazwa parametru
     widoczna w `env` (wnętrze definicji struktury) → przechwyt — to czyni
     rekurencyjne struktury jednorodnymi; poza definicją → świeża zmienna
     per wystąpienie (równości wyprowadza ciało; externy zostają luźne
-    świadomie — konkretyzacja przez użycie)."""
+    świadomie — konkretyzacja przez użycie).
+
+    `bound` (tylko ekspansja celu aliasu): mapa nazwa-parametru → GOTOWY
+    węzeł typu z aplikacji nazwanej (`o elemencie Znak`). Parametr związany
+    bierze węzeł z mapy Z POMINIĘCIEM przechwytu — wiązanie aliasu nie może
+    wyciec do parametru struktury, w której alias został użyty; parametry
+    niezwiązane przechwytują/świeżą się jak zwykle (alias przezroczysty)."""
     args = []
     for names in _union_param_names(head):
+        if bound:
+            b = next((bound[n] for n in names if n in bound), None)
+            if b is not None:
+                args.append(b)
+                continue
         captured = None
         if env:
             for n in names:
@@ -223,8 +234,12 @@ def _link_member_args(member_at, union_at):
                 # Join poszlak elementu (jak slot wartości pola): różne
                 # warianty elementów z wielu wystąpień łączą się do ich
                 # unii, a konkret-wariant do slotu-unii przechodzi przez
-                # subsumpcję bez wiązania.
-                unify_types(member_at.args[i], union_at.args[j],
+                # subsumpcję bez wiązania. SLOTEM (t0) jest argument UNII —
+                # odwrotna kolejność wpuszczała gałąź sztafety, która
+                # destrukcyjnie przepinała klasę argumentu wartości na unię
+                # i psuła kolejny przebieg fixpointu (ujawnione przez aliasy
+                # wiążące argument unii konkretem).
+                unify_types(union_at.args[j], member_at.args[i],
                             widen=True, mode="accumulate")
                 break
 
@@ -708,6 +723,8 @@ def resolve_module(node):
     global fun_decls
     global module
     module = node
+    # PASS 0: walidacja aliasów typów — sygnatury niżej już je elaborują.
+    _check_aliases(node)
     # PASS 1 (raz): zadeklaruj schematy funkcji. module_funcs to lokalna lista
     # (decl, fdt) — używana w pass 2 zamiast kruchego indeksowania globalnego
     # fun_decls; fun_decls.append zostaje, bo find_fdt po nim chodzi.
@@ -1349,6 +1366,78 @@ def find_union_def(type_name):
     return _find_type_decl(type_name, ast.UnionDef)
 
 
+def find_type_alias(type_name):
+    return _find_type_decl(type_name, ast.TypeAlias)
+
+
+def _param_names_for(head):
+    """Lista frozensetów nazw parametrów typu `head` (str): struktura →
+    nazwy własnych parametrów, unia → parametry niejawne (dziedziczone).
+    None gdy `head` nie jest ani strukturą, ani unią."""
+    sd = find_struct_def(head)
+    if sd is not None:
+        return [frozenset("".join(l) for l in p.name.lemmas_set)
+                for p in sd.params]
+    if find_union_def(head) is not None:
+        return _union_param_names(head)
+    return None
+
+
+def _check_aliases(node):
+    """Walidacja deklaracji aliasów typów (pre-pass, przed elaboracją
+    sygnatur): każda głowa w celu to znany typ, wiązanie nazwane trafia
+    w istniejący parametr (bez duplikatów), brak cykli aliasów. Ekspansja
+    (`elaborate` z alias_args=True) zakłada cel po tej walidacji."""
+    for decl in node.body:
+        if isinstance(decl, ast.TypeAlias):
+            _validate_alias_tref(decl.target, ["".join(decl.name)])
+
+
+def _validate_alias_tref(tref, seen):
+    """Rekurencyjna walidacja celu aliasu. `seen` — łańcuch nazw aliasów
+    na ścieżce ekspansji (pierwszy element = deklarowany alias); cykl
+    obejmuje też odwołanie przez wartość argumentu (`A to Lista o
+    elemencie A` — typ rekurencyjny przez alias jest nielegalny;
+    rekursję wyrażają unie)."""
+    h = "".join(tref.head)
+    al = find_type_alias(tref.head)
+    if al is not None:
+        if h in seen:
+            raise TypeCheckError(
+                f"cykl aliasów typów: {' → '.join([*seen, h])}")
+        if tref.args:
+            raise TypeCheckError(
+                f"alias typu '{h}' nie przyjmuje argumentów typu — "
+                f"zastosuj parametry w jego własnej deklaracji")
+        _validate_alias_tref(al.target, [*seen, h])
+        return
+    params = _param_names_for(h)
+    if params is None:
+        if h in BUILTINS:
+            if tref.args:
+                raise TypeCheckError(
+                    f"typ wbudowany '{h}' nie przyjmuje argumentów typu")
+            return
+        raise TypeCheckError(
+            f"nieznany typ '{h}' w deklaracji aliasu '{seen[0]}'")
+    bound = set()
+    for ta in tref.args:
+        nm = "".join(ta.name)
+        slot = next(
+            (i for i, names in enumerate(params) if nm in names), None)
+        if slot is None:
+            known = ", ".join(sorted(min(ns, key=len) for ns in params))
+            raise TypeCheckError(
+                f"typ '{h}' nie ma parametru '{nm}' (deklaracja aliasu "
+                f"'{seen[0]}'); parametry: {known or 'brak'}")
+        if slot in bound:
+            raise TypeCheckError(
+                f"parametr '{nm}' typu '{h}' związany wielokrotnie "
+                f"w deklaracji aliasu '{seen[0]}'")
+        bound.add(slot)
+        _validate_alias_tref(ta.type, seen)
+
+
 def _find_type_decl(type_name, decl_cls):
     if module is None:
         return None
@@ -1385,25 +1474,42 @@ def instantiate_struct(struct_def):
     return inst, _struct_env(struct_def, fresh)
 
 
-def elaborate(tref, env, fresh_unknown=False):
+def elaborate(tref, env, fresh_unknown=False, alias_args=False):
     """TypeRef (składnia) → węzeł typu (semantyka), względem `env` (nazwa
     parametru → węzeł). Głowa będąca parametrem → jego węzeł. Głowa będąca
-    strukturą → AppliedType(name, args ułożone w kolejności parametrów przez
-    dopasowanie (prep, case)). Builtin/nieznana 0-arg → konkret. `fresh_unknown`
-    (sygnatury funkcji/adnotacje): nieznana mała-litera głowa → świeża zmienna
-    (niejawny parametr typu), memoizowana w `env`."""
+    ALIASEM → przezroczysta ekspansja celu (cel zwalidowany wcześniej przez
+    `_check_aliases`). Głowa będąca strukturą → AppliedType(name, args ułożone
+    w kolejności parametrów przez dopasowanie (prep, case)). Builtin/nieznana
+    0-arg → konkret. `fresh_unknown` (sygnatury funkcji/adnotacje): nieznana
+    mała-litera głowa → świeża zmienna (niejawny parametr typu), memoizowana
+    w `env`. `alias_args=True` WYŁĄCZNIE przy elaboracji celu aliasu —
+    licencjonuje nazwane argumenty (`o elemencie Znak`) na głowie-unii/strukturze;
+    poza deklaracją aliasu aplikacja jawna pozostaje nielegalna."""
     h = "".join(tref.head)
     if h in env:
         return find_type(env[h])
+    al = find_type_alias(tref.head)
+    if al is not None:
+        if tref.args:
+            raise TypeCheckError(
+                f"alias typu '{h}' nie przyjmuje argumentów typu — jawna "
+                f"aplikacja parametrów jest dozwolona tylko w deklaracji aliasu")
+        return elaborate(al.target, env, fresh_unknown, alias_args=True)
     sd = find_struct_def(tref.head)
     if sd is None:
         if find_union_def(tref.head) is not None:
             # Unia bez własnej składni argumentów — parametry ma NIEJAWNE
             # (dziedziczone od członków, przechwytywane z env definicji).
-            if tref.args:
+            # Jedyny wyjątek: nazwana aplikacja w celu aliasu.
+            if tref.args and not alias_args:
                 raise TypeCheckError(
                     f"typ wariantowy '{h}' nie przyjmuje argumentów typu")
-            return VariantVar(variants={_union_applied(h, env)})
+            bound = {
+                "".join(ta.name): elaborate(ta.type, env, fresh_unknown,
+                                            alias_args=True)
+                for ta in tref.args
+            } if tref.args else None
+            return VariantVar(variants={_union_applied(h, env, bound)})
         if fresh_unknown and h not in BUILTINS:
             v = new_type()
             env[h] = v
@@ -1411,7 +1517,17 @@ def elaborate(tref, env, fresh_unknown=False):
         return VariantVar(variants={AppliedType(h, ())})
     # struktura: sloty per parametr, argumenty dopasowane (prep, case) i ułożone
     slots = [new_type() for _ in sd.params]
-    if tref.args and len(tref.args) == len(sd.params):
+    if alias_args and tref.args:
+        # Cel aliasu: wiązanie nazwane per parametr (sloty świeże, bez
+        # przechwytu — brak ryzyka wycieku do env użycia).
+        for ta in tref.args:
+            nm = "".join(ta.name)
+            for slot, p in zip(slots, sd.params):
+                if any(nm == "".join(l) for l in p.name.lemmas_set):
+                    unify_types(slot, elaborate(ta.type, env, fresh_unknown,
+                                                alias_args=True))
+                    break
+    elif tref.args and len(tref.args) == len(sd.params):
         arg_meta = [(ta.prep, ta.case, ta) for ta in tref.args]
         slot_to_arg = match_args_to_slots(
             arg_meta, sd.params,
@@ -1438,6 +1554,10 @@ def _as_struct(result_t):
 
 def resolve_struct_creation(node, scope):
     sd = find_struct_def(node.type_name)
+    if sd is None and find_type_alias(node.type_name) is not None:
+        raise TypeCheckError(
+            f"nie można utworzyć wartości przez alias typu "
+            f"'{'_'.join(node.type_name)}' — użyj bezpośrednio typu docelowego")
     if sd is None and find_union_def(node.type_name) is not None:
         raise TypeCheckError(
             f"nie można utworzyć wartości typu wariantowego "

@@ -49,12 +49,13 @@ musi mieć jawny typ `(Typ)` i wymagany jest typ zwracany `-> Typ`
 import lexer
 from morph_anal import canonical
 from ast_nodes import (
+    TypeAlias,
     Module, FunctionIdentifier, FunctionDef, ExternFunctionDef, Param,
     StructDef, Field, Phrase, Assignment, If, While, For, Break, Continue,
     Return, InterpreterError, UnionDef, Match, MatchBranch,
 )
 from identifier import make_identifier, is_prep, canonical_type
-from type_parser import read_prep, parse_type
+from type_parser import read_prep, parse_type, parse_alias_target
 
 
 _PHRASE_END_KINDS = frozenset({
@@ -75,6 +76,27 @@ def _describe_tok(t):
     if len(t) > 1 and t[1] is not None:
         return f"{kind} {t[1]!r}"
     return kind
+
+
+class _TokenCursor:
+    """Kursor duck-typed dla type_parser nad już zebranymi tokenami frazy."""
+    def __init__(self, tokens):
+        self.tokens, self.pos = tokens, 0
+
+    def peek(self, offset=0):
+        i = self.pos + offset
+        return self.tokens[i] if i < len(self.tokens) else None
+
+    def advance(self):
+        t = self.tokens[self.pos]
+        self.pos += 1
+        return t
+
+    def expect(self, kind):
+        t = self.peek()
+        if t is None or t[0] is not kind:
+            raise InterpreterError(f"oczekiwano {kind} w typie aliasu")
+        return self.advance()
 
 
 class Parser:
@@ -214,8 +236,36 @@ class Parser:
             # `albo` w wartości jednoznacznie wskazuje na union_def.
             if any(self._is_albo(tok) for tok in value.tokens):
                 return self._build_union_def(lhs, value)
+            alias = self._maybe_type_alias(lhs, value)
+            if alias is not None:
+                return alias
             return Assignment(target=lhs, value=value)
         return lhs
+
+    _ALIAS_TOKEN_KINDS = frozenset({
+        lexer.Token.WORD, lexer.Token.LPAREN, lexer.Token.RPAREN,
+    })
+
+    def _maybe_type_alias(self, lhs, value):
+        """`Napis to Lista o elemencie Znak` — alias typu: LHS to POJEDYNCZE
+        słowo z wielkiej litery, RHS to słowa/nawiasy zaczynające się słowem
+        z wielkiej litery. Kształt rozpoznany → commit: RHS MUSI się
+        sparsować w całości jako cel aliasu (błędy parse_alias_target są
+        głośne — przypisanie do nazwy z wielkiej litery i tak nie jest
+        legalne). Wszystko inne pozostaje przypisaniem."""
+        if len(lhs.tokens) != 1 or not value.tokens:
+            return None
+        lt, vt = lhs.tokens[0], value.tokens[0]
+        if lt[0] is not lexer.Token.WORD or not lt[1][0][0].isupper():
+            return None
+        if vt[0] is not lexer.Token.WORD or not vt[1][0][0].isupper():
+            return None
+        if any(t[0] not in self._ALIAS_TOKEN_KINDS for t in value.tokens):
+            return None
+        cursor = _TokenCursor(value.tokens)
+        target = parse_alias_target(cursor, self.preps)
+        name = canonical_type(lt, required_case="nom", label="nazwa aliasu")
+        return TypeAlias(name=name, target=target, line=lhs.line)
 
     @staticmethod
     def _is_albo(tok):

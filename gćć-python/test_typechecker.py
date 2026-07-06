@@ -2494,3 +2494,515 @@ def test_partial_match_branches_not_subset_raises(parse):
     with pytest.raises(typechecker.TypeCheckError,
                        match="nie są podzbiorem"):
         typechecker.resolve_module(module)
+
+
+# =====================================================================
+# Aliasy typów (`Ciąg to Łańcuszek o elemencie Liczba`)
+# =====================================================================
+
+_OGNIWA = (
+    "definicja Węzła z elementem:\n"
+    "    głowa (element)\n"
+    "    ogon (Łańcuszek)\n"
+    "\n"
+    "Łańcuszek to Węzeł albo Nic\n"
+    "\n"
+)
+
+_BRATKI = (
+    "definicja Bratka z elementem z wartością:\n"
+    "    płatek (element)\n"
+    "    zawartość (wartość)\n"
+    "\n"
+)
+
+
+@pytest.mark.integration
+def test_alias_to_builtin_in_annotated_declaration(parse):
+    src = (
+        "Numer to Liczba\n"
+        "\n"
+        "aby działać:\n"
+        "    wynik (Numer) to jeden\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    assert _var_types()["wynik"] == "Liczba"
+
+
+@pytest.mark.integration
+def test_alias_to_builtin_rejects_conflict(parse):
+    src = (
+        "Numer to Liczba\n"
+        "\n"
+        "aby działać:\n"
+        "    wynik (Numer) to \"tekst\"\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_chain_expands_transparently(parse):
+    """Alias aliasu (`Cyfra to Numer to Liczba`) rozwija się do dna."""
+    src = (
+        "Numer to Liczba\n"
+        "Cyfra to Numer\n"
+        "\n"
+        "aby działać:\n"
+        "    wynik (Cyfra) to jeden\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    assert _var_types()["wynik"] == "Liczba"
+
+
+@pytest.mark.integration
+def test_alias_binds_union_param(parse):
+    """Aplikacja nazwana wiąże niejawny parametr unii: wartość zgodna
+    z wiązaniem przechodzi przez slot (Ciąg)."""
+    src = _OGNIWA + (
+        "Ciąg to Łańcuszek o elemencie Liczba\n"
+        "\n"
+        "aby mierzyć łańcuszek (Ciąg):\n"
+        "    zwróć jeden\n"
+        "\n"
+        "aby działać:\n"
+        "    ogniwo to Węzeł o głowie pięć o ogonie Nic\n"
+        "    wynik to mierz ogniwo\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    assert _var_types()["ogniwo"] == "Węzeł"
+
+
+@pytest.mark.integration
+def test_alias_bound_param_rejects_wrong_element(parse):
+    """Węzeł z tekstową głową nie przechodzi przez slot (Ciąg) —
+    wiązanie `o elemencie Liczba` faktycznie ogranicza."""
+    src = _OGNIWA + (
+        "Ciąg to Łańcuszek o elemencie Liczba\n"
+        "\n"
+        "aby mierzyć łańcuszek (Ciąg):\n"
+        "    zwróć jeden\n"
+        "\n"
+        "aby działać:\n"
+        "    ogniwo to Węzeł o głowie \"tekst\" o ogonie Nic\n"
+        "    wynik to mierz ogniwo\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_generic_stays_free(parse):
+    """Alias bez aplikacji (`Ciąg to Łańcuszek`) jest w pełni generyczny —
+    świeży per wystąpienie, więc przyjmuje łańcuszki różnych elementów."""
+    src = _OGNIWA + (
+        "Ciąg to Łańcuszek\n"
+        "\n"
+        "aby mierzyć łańcuszek (Ciąg):\n"
+        "    zwróć jeden\n"
+        "\n"
+        "aby działać:\n"
+        "    a to mierz (Węzeł o głowie pięć o ogonie Nic)\n"
+        "    b to mierz (Węzeł o głowie \"tekst\" o ogonie Nic)\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_nested_application(parse):
+    """Zagnieżdżona aplikacja w nawiasie: łańcuszek łańcuszków liczb."""
+    src = _OGNIWA + (
+        "Stos to Łańcuszek o elemencie (Łańcuszek o elemencie Liczba)\n"
+        "\n"
+        "aby brać stos (Stos):\n"
+        "    zwróć jeden\n"
+        "\n"
+        "aby działać:\n"
+        "    ogniwo to Węzeł o głowie (Węzeł o głowie pięć o ogonie Nic) o ogonie Nic\n"
+        "    wynik to bierz ogniwo\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_nested_application_rejects_wrong_inner(parse):
+    src = _OGNIWA + (
+        "Stos to Łańcuszek o elemencie (Łańcuszek o elemencie Liczba)\n"
+        "\n"
+        "aby brać stos (Stos):\n"
+        "    zwróć jeden\n"
+        "\n"
+        "aby działać:\n"
+        "    ogniwo to Węzeł o głowie (Węzeł o głowie \"tekst\" o ogonie Nic) o ogonie Nic\n"
+        "    wynik to bierz ogniwo\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_to_struct_named_application(parse):
+    src = _BRATKI + (
+        "Okaz to Bratek o elemencie Liczba o wartości Tekst\n"
+        "\n"
+        "aby działać:\n"
+        "    kwiatek (Okaz) to Bratek o płatku jeden o zawartości \"rosa\"\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    assert _var_types()["kwiatek"] == "Bratek"
+
+
+@pytest.mark.integration
+def test_alias_to_struct_rejects_wrong_field(parse):
+    src = _BRATKI + (
+        "Okaz to Bratek o elemencie Liczba o wartości Tekst\n"
+        "\n"
+        "aby działać:\n"
+        "    kwiatek (Okaz) to Bratek o płatku \"płatek\" o zawartości \"rosa\"\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_partial_application(parse):
+    """Wiązanie częściowe: `wartość` związana, `element` wolny — kwiatki
+    o różnych płatkach przechodzą, byle zawartość była tekstowa."""
+    src = _BRATKI + (
+        "Kwiatek to Bratek albo Nic\n"
+        "Połówka to Kwiatek o wartości Tekst\n"
+        "\n"
+        "aby przyjąć kwiat (Połówka):\n"
+        "    zwróć jeden\n"
+        "\n"
+        "aby działać:\n"
+        "    a to przyjmij (Bratek o płatku jeden o zawartości \"x\")\n"
+        "    b to przyjmij (Bratek o płatku \"y\" o zawartości \"z\")\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_partial_application_rejects_bound_param(parse):
+    src = _BRATKI + (
+        "Kwiatek to Bratek albo Nic\n"
+        "Połówka to Kwiatek o wartości Tekst\n"
+        "\n"
+        "aby przyjąć kwiat (Połówka):\n"
+        "    zwróć jeden\n"
+        "\n"
+        "aby działać:\n"
+        "    a to przyjmij (Bratek o płatku jeden o zawartości dwa)\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_bound_does_not_leak_into_struct_env(parse):
+    """Alias ze związanym `elementem` użyty w polu struktury, której WŁASNY
+    parametr też nazywa się `element`: wiązanie aliasu NIE może przechwycić
+    (i zbetonować) parametru struktury — `zawartość` zostaje tekstowa."""
+    src = _OGNIWA + (
+        "Ciąg to Łańcuszek o elemencie Liczba\n"
+        "\n"
+        "definicja Pudełka z elementem:\n"
+        "    zawartość (element)\n"
+        "    etykieta (Ciąg)\n"
+        "\n"
+        "aby działać:\n"
+        "    pudełko to Pudełko o zawartości \"tekst\" o etykiecie Nic\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    assert _var_types()["pudełko"] == "Pudełko"
+
+
+@pytest.mark.integration
+def test_alias_generic_captures_struct_param(parse):
+    """Alias generyczny (bez wiązań) jest przezroczysty także dla
+    przechwytu: `rzeczy (Ciąg)` w definicji struktury z parametrem
+    `element` działa jak `rzeczy (Łańcuszek)` — element skrzyni i element
+    łańcuszka to TEN SAM parametr, więc mieszanka jest odrzucana."""
+    src = _OGNIWA + (
+        "Ciąg to Łańcuszek\n"
+        "\n"
+        "definicja Skrzyni z elementem:\n"
+        "    zawartość (element)\n"
+        "    rzeczy (Ciąg)\n"
+        "\n"
+        "aby działać:\n"
+        "    skrzynia to Skrzynia o zawartości jeden o rzeczach (Węzeł o głowie \"tekst\" o ogonie Nic)\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_generic_capture_consistent_passes(parse):
+    src = _OGNIWA + (
+        "Ciąg to Łańcuszek\n"
+        "\n"
+        "definicja Skrzyni z elementem:\n"
+        "    zawartość (element)\n"
+        "    rzeczy (Ciąg)\n"
+        "\n"
+        "aby działać:\n"
+        "    skrzynia to Skrzynia o zawartości jeden o rzeczach (Węzeł o głowie dwa o ogonie Nic)\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_cycle_rejected(parse):
+    src = (
+        "Alfa to Beta\n"
+        "Beta to Alfa\n"
+        "\n"
+        "aby działać:\n"
+        "    zwróć jeden\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError, match="cykl aliasów"):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_self_cycle_rejected(parse):
+    src = (
+        "Alfa to Alfa\n"
+        "\n"
+        "aby działać:\n"
+        "    zwróć jeden\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError, match="cykl aliasów"):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_recursive_through_arg_rejected(parse):
+    """Typ rekurencyjny przez alias (`A to Łańcuszek o elemencie A`)
+    jest nielegalny — rekursję wyrażają unie."""
+    src = _OGNIWA + (
+        "Alfa to Łańcuszek o elemencie Alfa\n"
+        "\n"
+        "aby działać:\n"
+        "    zwróć jeden\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError, match="cykl aliasów"):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_unknown_target_rejected(parse):
+    src = (
+        "Alfa to Krzak\n"
+        "\n"
+        "aby działać:\n"
+        "    zwróć jeden\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError, match="nieznany typ"):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_unknown_param_name_rejected(parse):
+    src = _OGNIWA + (
+        "Ciąg to Łańcuszek o kolorze Liczba\n"
+        "\n"
+        "aby działać:\n"
+        "    zwróć jeden\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError,
+                       match="nie ma parametru 'kolor'"):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_duplicate_binding_rejected(parse):
+    src = _OGNIWA + (
+        "Ciąg to Łańcuszek o elemencie Liczba o elemencie Tekst\n"
+        "\n"
+        "aby działać:\n"
+        "    zwróć jeden\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError,
+                       match="związany wielokrotnie"):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_builtin_with_args_rejected(parse):
+    src = (
+        "Alfa to Liczba o elemencie Tekst\n"
+        "\n"
+        "aby działać:\n"
+        "    zwróć jeden\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError, match="wbudowany"):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_of_alias_with_args_rejected(parse):
+    """Argumenty stosuje się względem struktury/unii; alias już związanych
+    parametrów nie re-aplikuje."""
+    src = _OGNIWA + (
+        "Ciąg to Łańcuszek o elemencie Liczba\n"
+        "Sznur to Ciąg o elemencie Tekst\n"
+        "\n"
+        "aby działać:\n"
+        "    zwróć jeden\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError,
+                       match="nie przyjmuje argumentów"):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_positional_args_rejected(parse):
+    """Goła aplikacja pozycyjna (`Łańcuszek Liczb`) jest nielegalna —
+    jedyna forma to nazwana `o NAZWIE Typ` (błąd już w parserze)."""
+    src = _OGNIWA + (
+        "Ciąg to Łańcuszek Liczb\n"
+    )
+    with pytest.raises(SyntaxError, match="o NAZWIE Typ"):
+        parse(src)
+
+
+@pytest.mark.integration
+def test_alias_wrong_prep_rejected(parse):
+    src = _OGNIWA + (
+        "Ciąg to Łańcuszek z elementem Liczba\n"
+    )
+    with pytest.raises(SyntaxError, match="o NAZWIE Typ"):
+        parse(src)
+
+
+@pytest.mark.integration
+def test_alias_name_collides_with_union(parse):
+    src = _OGNIWA + (
+        "Łańcuszek to Węzeł\n"
+    )
+    with pytest.raises(expression.ResolveError,
+                       match="zadeklarowany dwukrotnie"):
+        parse(src)
+
+
+@pytest.mark.integration
+def test_alias_name_collides_with_builtin(parse):
+    src = _OGNIWA + (
+        "Tekst to Łańcuszek o elemencie Znak\n"
+    )
+    with pytest.raises(expression.ResolveError,
+                       match="zadeklarowany dwukrotnie"):
+        parse(src)
+
+
+@pytest.mark.integration
+def test_struct_after_alias_collision(parse):
+    src = _OGNIWA + (
+        "Ciąg to Łańcuszek\n"
+        "\n"
+        "definicja Ciągu:\n"
+        "    powierzchnia (Liczba)\n"
+    )
+    with pytest.raises(expression.ResolveError,
+                       match="zadeklarowany dwukrotnie"):
+        parse(src)
+
+
+@pytest.mark.integration
+def test_alias_inside_function_rejected(parse):
+    src = _OGNIWA + (
+        "aby działać:\n"
+        "    Ciąg to Łańcuszek\n"
+    )
+    with pytest.raises(expression.ResolveError,
+                       match="tylko na poziomie modułu"):
+        parse(src)
+
+
+@pytest.mark.integration
+def test_alias_use_with_args_rejected(parse):
+    """Jawna aplikacja poza deklaracją aliasu (w anotacji) jest nielegalna."""
+    src = _OGNIWA + (
+        "Ciąg to Łańcuszek o elemencie Liczba\n"
+        "\n"
+        "aby brać łańcuszek (Ciąg o elemencie Tekst):\n"
+        "    zwróć jeden\n"
+        "\n"
+        "aby działać:\n"
+        "    zwróć jeden\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError,
+                       match="nie przyjmuje argumentów"):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_union_use_with_args_still_rejected(parse):
+    """Licencja na argumenty unii dotyczy TYLKO celu aliasu — anotacja
+    z argumentami na unii dalej odrzucana."""
+    src = _OGNIWA + (
+        "aby brać łańcuszek (Łańcuszek o elemencie Liczba):\n"
+        "    zwróć jeden\n"
+        "\n"
+        "aby działać:\n"
+        "    zwróć jeden\n"
+    )
+    module = parse(src)
+    with pytest.raises(typechecker.TypeCheckError,
+                       match="nie przyjmuje argumentów"):
+        typechecker.resolve_module(module)
+
+
+@pytest.mark.integration
+def test_alias_match_branch_rejected(parse):
+    src = _OGNIWA + (
+        "Ciąg to Łańcuszek o elemencie Liczba\n"
+        "\n"
+        "aby zbadać łańcuszek (Ciąg):\n"
+        "    łańcuszek jest:\n"
+        "        Ciągiem:\n"
+        "            zwróć jeden\n"
+        "        inaczej:\n"
+        "            zwróć dwa\n"
+    )
+    with pytest.raises(expression.ResolveError,
+                       match="nie jest zdefiniowaną strukturą"):
+        parse(src)
+
+
+@pytest.mark.integration
+def test_alias_construction_rejected(parse):
+    src = _OGNIWA + (
+        "Ciąg to Łańcuszek o elemencie Liczba\n"
+        "\n"
+        "aby działać:\n"
+        "    coś to Ciąg o głowie jeden o ogonie Nic\n"
+    )
+    with pytest.raises(SyntaxError):
+        parse(src)

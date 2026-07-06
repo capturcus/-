@@ -1,0 +1,29 @@
+# Aliasy typów: `Alias to Cel o NAZWIE Typ` — aplikacja nazwana wiąże
+# niejawny parametr unii (wszystkie pola o tej nazwie u wszystkich
+# członków). Alias jest przezroczysty: w anotacjach parametrów, typach
+# zwracanych i deklaracjach adnotowanych znaczy dokładnie tyle, co cel.
+
+definicja Węzła z elementem z wartością:
+    głowa (element)
+    ogon (Łańcuszek)
+    rzecz (wartość)
+
+Łańcuszek to Węzeł albo Nic
+
+Ciąg to Łańcuszek o wartości Tekst o elemencie Liczba
+Numer to Liczba
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby zsumować łańcuszek (Ciąg) -> Numer:
+    łańcuszek jest:
+        Węzłem z głową z ogonem:
+            zwróć głowa plus zsumuj ogon
+        Niczym:
+            zwróć zero
+
+aby działać:
+    łańcuch to Węzeł o głowie trzy o rzeczy "abc" o ogonie (Węzeł o głowie sześć o ogonie Nic o rzeczy "abc")
+    wypisz (zsumuj łańcuch)
+    suma (Numer) to zsumuj łańcuch
+    wypisz sumę

@@ -38,7 +38,7 @@ from ast_nodes import (
     StructDef, FunctionDef, ExternFunctionDef, UnionDef, Match,
     IntLit, StrLit, BoolLit, BinOp, UnaryOp, And, Or, Not,
     FunctionCall, FunctionRef, Apply, GetterChain, StructCreation,
-    StructArg, StructCtx, TryCall,
+    StructArg, StructCtx, TryCall, TypeAlias,
     Typed, ResolveError, Word, LOGICAL_OPS,
     Assignment, If, While, For, Return, Phrase,
     scope_key_matches,
@@ -951,9 +951,10 @@ def _build_ctx(module):
     fields_by_type = {}
     field_lemmas = set()
     unions = {}
+    aliases = set()
     for node in module.body:
         if isinstance(node, UnionDef):
-            if node.name in unions:
+            if node.name in unions or node.name in aliases:
                 raise ResolveError(
                     f"typ wariantowy '{'_'.join(node.name)}' zadeklarowany "
                     f"dwukrotnie",
@@ -961,7 +962,20 @@ def _build_ctx(module):
                 )
             unions[node.name] = node
             types.add(node.name)
+        elif isinstance(node, TypeAlias):
+            if node.name in types:
+                raise ResolveError(
+                    f"typ '{'_'.join(node.name)}' zadeklarowany dwukrotnie",
+                    line=node.line,
+                )
+            aliases.add(node.name)
+            types.add(node.name)
         elif isinstance(node, StructDef):
+            if node.name in aliases:
+                raise ResolveError(
+                    f"typ '{'_'.join(node.name)}' zadeklarowany dwukrotnie",
+                    line=node.line,
+                )
             types.add(node.name)
             fbt = fields_by_type.setdefault(node.name, set())
             for f in node.fields:
@@ -1259,6 +1273,12 @@ def _resolve_stmt(stmt, ctx, preps, scope):
     elif isinstance(stmt, UnionDef):
         raise ResolveError(
             f"typ wariantowy '{'_'.join(stmt.name)}' można zadeklarować "
+            f"tylko na poziomie modułu",
+            line=stmt.line,
+        )
+    elif isinstance(stmt, TypeAlias):
+        raise ResolveError(
+            f"alias typu '{'_'.join(stmt.name)}' można zadeklarować "
             f"tylko na poziomie modułu",
             line=stmt.line,
         )
