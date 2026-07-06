@@ -1,0 +1,16 @@
+# Struktury referencyjne pozwalają zbudować CYKL (`ogon węzła to węzeł`);
+# wypis obcina rekurencję na LIMIT_WYPISU (1000 poziomów) znacznikiem „…"
+# zamiast RecursionError (dawne bad/cykl.ć).
+
+definicja Węzła:
+    głowa (Liczba)
+    ogon (Spis)
+
+Spis to Węzeł albo Nic
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    węzeł to Węzeł o głowie jeden o ogonie Nic
+    ogon węzła to węzeł
+    wypisz węzeł

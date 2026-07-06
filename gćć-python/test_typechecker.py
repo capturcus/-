@@ -1410,6 +1410,32 @@ def test_subject_reassign_widens_outer_rejecting_later_chain(parse):
 
 
 @pytest.mark.integration
+def test_annotated_subject_reassign_goes_outward(parse):
+    """Cel `Typed(Identifier)` w gałęzi rozpakowuje się do zapisu NA
+    ZEWNĄTRZ (dawne bad/adnotowany_podmiot.ć): typ zewnętrzny akumuluje
+    nowy wariant, więc chain po bloku po starym wariancie odpada —
+    dawniej typował się i padał w runtime."""
+    src = (
+        "definicja Kota:\n    imię (Tekst)\n"
+        "\n"
+        "definicja Psa:\n    kość (Tekst)\n"
+        "\n"
+        "Zwierzę to Kot albo Pies\n"
+        "\n"
+        "aby działać:\n"
+        "    zwierzę to Kot o imieniu \"Mruczek\"\n"
+        "    zwierzę jest:\n"
+        "        Kotem:\n"
+        "            zwierzę (Zwierzę) to Pies o kości \"szynka\"\n"
+        "        Psem:\n"
+        "            nic to zero\n"
+        "    ozdoba to imię zwierzęcia\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
 def test_subject_reassign_degrades_shadow_for_later_reads(parse):
     """Po przypisaniu do podmiotu w jego gałęzi cień zawężenia jest
     zdegradowany do unii — dalszy zawężony odczyt (chain zakładający

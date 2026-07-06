@@ -1,0 +1,27 @@
+# Adnotowana reasignacja podmiotu w jego gałęzi (`zwierzę (Zwierzę) to ...`)
+# pisze NA ZEWNĄTRZ jak zwykła — Typed rozpakowuje się przed rozstrzyganiem
+# celu, adnotacja wiąże się z typem zewnętrznym. Drugi match widzi Psa.
+# (Dawne bad/adnotowany_podmiot.ć: rozjazd typechecker/runtime → crash.)
+
+definicja Kota:
+    imię (Tekst)
+
+definicja Psa:
+    kość (Tekst)
+
+Zwierzę to Kot albo Pies
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    zwierzę to Kot o imieniu "Mruczek"
+    zwierzę jest:
+        Kotem:
+            zwierzę (Zwierzę) to Pies o kości "szynka"
+        Psem:
+            wypisz "pies"
+    zwierzę jest:
+        Kotem z imieniem:
+            wypisz imię
+        Psem z kością:
+            wypisz kość

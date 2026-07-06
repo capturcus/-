@@ -901,12 +901,22 @@ def resolve_expression(node, scope):
 def resolve_assignment(node, scope):
     target = node.target.resolved
     value_type = resolve_expression(node.value.resolved, scope)
+    explicit_t = None
+    if isinstance(target, ast.Typed) and isinstance(target.expr, ast.Identifier):
+        # Adnotowany cel-identyfikator rozpakowuje się PRZED rozstrzyganiem
+        # (dawne bad/adnotowany_podmiot.ć: Typed omijał zapis-na-zewnątrz,
+        # rozjeżdżając typechecker z runtime). Adnotacja wiąże się z celem
+        # zewnętrznym, nie z cieniem.
+        explicit_t = elaborate(target.type, {}, fresh_unknown=True)
+        target = target.expr
     if isinstance(target, ast.Identifier):
         # Zapis do nazwy idzie na ZEWNĄTRZ (z pominięciem cienia zawężenia)
         # — idiom kursora `reszta to ogon` przesuwa zmienną pętli. Jeśli
         # nazwa ma w gałęzi cień, wartość dolewa się TAKŻE do niego: dalsze
         # zawężone odczyty widzą typ zdegradowany, nie kłamliwie wąski.
         outer_t = scope.assign_target_type(target)
+        if explicit_t is not None:
+            unify_types(explicit_t, outer_t, widen=True, mode="accumulate")
         unify_types(outer_t, value_type, widen=True, mode="accumulate")
         shadow_t = scope.find_shadow(target)
         if shadow_t is not None and find_type(shadow_t) is not find_type(outer_t):

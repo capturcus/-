@@ -1,5 +1,15 @@
+import sys
+
 import ast_nodes as ast
 from dataclasses import dataclass, field
+
+# Limit Pythona (~1000 ramek) jest za niski dla tree-walkera: głęboka
+# rekursja Ć + limit wypisu (poniżej) potrzebują zapasu.
+sys.setrecursionlimit(20000)
+
+# Struktury są referencyjne, więc cykle są konstruowalne — wypis obcina
+# się na tej głębokości znacznikiem „…" zamiast rekurencją bez dna.
+LIMIT_WYPISU = 1000
 
 class ErrorPropagation(Exception):
     """Gałąź-Błąd wywołania '?' — przerywa funkcję otaczającą, która
@@ -34,13 +44,16 @@ def _field_set(struct, keys, value):
             return
     raise RuntimeError(f"pole nie znalezione {keys}")
 
-def _tekst(rv):
+def _tekst(rv, depth=0):
+    if depth > LIMIT_WYPISU:
+        return "…"
     if rv.type == "Przełącznik":
         return "prawda" if rv.value else "fałsz"
     if rv.type == "Nic":
         return "Nic"
     if isinstance(rv.value, dict):
-        fields = ", ".join(f"{'_'.join(k[0])}: {_tekst(v)}" for k, v in rv.value.items())
+        fields = ", ".join(f"{'_'.join(k[0])}: {_tekst(v, depth + 1)}"
+                           for k, v in rv.value.items())
         return f"{rv.type}({fields})"
     return str(rv.value)
 
