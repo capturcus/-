@@ -1,7 +1,5 @@
 uwzględnij przygrywka.ć
 
-można wypisać coś (Cokolwiek) -> Nic
-
 aby szukać po identyfikatorze:
     jeśli identyfikator większe od zero:
         zwróć Sukces o wartości identyfikator

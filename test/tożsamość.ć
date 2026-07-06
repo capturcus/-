@@ -21,8 +21,6 @@ definicja Węzła:
 
 Spis to Węzeł albo Nic
 
-można wypisać coś (Cokolwiek) -> Nic
-
 aby działać:
     kot to Kot o imieniu "Mruczek"
     sobowtór to Kot o imieniu "Mruczek"

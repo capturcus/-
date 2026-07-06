@@ -17,8 +17,6 @@ definicja Węzła z elementem:
 
 Gałąź to Węzeł albo Nic
 
-można wypisać coś (Cokolwiek) -> Nic
-
 aby zbadać drzewo:
     lewy_syn drzewa to Węzeł o wartości jeden o wysokości jeden o lewym_synu Nic
     wypisz "ok"

@@ -11,8 +11,6 @@ definicja Węzła:
 
 Spis to Węzeł albo Nic
 
-można wypisać coś (Cokolwiek) -> Nic
-
 aby działać:
     reszta to Węzeł o głowie jeden o ogonie (Węzeł o głowie dwa o ogonie Nic)
     dopóki prawda:

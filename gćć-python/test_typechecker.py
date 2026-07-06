@@ -1016,8 +1016,6 @@ def test_ekstrakcja_elementu_generycznej_listy_bez_adnotacji(parse):
     argumentu jedną ścieżką granic — bez żadnej adnotacji wiążącej.
     Stary solver gubił tę równość (poszlaki ≤ zamiast =)."""
     src = _PRZYGRYWKA + (
-        "można wypisać coś (Cokolwiek) -> Nic\n"
-        "\n"
         "aby działać:\n"
         "    liczby to Ogniwo o głowie jeden o ogonie Nic\n"
         "    trafienie to wskaż jeden na liczbach\n"

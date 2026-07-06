@@ -15,8 +15,6 @@ Ogon to Węzeł albo Nic
 definicja Kota:
     imię (Tekst)
 
-można wypisać coś (Cokolwiek) -> Nic
-
 aby opakować wartość:
     zwróć Kot o imieniu "kot"
 

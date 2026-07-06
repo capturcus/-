@@ -9,8 +9,6 @@ definicja Kota:
 
 Zwierzę to Kot albo Nic
 
-można wypisać coś (Cokolwiek) -> Nic
-
 aby działać:
     zwierzę (Zwierzę) to Nic
     zwierzę jest:

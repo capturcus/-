@@ -29,6 +29,12 @@ definicja Błędu:
 
 Rezultat to Sukces albo Błąd
 
+# Wypis na standardowe wyjście — uniwersalny (przyjmuje cokolwiek:
+# `Cokolwiek` to nieznana głowa typu, więc działa jak parametr typu).
+# Wbudowany w interpreter; Tekst (lista znaków) drukuje się jako łańcuch,
+# Nic jako "Nic", Przełącznik jako prawda/fałsz, struktury po polach.
+można wypisać coś (Cokolwiek) -> Nic
+
 # Arytmetyka spoza operatorów: dzielenie całkowitoliczbowe i reszta
 # z dzielenia — wbudowane w interpreter (dzielenie podłogowe, reszta
 # nieujemna dla dodatniego dzielnika; dzielenie przez zero to błąd

@@ -13,8 +13,6 @@ definicja Paczki:
 
 Przesyłka to Paczka albo Nic
 
-można wypisać coś (Cokolwiek) -> Nic
-
 aby przywitać zwierzę:
     zwierzę jest:
         Kotem:

@@ -5,8 +5,6 @@
 
 uwzględnij przygrywka.ć
 
-można wypisać coś (Cokolwiek) -> Nic
-
 aby sparować zasadę (Znak) -> Znak:
     jeśli zasada równa 'A':
         zwróć 'T'

@@ -15,8 +15,6 @@ definicja Węzła z elementem z wartością:
 Ciąg to Łańcuszek o wartości Tekst o elemencie Liczba
 Numer to Liczba
 
-można wypisać coś (Cokolwiek) -> Nic
-
 aby zsumować łańcuszek (Ciąg) -> Numer:
     łańcuszek jest:
         Węzłem z głową z ogonem:

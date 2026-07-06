@@ -11,8 +11,6 @@ Ozdoba to Kwiat albo Nic
 definicja Wazonu:
     ozdoba (Ozdoba)
 
-można wypisać coś (Cokolwiek) -> Nic
-
 aby ustawić kwiat w wazonie:
     barwa kwiatu to "czerwona"
     ozdoba wazonu to kwiat

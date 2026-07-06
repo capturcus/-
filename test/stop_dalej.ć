@@ -3,8 +3,6 @@ uwzględnij przygrywka.ć
 # `stop` przerywa najbliższą pętlę `dopóki`, `dalej` przeskakuje do
 # następnej iteracji — oba działają przez zagnieżdżone bloki (`jeśli`).
 
-można wypisać coś (Cokolwiek) -> Nic
-
 aby działać:
     licznik to zero
     dopóki prawda:

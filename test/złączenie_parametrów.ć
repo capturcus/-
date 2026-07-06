@@ -13,8 +13,6 @@ definicja Psa:
 
 Domownik to Kot albo Pies
 
-można wypisać coś (Cokolwiek) -> Nic
-
 aby wybrać flagę kota psa:
     jeśli flaga:
         zwróć kot

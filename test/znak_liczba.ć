@@ -6,8 +6,6 @@
 
 uwzględnij przygrywka.ć
 
-można wypisać coś (Cokolwiek) -> Nic
-
 # Cyfra ('0'–'9') jako jej wartość liczbowa: różnica punktów kodowych.
 aby odczytać_cyfrę znak:
     zwróć (zapisz_liczbą znak) minus (zapisz_liczbą '0')

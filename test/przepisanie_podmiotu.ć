@@ -12,8 +12,6 @@ definicja Psa:
 
 Zwierzę to Kot albo Pies
 
-można wypisać coś (Cokolwiek) -> Nic
-
 aby działać:
     zwierzę to Kot o imieniu "Mruczek"
     zwierzę jest:
