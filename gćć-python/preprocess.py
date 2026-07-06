@@ -37,6 +37,8 @@ _CMP_2WORD = {
 _CMP_1WORD_LEMMAS = {
     ("równy",): "=",
     ("nierówny",): "!=",
+    # Równość referencyjna (ten sam obiekt) — obok strukturalnego `równe`.
+    ("tożsamy",): "≡",
 }
 
 _ARITH_SURFACE = {"plus": "+", "minus": "-"}

@@ -70,9 +70,34 @@ BIN_OPS = {
     ">": (lambda a, b: a > b, "Przełącznik"),
     "<=": (lambda a, b: a <= b, "Przełącznik"),
     ">=": (lambda a, b: a >= b, "Przełącznik"),
-    "=": (lambda a, b: a == b, "Przełącznik"),
-    "!=": (lambda a, b: a != b, "Przełącznik"),
 }
+
+def _równe(a, b, visited=None):
+    """Równość STRUKTURALNA (`równe`): skrót tożsamościowy, tag typu,
+    wartości proste po wartości, struktury rekurencyjnie po polach.
+    Cykle bezpieczne: odwiedzona para słowników uznana za równą
+    (koindukcja — różnica i tak wyjdzie na innej ścieżce)."""
+    if a is b:
+        return True
+    if a.type != b.type:
+        return False
+    if not isinstance(a.value, dict):
+        return a.value == b.value
+    if visited is None:
+        visited = set()
+    para = (id(a.value), id(b.value))
+    if para in visited:
+        return True
+    visited.add(para)
+    return all(_równe(w, b.value[k], visited) for k, w in a.value.items())
+
+def _tożsame(a, b):
+    """Równość REFERENCYJNA (`tożsame`): struktury — ten sam obiekt
+    (słownik pól jest nośnikiem tożsamości); wartości proste są
+    niemutowalne, więc tożsamość degeneruje się do równości wartości."""
+    if isinstance(a.value, dict) or isinstance(b.value, dict):
+        return a.value is b.value
+    return a.value == b.value
 
 @dataclass
 class RuntimeValue:
@@ -143,6 +168,12 @@ def execute_expression(expr_node, scope):
     if isinstance(expr_node, ast.BinOp):
         left = execute_expression(expr_node.left, scope)
         right = execute_expression(expr_node.right, scope)
+        if expr_node.op == "=":
+            return RuntimeValue(value=_równe(left, right), type="Przełącznik")
+        if expr_node.op == "!=":
+            return RuntimeValue(value=not _równe(left, right), type="Przełącznik")
+        if expr_node.op == "≡":
+            return RuntimeValue(value=_tożsame(left, right), type="Przełącznik")
         fn, result_type = BIN_OPS[expr_node.op]
         return RuntimeValue(value=fn(left.value, right.value), type=result_type)
     if isinstance(expr_node, ast.UnaryOp):

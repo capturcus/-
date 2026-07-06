@@ -1,0 +1,53 @@
+# `równe` = równość STRUKTURALNA (skrót tożsamościowy, rekurencja po polach,
+# cykle bezpieczne), `tożsame` = równość REFERENCYJNA (ten sam obiekt;
+# wartości proste po wartości). Rozstrzygnięcie bad/równość_struktur.ć.
+
+definicja Kota:
+    imię (Tekst)
+
+definicja Psa:
+    kość (Tekst)
+
+Zwierzę to Kot albo Pies
+
+definicja Pudełka:
+    zawartość (Zwierzę)
+
+definicja Węzła:
+    głowa (Liczba)
+    ogon (Spis)
+
+Spis to Węzeł albo Nic
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    kot to Kot o imieniu "Mruczek"
+    sobowtór to Kot o imieniu "Mruczek"
+    inny to Kot o imieniu "Filemon"
+    alias to kot
+    wypisz (kot równe sobowtór)
+    wypisz (kot tożsame sobowtór)
+    wypisz (kot tożsame alias)
+    wypisz (kot równe alias)
+    wypisz (kot równe inny)
+    wypisz (kot nierówne inny)
+    imię aliasu to "Puszek"
+    wypisz (kot równe sobowtór)
+    pudło to Pudełko o zawartości kot
+    paczka to Pudełko o zawartości (Kot o imieniu "Puszek")
+    wypisz (pudło równe paczka)
+    wypisz (pudło tożsame paczka)
+    zwierzę (Zwierzę) to kot
+    okaz (Zwierzę) to Pies o kości "szynka"
+    wypisz (zwierzę równe okaz)
+    pętla to Węzeł o głowie jeden o ogonie Nic
+    ogon pętli to pętla
+    obwód to Węzeł o głowie jeden o ogonie Nic
+    ogon obwodu to obwód
+    wypisz (pętla równe obwód)
+    wypisz (pętla tożsame obwód)
+    wypisz (pięć tożsame pięć)
+    próżnia (Spis) to Nic
+    ogniwo (Spis) to pętla
+    wypisz (ogniwo tożsame próżnia)

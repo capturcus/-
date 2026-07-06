@@ -927,7 +927,7 @@ def resolve_assignment(node, scope):
 
 
 # Operatory porównania (CMP_OP) zwracają Przełącznik; arytmetyczne — Liczbę.
-_COMPARISON_OPS = {"<", ">", "<=", ">=", "=", "!="}
+_COMPARISON_OPS = {"<", ">", "<=", ">=", "=", "!=", "≡"}
 
 def resolve_bin_op(node, scope):
     t0 = resolve_expression(node.left, scope)

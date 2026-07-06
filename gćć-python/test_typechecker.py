@@ -1459,6 +1459,35 @@ def test_subject_reassign_degrades_shadow_for_later_reads(parse):
         typechecker.resolve_module(parse(src))
 
 
+@pytest.mark.integration
+def test_equality_family_rejects_ununifiable_operands(parse):
+    """`równe`/`tożsame` wymagają unifikowalnych operandów: Kot vs Pies
+    (bez unii) i Kot vs Liczba są odrzucane statycznie; `tożsame` zwraca
+    Przełącznik, więc arytmetyka na wyniku też odpada."""
+    prelude = (
+        "definicja Kota:\n    imię (Tekst)\n"
+        "\n"
+        "definicja Psa:\n    kość (Tekst)\n"
+        "\n"
+    )
+    zle = [
+        "aby działać:\n"
+        "    kot to Kot o imieniu \"a\"\n"
+        "    pies to Pies o kości \"b\"\n"
+        "    wynik to kot równe pies\n",
+        "aby działać:\n"
+        "    kot to Kot o imieniu \"a\"\n"
+        "    wynik to kot tożsame pięć\n",
+        "aby działać:\n"
+        "    kot to Kot o imieniu \"a\"\n"
+        "    wynik to (kot tożsame kot) plus jeden\n",
+    ]
+    for src in zle:
+        _reset_typechecker_state()
+        with pytest.raises(typechecker.TypeCheckError):
+            typechecker.resolve_module(parse(prelude + src))
+
+
 _LISTA_LICZB = (
     "definicja Węzła z elementem:\n"
     "    wartość (element)\n"
