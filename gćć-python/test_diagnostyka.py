@@ -125,6 +125,46 @@ def test_runtime_error_carries_c_stack(run):
 
 
 # =====================================================================
+# Wbudowane dzielenie: dzielenie przez zero to czytelny błąd wykonania
+# =====================================================================
+
+_DZIELENIE_PRELUDE = (
+    "można podzielić pierwszą_liczbę (Liczba) przez drugą_liczbę (Liczba)"
+    " -> Liczba\n"
+    "\n"
+    "można wziąć_resztę_z_dzielenia pierwszej_liczby (Liczba) przez "
+    "drugą_liczbę (Liczba) -> Liczba\n"
+    "\n"
+)
+
+
+@pytest.mark.integration
+def test_division_by_zero_reports_location(run):
+    src = _DZIELENIE_PRELUDE + (
+        "aby działać:\n"
+        "    iloraz to podziel pięć przez zero\n"
+    )
+    with pytest.raises(
+        executor.CRuntimeError,
+        match=r"dzielenie przez zero \(linia 6, w funkcji 'działać'\)",
+    ):
+        run(src)
+
+
+@pytest.mark.integration
+def test_modulo_by_zero_reports_location(run):
+    src = _DZIELENIE_PRELUDE + (
+        "aby działać:\n"
+        "    reszta to weź_resztę_z_dzielenia pięciu przez zero\n"
+    )
+    with pytest.raises(
+        executor.CRuntimeError,
+        match=r"reszta z dzielenia przez zero",
+    ):
+        run(src)
+
+
+# =====================================================================
 # Pkt 18 — odczyt/zapis pola z wartości bez tego pola
 # =====================================================================
 

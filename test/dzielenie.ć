@@ -1,0 +1,19 @@
+# Wbudowane dzielenie i reszta z dzielenia (deklaracje w przygrywce):
+# dzielenie jest całkowitoliczbowe i PODŁOGOWE (minus siedem przez dwa
+# to minus cztery), a reszta ma znak dzielnika — dla dodatniego
+# dzielnika zawsze nieujemna.
+
+uwzględnij przygrywka.ć
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    wypisz (podziel siedem przez dwa)
+    wypisz (podziel dziesięć przez pięć)
+    wypisz (weź_resztę_z_dzielenia siedmiu przez dwa)
+    wypisz (weź_resztę_z_dzielenia dziesięciu przez pięć)
+    dzielna to minus siedem
+    wypisz (podziel dzielną przez dwa)
+    wypisz (weź_resztę_z_dzielenia dzielnej przez dwa)
+    połowa to podziel sto przez (podziel dziesięć przez pięć)
+    wypisz połowę

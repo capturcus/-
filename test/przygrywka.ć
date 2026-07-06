@@ -29,6 +29,15 @@ definicja Błędu:
 
 Rezultat to Sukces albo Błąd
 
+# Arytmetyka spoza operatorów: dzielenie całkowitoliczbowe i reszta
+# z dzielenia — wbudowane w interpreter (dzielenie podłogowe, reszta
+# nieujemna dla dodatniego dzielnika; dzielenie przez zero to błąd
+# wykonania). `podziel siedem przez dwa` → 3; `weź_resztę_z_dzielenia
+# siedmiu przez dwa` → 1.
+można podzielić pierwszą_liczbę (Liczba) przez drugą_liczbę (Liczba) -> Liczba
+
+można wziąć_resztę_z_dzielenia pierwszej_liczby (Liczba) przez drugą_liczbę (Liczba) -> Liczba
+
 # Długość listy — liczba ogniw.
 aby zmierzyć listę (Lista) -> Liczba:
     lista jest:

@@ -3073,6 +3073,12 @@ _PRZYGRYWKA = (
     "\n"
     "Rezultat to Sukces albo Błąd\n"
     "\n"
+    "można podzielić pierwszą_liczbę (Liczba) przez drugą_liczbę (Liczba)"
+    " -> Liczba\n"
+    "\n"
+    "można wziąć_resztę_z_dzielenia pierwszej_liczby (Liczba) przez "
+    "drugą_liczbę (Liczba) -> Liczba\n"
+    "\n"
 )
 
 
@@ -3175,6 +3181,31 @@ def test_equality_union_var_vs_member_keeps_var_type(parse):
     types = _var_types()
     assert types["ogniwo"] == "Ogniwo"
     assert types["wartość"] == "Liczba"
+
+
+@pytest.mark.integration
+def test_przygrywka_dzielenie_types_as_liczba(parse):
+    """Wbudowane `podzielić`/`wziąć_resztę_z_dzielenia` (deklaracje
+    w przygrywce) typują się jak każdy ekstern: Liczba → Liczba."""
+    src = _PRZYGRYWKA + (
+        "aby działać:\n"
+        "    iloraz to podziel siedem przez dwa\n"
+        "    reszta to weź_resztę_z_dzielenia siedmiu przez dwa\n"
+    )
+    typechecker.resolve_module(parse(src))
+    types = _var_types()
+    assert types["iloraz"] == "Liczba"
+    assert types["reszta"] == "Liczba"
+
+
+@pytest.mark.integration
+def test_przygrywka_dzielenie_rejects_non_liczba(parse):
+    src = _PRZYGRYWKA + (
+        "aby działać:\n"
+        "    iloraz to podziel 'a' przez dwa\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
 
 
 @pytest.mark.integration

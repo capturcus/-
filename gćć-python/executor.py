@@ -163,8 +163,30 @@ def _tekst(rv, depth=0):
         return f"{rv.type}({fields})"
     return str(rv.value)
 
+def _podziel(args):
+    """Dzielenie całkowitoliczbowe (podłogowe, jak w Pythonie:
+    -7 podzielone przez 2 to -4)."""
+    dzielna, dzielnik = args
+    if dzielnik.value == 0:
+        raise RuntimeError("dzielenie przez zero")
+    return RuntimeValue(value=dzielna.value // dzielnik.value, type="Liczba")
+
+
+def _reszta_z_dzielenia(args):
+    """Reszta z dzielenia (podłogowa, znak dzielnika — dla dodatniego
+    dzielnika zawsze nieujemna)."""
+    dzielna, dzielnik = args
+    if dzielnik.value == 0:
+        raise RuntimeError("reszta z dzielenia przez zero")
+    return RuntimeValue(value=dzielna.value % dzielnik.value, type="Liczba")
+
+
+# Wbudowane funkcje: implementacja tutaj, sygnatura jako deklaracja
+# `można` w programie (przygrywka deklaruje podzielić/wziąć_resztę…).
 BUILTIN_FUNCTIONS = [
     ([("wypisać",)], lambda args: print(_tekst(args[0]))),
+    ([("podzielić",)], _podziel),
+    ([("wziąć", "reszta", "z", "dzielenie")], _reszta_z_dzielenia),
 ]
 
 # op → (funkcja, typ wyniku); semantyka jak w typechecker.resolve_bin_op
