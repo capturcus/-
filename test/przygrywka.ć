@@ -16,6 +16,19 @@ Lista to Ogniwo albo Nic
 
 Tekst to Lista o elemencie Znak
 
+# Rezultat — wynik operacji, która może się nie powieść. Wywołania
+# z obsługą błędu (tryb przypuszczający + `?`, np. `wybrałbyś?`)
+# wymagają unii dokładnie tego kształtu: odpakowują wartość Sukcesu,
+# a Błąd propagują zwrotem z funkcji otaczającej. Sukces jest
+# generyczny po elemencie; element konkretyzuje się przez użycie.
+definicja Sukcesu z elementem:
+    wartość (element)
+
+definicja Błędu:
+    opis (Tekst)
+
+Rezultat to Sukces albo Błąd
+
 # Długość listy — liczba ogniw.
 aby zmierzyć listę (Lista) -> Liczba:
     lista jest:

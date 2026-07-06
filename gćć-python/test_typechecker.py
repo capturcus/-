@@ -3065,6 +3065,14 @@ _PRZYGRYWKA = (
     "\n"
     "Tekst to Lista o elemencie Znak\n"
     "\n"
+    "definicja Sukcesu z elementem:\n"
+    "    wartość (element)\n"
+    "\n"
+    "definicja Błędu:\n"
+    "    opis (Tekst)\n"
+    "\n"
+    "Rezultat to Sukces albo Błąd\n"
+    "\n"
 )
 
 
@@ -3167,3 +3175,28 @@ def test_equality_union_var_vs_member_keeps_var_type(parse):
     types = _var_types()
     assert types["ogniwo"] == "Ogniwo"
     assert types["wartość"] == "Liczba"
+
+
+@pytest.mark.integration
+def test_przygrywka_rezultat_enables_try_call(parse):
+    """Przygrywkowy `Rezultat to Sukces albo Błąd` licencjonuje wywołania
+    z obsługą błędu: `?` odpakowuje wartość Sukcesu (konkretyzowaną przez
+    użycie), Błąd — z opisem-Tekstem z literału — propaguje się zwrotem,
+    a funkcja otaczająca typuje się unią Rezultat."""
+    src = _PRZYGRYWKA + (
+        "aby wybrać:\n"
+        "    zwróć Sukces o wartości pięć\n"
+        "\n"
+        "aby zawieść:\n"
+        "    zwróć Błąd o opisie \"poza zakresem\"\n"
+        "\n"
+        "aby przetwarzać:\n"
+        "    zwróć Sukces o wartości (wybrałbyś? plus jeden)\n"
+        "\n"
+        "aby ryzykować:\n"
+        "    zwróć Sukces o wartości (zawiódłbyś? plus jeden)\n"
+    )
+    module = parse(src)
+    typechecker.resolve_module(module)
+    assert ty(_fdt_by_surface(("przetwarzać",)).ret_type) == "Rezultat"
+    assert ty(_fdt_by_surface(("ryzykować",)).ret_type) == "Rezultat"

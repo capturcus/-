@@ -365,7 +365,9 @@ tymczasowy jest:
 
 Oba znaczniki są obowiązkowe — tryb bez `?` i `?` bez trybu to błędy.
 Konstrukcja wymaga zadeklarowanej unii `Rezultat to Sukces albo Błąd`
-(dokładnie tej postaci, jak wyżej). Wołana funkcja musi zwracać
+(dokładnie tej postaci, jak wyżej) — przygrywka deklaruje ją gotową:
+`Sukces z elementem` (pole `wartość`) i `Błąd` (pole `opis (Tekst)`),
+więc `uwzględnij przygrywka.ć` wystarcza. Wołana funkcja musi zwracać
 `Rezultat`, a typ zwracany funkcji otaczającej rozszerza się o `Błąd`.
 Ponieważ `?` domyka wywołanie, zagnieżdżenie nie potrzebuje nawiasów:
 

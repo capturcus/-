@@ -1,13 +1,5 @@
 uwzględnij przygrywka.ć
 
-definicja Sukcesu:
-    wartość (Liczba)
-
-definicja Błędu:
-    opis (Tekst)
-
-Rezultat to Sukces albo Błąd
-
 można wypisać coś (Cokolwiek) -> Nic
 
 aby szukać po identyfikatorze:
