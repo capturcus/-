@@ -112,8 +112,12 @@ def parse_number_words(tokens):
             total += max(current, 1) * MAGNITUDES[lemma]
             current = 0
         else:
+            # Pułapka liczebnikowa: słowo z num-odczytem w SGJP (szereg,
+            # ile, …) użyte jako nazwa — scalanie sekwencji liczebnikowych
+            # połknęło je zanim parser zobaczył identyfikator.
             raise NumberParseError(
-                f"liczebnik '{lemma}' nie jest rozpoznawany przez słowniki",
+                f"'{lemma}' ma w SGJP odczyt liczebnikowy i nie może być "
+                f"nazwą — wybierz inną (np. 'spis', 'wykaz')",
                 line=line,
             )
     return total + current

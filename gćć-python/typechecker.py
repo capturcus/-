@@ -23,6 +23,10 @@ class TypeVar:
     # (∀k,p → k⊔p). KONKRETNE poszlaki są scalane joinem (widening) przez
     # `_force_lowers`; wolne czekają na instancję/kolejny przebieg.
     lowers: list = field(default_factory=list)
+    # Ślad wnioskowania: miejsca ("linia N: kontekst"), w których o tej
+    # klasie typów cokolwiek wywnioskowano. Wypisywany przy błędzie
+    # unifikacji, żeby programista widział poszlaki obu stron.
+    trail: list = field(default_factory=list)
 
     def __repr__(self):
         return f"t{self.number}"
@@ -59,12 +63,70 @@ class AppliedType:
 class VariantVar:
     variants: set = field(default_factory=set)  # set[AppliedType]
     next: object = None
+    trail: list = field(default_factory=list)  # ślad wnioskowania, jak w TypeVar
 
     def __repr__(self):
         return "|".join(sorted(repr(a) for a in self.variants)) if self.variants else "⊥"
 
 class TypeCheckError(Exception):
     """Konflikt typów — np. unifikacja dwóch konkretów o pustym przecięciu."""
+
+
+# ---------- kontekst diagnostyczny: bieżąca linia/funkcja + ślad ----------
+
+# Ustawiane przez resolve_statement / resolve_function_def; unify_types
+# dopisuje bieżącą notę do śladu obu stron, a błędy bez lokalizacji
+# dostają dopisek "podczas typowania linii N".
+_ctx_line = None
+_ctx_fun = None
+_current_note = None
+
+
+def _set_note(text):
+    """Nota śladu wnioskowania dla nadchodzących unifikacji — z linią
+    bieżącej instrukcji, jeśli znana."""
+    global _current_note
+    _current_note = (f"linia {_ctx_line}: {text}"
+                     if _ctx_line is not None else text)
+
+
+def _note_trail(*ts):
+    """Dopisz bieżącą notę do śladu reprezentantów podanych typów
+    (bez duplikatów — fixpoint odwiedza te same miejsca wielokrotnie)."""
+    if _current_note is None:
+        return
+    for t in ts:
+        tr = find_type(t).trail
+        if _current_note not in tr:
+            tr.append(_current_note)
+
+
+def _absorb_trail(dst, *srcs):
+    """Po scaleniu klas union-find nowy reprezentant przejmuje ślady
+    wchłoniętych węzłów."""
+    for src in srcs:
+        if src is dst:
+            continue
+        for e in src.trail:
+            if e not in dst.trail:
+                dst.trail.append(e)
+
+
+def _unify_fail_msg(ft0, ft1):
+    """Komunikat konfliktu unifikacji z poszlakami: wszystkie miejsca,
+    w których cokolwiek wywnioskowano o każdej ze stron."""
+    msg = f"nie można zunifikować {ft0!r} z {ft1!r}"
+    clues = []
+    for side in (ft0, ft1):
+        if side.trail:
+            shown = side.trail[-8:]
+            pominięte = len(side.trail) - len(shown)
+            suffix = f" (i {pominięte} wcześniejszych)" if pominięte else ""
+            clues.append(f"  poszlaki o {side!r}: "
+                         + "; ".join(shown) + suffix)
+    if clues:
+        msg += " — zdecyduj, która poszlaka jest błędna:\n" + "\n".join(clues)
+    return msg
 
 def variant(heads):
     # Typ konkretny/wariantowy z iterowalnej kolekcji nazw-głów (stringów).
@@ -239,9 +301,50 @@ def _link_member_args(member_at, union_at):
                 # destrukcyjnie przepinała klasę argumentu wartości na unię
                 # i psuła kolejny przebieg fixpointu (ujawnione przez aliasy
                 # wiążące argument unii konkretem).
-                unify_types(union_at.args[j], member_at.args[i],
-                            widen=True, mode="accumulate")
+                try:
+                    unify_types(union_at.args[j], member_at.args[i],
+                                widen=True, mode="accumulate")
+                except TypeCheckError as e:
+                    if "niejawny argument" in str(e):
+                        raise
+                    pname = min(("".join(l) for l in p.name.lemmas_set),
+                                key=len)
+                    raise TypeCheckError(
+                        f"niejawny argument '{pname}' typu "
+                        f"'{union_at.head}' (parametr '{pname}' z definicji "
+                        f"'{member_at.head}') nie zgadza się między "
+                        f"wystąpieniami — {e}") from None
                 break
+
+
+def _param_pedigree(head, i):
+    """(nazwa, definicja) i-tego parametru typu `head`: struktura ma
+    własne parametry, unia dziedziczy je od członków — zwracamy nazwę
+    parametru i nazwę struktury, która go wprowadza. (None, None) gdy
+    `head` nie ma parametrów albo indeks poza zakresem."""
+    sd = find_struct_def(head)
+    if sd is not None:
+        if i < len(sd.params):
+            p = sd.params[i]
+            return (min(("".join(l) for l in p.name.lemmas_set), key=len),
+                    head)
+        return None, None
+    ud = find_union_def(head)
+    if ud is None:
+        return None, None
+    params = []
+    for m in ud.members:
+        msd = find_struct_def(m)
+        if msd is None:
+            continue
+        for p in msd.params:
+            names = frozenset("".join(l) for l in p.name.lemmas_set)
+            if not any(names & s for s, _ in params):
+                params.append((names, "".join(msd.name)))
+    if i < len(params):
+        names, origin = params[i]
+        return min(names, key=len), origin
+    return None, None
 
 
 def _force_lowers(t):
@@ -329,7 +432,9 @@ def _unify_variants(ft0, ft1, widen=False, mode="equate"):
                 surviving = {a for a in other.variants
                              if a.head == u_head or a.head in members}
                 if surviving and surviving != set(other.variants):
-                    other.next = VariantVar(variants=surviving)
+                    narrowed = VariantVar(variants=surviving)
+                    _absorb_trail(narrowed, other)
+                    other.next = narrowed
                     return _unify_variants(
                         find_type(ft0), find_type(ft1), widen, mode)
             # Dysjunkcja miękka kontra pojedynczy wariant: z gałęzi zbioru
@@ -347,7 +452,9 @@ def _unify_variants(ft0, ft1, widen=False, mode="equate"):
                        (_union_members_by_head(a.head))
                 }
                 if surviving and surviving != set(multi.variants):
-                    multi.next = VariantVar(variants=surviving)
+                    narrowed = VariantVar(variants=surviving)
+                    _absorb_trail(narrowed, multi)
+                    multi.next = narrowed
                     return _unify_variants(
                         find_type(ft0), find_type(ft1), widen, mode)
             u = _widening_union(by0.keys() | by1.keys())
@@ -364,6 +471,7 @@ def _unify_variants(ft0, ft1, widen=False, mode="equate"):
                     for a in ft1.variants:
                         _link_member_args(a, u_at)
                     if mode == "equate":
+                        _absorb_trail(ft0, ft1)
                         ft1.next = ft0
                     return ft0
                 if _is_exactly(ft1):
@@ -374,6 +482,7 @@ def _unify_variants(ft0, ft1, widen=False, mode="equate"):
                     u_at = next(iter(ft1.variants))
                     for a in ft0.variants:
                         _link_member_args(a, u_at)
+                    _absorb_trail(ft1, ft0)
                     ft0.next = ft1
                     return ft1
                 if mode == "check":
@@ -383,10 +492,11 @@ def _unify_variants(ft0, ft1, widen=False, mode="equate"):
                 widened = VariantVar(variants={u_at})
                 for a in ft0.variants | ft1.variants:
                     _link_member_args(a, u_at)
+                _absorb_trail(widened, ft0, ft1)
                 ft0.next = widened
                 ft1.next = widened
                 return widened
-        raise TypeCheckError(f"cannot unify {ft0} with {ft1}")
+        raise TypeCheckError(_unify_fail_msg(ft0, ft1))
     result = set()
     for h in common_heads:
         for a0 in by0[h]:
@@ -408,17 +518,36 @@ def _unify_variants(ft0, ft1, widen=False, mode="equate"):
                     # slot oczekuje zwrotu-unii. Argumenty strzałki i typy
                     # parametryzowane pozostają inwariantne (ścisłe).
                     ret_pos = h == ARROW and i == len(a0.args) - 1
-                    unify_types(x, y, widen=widen and ret_pos)
+                    try:
+                        unify_types(x, y, widen=widen and ret_pos)
+                    except TypeCheckError as e:
+                        if h == ARROW or "niejawny argument" in str(e):
+                            raise
+                        # Niejawny argument typu: użytkownik go nie napisał,
+                        # więc błąd nazywa parametr z rodowodem (definicja,
+                        # która go wprowadza) — poszlaki z liniami niesie
+                        # komunikat wewnętrzny.
+                        pname, origin = _param_pedigree(h, i)
+                        if pname is None:
+                            raise
+                        raise TypeCheckError(
+                            f"niejawny argument '{pname}' typu '{h}' "
+                            f"(parametr '{pname}' z definicji '{origin}') "
+                            f"nie zgadza się między wystąpieniami — {e}"
+                        ) from None
                 result.add(AppliedType(h, a0.args))
     # Reużyj istniejący węzeł, gdy wynik równa się jednej ze stron — przy
     # pustych args to dokładnie stara optymalizacja (zero śmieci w fixpoincie).
     if result == ft0.variants:
+        _absorb_trail(ft0, ft1)
         ft1.next = ft0
         return ft0
     if result == ft1.variants:
+        _absorb_trail(ft1, ft0)
         ft0.next = ft1
         return ft1
     new_variant = VariantVar(variants=result)
+    _absorb_trail(new_variant, ft0, ft1)
     ft0.next = new_variant
     ft1.next = new_variant
     return new_variant
@@ -435,6 +564,7 @@ def unify_types(t0, t1, widen=False, mode="equate"):
     typów jest zawsze ścisła (typy parametryzowane są inwariantne)."""
     ft0 = _force_lowers(t0)
     ft1 = _force_lowers(t1)
+    _note_trail(ft0, ft1)
     if ft0 is ft1:
         return ft0
     if (mode == "accumulate" and isinstance(ft0, TypeVar)
@@ -445,6 +575,9 @@ def unify_types(t0, t1, widen=False, mode="equate"):
         # dziedziczy ograniczenia górne slotu (≤ przechodnie).
         if all(find_type(lo) is not ft1 for lo in ft0.lowers):
             ft0.lowers.append(ft1)
+        # Poszlaka dolna nie scala klas — rodowód wartości (np. „pochodzi
+        # z externa") przepływa do slotu jawnie, dla diagnostyki groundingu.
+        _absorb_trail(ft0, ft1)
         if ft0.upper is not None:
             ft1.upper = (ft0.upper if ft1.upper is None
                          else ft1.upper & ft0.upper)
@@ -487,6 +620,7 @@ def unify_types(t0, t1, widen=False, mode="equate"):
                     f"{{{', '.join(sorted(abstract.upper))}}}")
             if surviving != concrete.variants:
                 narrowed = VariantVar(variants=surviving)
+                _absorb_trail(narrowed, concrete)
                 concrete.next = narrowed
                 concrete = narrowed
     elif abstract.upper is not None:
@@ -496,6 +630,7 @@ def unify_types(t0, t1, widen=False, mode="equate"):
         if not concrete.upper:
             raise TypeCheckError(
                 "sprzeczne ograniczenia górne łączonych zmiennych typowych")
+    _absorb_trail(concrete, abstract)
     abstract.next = concrete
     return concrete
 
@@ -609,6 +744,10 @@ class FunDefTypes:
     # Adnotowany ret = pozycja SPRAWDŹ w `zwróć` (bramkarz);
     # inferowany = AKUMULUJ (poszlaki rosną do unii — sztafeta).
     ret_annotated: bool = False
+    # Deklaracja `można` — bez ciała; wolny typ z sygnatury to czysta
+    # świeżość (konkretyzacja wyłącznie przez użycie) — grounding wskazuje
+    # ekstern jako źródło nieustalonego typu.
+    extern: bool = False
 
 fun_decls = []
 
@@ -687,10 +826,14 @@ def _check_grounded(decl, scope):
                     ft.next = d
             if not _is_concrete(t):
                 line = getattr(ident, "line", None)
+                ft2 = find_type(t)
+                trail = getattr(ft2, "trail", [])
+                źródło = ("; " + "; ".join(trail[-4:])) if trail else ""
                 raise TypeCheckError(
                     f"nie można wywnioskować konkretnego typu zmiennej "
                     f"'{'_'.join(ident.surface)}' (linia {line}); "
-                    f"pozostało {find_type(t)!r} — dodaj adnotację typu"
+                    f"pozostało {ft2!r}{źródło} — użyj wartości "
+                    f"strukturalnie albo dodaj adnotację typu"
                 )
 
 
@@ -722,6 +865,8 @@ def _returns_totally(stmts):
 def resolve_module(node):
     global fun_decls
     global module
+    global _ctx_line, _ctx_fun, _current_note
+    _ctx_line = _ctx_fun = _current_note = None
     module = node
     # PASS 0: walidacja aliasów typów — sygnatury niżej już je elaborują.
     _check_aliases(node)
@@ -766,6 +911,7 @@ def resolve_module(node):
                 ],
                 ret_type=elaborate(decl.return_type, fenv, fresh_unknown=True),
                 ret_annotated=True,
+                extern=True,
             )
             fun_decls.append((decl.name, fdt))
 
@@ -851,26 +997,59 @@ def _infer_to_fixpoint(module_funcs):
 
 
 def resolve_function_def(node, scope):
+    global _ctx_fun
+    _ctx_fun = "_".join(node.name.surface)
     for i, p in enumerate(node.params):
         scope.declare(p.name, scope.root_fdt.arg_types[i])
     for stmt in node.body:
         resolve_statement(stmt, scope)
 
 
-def resolve_statement(node, scope):
+def _node_line(node):
+    """Linia instrukcji: z Phrase/Match wprost, inaczej z frazy składowej."""
+    if isinstance(node, ast.Phrase):
+        return node.line
     if isinstance(node, ast.Assignment):
-        resolve_assignment(node, scope)
-    if isinstance(node, ast.If):
-        resolve_if(node, scope)
-    if isinstance(node, ast.While):
-        resolve_while(node, scope)
-    if isinstance(node, ast.For):
-        resolve_for(node, scope)
+        return (getattr(node.target, "line", None)
+                or getattr(node.value, "line", None))
+    if isinstance(node, (ast.If, ast.While)):
+        return getattr(node.cond, "line", None)
     if isinstance(node, ast.Match):
-        resolve_match(node, scope)
+        return node.line
     if isinstance(node, ast.Return):
-        resolve_return(node, scope)
-    resolve_expression(node, scope)
+        return getattr(node.value, "line", None)
+    return None
+
+
+def resolve_statement(node, scope):
+    global _ctx_line
+    line = _node_line(node)
+    if line is not None:
+        _ctx_line = line
+        _set_note("wnioskowanie")
+    try:
+        if isinstance(node, ast.Assignment):
+            resolve_assignment(node, scope)
+        if isinstance(node, ast.If):
+            resolve_if(node, scope)
+        if isinstance(node, ast.While):
+            resolve_while(node, scope)
+        if isinstance(node, ast.For):
+            resolve_for(node, scope)
+        if isinstance(node, ast.Match):
+            resolve_match(node, scope)
+        if isinstance(node, ast.Return):
+            resolve_return(node, scope)
+        resolve_expression(node, scope)
+    except TypeCheckError as e:
+        # Błąd bez lokalizacji dostaje kontekst instrukcji; zagnieżdżony
+        # resolve_statement (gałęzie) dekoruje pierwszy — tu przechodzi.
+        if "lini" in str(e) or line is None:
+            raise
+        ctx = f"podczas typowania linii {line}"
+        if _ctx_fun:
+            ctx += f", w funkcji '{_ctx_fun}'"
+        raise TypeCheckError(f"{e} ({ctx})") from None
 
 
 def resolve_expression(node, scope):
@@ -905,7 +1084,9 @@ def resolve_expression(node, scope):
     if isinstance(node, ast.StructCreation):
         return resolve_struct_creation(node, scope)
     if isinstance(node, ast.StructArg):
-        raise
+        raise TypeCheckError(
+            "wewnętrzny błąd interpretera: argument konstrukcji struktury "
+            "poza konstrukcją — zgłoś ten program jako bug")
     if isinstance(node, ast.Identifier):
         return resolve_identifier(node, scope)
     if isinstance(node, ast.IntLit):
@@ -936,6 +1117,7 @@ def resolve_assignment(node, scope):
         explicit_t = elaborate(target.type, {}, fresh_unknown=True)
         target = target.expr
     if isinstance(target, ast.Identifier):
+        _set_note(f"przypisanie do '{'_'.join(target.surface)}'")
         # Zapis do nazwy idzie na ZEWNĄTRZ (z pominięciem cienia zawężenia)
         # — idiom kursora `reszta to ogon` przesuwa zmienną pętli. Jeśli
         # nazwa ma w gałęzi cień, wartość dolewa się TAKŻE do niego: dalsze
@@ -949,6 +1131,7 @@ def resolve_assignment(node, scope):
             unify_types(shadow_t, value_type, widen=True, mode="accumulate")
         return
     target_type = resolve_expression(target, scope)
+    _set_note("zapis pola przez łańcuch dopełniaczowy")
     unify_types(target_type, value_type, widen=True, mode="accumulate")
 
 
@@ -1044,11 +1227,13 @@ def resolve_for(node, scope):
 def resolve_return(node, scope):
     if node.value is not None:
         t = resolve_expression(node.value, scope)
+        _set_note(f"zwrot z funkcji '{_ctx_fun}'")
         # widen: gałęzie zwracające różne warianty jednej unii typują
         # funkcję tą unią; warianty bez wspólnej unii → TypeCheckError.
         unify_types(scope.root_fdt.ret_type, t, widen=True,
                     mode="check" if scope.root_fdt.ret_annotated else "accumulate")
     else:
+        _set_note(f"gołe 'zwróć' z funkcji '{_ctx_fun}'")
         unify_types(scope.root_fdt.ret_type, variant(["Nic"]))
 
 
@@ -1145,6 +1330,7 @@ def _unions_for_partial_match(subject_t, branch_heads, line):
 
 def resolve_match(node, scope):
     subject_t = resolve_expression(node.subject, scope)
+    _set_note("podmiot dopasowania 'jest:'")
     branch_heads = []
     has_default = False
     for br in node.branches:
@@ -1251,8 +1437,18 @@ def resolve_or(node, scope):
 def resolve_function_call(node, scope):
     fdt = find_fdt(node.name)
     arg_types, ret_type = instantiate(fdt)
-    for (t0, p) in zip(arg_types, node.params):
+    fname = "_".join(node.name.surface)
+    ret_root = find_type(ret_type)
+    if fdt.extern and isinstance(ret_root, TypeVar):
+        # Rodowód dla groundingu: wolny wynik externa nie ma ciała, z
+        # którego mógłby się skonkretyzować — tylko użycie go ustala.
+        nota = (f"pochodzi z externa '{fname}' (czysta świeżość) i musi "
+                f"zostać ustalony przez użycie")
+        if nota not in ret_root.trail:
+            ret_root.trail.append(nota)
+    for i, (t0, p) in enumerate(zip(arg_types, node.params)):
         t1 = resolve_expression(p, scope)
+        _set_note(f"argument {i + 1} wywołania '{fname}'")
         unify_types(t0, t1, widen=True, mode="check")
     return ret_type
 
@@ -1376,17 +1572,48 @@ def resolve_getter_chain(node, scope):
         if res is not None:
             base_inst, result_t = res
             candidates.append((s, base_inst, result_t))
+    field_surface = "_".join(penultimate_word.surface)
+    line = getattr(node.chain[0], "line", None)
     if not candidates:
         surfaces = " ".join("_".join(w.surface) for w in node.chain)
-        print(f"nie można zresolvować łańcucha dopełniaczowego '{surfaces}'")
-        raise
+        if structs:
+            cand = ", ".join(sorted("_".join(s.name) for s in structs))
+            detail = (f"pole '{field_surface}' mają struktury: {cand}, "
+                      f"ale żadna nie domyka dalszej części łańcucha")
+        else:
+            detail = f"żadna struktura nie ma pola '{field_surface}'"
+        raise TypeCheckError(
+            f"nie można zresolvować łańcucha dopełniaczowego '{surfaces}' "
+            f"(linia {line}) — {detail}")
     # Zawęź ostatnie słowo do unii instancji kandydatów — strukturalna unifikacja
     # przecina po głowie I wiąże argumenty (np. drugi getter na tej zmiennej).
     base_union = set()
     for _, base_inst, _ in candidates:
         base_union |= base_inst.variants
-    last_word_t = find_type(unify_types(
-        scope.get_type(node.chain[-1]), VariantVar(variants=base_union)))
+    base_t = scope.get_type(node.chain[-1])
+    bt = find_type(base_t)
+    try:
+        last_word_t = find_type(unify_types(
+            base_t, VariantVar(variants=base_union)))
+    except TypeCheckError:
+        # Chain przez wartość typu unii (Problem A): pole należy do
+        # wariantu, a wartość może być w runtime innym wariantem — zamiast
+        # surowego konfliktu unifikacji podpowiedz zawężenie.
+        if isinstance(bt, VariantVar) and len(bt.variants) == 1:
+            u_head = next(iter(bt.variants)).head
+            members = _union_members_by_head(u_head)
+            if members is not None:
+                warianty = sorted(
+                    "".join(s.name) for s, _, _ in candidates
+                    if "".join(s.name) in members)
+                if warianty:
+                    nic = " (może być Niczym)" if "Nic" in members else ""
+                    raise TypeCheckError(
+                        f"pole '{field_surface}' czytane z wartości typu "
+                        f"unii '{u_head}'{nic} (linia {line}) — zawęź "
+                        f"dopasowaniem `jest:`; pole ma wariant "
+                        f"{', '.join(warianty)}") from None
+        raise
     surv_heads = ({a.head for a in last_word_t.variants}
                   if isinstance(last_word_t, VariantVar) else None)
     surviving = [rt for s, _, rt in candidates
@@ -1578,7 +1805,7 @@ def elaborate(tref, env, fresh_unknown=False, alias_args=False):
         arg_meta = [(ta.prep, ta.case, ta) for ta in tref.args]
         slot_to_arg = match_args_to_slots(
             arg_meta, sd.params,
-            on_error=lambda: TypeCheckError(
+            on_error=lambda **kw: TypeCheckError(
                 f"argumenty typu nie pasują do parametrów '{h}'"))
         for slot_i, arg_i in slot_to_arg.items():
             unify_types(slots[slot_i],
@@ -1631,9 +1858,13 @@ def resolve_struct_arg(node, scope, struct_creation):
     env = struct_creation.__dict__.get("_struct_env", {})
     field_t = elaborate(field.type, env)   # pole-parametr → współdzielona zmienna instancji
     if node.value is not None:
-        unify_types(field_t, resolve_expression(node.value, scope),
-                    widen=True, mode="check")
+        value_t = resolve_expression(node.value, scope)
+        _set_note(f"pole '{'_'.join(node.field_name[0])}' konstrukcji "
+                  f"'{'_'.join(struct_creation.type_name)}'")
+        unify_types(field_t, value_t, widen=True, mode="check")
     else:
+        _set_note(f"skrót 'z {'_'.join(node.field_name[0])}' konstrukcji "
+                  f"'{'_'.join(struct_creation.type_name)}'")
         unify_types(field_t, scope.get_type(field.name),
                     widen=True, mode="check")
 

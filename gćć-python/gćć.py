@@ -74,7 +74,37 @@ def main():
 
     # po prostu to odpal, to python. jak się otypowało w poprzednim kroku to będzie git.
     # nie potrzeba żadnych informacji dotyczących typów do wykonania programu
-    executor.execute(module)
+    try:
+        executor.execute(module)
+    except executor.CRuntimeError as e:
+        _print_runtime_error(filename, e, scalony)
+        sys.exit(1)
+
+
+def _print_runtime_error(filename, err, scalony):
+    """Błąd wykonania: komunikat + Ć-owy stos wywołań (lematy funkcji
+    i linie instrukcji zamiast tracebacku Pythona). Linie tłumaczone
+    na oryginalne pliki przez mapę `scalony`."""
+    msg = str(err)
+    if scalony is not None:
+        msg = scalony.translate(msg, filename)
+    print(f"{filename}: BłądWykonania: {msg}", file=sys.stderr)
+    if not err.stack:
+        return
+    print("Ć-owy stos wywołań (najgłębsza ramka na dole):", file=sys.stderr)
+    frames = err.stack
+    if len(frames) > 12:
+        print(f"  … ({len(frames) - 12} głębszych ramek pominięto — "
+              f"pokazane ostatnie 12)", file=sys.stderr)
+        frames = frames[-12:]
+    for fn, line in frames:
+        f_file, f_line = filename, line
+        if scalony is not None and line is not None:
+            org = scalony.origin(line)
+            if org is not None:
+                f_file, f_line = org
+        loc = f"{f_file}:{f_line}" if f_line is not None else f_file
+        print(f"  {loc}: w '{fn}'", file=sys.stderr)
 
 
 

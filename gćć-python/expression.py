@@ -29,6 +29,7 @@ Wartości pól w struct_creation są pełnymi `phrase` (boundary: kolejny `o/z`
 matchujący niezajęte pole z aktywnego StructCtx).
 """
 
+import sys
 from itertools import product
 
 import lexer
@@ -39,7 +40,7 @@ from ast_nodes import (
     IntLit, StrLit, CharLit, BoolLit, BinOp, UnaryOp, And, Or, Not,
     FunctionCall, FunctionRef, Apply, GetterChain, StructCreation,
     StructArg, StructCtx, TryCall, TypeAlias,
-    Typed, ResolveError, Word, LOGICAL_OPS,
+    Typed, ResolveError, InterpreterError, Word, LOGICAL_OPS,
     Assignment, If, While, For, Return, Phrase,
     scope_key_matches,
 )
@@ -54,6 +55,50 @@ from type_parser import parse_type
 def _lemma_key(v):
     """Default key_fn dla find_in_set — używane dla typów (lemma-only)."""
     return v.lemmas
+
+
+_CASE_NAMES = {
+    "nom": "mianownik", "gen": "dopełniacz", "dat": "celownik",
+    "acc": "biernik", "inst": "narzędnik", "loc": "miejscownik",
+    "voc": "wołacz",
+}
+
+
+def _describe_cases(case):
+    """Zbiór przypadków po polsku, do tabelek slotów w komunikatach."""
+    if not case:
+        return "bezprzypadkowy"
+    return "|".join(_CASE_NAMES.get(c, c) for c in sorted(case))
+
+
+# Pary aspektowe czasowników: końcówki po wspólnym rdzeniu (ocenić/oceniać,
+# zapisać/zapisywać, …) + relacja prefiksowa (próbować/spróbować).
+_ASPECT_TAILS = {("ć", "ać"), ("ić", "ać"), ("yć", "ywać"),
+                 ("ać", "ywać"), ("ować", "owywać"), ("nąć", "ać")}
+
+
+def _aspect_pair(a, b):
+    """Czy `a` i `b` wyglądają na parę aspektową tego samego czasownika."""
+    if a == b or not (a.endswith("ć") and b.endswith("ć")):
+        return False
+    if a.endswith(b) or b.endswith(a):
+        return True
+    i = 0
+    while i < min(len(a), len(b)) and a[i] == b[i]:
+        i += 1
+    if i < 3:
+        return False
+    tails = (a[i:], b[i:])
+    return tails in _ASPECT_TAILS or (tails[1], tails[0]) in _ASPECT_TAILS
+
+
+def _imperative_of(lemma):
+    """Rozkaźnik z bezokolicznika prostymi regułami końcówek; None gdy
+    żadna nie pasuje (wtedy komunikat pomija podpowiedź formy)."""
+    for suf, imp in (("ować", "uj"), ("awać", "awaj"), ("ać", "aj")):
+        if lemma.endswith(suf):
+            return lemma[: -len(suf)] + imp
+    return None
 
 
 def _full_key(v):
@@ -469,8 +514,23 @@ class ExpressionParser:
             return node
         lparen_line = getattr(self.peek(), "line", None)
         self.advance()  # LPAREN
-        type = parse_type(self, self.preps, terminator=lexer.Token.RPAREN)
-        self.expect(lexer.Token.RPAREN)
+        try:
+            type = parse_type(self, self.preps, terminator=lexer.Token.RPAREN)
+            self.expect(lexer.Token.RPAREN)
+        except InterpreterError as e:
+            # Kolizja „nawias po wyrażeniu = adnotacja" (quirk 16): parser
+            # typów padł, a zawartość nawiasu zaczyna się od znanej głowy
+            # struktury — user najpewniej chciał konstrukcji jako argumentu.
+            if canonical(inner) in self.ctx.fields_by_type:
+                raise ResolveError(
+                    f"nawias po wyrażeniu to adnotacja typu; jeśli to miała "
+                    f"być konstrukcja struktury jako argument, poprzedź "
+                    f"nawias przyimkiem (np. 'z ({'_'.join(inner[1])} …)') "
+                    f"albo użyj zmiennej pośredniej (parser typów: "
+                    f"{e.args[0] if e.args else e})",
+                    line=lparen_line,
+                ) from None
+            raise
         if type.head not in self.ctx.types:
             known = ", ".join(sorted("_".join(t) for t in self.ctx.types)) or "(brak)"
             raise ResolveError(
@@ -632,11 +692,36 @@ class ExpressionParser:
             line=head_ident.line,
         )
 
+    def _aspect_hint(self, head_ident):
+        """Podpowiedź aspektowa: powierzchnia jest rozkaźnikiem czasownika,
+        którego DRUGI aspekt jest zadeklarowaną funkcją (oceń→ocenić, a
+        zadeklarowano oceniać) — nazwij oba aspekty i właściwy rozkaźnik."""
+        if len(head_ident.surface) != 1 or not head_ident.analyses:
+            return None
+        impt_lemmas = {a.lemma for a in head_ident.analyses[0]
+                       if a.pos == "impt"}
+        for v_lemma in sorted(impt_lemmas):
+            if (v_lemma,) in self.ctx.function_defs:
+                continue
+            for key in self.ctx.function_defs:
+                if len(key) == 1 and _aspect_pair(v_lemma, key[0]):
+                    declared = key[0]
+                    imp = _imperative_of(declared)
+                    imp_part = f" — jej rozkaźnik to '{imp}'" if imp else ""
+                    return (f"'{'_'.join(head_ident.surface)}' to rozkaźnik "
+                            f"od '{v_lemma}'; zadeklarowana jest funkcja "
+                            f"'{declared}'{imp_part} (albo zmień deklarację "
+                            f"na '{v_lemma}')")
+        return None
+
     def _describe_undeclared(self, head_ident):
         """Komunikat o referencji do niezadeklarowanej zmiennej, z hintami
         opartymi o ctx (pole? typ? zmienna widoczna tylko w innym bloku?)."""
         surface = "_".join(head_ident.surface)
         msg = f"'{surface}' nie jest zadeklarowaną zmienną w tym miejscu"
+        aspekt = self._aspect_hint(head_ident)
+        if aspekt is not None:
+            return f"{msg}; {aspekt}"
         gerund_keys = (
             self._gerund_function_keys(head_ident) if head_ident.variants else {}
         )
@@ -781,14 +866,31 @@ class ExpressionParser:
         return Apply(fn=fn, args=args, line=head_ident.line)
 
     def _match_args_to_slots(self, arg_meta, sig, name):
-        return type_parser.match_args_to_slots(
-            arg_meta, sig,
-            on_error=lambda: ResolveError(
-                f"argument funkcji '{'_'.join(name.surface)}' "
-                f"nie pasuje do żadnego wolnego parametru w trybie pozycyjnym",
+        def _on_error(arg_index=None):
+            # Tabelka slotów: przyimek + powierzchnia parametru z deklaracji
+            # + wymagany przypadek; do tego przypadek otrzymanego argumentu.
+            sloty = ", ".join(
+                f"`{('_'.join(p.prep) + ' ') if p.prep else ''}"
+                f"{'_'.join(p.name.surface)}` ({_describe_cases(p.case)})"
+                for p in sig)
+            otrzymano = ""
+            if arg_index is not None:
+                prep, case, value = arg_meta[arg_index]
+                surface = ("_".join(value.surface)
+                           if hasattr(value, "surface") else "(wyrażenie)")
+                pre = ("_".join(prep) + " ") if prep else ""
+                otrzymano = (f"; otrzymano: '{pre}{surface}' "
+                             f"({_describe_cases(case)})")
+            return ResolveError(
+                f"argument funkcji '{'_'.join(name.surface)}' nie pasuje do "
+                f"żadnego wolnego parametru w trybie pozycyjnym; "
+                f"sloty: {sloty}{otrzymano} — inflektuj argument do "
+                f"przypadka slotu albo weź go w nawias (argument w nawiasie "
+                f"jest bezprzypadkowy)",
                 line=getattr(name, "line", None),
-            ),
-        )
+            )
+        return type_parser.match_args_to_slots(
+            arg_meta, sig, on_error=_on_error)
 
     @staticmethod
     def _slot_matches(tok_prep, tok_case, param):
@@ -1393,6 +1495,16 @@ def _resolve_match(stmt, ctx, preps, scope):
                 )
             br.fields[i] = _narrow_to_key(fid, key)
             bound.add(key)
+            if scope.has_var(key):
+                # Quirk 10: wiązanie pola przesłania parametr/zmienną o tej
+                # samej lemmie — ostrzeżenie, nie błąd (kod bywa zamierzony).
+                print(
+                    f"OSTRZEŻENIE (linia {fid.line}): wiązanie "
+                    f"'{'_'.join(fid.surface)}' przesłania widoczną zmienną "
+                    f"o tej samej nazwie (np. parametr) — w tej gałęzi "
+                    f"'{'_'.join(fid.surface)}' to pole, nie tamta zmienna",
+                    file=sys.stderr,
+                )
             br_scope.add_key(key)
         if br.alias is not None:
             # `jako nazwa` — świeża deklaracja jak LHS przypisania: mianownik,

@@ -12,6 +12,26 @@ sys.setrecursionlimit(20000)
 # się na tej głębokości znacznikiem „…" zamiast rekurencją bez dna.
 LIMIT_WYPISU = 1000
 
+class CRuntimeError(Exception):
+    """Błąd wykonania z Ć-owym stosem wywołań: `stack` to lista ramek
+    (nazwa funkcji, linia bieżącej instrukcji) od zewnętrznej do
+    najgłębszej. Budowany na szczycie (`execute`) z `call_stack`,
+    zamiast surowego tracebacku Pythona."""
+    def __init__(self, message, stack):
+        super().__init__(message)
+        self.stack = stack
+
+
+# Ć-owy stos wywołań: ramka per wykonywana funkcja Ć. Ramki są zdejmowane
+# na ścieżkach SUKCESU; przy błędzie (RuntimeError/RecursionError) stos
+# zostaje nietknięty aż do `execute`, które robi migawkę do CRuntimeError.
+call_stack = []
+
+
+def _stack_snapshot():
+    return [(f["fn"], f["line"]) for f in call_stack]
+
+
 class ErrorPropagation(Exception):
     """Gałąź-Błąd wywołania '?' — przerywa funkcję otaczającą, która
     zwraca niesiony Błąd jako swój wynik."""
@@ -29,21 +49,31 @@ class BreakUnwind(Exception):
 class ContinueUnwind(Exception):
     """`dalej` — przeskakuje do następnej iteracji `dopóki`."""
 
+def _brak_pola(czynność, struct, keys):
+    """Błąd odczytu/zapisu pola: nazwa pola i typ wartości zamiast surowych
+    scope-keys; lokalizację (linia, funkcja) dokleja `execute` ze stosu."""
+    nazwa = "_".join(keys[0][0]) if keys else "?"
+    return RuntimeError(
+        f"{czynność} pola '{nazwa}' z wartości typu '{struct.type}' — "
+        f"wartość nie jest wariantem posiadającym to pole")
+
 def _field_value(struct, keys):
     """Wartość pola struktury (RuntimeValue) po scope-keys pola."""
-    for stored_key, value in struct.value.items():
-        if any(ast.scope_key_matches(k, stored_key) for k in keys):
-            return value
-    raise RuntimeError(f"pole nie znalezione {keys}")
+    if isinstance(struct.value, dict):
+        for stored_key, value in struct.value.items():
+            if any(ast.scope_key_matches(k, stored_key) for k in keys):
+                return value
+    raise _brak_pola("odczyt", struct, keys)
 
 def _field_set(struct, keys, value):
     """Zapis pola po scope-keys; konstrukcja jest zawsze pełna, więc brak
     wpisu to błąd interpretera."""
-    for stored_key in struct.value:
-        if any(ast.scope_key_matches(k, stored_key) for k in keys):
-            struct.value[stored_key] = value
-            return
-    raise RuntimeError(f"pole nie znalezione {keys}")
+    if isinstance(struct.value, dict):
+        for stored_key in struct.value:
+            if any(ast.scope_key_matches(k, stored_key) for k in keys):
+                struct.value[stored_key] = value
+                return
+    raise _brak_pola("zapis", struct, keys)
 
 # Moduł z aliasem `Tekst` (przygrywka) reprezentuje tekst listą znaków:
 # (nazwa ogniwa, klucz pola-głowy, klucz pola-ogona). None → moduł bez
@@ -295,20 +325,46 @@ def execute_function(function_lemmas, args):
         raise RuntimeError(f"error: funkcja {function_lemmas} nie istnieje")
     scope = RuntimeScope()
     scope.vars = [(p.name.scope_keys, value) for p, value in zip(function_node.params, args)]
+    # Ramka Ć-owego stosu: zdejmowana na ścieżkach sukcesu; przy wyjątku
+    # zostaje — `execute` czyta z niej pełny stos do CRuntimeError.
+    call_stack.append({"fn": "_".join(function_node.name.surface), "line": None})
     try:
         execute_block(function_node.body, scope)
     except ReturnUnwind as r:
+        call_stack.pop()
         return r.value
     except ErrorPropagation as e:
+        call_stack.pop()
         return e.value
     except BreakUnwind:
         raise RuntimeError("'stop' poza pętlą 'dopóki'")
     except ContinueUnwind:
         raise RuntimeError("'dalej' poza pętlą 'dopóki'")
+    call_stack.pop()
     return RuntimeValue(value=None, type="Nic")
+
+def _stmt_line(stmt):
+    """Linia instrukcji do ramki stosu (Phrase i Match wprost, inne
+    z frazy składowej)."""
+    if isinstance(stmt, ast.Phrase):
+        return stmt.line
+    if isinstance(stmt, ast.Assignment):
+        return (getattr(stmt.target, "line", None)
+                or getattr(stmt.value, "line", None))
+    if isinstance(stmt, (ast.If, ast.While)):
+        return getattr(stmt.cond, "line", None)
+    if isinstance(stmt, ast.Match):
+        return stmt.line
+    if isinstance(stmt, ast.Return):
+        return getattr(stmt.value, "line", None)
+    return None
+
 
 def execute_block(stmts, scope):
     for stmt in stmts:
+        line = _stmt_line(stmt)
+        if call_stack and line is not None:
+            call_stack[-1]["line"] = line
         if isinstance(stmt, ast.Phrase):
             stmt = stmt.resolved
         if isinstance(stmt, ast.FunctionCall):
@@ -370,4 +426,27 @@ def execute(module_node):
     global module_funcs, tekst_lista
     module_funcs = [node for node in module_node.body if isinstance(node, ast.FunctionDef)]
     tekst_lista = _wykryj_tekst_listowy(module_node)
-    execute_function([("działać",)], [])
+    call_stack.clear()
+    try:
+        execute_function([("działać",)], [])
+    except RecursionError:
+        # Tu Ć-owe ramki są już odwinięte (wolne miejsce na stosie
+        # Pythona), a call_stack wciąż pełny — zdejmowany dopiero teraz.
+        ramki = len(call_stack)
+        fn = call_stack[-1]["fn"] if call_stack else "działać"
+        stack = _stack_snapshot()
+        call_stack.clear()
+        raise CRuntimeError(
+            f"przekroczono głębokość rekursji (~{ramki} ramek Ć) w '{fn}' "
+            f"— czy rekursja ma przypadek bazowy? "
+            f"(limit interpretera, nie języka)",
+            stack) from None
+    except RuntimeError as e:
+        stack = _stack_snapshot()
+        loc = ""
+        if call_stack:
+            fn, line = call_stack[-1]["fn"], call_stack[-1]["line"]
+            loc = (f" (linia {line}, w funkcji '{fn}')" if line is not None
+                   else f" (w funkcji '{fn}')")
+        call_stack.clear()
+        raise CRuntimeError(f"{e}{loc}", stack) from None

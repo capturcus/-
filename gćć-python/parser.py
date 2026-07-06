@@ -573,8 +573,27 @@ class Parser:
             params=params,
         )
 
+    def _require_sgjp(self, name_tok, rola):
+        """Głowa nazwy deklarowanej (pole/parametr) musi się odmieniać —
+        passthrough-lemat w tej pozycji objawiałby się dopiero kryptycznie
+        w środku konstruktora. Sprawdzany jest tylko PIERWSZY segment:
+        dalsze są legalnym passthrough-ogonem (`adres_ip`), a pojedyncze
+        litery przechodzą (atomy bez form, celowo)."""
+        surface, analyses = name_tok[1], name_tok[2]
+        if not surface or not analyses:
+            return
+        seg, anas = surface[0], analyses[0]
+        if len(seg) > 1 and not anas:
+            raise InterpreterError(
+                f"słowo '{seg}' ({rola}) nie występuje w SGJP — nazwy "
+                f"w Ć muszą się odmieniać; sprawdź `redis-cli EXISTS "
+                f"sgjp:f:{seg.lower()}` i wybierz odmienialny synonim",
+                line=getattr(name_tok, "line", None),
+            )
+
     def parse_field(self):
         name_tok = self.expect(lexer.Token.WORD)
+        self._require_sgjp(name_tok, "pole struktury")
         self.expect(lexer.Token.LPAREN)
         type = parse_type(self, self.preps, terminator=lexer.Token.RPAREN)
         self.expect(lexer.Token.RPAREN)
@@ -586,6 +605,7 @@ class Parser:
     def parse_param(self):
         prep = read_prep(self, self.preps)
         name_tok = self.expect(lexer.Token.WORD)
+        self._require_sgjp(name_tok, "parametr")
         type = None
         if self.peek() and self.peek()[0] is lexer.Token.LPAREN:
             self.advance()

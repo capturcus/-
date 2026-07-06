@@ -2239,7 +2239,7 @@ def test_arrow_does_not_widen_into_union():
     """Strzałka nie należy do żadnej unii — widening odpada błędem,
     nie cichym rozszerzeniem."""
     f = typechecker.arrow([conc("Liczba")], conc("Znak"))
-    with pytest.raises(typechecker.TypeCheckError, match="cannot unify"):
+    with pytest.raises(typechecker.TypeCheckError, match="nie można zunifikować"):
         typechecker.unify_types(f, conc("Błąd"), widen=True)
 
 

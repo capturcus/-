@@ -35,7 +35,9 @@ def slot_matches(tok_prep, tok_case, param):
 
 
 def match_args_to_slots(arg_meta, sig, on_error):
-    """arg_meta: list[(prep, case, payload)]; sig: list[Param]; on_error: ()->Exception.
+    """arg_meta: list[(prep, case, payload)]; sig: list[Param];
+    on_error: (arg_index=int) -> Exception — dostaje indeks argumentu,
+    który nie pasuje (do tabelki slotów w komunikacie).
     Greedy: najpierw argumenty z dokładnie jednym wolnym slotem, potem pozycyjnie.
     Zwraca {slot_index: arg_index}."""
     n_slots = len(sig)
@@ -62,7 +64,7 @@ def match_args_to_slots(arg_meta, sig, on_error):
     free_slots = sorted(set(range(n_slots)) - used)
     for ai, si in zip(remaining_args, free_slots):
         if si not in candidates[ai]:
-            raise on_error()
+            raise on_error(arg_index=ai)
         assigned[ai] = si
         used.add(si)
     return {assigned[ai]: ai for ai in range(n_slots)}
