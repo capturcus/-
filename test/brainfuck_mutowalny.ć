@@ -1,0 +1,103 @@
+# Interpreter brainfucka, wariant MUTOWALNY: struktury są referencyjne,
+# więc taśma i stan są aktualizowane w miejscu zapisem przez łańcuch
+# (`komórka taśmy to komórka taśmy plus jeden`), a pętla brainfucka to
+# zwykłe `dopóki` zamiast rekursji. Rozbiór źródła pozostaje funkcyjny.
+
+uwzględnij przygrywka.ć
+
+można wypisać coś (Cokolwiek) -> Nic
+
+definicja Kroku:
+    znak (Znak)
+
+definicja Cyklu:
+    ciało (Program)
+
+Rozkaz to Krok albo Cykl
+
+Program to Lista o elemencie Rozkaz
+
+definicja Rozbioru:
+    program (Program)
+    reszta (Tekst)
+
+aby rozebrać tekst:
+    tekst jest:
+        Niczym:
+            zwróć Rozbiór o programie Nic o reszcie Nic
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa ']':
+                zwróć Rozbiór o programie Nic o reszcie ogon
+            jeśli głowa równa '[':
+                wnętrze to rozbierz ogon
+                ciąg to rozbierz (reszta wnętrza)
+                zwróć Rozbiór o programie (Ogniwo o ogonie (program ciągu) o głowie (Cykl o ciele (program wnętrza))) o reszcie (reszta ciągu)
+            ciąg to rozbierz ogon
+            zwróć Rozbiór o programie (Ogniwo o ogonie (program ciągu) o głowie (Krok o znaku głowa)) o reszcie (reszta ciągu)
+
+definicja Taśmy:
+    przeszłość (Lista)
+    komórka (Liczba)
+    przyszłość (Lista)
+
+definicja Stanu:
+    taśma (Taśma)
+    wyjście (Lista)
+
+aby przesunąć_w_prawo taśmę:
+    przeszłość taśmy to Ogniwo o głowie (komórka taśmy) o ogonie (przeszłość taśmy)
+    przyszłość taśmy jest:
+        Ogniwem z głową z ogonem:
+            komórka taśmy to głowa
+            przyszłość taśmy to ogon
+        Niczym:
+            komórka taśmy to zero
+
+aby przesunąć_w_lewo taśmę:
+    przyszłość taśmy to Ogniwo o głowie (komórka taśmy) o ogonie (przyszłość taśmy)
+    przeszłość taśmy jest:
+        Ogniwem z głową z ogonem:
+            komórka taśmy to głowa
+            przeszłość taśmy to ogon
+        Niczym:
+            komórka taśmy to zero
+
+aby wykonać program na stanie:
+    program jest:
+        Niczym:
+            zwróć Nic
+        Ogniwem z głową z ogonem:
+            obsłuż głowę na stanie
+            wykonaj ogon na stanie
+
+aby obsłużyć rozkaz na stanie:
+    rozkaz jest:
+        Cyklem z ciałem:
+            dopóki (komórka taśmy stanu) nierówna zero:
+                wykonaj ciało na stanie
+        Krokiem ze znakiem:
+            jeśli znak równy '+':
+                komórka taśmy stanu to komórka taśmy stanu plus jeden
+            jeśli znak równy '-':
+                komórka taśmy stanu to komórka taśmy stanu minus jeden
+            jeśli znak równy '>':
+                przesuń_w_prawo taśmę stanu
+            jeśli znak równy '<':
+                przesuń_w_lewo taśmę stanu
+            jeśli znak równy '.':
+                wyjście stanu to Ogniwo o głowie (komórka taśmy stanu) o ogonie (wyjście stanu)
+
+aby ogłosić listę:
+    lista jest:
+        Ogniwem z głową z ogonem:
+            wypisz głowę
+            ogłoś ogon
+        Niczym:
+            zwróć Nic
+
+aby działać:
+    źródło to "++++++++++>+>+<<[->.[->>+<<]>[-<+>>+<]>[-<+>]<<<]"
+    rozbiór to rozbierz źródło
+    stan to Stan o taśmie (Taśma o przeszłości Nic o komórce zero o przyszłości Nic) o wyjściu Nic
+    wykonaj (program rozbioru) na stanie
+    ogłoś (odwróć (wyjście stanu))

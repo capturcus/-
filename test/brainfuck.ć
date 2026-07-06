@@ -1,0 +1,133 @@
+# Interpreter brainfucka, funkcyjnie: program to tekst rozkazów,
+# taśma to suwak (zipper) — przeszłość odwrócona, bieżąca komórka,
+# przyszłość — a wykonanie jest czystą funkcją Stan → Stan (żadnych
+# mutacji, nowe stany powstają ze starych). Pętle `[…]` są rozbierane
+# do drzewa rozkazów zanim cokolwiek ruszy; taśma jest nieskończona
+# w obie strony (puste końce dosztukowują zera), a komórki nie mają
+# górnej granicy. Rozkaz `.` ogłasza WARTOŚĆ komórki jako liczbę
+# (wariant dydaktyczny — Ć nie ma tablicy ASCII); wejścia `,` nie ma,
+# bo Ć nie czyta wejścia. Znaki spoza ośmiu rozkazów to komentarze.
+
+uwzględnij przygrywka.ć
+
+można wypisać coś (Cokolwiek) -> Nic
+
+# --- składnia: tekst → drzewo rozkazów ---
+
+definicja Kroku:
+    znak (Znak)
+
+definicja Cyklu:
+    ciało (Program)
+
+Rozkaz to Krok albo Cykl
+
+Program to Lista o elemencie Rozkaz
+
+# Rozbiór fragmentu: rozkazy do zamykającego ']' (albo końca tekstu)
+# oraz nieskonsumowana reszta źródła.
+definicja Rozbioru:
+    program (Program)
+    reszta (Tekst)
+
+# Ogniwa programu budowane są `o ogonie … o głowie …`: ogon (Program)
+# ustala element listy jako unię Rozkaz, dzięki czemu głowa-wariant
+# (Krok/Cykl) wchodzi przez subsumpcję. W odwrotnej kolejności głowa
+# zabetonowałaby element na swoim wariancie i ogon by nie pasował.
+aby rozebrać tekst:
+    tekst jest:
+        Niczym:
+            zwróć Rozbiór o programie Nic o reszcie Nic
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa ']':
+                zwróć Rozbiór o programie Nic o reszcie ogon
+            jeśli głowa równa '[':
+                wnętrze to rozbierz ogon
+                ciąg to rozbierz (reszta wnętrza)
+                zwróć Rozbiór o programie (Ogniwo o ogonie (program ciągu) o głowie (Cykl o ciele (program wnętrza))) o reszcie (reszta ciągu)
+            ciąg to rozbierz ogon
+            zwróć Rozbiór o programie (Ogniwo o ogonie (program ciągu) o głowie (Krok o znaku głowa)) o reszcie (reszta ciągu)
+
+# --- taśma: funkcyjny suwak ---
+
+definicja Taśmy:
+    przeszłość (Lista)
+    komórka (Liczba)
+    przyszłość (Lista)
+
+aby podnieść taśmę:
+    zwróć Taśma o przeszłości (przeszłość taśmy) o komórce (komórka taśmy plus jeden) o przyszłości (przyszłość taśmy)
+
+aby obniżyć taśmę:
+    zwróć Taśma o przeszłości (przeszłość taśmy) o komórce (komórka taśmy minus jeden) o przyszłości (przyszłość taśmy)
+
+aby przesunąć_w_prawo taśmę:
+    przyszłość taśmy jest:
+        Ogniwem z głową z ogonem:
+            zwróć Taśma o przeszłości (Ogniwo o głowie (komórka taśmy) o ogonie (przeszłość taśmy)) o komórce głowa o przyszłości ogon
+        Niczym:
+            zwróć Taśma o przeszłości (Ogniwo o głowie (komórka taśmy) o ogonie (przeszłość taśmy)) o komórce zero o przyszłości Nic
+
+aby przesunąć_w_lewo taśmę:
+    przeszłość taśmy jest:
+        Ogniwem z głową z ogonem:
+            zwróć Taśma o przeszłości ogon o komórce głowa o przyszłości (Ogniwo o głowie (komórka taśmy) o ogonie (przyszłość taśmy))
+        Niczym:
+            zwróć Taśma o przeszłości Nic o komórce zero o przyszłości (Ogniwo o głowie (komórka taśmy) o ogonie (przyszłość taśmy))
+
+# --- wykonanie: czysta funkcja Stan → Stan ---
+
+definicja Stanu:
+    taśma (Taśma)
+    wyjście (Lista)
+
+aby wykonać program na stanie:
+    program jest:
+        Niczym:
+            zwróć stan
+        Ogniwem z głową z ogonem:
+            zwróć wykonaj ogon na (obsłuż głowę na stanie)
+
+aby zapętlić ciało na stanie:
+    jeśli (komórka taśmy stanu) równa zero:
+        zwróć stan
+    zwróć zapętl ciało na (wykonaj ciało na stanie)
+
+aby obsłużyć rozkaz na stanie:
+    rozkaz jest:
+        Cyklem z ciałem:
+            zwróć zapętl ciało na stanie
+        Krokiem ze znakiem:
+            jeśli znak równy '+':
+                zwróć Stan o taśmie (podnieś taśmę stanu) o wyjściu (wyjście stanu)
+            jeśli znak równy '-':
+                zwróć Stan o taśmie (obniż taśmę stanu) o wyjściu (wyjście stanu)
+            jeśli znak równy '>':
+                zwróć Stan o taśmie (przesuń_w_prawo taśmę stanu) o wyjściu (wyjście stanu)
+            jeśli znak równy '<':
+                zwróć Stan o taśmie (przesuń_w_lewo taśmę stanu) o wyjściu (wyjście stanu)
+            jeśli znak równy '.':
+                zwróć Stan o taśmie (taśma stanu) o wyjściu (Ogniwo o głowie (komórka taśmy stanu) o ogonie (wyjście stanu))
+            zwróć stan
+
+# --- wypis zebranego wyjścia, liczba po liczbie ---
+
+aby ogłosić listę:
+    lista jest:
+        Ogniwem z głową z ogonem:
+            wypisz głowę
+            ogłoś ogon
+        Niczym:
+            zwróć Nic
+
+# --- program: pierwsze dziesięć liczb Fibonacciego ---
+# Komórki: licznik=10, a=1, b=1, tymczasowa. Krok pętli: ogłoś a,
+# przenieś a do tymczasowej, dolej b do a i tymczasowej (a=b,
+# tymczasowa=a+b), przenieś tymczasową do b.
+
+aby działać:
+    źródło to "++++++++++>+>+<<[->.[->>+<<]>[-<+>>+<]>[-<+>]<<<]"
+    rozbiór to rozbierz źródło
+    początek to Stan o taśmie (Taśma o przeszłości Nic o komórce zero o przyszłości Nic) o wyjściu Nic
+    koniec to wykonaj (program rozbioru) na początku
+    ogłoś (odwróć (wyjście końca))
