@@ -1,0 +1,40 @@
+# Przygrywkowe funkcje wyższego rzędu i narzędzia liczbowe: fold
+# (złożyć), mapa (przekształcać), filtr (przesiewać), indeksowanie
+# (wskazać, pozycje od jednego) oraz liczba jako tekst (pokazać).
+
+uwzględnij przygrywka.ć
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby dodawać pierwszą do drugiej:
+    zwróć pierwsza plus druga
+
+aby podwajać liczbę:
+    zwróć liczba razy dwa
+
+aby przekraczać_próg liczbę:
+    zwróć liczba większe od dwóch
+
+aby działać:
+    liczby to Ogniwo o głowie jeden o ogonie (Ogniwo o głowie dwa o ogonie (Ogniwo o głowie trzy o ogonie (Ogniwo o głowie cztery o ogonie Nic)))
+    wypisz (złóż liczby z dodawaniem z zero)
+    podwojone to przekształcaj liczby z podwajaniem
+    wypisz (złóż podwojone z dodawaniem z zero)
+    selekcja to przesiewaj liczby przez przekraczanie_progu
+    wypisz (zmierz selekcję)
+    wypisz (złóż selekcję z dodawaniem z zero)
+    trafienie to wskaż trzy na liczbach
+    trafienie jest:
+        Sukcesem z wartością:
+            wypisz wartość
+        Błędem z opisem:
+            wypisz opis
+    zguba to wskaż dziesięć na liczbach
+    zguba jest:
+        Sukcesem z wartością:
+            wypisz wartość
+        Błędem z opisem:
+            wypisz opis
+    wypisz (pokaż sto dwadzieścia trzy)
+    wypisz (pokaż (zero minus czterdzieści dwa))
+    wypisz (pokaż zero)

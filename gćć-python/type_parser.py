@@ -117,18 +117,47 @@ def _surface(tok):
 
 
 def parse_type(cursor, preps, *, terminator, head_case="nom"):
-    """Sparsuj  HEAD ([prep] arg)*  aż do (nie konsumując) `terminator`
-    (rodzaj tokenu lexer.Token; COLON dla nagłówka/typu zwracanego, RPAREN dla
-    pola/parametru/adnotacji). GŁOWA kanonizowana wg `head_case` (mianownik w
-    pozycjach aplikacji; None przy rekursji w zagnieżdżony argument, bo głowy
-    argumentów są bezprzypadkowe). Każdy ARGUMENT kanonizowany bezprzypadkowo
-    (`required_case=None`). Czysta składnia: brak walidacji istnienia typu
-    (parser.py nie ma ctx). Zwraca `TypeRef`; nie konsumuje terminatora."""
+    """Sparsuj  HEAD ([prep] arg | "o" NAZWA wartość)*  aż do (nie
+    konsumując) `terminator` (rodzaj tokenu lexer.Token; COLON dla
+    nagłówka/typu zwracanego, RPAREN dla pola/parametru/adnotacji). GŁOWA
+    kanonizowana wg `head_case` (mianownik w pozycjach aplikacji; None przy
+    rekursji w zagnieżdżony argument, bo głowy argumentów są bezprzypadkowe).
+    Każdy ARGUMENT pozycyjny kanonizowany bezprzypadkowo
+    (`required_case=None`). APLIKACJA NAZWANA (`o elemencie Tekst`, jak
+    w celu aliasu) rozpoznawana po wzorcu: `o` + słowo + wartość
+    (słowo lub nawias) — wiąże parametr typu po nazwie także w adnotacjach
+    (np. `-> Rezultat o elemencie Tekst`). Czysta składnia: brak walidacji
+    istnienia typu (parser.py nie ma ctx). Zwraca `TypeRef`; nie konsumuje
+    terminatora."""
     head_tok = cursor.expect(lexer.Token.WORD)
     head = canonical_type(head_tok, required_case=head_case)
     args = []
     while cursor.peek() is not None and cursor.peek()[0] is not terminator:
         prep = read_prep(cursor, preps)
+        nxt, nxt2 = cursor.peek(), cursor.peek(1)
+        if (prep == ("o",) and nxt is not None
+                and nxt[0] is lexer.Token.WORD
+                and nxt2 is not None and nxt2[0] is not terminator
+                and (nxt2[0] is lexer.Token.LPAREN
+                     or (nxt2[0] is lexer.Token.WORD
+                         and not is_prep(nxt2, preps)))):
+            # Aplikacja nazwana: nazwa parametru w miejscowniku po `o`,
+            # wartość w apozycji mianownikowej albo w nawiasie.
+            name_tok = cursor.advance()
+            name = canonical_type(name_tok, required_case="loc",
+                                  label="nazwa parametru typu")
+            if cursor.peek()[0] is lexer.Token.LPAREN:
+                cursor.advance()
+                val = parse_type(cursor, preps, terminator=lexer.Token.RPAREN,
+                                 head_case=None)
+                cursor.expect(lexer.Token.RPAREN)
+            else:
+                val_tok = cursor.expect(lexer.Token.WORD)
+                val = TypeRef(
+                    head=canonical_type(val_tok, required_case="nom"),
+                    args=[], line=getattr(val_tok, "line", None))
+            args.append(TypeArg(prep=prep, type=val, case=None, name=name))
+            continue
         if cursor.peek() is not None and cursor.peek()[0] is lexer.Token.LPAREN:
             cursor.advance()  # zagnieżdżony argument: (
             arg = parse_type(cursor, preps, terminator=lexer.Token.RPAREN,

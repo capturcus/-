@@ -1,0 +1,28 @@
+# Wbudowane funkcje plikowe (deklaracje w przygrywce): zapis zwraca
+# Sukces z liczbą zapisanych bajtów, odczyt Sukces z tekstem pliku,
+# a niepowodzenie Błąd z opisem — zwykły przygrywkowy Rezultat.
+
+uwzględnij przygrywka.ć
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    ścieżka to "/tmp/ć_test_pliki.txt"
+    zapis to zapisz_plik dla "raz dwa trzy" do ścieżki
+    zapis jest:
+        Sukcesem z wartością:
+            wypisz wartość
+        Błędem z opisem:
+            wypisz opis
+    odczyt to czytaj_plik ze ścieżki
+    odczyt jest:
+        Sukcesem z wartością:
+            wypisz wartość
+        Błędem z opisem:
+            wypisz opis
+    zguba to czytaj_plik ze "/tmp/ć_test_pliki_nie_ma_takiego.txt"
+    zguba jest:
+        Sukcesem z wartością:
+            wypisz wartość
+        Błędem:
+            wypisz "nie udało się odczytać"

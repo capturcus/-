@@ -1842,10 +1842,14 @@ def elaborate(tref, env, fresh_unknown=False, alias_args=False):
     sd = find_struct_def(tref.head)
     if sd is None:
         if find_union_def(tref.head) is not None:
-            # Unia bez własnej składni argumentów — parametry ma NIEJAWNE
-            # (dziedziczone od członków, przechwytywane z env definicji).
-            # Jedyny wyjątek: nazwana aplikacja w celu aliasu.
-            if tref.args and not alias_args:
+            # Unia bez własnej składni argumentów POZYCYJNYCH — parametry
+            # ma NIEJAWNE (dziedziczone od członków, przechwytywane z env
+            # definicji). Aplikacja NAZWANA (`Rezultat o elemencie Tekst`)
+            # jest legalna wszędzie: w celu aliasu i w adnotacjach
+            # (sygnatury externów plikowych tego wymagają).
+            if tref.args and not (alias_args
+                                  or all(ta.name is not None
+                                         for ta in tref.args)):
                 raise TypeCheckError(
                     f"typ wariantowy '{h}' nie przyjmuje argumentów typu")
             bound = {
@@ -1853,6 +1857,15 @@ def elaborate(tref, env, fresh_unknown=False, alias_args=False):
                                             alias_args=True)
                 for ta in tref.args
             } if tref.args else None
+            if bound:
+                znane = _union_param_names(h)
+                for nm in bound:
+                    if not any(nm in names for names in znane):
+                        dostępne = ", ".join(
+                            sorted(min(ns, key=len) for ns in znane)) or "brak"
+                        raise TypeCheckError(
+                            f"typ wariantowy '{h}' nie ma parametru '{nm}' "
+                            f"— parametry: {dostępne}")
             return VariantVar(variants={_union_applied(h, env, bound)})
         if fresh_unknown and h not in BUILTINS:
             v = new_type()
@@ -1861,9 +1874,11 @@ def elaborate(tref, env, fresh_unknown=False, alias_args=False):
         return VariantVar(variants={AppliedType(h, ())})
     # struktura: sloty per parametr, argumenty dopasowane (prep, case) i ułożone
     slots = [new_type() for _ in sd.params]
-    if alias_args and tref.args:
-        # Cel aliasu: wiązanie nazwane per parametr (sloty świeże, bez
-        # przechwytu — brak ryzyka wycieku do env użycia).
+    if tref.args and (alias_args
+                      or all(ta.name is not None for ta in tref.args)):
+        # Wiązanie nazwane per parametr (cel aliasu ALBO nazwana aplikacja
+        # w adnotacji; sloty świeże, bez przechwytu — brak ryzyka wycieku
+        # do env użycia).
         for ta in tref.args:
             nm = "".join(ta.name)
             for slot, p in zip(slots, sd.params):

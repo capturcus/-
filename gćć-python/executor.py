@@ -181,12 +181,74 @@ def _reszta_z_dzielenia(args):
     return RuntimeValue(value=dzielna.value % dzielnik.value, type="Liczba")
 
 
+def _tekst_do_pythona(rv):
+    """Ć-owy Tekst (łańcuch ogniw znaków) → python str, bez limitu długości
+    (w odróżnieniu od `_znaki_ogniw`, które służy wypisowi). None gdy
+    wartość nie jest tekstem."""
+    if tekst_lista is None:
+        return None
+    ogniwo, klucz_głowy, klucz_ogona = tekst_lista
+    znaki = []
+    while rv.type == ogniwo:
+        głowa = rv.value[klucz_głowy]
+        if głowa.type != "Znak":
+            return None
+        znaki.append(głowa.value)
+        rv = rv.value[klucz_ogona]
+    if rv.type != "Nic":
+        return None
+    return "".join(znaki)
+
+
+# Wartości Sukces/Błąd budowane przez wbudowane funkcje plikowe: klucze
+# pól w formie atomowej (lemma, None, None) — `scope_key_matches` dopasuje
+# je do każdego odczytu po samej lemmie.
+def _sukces(rv):
+    return RuntimeValue(value={(("wartość",), None, None): rv},
+                        type="Sukces")
+
+
+def _błąd(opis):
+    return RuntimeValue(value={(("opis",), None, None): _lista_znaków(opis)},
+                        type="Błąd")
+
+
+def _czytaj_plik(args):
+    ścieżka = _tekst_do_pythona(args[0])
+    if ścieżka is None:
+        return _błąd("ścieżka nie jest tekstem")
+    try:
+        with open(ścieżka, encoding="utf-8") as f:
+            return _sukces(_lista_znaków(f.read()))
+    except OSError as e:
+        return _błąd(f"nie można odczytać pliku '{ścieżka}': "
+                     f"{e.strerror or e}")
+
+
+def _zapisz_plik(args):
+    zawartość = _tekst_do_pythona(args[0])
+    ścieżka = _tekst_do_pythona(args[1])
+    if zawartość is None or ścieżka is None:
+        return _błąd("zawartość i ścieżka muszą być tekstami")
+    try:
+        with open(ścieżka, "w", encoding="utf-8") as f:
+            f.write(zawartość)
+        return _sukces(RuntimeValue(
+            value=len(zawartość.encode("utf-8")), type="Liczba"))
+    except OSError as e:
+        return _błąd(f"nie można zapisać pliku '{ścieżka}': "
+                     f"{e.strerror or e}")
+
+
 # Wbudowane funkcje: implementacja tutaj, sygnatura jako deklaracja
-# `można` w programie (przygrywka deklaruje podzielić/wziąć_resztę…).
+# `można` w programie (przygrywka deklaruje podzielić/wziąć_resztę…/
+# czytać_plik/zapisać_plik).
 BUILTIN_FUNCTIONS = [
     ([("wypisać",)], lambda args: print(_tekst(args[0]))),
     ([("podzielić",)], _podziel),
     ([("wziąć", "reszta", "z", "dzielenie")], _reszta_z_dzielenia),
+    ([("czytać", "plik")], _czytaj_plik),
+    ([("zapisać", "plik")], _zapisz_plik),
 ]
 
 # op → (funkcja, typ wyniku); semantyka jak w typechecker.resolve_bin_op

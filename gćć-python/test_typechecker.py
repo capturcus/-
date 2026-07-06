@@ -3007,20 +3007,28 @@ def test_alias_use_with_args_rejected(parse):
 
 
 @pytest.mark.integration
-def test_union_use_with_args_still_rejected(parse):
-    """Licencja na argumenty unii dotyczy TYLKO celu aliasu — anotacja
-    z argumentami na unii dalej odrzucana."""
-    src = _OGNIWA + (
-        "aby brać łańcuszek (Łańcuszek o elemencie Liczba):\n"
-        "    zwróć jeden\n"
+def test_union_named_application_in_param_annotation(parse):
+    """Nazwana aplikacja na unii jest legalna także w anotacji parametru
+    (dawniej licencjonował ją wyłącznie cel aliasu): `Łańcuszek o
+    elemencie Liczba` wiąże element — węzeł ze znakową głową odpada."""
+    dobry = _OGNIWA + (
+        "aby brać łańcuszek (Łańcuszek o elemencie Liczba) -> Liczba:\n"
+        "    zwróć zero\n"
         "\n"
         "aby działać:\n"
-        "    zwróć jeden\n"
+        "    n to bierz (Węzeł o głowie pięć o ogonie Nic)\n"
     )
-    module = parse(src)
-    with pytest.raises(typechecker.TypeCheckError,
-                       match="nie przyjmuje argumentów"):
-        typechecker.resolve_module(module)
+    typechecker.resolve_module(parse(dobry))
+    _reset_typechecker_state()
+    zły = _OGNIWA + (
+        "aby brać łańcuszek (Łańcuszek o elemencie Liczba) -> Liczba:\n"
+        "    zwróć zero\n"
+        "\n"
+        "aby działać:\n"
+        "    n to bierz (Węzeł o głowie 'a' o ogonie Nic)\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(zły))
 
 
 @pytest.mark.integration
@@ -3056,30 +3064,12 @@ def test_alias_construction_rejected(parse):
 # Tekst jako lista znaków (przygrywka)
 # =====================================================================
 
-_PRZYGRYWKA = (
-    "definicja Ogniwa z elementem:\n"
-    "    głowa (element)\n"
-    "    ogon (Lista)\n"
-    "\n"
-    "Lista to Ogniwo albo Nic\n"
-    "\n"
-    "Tekst to Lista o elemencie Znak\n"
-    "\n"
-    "definicja Sukcesu z elementem:\n"
-    "    wartość (element)\n"
-    "\n"
-    "definicja Błędu:\n"
-    "    opis (Tekst)\n"
-    "\n"
-    "Rezultat to Sukces albo Błąd\n"
-    "\n"
-    "można podzielić pierwszą_liczbę (Liczba) przez drugą_liczbę (Liczba)"
-    " -> Liczba\n"
-    "\n"
-    "można wziąć_resztę_z_dzielenia pierwszej_liczby (Liczba) przez "
-    "drugą_liczbę (Liczba) -> Liczba\n"
-    "\n"
-)
+# Jedno źródło prawdy: preludium do testów to DOKŁADNIE biblioteka
+# test/przygrywka.ć (bez ręcznie synchronizowanej kopii).
+_PRZYGRYWKA = open(
+    os.path.join(os.path.dirname(__file__), "..", "test", "przygrywka.ć"),
+    encoding="utf-8",
+).read() + "\n"
 
 
 @pytest.mark.integration
@@ -3246,6 +3236,56 @@ def test_przygrywka_dzielenie_rejects_non_liczba(parse):
         "    iloraz to podziel 'a' przez dwa\n"
     )
     with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_union_named_application_in_annotation(parse):
+    """Nazwana aplikacja na unii w ADNOTACJI (nie w aliasie):
+    `-> Rezultat o elemencie Tekst` wiąże niejawny parametr — wiązanie
+    `z wartością` w dopasowaniu ma typ Tekst (Lista znaków)."""
+    src = _PRZYGRYWKA + (
+        "aby działać:\n"
+        "    wynik to czytaj_plik ze \"dane\"\n"
+        "    wynik jest:\n"
+        "        Sukcesem z wartością:\n"
+        "            treść to wartość\n"
+        "        Błędem z opisem:\n"
+        "            treść to opis\n"
+    )
+    typechecker.resolve_module(parse(src))
+    types = _var_types()
+    assert types["wartością"] == "Lista"   # Tekst = Lista o elemencie Znak
+    assert types["treść"] == "Lista"
+
+
+@pytest.mark.integration
+def test_union_named_application_unknown_param_raises(parse):
+    src = _PRZYGRYWKA + (
+        "można wróżyć -> Rezultat o pierwiastku Liczba\n"
+        "\n"
+        "aby działać:\n"
+        "    zwróć jeden\n"
+    )
+    with pytest.raises(
+        typechecker.TypeCheckError,
+        match=r"typ wariantowy 'Rezultat' nie ma parametru 'pierwiastek'",
+    ):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_union_positional_application_still_rejected(parse):
+    """Aplikacja POZYCYJNA na unii pozostaje nielegalna — legalizacja
+    dotyczy wyłącznie formy nazwanej `o NAZWIE Typ`."""
+    src = _PRZYGRYWKA + (
+        "aby brać rzeczy (Lista z (Liczba)) -> Liczba:\n"
+        "    zwróć zero\n"
+    )
+    with pytest.raises(
+        typechecker.TypeCheckError,
+        match=r"typ wariantowy 'Lista' nie przyjmuje argumentów",
+    ):
         typechecker.resolve_module(parse(src))
 
 

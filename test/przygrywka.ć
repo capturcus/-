@@ -74,3 +74,86 @@ aby wyłuskać tekst (Tekst) -> Znak:
             zwróć głowa
         inaczej:
             zwróć wyłuskać "?"
+
+# Świat zewnętrzny: pliki — wbudowane w interpreter. Poprawny odczyt
+# daje Sukces z tekstem pliku, poprawny zapis Sukces z liczbą zapisanych
+# bajtów; niepowodzenie to Błąd z opisem.
+można czytać_plik ze ścieżki (Tekst) -> Rezultat o elemencie Tekst
+
+można zapisać_plik dla zawartości (Tekst) do ścieżki (Tekst) -> Rezultat o elemencie Liczba
+
+# Fold prawostronny: złóż [a, b, c] z op z akc = op(a, op(b, op(c, akc))).
+# Operacja to wartość funkcyjna (referencja gerundialna, np. `z dodawaniem`).
+aby złożyć listę (Lista) z operacją z akumulatorem:
+    lista jest:
+        Ogniwem z głową z ogonem:
+            reszta to złóż ogon z operacją z akumulatorem
+            zwróć zastosuj operację z głową z resztą
+        Niczym:
+            zwróć akumulator
+
+# Mapa: nowa lista z wynikami operacji na każdym elemencie.
+aby przekształcać listę (Lista) z operacją:
+    lista jest:
+        Ogniwem z głową z ogonem:
+            zwróć Ogniwo o głowie (zastosuj operację z głową) o ogonie (przekształcaj ogon z operacją)
+        Niczym:
+            zwróć Nic
+
+# Filtr: zostają elementy, dla których warunek daje prawdę.
+aby przesiewać listę (Lista) przez warunek:
+    lista jest:
+        Ogniwem z głową z ogonem:
+            reszta to przesiewaj ogon przez warunek
+            jeśli zastosuj warunek z głową:
+                zwróć Ogniwo o głowie głowa o ogonie reszta
+            zwróć resztę
+        Niczym:
+            zwróć Nic
+
+# Indeksowanie listy (pozycje liczone od jednego): Sukces z elementem
+# na pozycji albo Błąd, gdy pozycja wypada poza listą. Adnotacja wiąże
+# element wyniku z elementem listy wspólnym parametrem `rzecz` —
+# granica jak w externach: bez niej element ginie w generalizacji.
+aby wskazać pozycję na liście (Lista o elemencie rzecz) -> Rezultat o elemencie rzecz:
+    lista jest:
+        Ogniwem z głową z ogonem:
+            jeśli pozycja równa jeden:
+                zwróć Sukces o wartości głowa
+            zwróć wskaż (pozycja minus jeden) na ogonie
+        Niczym:
+            zwróć Błąd o opisie "pozycja poza listą"
+
+# Cyfra (0–9) jako znak — Ć nie ma tablicy ASCII, więc wprost.
+aby przedstawić cyfrę (Liczba) -> Znak:
+    jeśli cyfra równa zero:
+        zwróć '0'
+    jeśli cyfra równa jeden:
+        zwróć '1'
+    jeśli cyfra równa dwa:
+        zwróć '2'
+    jeśli cyfra równa trzy:
+        zwróć '3'
+    jeśli cyfra równa cztery:
+        zwróć '4'
+    jeśli cyfra równa pięć:
+        zwróć '5'
+    jeśli cyfra równa sześć:
+        zwróć '6'
+    jeśli cyfra równa siedem:
+        zwróć '7'
+    jeśli cyfra równa osiem:
+        zwróć '8'
+    zwróć '9'
+
+# Nieujemna liczba cyfra po cyfrze, od najbardziej znaczącej.
+aby rozwijać liczbę (Liczba) -> Tekst:
+    jeśli liczba mniejsze od dziesięciu:
+        zwróć Ogniwo o głowie (przedstaw liczbę) o ogonie Nic
+    zwróć sklej (rozwijaj (podziel liczbę przez dziesięć)) z (Ogniwo o głowie (przedstaw (weź_resztę_z_dzielenia liczby przez dziesięć)) o ogonie Nic)
+
+# Liczba jako tekst dziesiętny (z minusem dla ujemnych).
+aby pokazać liczbę (Liczba) -> Tekst:
+    jeśli liczba mniejsze od zero:
+        zwróć sklej "-" z (rozwijaj (zero minus liczba))
+    zwróć rozwijaj liczbę
