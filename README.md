@@ -2,12 +2,14 @@
 
 Ć to język programowania, w którym kod pisze się po polsku — z prawdziwą
 polską odmianą. Identyfikatory są fleksyjne: `użytkownik`, `użytkownika`,
-`użytkownikiem` i `użytkowników` to ten sam identyfikator, a o roli słowa
-w zdaniu decydują przypadki gramatyczne i przyimki, nie pozycja czy
-interpunkcja. Program w Ć czyta się jak (nieco techniczna) polszczyzna:
+`użytkownikiem` to ten sam identyfikator, a o roli słowa w zdaniu decydują
+przypadki gramatyczne i przyimki, nie pozycja czy interpunkcja. Program
+w Ć czyta się jak (nieco techniczna) polszczyzna:
 
 ```
 uwzględnij przygrywka.ć
+
+można wypisać coś (Cokolwiek) -> Nic
 
 definicja Użytkownika:
     imię (Tekst)
@@ -18,61 +20,180 @@ aby przywitać użytkownika (Użytkownik) -> Tekst:
 
 aby działać:
     gość to Użytkownik o imieniu "Ada" o wieku trzydzieści
-    powitanie to przywitaj gościa
+    wypisz (przywitaj gościa)
+    jeśli wiek gościa większe od osiemnaście:
+        wypisz "pełnoletnia"
 ```
 
-Stan projektu: programy **parsują się i typują w całości** (pełna
-inferencja typów, polskie komunikaty błędów), ale **runtime jeszcze nie
-istnieje** — kod się sprawdza, lecz jeszcze nie wykonuje.
+```
+$ python3 gćć-python/gćć.py program.ć --sgjp sgjp.tab
+cześć, Ada
+pełnoletnia
+```
+
+Programy w Ć **parsują się, typują i wykonują**. Typów prawie nie trzeba
+pisać — pełna inferencja z podtypowaniem wyprowadza je z kodu, a błędy
+przychodzą po polsku, ze śladem wnioskowania. Punktem wejścia programu
+jest funkcja `działać`.
+
+Spis treści:
+
+- [Szybki start](#szybki-start)
+- [Rytuał startowy programu](#rytuał-startowy-programu)
+- [Słowa i odmiana — fundament języka](#słowa-i-odmiana--fundament-języka)
+- [Literały](#literały)
+- [Zmienne i przypisanie](#zmienne-i-przypisanie)
+- [Operatory](#operatory)
+- [Sterowanie](#sterowanie)
+- [Funkcje — `aby`](#funkcje--aby)
+- [Funkcje wbudowane i zewnętrzne — `można`](#funkcje-wbudowane-i-zewnętrzne--można)
+- [Struktury — `definicja`](#struktury--definicja)
+- [Unie — `albo` i dopasowanie `jest:`](#unie--albo-i-dopasowanie-jest)
+- [Typy parametryzowane i aliasy](#typy-parametryzowane-i-aliasy)
+- [Funkcje wyższego rzędu](#funkcje-wyższego-rzędu)
+- [Obsługa błędów — `Rezultat` i tryb przypuszczający](#obsługa-błędów--rezultat-i-tryb-przypuszczający)
+- [Przygrywka — biblioteka standardowa](#przygrywka--biblioteka-standardowa)
+- [Wiele plików — `uwzględnij`](#wiele-plików--uwzględnij)
+- [System typów](#system-typów)
+- [Pułapki, o których warto wiedzieć](#pułapki-o-których-warto-wiedzieć)
+- [Przykłady](#przykłady)
+- [Struktura repozytorium](#struktura-repozytorium)
 
 ---
 
 ## Szybki start
 
 Wymagania: Python 3 oraz plik słownika `sgjp.tab` (Słownik Gramatyczny
-Języka Polskiego w formacie tab) w korzeniu repozytorium.
+Języka Polskiego w formacie tab, do pobrania z sgjp.pl) w korzeniu
+repozytorium — interpreter analizuje morfologicznie każde słowo programu,
+więc bez słownika nie ruszy.
 
 ```
-python3 gćć-python/gćć.py test/warianty.ć --sgjp sgjp.tab
+python3 gćć-python/gćć.py test/dna.ć --sgjp sgjp.tab
 ```
 
-Wynik to drzewo programu i wywnioskowane typy; błędny kod dostaje polski
-komunikat z plikiem i numerem linii. Ładowanie słownika trwa ~8 s — przy
-częstym iterowaniu użyj trybu redisowego:
+Ładowanie słownika trwa kilka sekund — przy częstym iterowaniu użyj trybu
+redisowego (lematyzacja przez lokalny Redis, start natychmiastowy):
 
 ```
 pip3 install redis                      # raz
 python3 gćć-python/sgjp_do_redisa.py    # raz (i po każdej wymianie sgjp.tab)
-python3 gćć-python/gćć.py test/warianty.ć --redis   # start w ~0,1 s
+python3 gćć-python/gćć.py test/dna.ć --redis
 ```
 
 Migracja jest idempotentna — wykrywa nową wersję `sgjp.tab` i wtedy
 przeprowadza się ponownie, w przeciwnym razie nic nie robi.
 
-Do VS Code jest wtyczka z kolorowaniem składni (katalog `vscode-ć/`,
-motyw „Ć — biało-czerwony") — instalacja przez symlink do
-`~/.vscode/extensions/` i restart edytora.
+Testy end-to-end języka (każdy `test/*.ć` uruchamiany i porównywany
+ze swoim `*.wynik`):
+
+```
+python3 test/uruchom_testy.py           # wymaga trybu redisowego
+```
+
+Testy interpretera: `cd gćć-python && python3 -m pytest -q`.
+
+Do VS Code jest wtyczka z kolorowaniem składni (katalog `vscode-ć/`) —
+instalacja przez symlink do `~/.vscode/extensions/` i restart edytora.
+
+Błędy — składniowe, typów i wykonania — przychodzą jako
+`plik:linia: KlasaBłędu: komunikat` z fragmentem źródła; błędy wykonania
+dodatkowo z Ć-owym stosem wywołań.
+
+---
+
+## Rytuał startowy programu
+
+Prawie każdy program zaczyna się tak:
+
+```
+uwzględnij przygrywka.ć
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    wypisz "siemka"
+```
+
+- `uwzględnij przygrywka.ć` dołącza bibliotekę standardową
+  ([przygrywkę](#przygrywka--biblioteka-standardowa)) — m.in. typ `Tekst`,
+  bez którego literały tekstowe się nie typują. Ścieżka jest względna
+  wobec pliku, więc program poza katalogiem `test/` wskazuje ją np. jako
+  `uwzględnij ../test/przygrywka.ć`.
+- `można wypisać coś (Cokolwiek) -> Nic` deklaruje wbudowaną funkcję
+  wypisującą — interpreter ma jej implementację, ale sygnaturę deklaruje
+  się w programie (przygrywka jej nie zawiera).
+- `aby działać:` to punkt wejścia — interpreter po sprawdzeniu typów
+  wywołuje funkcję o lemacie `działać` (bez argumentów).
+
+`wypisz` przyjmuje dowolną wartość: teksty drukuje wprost, liczby
+dziesiętnie, `Nic` jako `Nic`, struktury jako `Nazwa(pole: wartość, …)`
+(cykliczne struktury są bezpiecznie ucinane znacznikiem `…`).
 
 ---
 
 ## Słowa i odmiana — fundament języka
 
-Słowo dzieli się na **segmenty**: po podkreślniku (`zapisz_w_bazie`) i po
-wielkich literach (`AdresKorespondencyjny`). Segmenty są analizowane
-morfologicznie, a identyfikator znaczy to samo we wszystkich swoich
-odmianach — deklarujesz `licznik`, a piszesz `licznika`, `licznikiem`,
-`liczniki`, jak wymaga zdanie.
+Każde słowo programu jest analizowane morfologicznie w SGJP. Identyfikator
+znaczy to samo we wszystkich swoich odmianach — deklarujesz `licznik`,
+a piszesz `licznika`, `licznikiem`, jak wymaga zdanie. To odmiana, a nie
+kolejność, mówi interpreterowi, co jest czym.
 
-Identyfikator wielosegmentowy ma postać `[przymiotniki] rzeczownik
-[reszta]` — np. `czerwona_inna_rzecz_z_warszawy`; przymiotniki zgadzają
-się z rzeczownikiem w przypadku.
+- **Segmenty.** Słowo dzieli się po podkreślniku (`zapisz_w_bazie`) i po
+  wielkich literach (`AdresKorespondencyjny`); każdy segment jest
+  analizowany osobno.
+- **Klucz zakresu.** Zmienną/pole identyfikuje trójka **(lemat, liczba,
+  rodzaj)** — `forma` (lp) i `formy` (lm) to różne zmienne, `kotek` (m)
+  i `kotka` (f) też. Funkcje i typy są identyfikowane po samych lematach.
+- **Mianownik przy deklaracji.** Nazwę deklaruje się w mianowniku
+  (zmienne, pola, aliasy, warianty unii); wyjątki wymuszone gramatyką:
+  nagłówek `definicja Sesji:` stoi w dopełniaczu (definicja *czego*),
+  a gałęzie dopasowania w narzędniku (`Kotem:`).
+- **Identyfikatory wielosegmentowe** mają postać `[przymiotniki]
+  rzeczownik [reszta]` — np. `wielki_kot`, `autor_komentarza`;
+  przymiotniki zgadzają się z rzeczownikiem-głową w przypadku.
+- **Wielkość liter rozdziela przestrzenie nazw**: typy piszemy Wielką
+  literą (`Użytkownik`, `Lista`), zmienne, pola i funkcje — małą. Zmienna
+  `lista` i typ `Lista` współistnieją bez konfliktu.
+- **Każde deklarowane słowo musi istnieć w SGJP** — nazwa spoza słownika
+  nie odmienia się i jest odrzucana. Formy eufoniczne przyimków (`ze`,
+  `we`) działają wszędzie jak `z`, `w`.
 
-**Wielkość liter rozdziela przestrzenie nazw**: typy piszemy Wielką literą
-(`Użytkownik`, `Lista`), zmienne, pola i funkcje — małą. Zmienna `lista`
-i typ `Lista` współistnieją bez konfliktu.
+Komentarze zaczynają się od `#` i zajmują **całą linię** (nie ma
+komentarza za kodem). Bloki wyznaczają wcięcia — tabulator albo cztery
+spacje, jak w Pythonie.
 
-Komentarze zaczynają się od `#`. Bloki wyznaczają wcięcia (tabulator lub
-cztery spacje), jak w Pythonie.
+---
+
+## Literały
+
+**Liczby zapisuje się wyłącznie słowami** — cyfr nie ma. Sąsiadujące
+liczebniki sklejają się w jedną wartość, skala jest długa (miliard = 10⁹):
+
+```
+zero    jeden    dwadzieścia trzy    sto dwadzieścia pięć tysięcy czterysta
+```
+
+Jedyny typ liczbowy to `Liczba` (całkowita). Liczby ujemne powstają przez
+jednoargumentowy `minus`: `minus pięć`. Liczebniki odmieniają się jak
+wszystko inne: `podziel siedem przez dwa`, ale `weź_resztę_z_dzielenia
+siedmiu przez dwa`.
+
+**Teksty** (typ `Tekst`) w cudzysłowach, ze znakami ucieczki
+`\n \t \r \\ \" \' \0`: `"pierwszy wiersz\ndrugi"`. `Tekst` nie jest
+typem wbudowanym — to alias z przygrywki (`Tekst to Lista o elemencie
+Znak`), a literał tekstowy to w istocie lista znaków; **pusty tekst `""`
+≡ `Nic`**. Bez dołączonej przygrywki (albo własnego aliasu `Tekst`)
+literał tekstowy jest błędem typów.
+
+**Znaki** (typ `Znak`) w apostrofach, z tymi samymi znakami ucieczki:
+`'a'`, `'ż'`, `'\n'`. Literał musi zawierać dokładnie jeden znak.
+
+**Prawda i fałsz** (typ `Przełącznik`): `prawda` / `fałsz` — działają też
+w odmianie (`przyjmij prawdę`).
+
+**`Nic`** to jednocześnie typ i jego jedyna wartość — pusty wynik, koniec
+listy, brakująca wartość w unii (`Opcja to Coś albo Nic`).
 
 ---
 
@@ -87,44 +208,23 @@ licznik to licznik plus jeden
 
 Obowiązuje **zasięg blokowy**:
 
-- pierwsze przypisanie deklaruje zmienną — widoczną **od tego miejsca do
-  końca bloku**; użycie przed przypisaniem to błąd,
+- pierwsze przypisanie deklaruje zmienną — widoczną od tego miejsca do
+  końca bloku; użycie przed przypisaniem to błąd,
 - zmienna zadeklarowana w gałęzi `jeśli`, ciele pętli albo gałęzi
-  dopasowania jest **lokalna dla tego bloku**,
-- przypisanie do zmiennej widocznej z zewnątrz to **reasignacja** tej
-  samej zmiennej (typ musi się zgadzać) — zmienną potrzebną po bloku
-  zadeklaruj przed nim:
+  dopasowania jest lokalna dla tego bloku,
+- przypisanie do zmiennej widocznej z zewnątrz to **przepisanie** tej
+  samej zmiennej — zmienną potrzebną po bloku zadeklaruj przed nim:
 
 ```
 wynik to zero
 jeśli warunek:
-    wynik to pięć      # reasignacja zewnętrznego `wynik`
+    wynik to pięć      # przepisanie zewnętrznego `wynik`
 suma to wynik          # OK
 ```
 
----
-
-## Literały
-
-**Liczby** zapisuje się słowami; sąsiadujące liczebniki sklejają się
-w jedną wartość:
-
-```
-zero    jeden    dwadzieścia trzy    sto dwadzieścia pięć tysięcy czterysta
-```
-
-**Prawda i fałsz** (typ `Przełącznik`): `prawda` / `fałsz` — działają też
-w odmianie (`przyjmij prawdę`).
-
-**Teksty** w cudzysłowach, ze znakami ucieczki `\n \t \r \\ \" \' \0`:
-`"pierwszy wiersz\ndrugi"`. Tekst nie jest typem wbudowanym — literał
-tekstowy wymaga aliasu `Tekst` (dostajesz go przez `uwzględnij
-przygrywka.ć`, gdzie `Tekst to Lista o elemencie Znak`); pusty tekst
-`""` ≡ `Nic`.
-
-**Znaki** (typ `Znak`) w pojedynczych cudzysłowach, z tymi samymi
-znakami ucieczki: `'a'`, `'ż'`, `'\n'`. Literał musi zawierać dokładnie
-jeden znak.
+Deklarację można adnotować typem — `zwierzę (Zwierzę) to Nic` — co
+[przybija typ zmiennej dokładnie](#adnotacje). Celem przypisania może też
+być pole struktury: `wiek użytkownika to wiek użytkownika plus jeden`.
 
 ---
 
@@ -133,7 +233,9 @@ jeden znak.
 | operatory | znaczenie |
 |---|---|
 | `plus`, `minus`, `razy` | arytmetyka na `Liczbie` |
-| `mniejsze od`, `większe od`, `mniejsze równe`, `większe równe`, `równe`, `nierówne` | porównania (dają `Przełącznik`) |
+| `mniejsze od`, `większe od`, `mniejsze równe`, `większe równe` | porównania liczb (dają `Przełącznik`) |
+| `równe`, `nierówne` | równość **strukturalna** — rekurencyjnie po polach, bezpieczna dla cykli |
+| `tożsame` | równość **referencyjna** — ten sam obiekt (wartości proste po wartości) |
 | `i`, `lub`, `nie` | logika na `Przełączniku` |
 
 Priorytety od najsłabszego: `lub` < `i` < `nie` < porównania <
@@ -143,6 +245,21 @@ wyrażenie:
 ```
 suma to (dwa plus trzy) razy cztery
 gotowe to nie zajęte i suma większe od dziesięć
+```
+
+`równe` i `tożsame` odmieniają się przez rodzaj zgodnie z podmiotem
+(`głowa równa zasadzie`, `znak równy '+'`); wielosłowne porównania mają
+formę stałą (`mniejsze od`). Równość wymaga porównywalnych typów (wspólna
+głowa albo wspólna unia) — porównanie `Liczby` ze `Znakiem` to błąd typów.
+
+**Dzielenia nie ma wśród operatorów** — to funkcje wbudowane deklarowane
+w przygrywce, obie podłogowe (reszta nieujemna dla dodatniego dzielnika,
+dzielenie przez zero to błąd wykonania):
+
+```
+podziel siedem przez dwa                  # → 3
+weź_resztę_z_dzielenia siedmiu przez dwa  # → 1
+podziel (minus siedem) przez dwa          # → -4
 ```
 
 ---
@@ -159,18 +276,19 @@ inaczej:
 
 dopóki licznik mniejsze od dziesięć:
     licznik to licznik plus jeden
-
-dla użytkownika w liście:
-    jeśli użytkownik równe szukany:
-        stop          # przerwij pętlę
-    dalej             # następna iteracja
+    jeśli licznik równe trzy:
+        dalej          # następna iteracja
+    jeśli licznik większe od pięć:
+        stop           # przerwij pętlę
 
 zwróć wyrażenie
-zwróć                 # bez wartości — Nic
+zwróć                  # bez wartości — Nic
 ```
 
-`dla` jest słowem strukturalnym tylko na początku instrukcji — w środku
-wyrażenia pozostaje zwykłym przyimkiem (`weź dla użytkownika`).
+Warunek `jeśli`/`dopóki` musi być `Przełącznikiem`. Pętla `dla … w …`
+jest rozpoznawana składniowo, ale **jeszcze nie działa** (czeka na
+protokół iteracji — kolekcje są biblioteczne); po kolekcjach chodzi się
+rekurencją albo `dopóki` z [idiomem kursora](#zawężanie-przez-dopasowanie).
 
 ---
 
@@ -180,19 +298,21 @@ wyrażenia pozostaje zwykłym przyimkiem (`weź dla użytkownika`).
 aby wysłać coś do odbiorcy przez kanał:
     ...
 
-aby liczyć listę (Lista) -> Liczba:
+aby zmierzyć listę (Lista) -> Liczba:
     ...
 ```
 
 - Nazwa funkcji musi zawierać **czasownik** (`wysłać`, `zapisać_w_bazie`).
-- Parametr to `[przyimek] nazwa [(Typ)]` — typ jest opcjonalny (wywnioskuje
-  go inferencja), a przyimek i przypadek nazwy stają się „gramatyczną
-  sygnaturą" parametru.
+- Parametr to `[przyimek] nazwa [(Typ)]` — typ jest opcjonalny
+  (wywnioskuje go inferencja), a przyimek i przypadek nazwy stają się
+  „gramatyczną sygnaturą" parametru.
 - `-> Typ` deklaruje typ zwracany (też opcjonalny).
 
 **Wywołanie** to czasownik i argumenty. Argument dopasowuje się do
-parametru po **(przyimku, przypadku)** — kolejność może być dowolna,
-jeśli gramatyka rozstrzyga:
+parametru po **(przyimku, przypadku)** — argumenty z jednoznacznym
+dopasowaniem trafiają na swoje miejsca niezależnie od kolejności,
+pozostałe (np. wyrażenia w nawiasach, które nie mają przypadka)
+pozycyjnie:
 
 ```
 wyślij "raport" przez pocztę do szefa    # inna kolejność niż w sygnaturze
@@ -200,32 +320,63 @@ wyślij "raport" przez pocztę do szefa    # inna kolejność niż w sygnaturze
 
 Argumentem jest pojedynczy „człon": literał, zmienna, łańcuch pól,
 zagnieżdżone wywołanie. Większe wyrażenie ujmij w nawiasy:
-`policz z (dwa plus trzy)`. **Nazwy parametru nie powtarza się** — rolę
-niesie przyimek: `powiadom odbiorcę o "nowość"`.
+`policz z (dwa plus trzy)`. Operatory wiążą na zewnątrz wywołania:
+`zmierz listę plus jeden` znaczy `(zmierz listę) plus jeden`. **Nazwy
+parametru nie powtarza się** przy wywołaniu — rolę niesie przyimek:
+`powiadom odbiorcę o "nowość"`.
 
 Konwencja form: **definiuj bezokolicznikiem, wołaj rozkaźnikiem** —
-`aby dodać...`, potem `dodaj x do y`. Obie formy muszą mieć wspólną lemmę,
-więc uwaga na pary aspektowe: `dodaj` → `dodać` (nie `dodawać`),
+`aby dodać...`, potem `dodaj x do y`. Obie formy muszą mieć wspólny
+lemat, więc uwaga na pary aspektowe: `dodaj` → `dodać` (nie `dodawać`),
 `wybierz` → `wybrać`, `przyjmij` → `przyjąć`.
 
-Funkcja bez żadnego `zwróć` — podobnie jak `zwróć` bez wartości
-i `zwróć Nic` — ma typ zwracany `Nic`.
+W ciele funkcji parametr występuje w mianowniku niezależnie od formy
+w sygnaturze: `aby dodać rzecz do drugiej_rzeczy:` a w środku
+`zwróć rzecz plus druga_rzecz`.
+
+Funkcja bez żadnego `zwróć` — podobnie jak `zwróć` bez wartości — ma typ
+zwracany `Nic`. Funkcja zwracająca tylko na niektórych ścieżkach dostaje
+do typu zwracanego dounifikowane `Nic` (szczegóły w [systemie
+typów](#funkcje-i-polimorfizm)).
 
 ---
 
-## Funkcje zewnętrzne — `można`
+## Funkcje wbudowane i zewnętrzne — `można`
 
-Granica świata: sieć, zegar, operacje na tekstach. Deklaracja bez ciała,
-dlatego **wszystkie typy muszą być jawne**:
+Granica świata: deklaracja sygnatury bez ciała, dlatego **wszystkie typy
+muszą być jawne**:
 
 ```
 można wypisać tekst (Tekst) -> Nic
-można skleić tekst (Tekst) z drugim (Tekst) -> Tekst
-można pobrać_czas -> Liczba
+można czytać_plik ze ścieżki (Tekst) -> Rezultat o elemencie Tekst
 ```
 
-Nieznana głowa typu (np. `Uchwyt`) działa jak parametr typu współdzielony
-w obrębie sygnatury.
+Interpreter ma wbudowane implementacje siedmiu funkcji — sygnatury
+sześciu z nich deklaruje przygrywka, `wypisać` deklaruje się samemu:
+
+| funkcja | znaczenie |
+|---|---|
+| `wypisać coś (Cokolwiek) -> Nic` | wypis na standardowe wyjście |
+| `podzielić … przez … -> Liczba` | dzielenie podłogowe |
+| `wziąć_resztę_z_dzielenia … przez … -> Liczba` | reszta z dzielenia |
+| `zapisać_znakiem liczbę (Liczba) -> Znak` | punkt kodowy → znak (`chr`) |
+| `zapisać_liczbą znak (Znak) -> Liczba` | znak → punkt kodowy (`ord`) |
+| `czytać_plik ze ścieżki (Tekst) -> Rezultat o elemencie Tekst` | odczyt pliku |
+| `zapisać_plik dla zawartości (Tekst) do ścieżki (Tekst) -> Rezultat o elemencie Liczba` | zapis pliku (Sukces = liczba bajtów) |
+
+Nieznana głowa typu w sygnaturze `można` (np. `Cokolwiek`, `Uchwyt`)
+działa jak **niejawny parametr typu** współdzielony w obrębie sygnatury —
+stąd idiom `można wypisać coś (Cokolwiek) -> Nic` dla funkcji
+przyjmującej dowolną wartość.
+
+Most `zapisać_znakiem`/`zapisać_liczbą` to jedyna droga między `Znakiem`
+a `Liczbą` — Ć nie ma tablicy ASCII, a porównania porządkowe
+i arytmetyka działają wyłącznie na `Liczbie`:
+
+```
+wypisz (zapisz_liczbą 'A')            # 65
+wypisz (zapisz_znakiem sześćdziesiąt pięć)   # A
+```
 
 ---
 
@@ -235,58 +386,233 @@ w obrębie sygnatury.
 definicja Użytkownika:
     imię (Tekst)
     wiek (Liczba)
-
-definicja Mapy z klucza na wartość:     # typ generyczny
-    wpisy (Lista)
 ```
 
 Nagłówek w dopełniaczu („definicja *czego*"), pola w mianowniku, typy pól
-w nawiasach. Parametry typu (`z elementem`, `z klucza na wartość`) to małe
-nazwy używane potem jako typy pól.
+w nawiasach (obowiązkowe).
 
-**Konstruktor** to po prostu nazwa typu — wielka litera wystarcza za słowo
-kluczowe:
-
-```
-gość to Użytkownik o imieniu "Ada" o wieku trzydzieści
-```
+**Konstruktor** to po prostu nazwa typu — wielka litera wystarcza za
+słowo kluczowe. Pola podaje się na dwa sposoby:
 
 - `o polu WARTOŚĆ` — pole w **miejscowniku**, wartość to pełne wyrażenie,
 - `z polem` — skrót: weź wartość z zadeklarowanej zmiennej o nazwie pola
   (pole w **narzędniku**):
 
 ```
+gość to Użytkownik o imieniu "Ada" o wieku trzydzieści
+
 imię to "Bob"
 gość to Użytkownik z imieniem o wieku czterdzieści
 ```
 
+Konstrukcja musi wypełnić wszystkie pola; ich kolejność jest dowolna.
 Konstruktory się zagnieżdżają: `Komentarz o autorze Użytkownik o imieniu
 "Ada" o treści "hej"` — pole nienależące do wewnętrznego typu wraca do
 zewnętrznego.
 
----
-
-## Dostęp do pól — łańcuchy dopełniaczowe
-
-Odczyt pola to konstrukcja „pole *czego*" — obiekt w **dopełniaczu**,
-łańcuchy dowolnej długości:
+**Dostęp do pól** to konstrukcja dopełniaczowa „pole *czego*" — obiekt
+w dopełniaczu, łańcuchy dowolnej długości, także po lewej stronie `to`:
 
 ```
 powitanie to imię użytkownika
 miasto to nazwa adresu użytkownika sesji
-```
-
-Zapis — łańcuch po lewej stronie `to`:
-
-```
 wiek użytkownika to wiek użytkownika plus jeden
 ```
 
+**Struktury są referencyjne.** Przypisanie i przekazanie do funkcji nie
+kopiuje — mutacja pola jest widoczna wszędzie tam, gdzie obiekt jest
+osiągalny. Można budować struktury cykliczne:
+
+```
+węzeł to Węzeł o głowie jeden o ogonie Nic
+ogon węzła to węzeł            # cykl — legalny
+```
+
+Rozróżnienie `równe` (struktura) / `tożsame` (referencja) istnieje
+właśnie dlatego.
+
 ---
 
-## Typy wariantowe — `albo` i dopasowanie `jest:` / `są:`
+## Unie — `albo` i dopasowanie `jest:`
 
-Unię deklaruje się przypisaniem na typach:
+Unię (typ wariantowy) deklaruje się przypisaniem na typach, na poziomie
+modułu:
+
+```
+definicja Kota:
+    imię (Tekst)
+
+definicja Psa:
+    kość (Tekst)
+
+Zwierzę to Kot albo Pies
+```
+
+Wariantem może być każda struktura zdefiniowana w programie oraz
+wbudowane `Nic` — jedyny typ zeroargumentowy (`Opcja to Coś albo Nic`).
+Unie nie zagnieżdżają się w uniach i nie przyjmują własnych parametrów
+typu (dziedziczą [parametry swoich członków](#typy-parametryzowane-i-aliasy)).
+
+**Dopasowanie** to polski orzecznik — „X *jest* (czym?) *Kotem*".
+Gałęzie w **narzędniku**, dekonstrukcja pól przez `z polem`:
+
+```
+zwierzę jest:
+    Kotem z imieniem:
+        wypisz imię
+    Psem z kością:
+        wypisz kość
+```
+
+Zasady:
+
+- **Orzecznik zgadza się liczbą z podmiotem**: `lista jest:`, ale
+  `wyniki są:` — pomyłka daje błąd z podpowiedzią właściwej formy.
+  Podmiot stoi w mianowniku.
+- Podmiotem może być **dowolne wyrażenie**, nie tylko zmienna:
+  `szukaj po pięciu jest:` dopasowuje wynik wywołania,
+  `zawartość pudełka jest:` — wartość pola.
+- Gałęzie muszą pokryć **wszystkie** warianty unii; `Nic` obsługuje
+  gałąź `Niczym:`. Alternatywnie ostatnią gałęzią może być `inaczej:` —
+  pokrywa pozostałe warianty (bez wiązania pól).
+- Wiązać można podzbiór pól (również żadne: `Kotem:`); pola związane są
+  lokalne dla gałęzi. Przed słowem zaczynającym się od „z" przyimek
+  przybiera formę `ze`: `Krokiem ze znakiem:`.
+- `jako nazwa` wiąże **całą** dopasowaną wartość pod świeżą nazwą
+  (w mianowniku), już z zawężonym typem — można łączyć z wiązaniem pól:
+
+```
+rezultat jest:
+    Sukcesem jako paczka z wartością:
+        wypisz wartość
+        wypisz paczka
+    Błędem jako kłopot:
+        wypisz (opis kłopotu)
+```
+
+Wewnątrz gałęzi podmiot jest **zawężony** do wariantu — `imię zwierzęcia`
+działa w gałęzi `Kotem:` bez dodatkowych ceregieli. Zapis do podmiotu
+w gałęzi trafia do zmiennej **zewnętrznej** i jest widoczny po bloku —
+to podstawa idiomu kursora przy chodzeniu po listach:
+
+```
+dopóki prawda:
+    reszta jest:
+        Niczym:
+            stop
+        Węzłem z głową z ogonem:
+            wypisz głowa
+            reszta to ogon        # przesuwa kursor — zapis na zewnątrz
+```
+
+Semantyka typowa dopasowania (wnioskowanie unii podmiotu, zawężanie,
+niejednoznaczność) — w [systemie typów](#zawężanie-przez-dopasowanie).
+
+---
+
+## Typy parametryzowane i aliasy
+
+Struktura może mieć parametry typu — deklarowane jak parametry funkcji
+(`[przyimek] nazwa`), używane potem jako typy pól:
+
+```
+definicja Ogniwa z elementem:
+    głowa (element)
+    ogon (Lista)
+
+definicja Mapy z klucza na wartość:
+    wpisy (Lista)
+
+definicja Drzewa dla rzeczy:
+    wartość (rzecz)
+    lewy_syn (Drzewo dla rzeczy)
+```
+
+Parametrów zwykle **nie podaje się przy użyciu** — konkretyzują się przez
+inferencję (`Ogniwo o głowie pięć o ogonie Nic` to `Ogniwo[Liczba]`).
+Unia, której członkiem jest struktura parametryzowana, dziedziczy jej
+parametry po nazwach (`Lista to Ogniwo albo Nic` ma niejawny parametr
+`element`).
+
+Gdy parametry chcesz podać jawnie (w adnotacji albo aliasie), są dwie
+formy:
+
+- **nazwana** — `o NAZWIE Typ`, nazwa parametru w miejscowniku; działa
+  na strukturach i uniach: `Lista o elemencie Znak`,
+  `-> Rezultat o elemencie Tekst`,
+- **przyimkowa, jak w definicji** — tylko na strukturach:
+  `(Stos z elementem)`, `(Mapa z klucza na wartość)`, z zagnieżdżeniem
+  w nawiasach `(Lista z (Mapa z klucza na wartość))`. Na unii forma
+  przyimkowa/pozycyjna jest niedozwolona — unia przyjmuje wyłącznie
+  aplikację nazwaną.
+
+**Alias typu** to przypisanie na typach bez `albo`; po prawej stronie
+aliasu aplikacja może być wyłącznie nazwana:
+
+```
+Tekst to Lista o elemencie Znak
+Numer to Liczba
+Ciąg to Łańcuszek o wartości Tekst o elemencie Liczba
+```
+
+Aliasy są przezroczyste (w pełni zamienne z rozwinięciem) i mogą się
+łańcuchować; cykl aliasów to błąd.
+
+Adnotacje typów pojawiają się w czterech miejscach: polach struktur
+`nazwa (Typ)`, parametrach `nazwa (Typ)`, typie zwracanym `-> Typ`
+i sufiksie wyrażenia `wyrażenie (Typ)`. Sufiks wiąże się z pojedynczym
+członem tuż przed nim — szersze otypowanie wymaga nawiasów:
+`(weź od y) (Tekst)`.
+
+---
+
+## Funkcje wyższego rzędu
+
+Funkcję przekazuje się przez jej **rzeczownik odczasownikowy**:
+`dodawanie` to referencja do funkcji `dodawać`, `przekraczanie_progu` —
+do `przekraczać_próg`. Referencje wskazują funkcje zdefiniowane
+w programie — jak wskaźniki funkcji w C, bez domknięć. Zmienna o tym
+samym lemacie przesłania referencję.
+
+Wartość funkcyjną wywołuje wbudowany czasownik `zastosuj` — argumenty
+pozycyjnie, każdy przez `z` + narzędnik:
+
+```
+aby złożyć listę (Lista) z operacją z akumulatorem:      # fold
+    lista jest:
+        Ogniwem z głową z ogonem:
+            reszta to złóż ogon z operacją z akumulatorem
+            zwróć zastosuj operację z głową z resztą
+        Niczym:
+            zwróć akumulator
+
+suma to złóż liczby z dodawaniem z zero                  # referencja gerundialna
+```
+
+Zasady:
+
+- **`zastosować` jest zarezerwowane** — własnej funkcji o tym lemacie
+  nie można zadeklarować (`zastosować_filtr` — można).
+- Typy strzałkowe są w pełni inferowane (`operacja : (Liczba, Liczba) →
+  Liczba`); nie ma składni na strzałkę w `można` ani w polach struktur.
+- **Tryb przypuszczający komponuje się**: `zastosowałbyś operację
+  z wartością?` to zastosowanie z obsługą błędu.
+- W referencji do funkcji wielosegmentowej podkreślnik jest obowiązkowy:
+  `z polubieniem_wpisu`, nie `z polubieniem wpisu` (dwa słowa mogą się
+  sparsować jako odczyt pola).
+- Zagnieżdżony goły `zastosuj` zachłannie zjada kolejne `z …` — w wartości
+  pola i w argumentach używaj nawiasów: `bierz jeden z (zastosuj operację
+  z dwa)`.
+
+Gotowe fold/mapa/filtr/indeksowanie są w przygrywce (`złożyć`,
+`przekształcać`, `przesiewać`, `wskazać`); użycie: `test/kolekcje.ć`.
+
+---
+
+## Obsługa błędów — `Rezultat` i tryb przypuszczający
+
+Odpowiednik operatora `?` z Rusta. Konstrukcja wymaga unii dokładnie tej
+postaci (przygrywka deklaruje ją gotową):
 
 ```
 definicja Sukcesu z elementem:
@@ -298,55 +624,8 @@ definicja Błędu:
 Rezultat to Sukces albo Błąd
 ```
 
-Wariantem może być każda struktura zdefiniowana w programie oraz wbudowane
-`Nic` — jedyny typ zero-argumentowy (`Opcja to Coś albo Nic`). Unie nie
-zagnieżdżają się w uniach; przy deklaracji nie podaje się parametrów typu.
-
-**Dopasowanie** to polski orzecznik — „X *jest* (czym?) *Błędem*".
-Gałęzie w **narzędniku**, dekonstrukcja przez `z polem`:
-
-```
-rezultat jest:
-    Sukcesem z wartością:
-        wypisz wartość
-    Błędem z opisem:
-        wypisz opis
-```
-
-- **Orzecznik zgadza się liczbą z podmiotem**: `lista jest:`, ale
-  `kwiatki są:` — pomyłka daje błąd z podpowiedzią właściwej formy.
-  Podmiot dopasowania stoi w **mianowniku**.
-- Gałęzie muszą pokryć **wszystkie** warianty unii; `Nic` obsługuje
-  gałąź `Niczym:`. Alternatywnie OSTATNIĄ gałęzią może być **`inaczej:`** —
-  pokrywa pozostałe warianty (bez wiązania pól):
-
-  ```
-  wartość jest:
-      Symbolem z symbolem:
-          zwróć symbol
-      inaczej:
-          zwróć ""
-  ```
-
-  Jawne gałęzie muszą być podzbiorem wariantów którejś unii; gdy pasuje
-  ich kilka, o typie podmiotu rozstrzygają jego pozostałe wystąpienia
-  (nierozstrzygnięty w `działać` → „dodaj adnotację typu").
-- Wiązać można podzbiór pól (również żadne: `Sukcesem:`).
-- Pola związane są lokalne dla gałęzi.
-- Dopasowanie na nieotypowanym parametrze **wnioskuje** jego unię do
-  sygnatury funkcji.
-
-Jedyna relacja podtypowania: **struktura < jej unia**. Funkcja zwracająca
-w różnych gałęziach różne warianty jednej unii dostaje typ unii; warianty
-bez wspólnej unii to błąd. Typy parametryzowane są inwariantne
-(`Lista z (Sukces)` to nie `Lista z (Rezultat)`).
-
----
-
-## Wywołania z obsługą błędu — tryb przypuszczający + `?`
-
-Odpowiednik operatora `?` z Rusta. Czasownik w **trybie przypuszczającym**
-otwiera wywołanie, `?` po argumentach je domyka:
+Czasownik w **trybie przypuszczającym** otwiera wywołanie, `?` po
+argumentach je domyka:
 
 ```
 napis to wybrałbyś zero z części?
@@ -363,65 +642,60 @@ tymczasowy jest:
         zwróć Błąd o opisie opis
 ```
 
-Oba znaczniki są obowiązkowe — tryb bez `?` i `?` bez trybu to błędy.
-Konstrukcja wymaga zadeklarowanej unii `Rezultat to Sukces albo Błąd`
-(dokładnie tej postaci, jak wyżej) — przygrywka deklaruje ją gotową:
-`Sukces z elementem` (pole `wartość`) i `Błąd` (pole `opis (Tekst)`),
-więc `uwzględnij przygrywka.ć` wystarcza. Wołana funkcja musi zwracać
-`Rezultat`, a typ zwracany funkcji otaczającej rozszerza się o `Błąd`.
-Ponieważ `?` domyka wywołanie, zagnieżdżenie nie potrzebuje nawiasów:
+Sukces jest **odpakowywany** do swojej wartości, Błąd **propagowany
+zwrotem** z funkcji otaczającej — jej typ zwracany rozszerza się o `Błąd`.
+Oba znaczniki są obowiązkowe: tryb przypuszczający bez `?` i `?` bez
+trybu to błędy. Wołana funkcja musi zwracać `Rezultat`. Konstrukcja
+działa tylko w ciele funkcji. Ponieważ `?` domyka wywołanie,
+zagnieżdżenie nie potrzebuje nawiasów:
 
 ```
 zapisz wydobyłbyś wartość z listy? do bazy
 ```
 
+Uwaga na pary aspektowe także tutaj: `wybrałbyś` → lemat `wybrać`,
+`zawiódłbyś` → `zawieść`.
+
 ---
 
-## Funkcje wyższego rzędu — gerundium i `zastosuj`
+## Przygrywka — biblioteka standardowa
 
-Funkcję przekazuje się przez jej **rzeczownik odczasownikowy**:
-`dodawanie` to referencja do funkcji `dodawać`, `rozbieranie_koniunkcji` —
-do `rozbierać_koniunkcję` (nominalizacja naturalnie przesuwa dopełnienie
-do dopełniacza — tożsamość po lematach załatwia tę różnicę sama).
-Referencje wskazują funkcje zdefiniowane w programie — jak wskaźniki
-funkcji w C, bez domknięć.
+`test/przygrywka.ć` to standardowa biblioteka dołączana przez
+`uwzględnij`. Najważniejszy skutek: **`Tekst` przestaje być czymkolwiek
+wbudowanym i staje się listą znaków** — literały tekstowe to łańcuchy
+ogniw, każda funkcja listowa działa na tekstach, a pusty tekst ≡ `Nic`.
 
-Wartość funkcyjną wywołuje wbudowany czasownik `zastosuj` — argumenty
-pozycyjnie, każdy przez `z` + narzędnik:
+Typy:
 
 ```
-aby złożyć listę z operacją z akumulatorem:        # fold
-    lista jest:
-        Węzłem z głową z ogonem:
-            reszta to złóż ogon z operacją z akumulatorem
-            zwróć zastosuj operację z głową z resztą
-        PustąListą:
-            zwróć akumulator
+definicja Ogniwa z elementem:
+    głowa (element)
+    ogon (Lista)
 
-suma to złóż liczby z dodawaniem z zero            # referencja gerundialna
+Lista to Ogniwo albo Nic
+Tekst to Lista o elemencie Znak
+Rezultat to Sukces albo Błąd          # Sukces z elementem `wartość`, Błąd z `opis`
 ```
 
-Zasady:
+Funkcje (wszystkie generyczne po elemencie, działają na `Tekście` jak na
+każdej innej liście):
 
-- **Zmienna przesłania referencję** — parametr `operacja` w ciele to
-  zmienna; gerundium działa jako referencja tylko, gdy nazwy nie ma
-  w zasięgu.
-- **`zastosować` jest zarezerwowane** — własnej funkcji o tym lemacie nie
-  można zadeklarować (`zastosować_filtr` — można).
-- **Tryb przypuszczający komponuje się**: `zastosowałbyś operację
-  z wartością?` to zastosowanie z obsługą błędu (wymagania jak przy `?`).
-- Typy strzałkowe są w pełni inferowane (`operacja : (Liczba, Liczba) →
-  Liczba`); nie ma składni na strzałkę w `można` ani w polach struktur.
-- Funkcja zwracająca jeden wariant unii (np. samego `Sukcesa`) pasuje
-  tam, gdzie oczekiwany jest zwrot całej unii (`Rezultat`) — argumenty
-  funkcji muszą się natomiast zgadzać dokładnie.
-- Zagnieżdżony goły `zastosuj` zachłannie zjada kolejne `z …` — w wartości
-  pola, w argumencie wywołania i w argumencie innego `zastosuj` używaj
-  nawiasów: `bierz jeden z (zastosuj operację z dwa)`.
+| funkcja | znaczenie |
+|---|---|
+| `zmierzyć listę -> Liczba` | długość |
+| `skleić listę z resztą -> Lista` | konkatenacja |
+| `odwrócić listę -> Lista` | odwrócenie |
+| `wyłuskać tekst -> Znak` | pierwszy znak (dla pustego: `'?'`) |
+| `złożyć listę z operacją z akumulatorem` | fold prawostronny |
+| `przekształcać listę z operacją` | mapa |
+| `przesiewać listę przez warunek` | filtr |
+| `wskazać pozycję na liście` | indeksowanie od **jedynki**, zwraca `Rezultat` |
+| `pokazać liczbę -> Tekst` | liczba jako tekst dziesiętny (z minusem) |
+| `przedstawić cyfrę -> Znak`, `rozwijać liczbę -> Tekst` | cegiełki `pokazać` |
 
-Typowe funkcje wyższego rzędu (fold, map, filter) zaimplementowane w Ć:
-`test/fwr.ć`; realne użycie (gramatyka parsera jako jeden fold
-sparametryzowany referencjami): `test/wyrażenia.ć`.
+Plus deklaracje wbudowanych: `podzielić`, `wziąć_resztę_z_dzielenia`,
+`zapisać_znakiem`, `zapisać_liczbą`, `czytać_plik`, `zapisać_plik`
+(tabela w sekcji [`można`](#funkcje-wbudowane-i-zewnętrzne--można)).
 
 ---
 
@@ -432,110 +706,269 @@ wskazanego pliku w miejscu dyrektywy (deklaracje w Ć są niezależne od
 kolejności, więc to wystarcza):
 
 ```
-uwzględnij pojemniki.ć
+uwzględnij przygrywka.ć
 uwzględnij biblioteki/napisy.ć
 ```
 
 - Ścieżka jest **względna wobec pliku, w którym stoi dyrektywa**.
 - **Każdy plik wchodzi najwyżej raz** — gdy dwa pliki uwzględniają tę
-  samą bibliotekę, jej deklaracje się nie powielają.
+  samą bibliotekę, jej deklaracje się nie powielają; cykle są bezpieczne.
 - Dyrektywa musi zaczynać się w kolumnie zerowej i jest rozpoznawana
   literalnie (bez odmiany).
 - Błędy wskazują **plik źródłowy i oryginalny numer linii**, także przy
   konfliktach między plikami.
 
-Przykład w repozytorium: `test/fwr.ć` uwzględnia `test/pojemniki.ć`.
-
 ---
 
-## System typów w praktyce
+## System typów
 
-Typów prawie nie trzeba pisać — inferencja wyprowadza sygnatury funkcji,
-typy zmiennych, generyki i typy strzałkowe wartości funkcyjnych
-z samego kodu, także przez referencje w przód i rekurencję wzajemną.
-Adnotacje są dostępne tam, gdzie ich chcesz:
+Ć jest typowane statycznie, z **pełną inferencją z podtypowaniem**
+(rodzina MLsub/simple-sub) na **nominalnej** siatce typów. W praktyce:
+typów prawie nie piszesz, a mimo to każdy program jest w całości
+sprawdzony przed wykonaniem. Cena: kilka reguł, które trzeba rozumieć,
+bo komunikaty o błędach odwołują się wprost do nich.
+
+### Świat typów
+
+- wbudowane: `Liczba`, `Znak`, `Przełącznik`, `Nic`,
+- struktury użytkownika (`definicja`), także parametryzowane,
+- unie zadeklarowane `albo` (członkami struktury i `Nic`),
+- aliasy — przezroczyste skróty, nie nowe typy,
+- typy funkcyjne (strzałki) — tylko inferowane, bez składni,
+- niejawne parametry typu — małe/nieznane nazwy w sygnaturach
+  (`element`, `rzecz`, `Cokolwiek`).
+
+### Relacja podtypowania — kompletna definicja
+
+Podtypowanie jest **wyłącznie nominalne** i wyczerpuje się w trzech
+regułach:
+
+1. każdy typ jest podtypem samego siebie,
+2. struktura jest podtypem unii, której jest **zadeklarowanym** członkiem
+   (`Kot ≤ Zwierzę`, gdy `Zwierzę to Kot albo Pies`),
+3. unia jest podtypem unii tylko wtedy, gdy to **ta sama** unia.
+
+Nic więcej. Nie ma podtypowania strukturalnego (dwie struktury o tych
+samych polach to obce typy), nie ma relacji między różnymi uniami (nawet
+gdy jedna zawiera warianty drugiej), unia nigdy nie jest podtypem swojego
+członka, nie ma typu „wszystko" ani „nic-nie-ma" (`Nic` to zwykła
+wartość, nie dno kraty), nie ma niejawnych konwersji.
+
+Dwie konsekwencje wariancji:
+
+- **Pola struktur są inwariantne** — bo są mutowalne. Skoro
+  `Lista o elemencie Kot` pozwala dopisywać elementy, nie może udawać
+  `Listy o elemencie Zwierzę` (ktoś dopisałby Psa). Dlatego kontener
+  kotów **nie jest** kontenerem zwierząt, a listy są jednorodne —
+  `Ogniwo o głowie pięć o ogonie (Ogniwo o głowie 'a' o ogonie Nic)`
+  to błąd („niejawny argument 'element' nie zgadza się między
+  wystąpieniami").
+- **Wartości funkcyjne**: argumenty kontrawariantnie, wynik
+  kowariantnie. Tam, gdzie oczekiwana jest funkcja z `Kota`, pasuje
+  funkcja ze `Zwierzęcia` (przyjmuje więcej); tam, gdzie oczekiwany
+  wynik `Zwierzę`, pasuje funkcja zwracająca `Kota`.
+
+### Jak działa wnioskowanie
+
+Dla każdej zmiennej, parametru, pola i wyniku typechecker zbiera dwa
+rodzaje informacji:
+
+- **fakty** — co do niej rzeczywiście wpływa („w linii 2 przypisano
+  Kota"),
+- **wymagania** — czego żądają jej użycia („w linii 7 przekazano ją
+  funkcji oczekującej Zwierzęcia").
+
+Typ to **podsumowanie faktów**: pojedyncza głowa, a gdy faktów jest
+więcej — najmniejsza zadeklarowana unia, która pokrywa je wszystkie.
+Wymagania niczego nie „ustalają" — tylko filtrują i sprawdzają. Stąd
+cztery zachowania, które warto znać:
+
+**Zmienna może zmieniać wariant, jeśli łączy je unia.** Typ zmiennej to
+suma wszystkich przypisań:
 
 ```
-aby liczyć listę (Lista z elementem) -> Liczba:    # parametry i wynik
-x (Liczba) to pięć                                 # zmienna
-wynik to (weź od y) (Tekst)                        # sufiks na wyrażeniu
+pupil to Kot o imieniu "Mruczek"
+pupil to Pies o kości "szynka"      # OK: pupil ma typ Zwierzę
+rzecz to jeden
+rzecz to 'z'                        # BŁĄD: Liczby i Znaku nie łączy unia
 ```
 
-Mała, nieznana nazwa typu w sygnaturze (`element`, `rzecz`) działa jak
-niejawny parametr typu — tak powstają funkcje generyczne.
+Konflikt jest zgłaszany **natychmiast**, w linii przypisania-sprawcy,
+z wypisem poszlak (wszystkich faktów z liniami) — i z gotowym szablonem:
+„jeśli to zamierzone, zadeklaruj unię: `Rzecz to … albo …`". Gdy fakty
+pokrywa **więcej niż jedna** minimalna unia, to też błąd (remis) —
+rozstrzyga adnotacja.
 
-Funkcja `działać` to punkt wejścia: wszystkie jej zmienne muszą mieć
-w pełni konkretne typy (odpowiednik „type annotations needed").
+**Wymagania nie poszerzają.** Wartość znana jako `Kot` przekazana
+funkcji od `Zwierząt` **pozostaje Kotem** — dalej można czytać jej
+`imię` bez zawężania. Poszerza tylko rzeczywisty fakt (przypisanie
+innego wariantu).
 
-Typy wbudowane: `Liczba`, `Przełącznik`, `Nic`, `Znak`. `Tekst` to alias
-z przygrywki (`Tekst to Lista o elemencie Znak`) — nie jest wbudowany.
+**Wymagania się przecinają.** Parametr użyty w dwóch funkcjach —
+jednej od `Domownika` (`Kot albo Pies`), drugiej od `Futrzaka`
+(`Kot albo Chomik`) — może być wyłącznie `Kotem`; wywołanie z Kotem
+przechodzi, z Psem nie (test `test/przecięcie.ć`).
+
+**Wynik nie zależy od kolejności.** Przestawianie linijek, pól
+konstrukcji ani kolejności deklaracji nie zmienia wywnioskowanych typów
+— fakty i wymagania tylko się akumulują.
+
+W drugą stronę działa dokładność: unia **nie mieści się** w miejscu
+oczekującym konkretnego wariantu. `Zwierzę` przekazane tam, gdzie
+oczekiwany jest dokładnie `Kot`, to błąd z podpowiedzią: „w runtime może
+być: Pies; zawęź dopasowaniem `jest:` przed przekazaniem".
+
+### Adnotacje
+
+Trzy narzędzia o różnej semantyce:
+
+- **Adnotowana deklaracja** `pupil (Zwierzę) to Kot o imieniu "M"` —
+  **przybija typ zmiennej dokładnie do adnotacji**. Wartość musi się
+  w niej mieścić, ale odczyty widzą `Zwierzę`, nie `Kota` — to sposób na
+  świadome poszerzenie od pierwszej linii (np. `zwierzę (Zwierzę) to
+  Nic`, zanim cokolwiek tam trafi).
+- **Sufiks na wyrażeniu** `wyrażenie (Typ)` — czysty **upcast**:
+  wyrażenie musi się mieścić w typie, wynik ma typ z adnotacji.
+  Rzutować można tylko w górę (do nadtypu).
+- **Rzutowania w dół nie ma.** Jedyna droga od unii do wariantu to
+  dopasowanie `jest:` — bezpieczne, bo sprawdzane na wyczerpanie.
+
+### Zawężanie przez dopasowanie
+
+`X jest:` to jednocześnie kontrola wariantów i zawężanie typów:
+
+- Gałęzie muszą dokładnie odpowiadać członkom **jednej zadeklarowanej
+  unii** (brak gałęzi, gałąź spoza unii i powtórka to osobne, precyzyjne
+  błędy). Z `inaczej:` wystarczy podzbiór wariantów.
+- W gałęzi `Kotem:` podmiot **jest Kotem** — pola wariantu dostępne
+  wprost, przez wiązania `z polem` i przez łańcuchy na podmiocie.
+  Gałąź `inaczej:` **nie zawęża** (nie ma „negatywnego" wnioskowania).
+- Zapis do podmiotu w gałęzi idzie do zmiennej **zewnętrznej** — jej typ
+  uczciwie poszerza się o zapisany wariant, a odczyty w gałęzi dalej
+  widzą typ zawężony. Dzięki temu działa idiom kursora.
+- Pole wspólne wszystkim wariantom unii można czytać **bez zawężania**;
+  pole obecne tylko w niektórych wariantach wymaga `jest:`.
+- Dopasowanie na wartości o nieznanym typie (np. nieadnotowanym
+  parametrze) **wnioskuje** jego unię do sygnatury funkcji. Gdy gałęzie
+  pasują do kilku unii, decyzja jest **odraczana**: kandydaci trzymani są
+  jako alternatywy, a kolejne fakty i użycia je zawężają. Jeśli do końca
+  zostaje więcej niż jeden — błąd „typ pasuje do wielu możliwości …
+  dodaj adnotację typu" (z podpowiedzią, który wariant-dyskryminator
+  rozstrzygnie).
+
+### Funkcje i polimorfizm
+
+- Sygnatura bez adnotacji jest tak ogólna, jak pozwala ciało — wolne
+  typy parametrów i wyniku działają jak **niejawne parametry typu**.
+  Tak samo małe nieznane nazwy w adnotacjach (`element`, `rzecz`).
+- Funkcje są **polimorficzne między wywołaniami**: każde wywołanie
+  dostaje świeży egzemplarz sygnatury, więc `przetwarzaj dla jeden` może
+  dać `Liczbę`, a `przetwarzaj dla 'z'` — `Znak`, bez konfliktu.
+- **Rekursja jest monomorficzna**: wywołania rekurencyjne (także we
+  wzajemnie rekurencyjnej grupie funkcji) współdzielą jedną sygnaturę.
+  Polimorfizm obowiązuje dopiero „z zewnątrz" grupy. Referencje w przód
+  i wzajemna rekursja działają bez żadnych deklaracji wyprzedzających.
+- Typ zwracany to suma zwrotów ze wszystkich gałęzi (znów: najmniejsza
+  pokrywająca unia). Funkcja, w której jakaś ścieżka nie kończy się
+  `zwróć`, dostaje dounifikowane `Nic` — jeśli reszta zwrotów się z tym
+  nie łączy, błąd podpowiada: „dopisz `zwróć` … albo zadeklaruj unię
+  z Nic".
+
+### Punkt wejścia i konkretność
+
+Wymóg pełnej konkretności typów obowiązuje **tylko w `działać`** —
+odpowiednik „type annotations needed" pojawia się, gdy jakiejś zmiennej
+punktu wejścia nie da się ugruntować (np. wynik externa, którego nikt
+nie użył strukturalnie). Funkcje pomocnicze mogą pozostać dowolnie
+polimorficzne. Wyjątek praktyczny: wolny parametr unii uchodzi —
+`pusta (Lista) to Nic` typuje się, mimo że elementu pustej listy nikt
+nie zna (skonkretyzuje się przez użycie).
+
+### Błędy typów
+
+Komunikaty niosą pełny ślad wnioskowania:
+
+- **poszlaki** — każda granica pamięta linię i kontekst powstania
+  („linia 2: przypisanie do 'rzecz'", „argument 2 wywołania 'dodaj'");
+  przy konflikcie wypisywane są poszlaki obu stron: „zdecyduj, która
+  poszlaka jest błędna",
+- **droga wartości** — łańcuch, którym wartość dopłynęła do pękającego
+  miejsca,
+- **podpowiedzi** — szablon brakującej unii, „czy chodziło o …?" przy
+  literówkach w polach i typach, forma poprawnego orzecznika przy
+  `jest`/`są`, wskazanie wariantów-dyskryminatorów przy
+  niejednoznaczności,
+- kontekst „(podczas typowania linii N, w funkcji 'f')" i tłumaczenie
+  numerów linii na oryginalne pliki przy `uwzględnij`.
 
 ---
 
 ## Pułapki, o których warto wiedzieć
 
-- **Wspólna lemma definicji i wywołania** — pary aspektowe mylą:
+- **Wspólny lemat definicji i wywołania** — pary aspektowe mylą:
   `dodaj` → `dodać` (nie `dodawać`), `wziąłbyś` → `wziąć` (nie `brać`).
   Definiuj tym czasownikiem, którego formy faktycznie wołasz.
-- **Nazwa parametru nie może być przyimkiem** (`a`, `u`, `w`, `z`, `o`…) —
-  zostanie zjedzona jako przyimek.
+- **Nazwa parametru nie może być przyimkiem** (`a`, `u`, `w`, `z`, `o`…)
+  — zostanie zjedzona jako przyimek.
 - **Niejednoznaczność morfologiczna nazw pól** — np. `posty` czyta się
   i jako `post`, i jako `posta`; interpreter to zgłosi, wtedy wybierz
   inną nazwę (np. `wpisy`).
-- **Formy eufoniczne przyimków działają** — `ze`, `we` są równoważne
-  `z`, `w` wszędzie (`ze schodzeniem` ≡ `z ...`).
-- **Rzeczowniki odczasownikowe są pełnoprawnymi rzeczownikami** —
-  `polubienie` ma własną lemmę; pole `polubienia` nie koliduje z funkcją
-  `polubić`.
-- **Każde słowo musi istnieć w SGJP** — nazwa spoza słownika (np. `arność`)
-  nie odmienia się i psuje program w zaskakujących miejscach. Sprawdź
-  słowo przed użyciem (`redis-cli EXISTS sgjp:f:słowo`) i wybierz synonim
-  (np. `krotność`).
+- **Każde słowo musi istnieć w SGJP** — nazwa spoza słownika
+  (np. `arność`) nie odmienia się i psuje program w zaskakujących
+  miejscach. Sprawdź słowo przed użyciem (`redis-cli EXISTS
+  sgjp:f:słowo`) i wybierz synonim (np. `krotność`).
 - **Nazwa zmiennej nie może być liczebnikiem ani zaimkiem liczebnym** —
-  `ile`, `dwa` itp. czytają się jako liczby.
+  `ile`, `dwa`, `szereg` itp. czytają się jako liczby; interpreter
+  podpowie synonim (`spis`, `wykaz`).
 - **Nie nazywaj kolekcji liczbą mnogą nazwy będącej już w zasięgu** —
   `ogniwa` to także dopełniacz lp od `ogniwo`, więc lista `ogniwa` obok
-  parametru `ogniwo` skleja się z nim (objaw: błąd `occurs check`).
-  Daj kolekcji inną głowę rzeczownikową (`zbiór`, `spis`).
-- **W referencji gerundialnej do funkcji wielosegmentowej podkreślnik jest
-  obowiązkowy** — `z polubieniem_wpisu` to referencja do `polubić_wpis`,
-  ale `z polubieniem wpisu` (dwa słowa) może się sparsować jako odczyt
-  pola `polubienia` zmiennej `wpis`, jeśli takie pole istnieje — błąd
-  wyjdzie dopiero w typach, daleko od przyczyny.
+  parametru `ogniwo` skleja się z nim przez odczyt dopełniaczowy. Daj
+  kolekcji inną głowę rzeczownikową (`zbiór`, `spis`).
+- **Rzeczowniki odczasownikowe są pełnoprawnymi rzeczownikami** —
+  `polubienie` ma własny lemat; pole `polubienia` nie koliduje z funkcją
+  `polubić`. Za to w referencji gerundialnej do funkcji wielosegmentowej
+  podkreślnik jest obowiązkowy (`z polubieniem_wpisu`).
+- **Pusty tekst to `Nic`** — dopasowanie tekstu gałęzią `Niczym:` łapie
+  `""`; `"" równe Nic` daje `prawdę`.
+- **Indeksowanie list zaczyna się od jedynki** (`wskaż jeden na liście`).
 
 ---
 
 ## Przykłady
 
-Katalog `test/` to żywa dokumentacja — te pliki parsują się i typują
-obecnym interpreterem:
+Katalog `test/` to żywa dokumentacja — każdy plik `*.ć` uruchamia się
+obecnym interpreterem, a `*.wynik` pokazuje jego wyjście:
 
 | plik | co pokazuje |
 |---|---|
-| `test.ć` | minimalny przykład: unia, dopasowanie z `inaczej:` |
-| `warianty.ć` | unie, dopasowanie `jest:`, funkcje zewnętrzne |
-| `nic.ć` | `Nic` w uniach i wnioskowanie typu `Nic` |
-| `instagram.ć` | backend aplikacji: stan, operacje API, `?`, kontenery |
-| `analizator_morfologiczny.ć` | duży program: listy, słowniki, `Rezultat`, `?` |
-| `wyrażenia.ć` | parser wyrażeń: unie AST, try-calle, gramatyka jako jeden fold |
-| `fwr.ć` + `pojemniki.ć` | funkcje wyższego rzędu (fold, map, filter) i `uwzględnij` |
-| `parametryzowane.ć` | typy generyczne (mapy, drzewa AVL) |
-| `lista.ć`, `stos.ć`, `para.ć`, `słownik.ć` | proste struktury danych |
-| `łańcuchy_dopełniaczowe.ć` | dostęp do pól |
-| `las.ć`, `test_typów.ć`, `definicje.ć`, `bank.ć` | drobne scenariusze |
+| `wypisanie.ć`, `arytmetyka.ć`, `porównania.ć`, `logika.ć`, `dzielenie.ć` | podstawy: wypis, operatory |
+| `funkcje.ć`, `złączenie_parametrów.ć` | funkcje, argumenty przyimkowe |
+| `warunki.ć`, `pętla.ć`, `stop_dalej.ć`, `przypisania.ć` | sterowanie, przypisania |
+| `struktury.ć`, `unie.ć`, `dopasowanie.ć`, `jako.ć` | struktury, unie, dopasowanie |
+| `podmiot.ć`, `podmiot_wyrażenie.ć`, `przepisanie_podmiotu.ć`, `kursor.ć` | dopasowanie na wyrażeniu, zapis do podmiotu, idiom kursora |
+| `zawężenie.ć`, `przecięcie.ć`, `pierwszeństwo_unii.ć`, `dysjunkcja.ć`, `ujednoznacznienie.ć` | system typów w akcji |
+| `adnotowana_deklaracja.ć`, `adnotowane_przepisanie.ć`, `aliasy.ć` | adnotacje i aliasy |
+| `tożsamość.ć`, `cykl.ć` | `równe` vs `tożsame`, struktury cykliczne |
+| `tekst_lista.ć`, `znak.ć`, `znak_liczba.ć`, `łańcuchy.ć`, `dna.ć` | teksty, znaki, most Znak↔Liczba |
+| `kolekcje.ć`, `mapowanie.ć`, `aplikacja.ć` | funkcje wyższego rzędu |
+| `rezultat.ć`, `pliki.ć` | `Rezultat`, `?`, operacje na plikach |
+| `http.ć`, `brainfuck.ć`, `brainfuck_mutowalny.ć` | większe programy (parser HTTP, interpreter brainfucka) |
+
+Większe programy przykładowe leżą w `manual_test/` (nie są uruchamiane
+automatycznie): backend aplikacji instagramopodobnej (`instagram.ć`),
+parser JSON-a (`json.ć`), parser wyrażeń samego Ć (`wyrażenia.ć`),
+drzewa AVL (`parametryzowane.ć` + `użyj_drzewa.ć`), analizator
+morfologiczny (`analizator_morfologiczny.ć`).
 
 ---
 
 ## Struktura repozytorium
 
 ```
-gćć-python/        interpreter referencyjny + testy pytest
-test/              programy w Ć i podzbiór słownika do testów
-vscode-ć/          wtyczka VS Code (składnia + motyw biało-czerwony)
-sgjp.tab           pełny słownik SGJP (niewersjonowany)
-make_subset.py     generator podzbioru słownika
+gćć-python/        interpreter (lexer → morfologia → parser → typechecker → executor) + testy pytest
+test/              testy end-to-end języka (pary *.ć / *.wynik) + przygrywka.ć
+manual_test/       większe programy przykładowe
+vscode-ć/          wtyczka VS Code (kolorowanie składni)
+sgjp.tab           słownik SGJP (niewersjonowany, do pobrania z sgjp.pl)
+make_subset.py     generator podzbioru słownika do testów
 ```
-
-Testy interpretera: `cd gćć-python && python3 -m pytest -q` (pierwszy raz
-ładuje SGJP ~8 s; testy trybu redisowego pomijają się same, gdy Redis
-nie działa).
