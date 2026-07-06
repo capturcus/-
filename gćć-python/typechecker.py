@@ -66,12 +66,17 @@ _pary_żywe = []
 class Zmienna:
     """Węzeł grafu granic. `dolne`/`górne` to listy par (typ, nota) —
     nota niesie linię i kontekst powstania granicy (poszlaka).
-    `alternatywy`: None albo dict głowa→Konkret — dysjunkcja kandydatów."""
+    `alternatywy`: None albo dict głowa→Konkret — dysjunkcja kandydatów
+    (`alternatywy_nota` pamięta, skąd dysjunkcja pochodzi).
+    `etykieta`: ludzki opis zmiennej do komunikatów („parametr 'liczbę'
+    funkcji 'dodać'") zamiast surowego tN."""
     number: int
     dolne: list = field(default_factory=list)
     górne: list = field(default_factory=list)
     alternatywy: object = None
+    alternatywy_nota: object = None
     ślad: list = field(default_factory=list)
+    etykieta: object = None
 
     def __repr__(self):
         return f"t{self.number}"
@@ -93,9 +98,9 @@ class Konkret:
         return f"{self.głowa}[{', '.join(args)}]"
 
 
-def new_type():
+def new_type(etykieta=None):
     global last_type
-    v = Zmienna(number=last_type)
+    v = Zmienna(number=last_type, etykieta=etykieta)
     last_type += 1
     return v
 
@@ -256,14 +261,23 @@ def _unia_applied(głowa, env=None, bound=None):
                 if n in env:
                     captured = env[n]
                     break
-        args.append(captured if captured is not None else new_type())
+        args.append(captured if captured is not None
+                    else new_type(f"niejawny argument "
+                                  f"'{min(names, key=len)}' "
+                                  f"unii '{głowa}'"))
     return Konkret(głowa, tuple(args))
 
 
 def _instancja_struktury(sd):
     """Świeża instancja struktury: Konkret(nazwa, świeże argi) + env
     nazwa-parametru → arg."""
-    fresh = [new_type() for _ in sd.params]
+    nazwa = "".join(sd.name)
+    fresh = [
+        new_type(f"parametr "
+                 f"'{min(('' .join(l) for l in p.name.lemmas_set), key=len)}'"
+                 f" struktury '{nazwa}'")
+        for p in sd.params
+    ]
     env = {}
     for p, a in zip(sd.params, fresh):
         for lemmas in p.name.lemmas_set:
@@ -277,26 +291,141 @@ def _głowy_dolnych(var):
     return {t.głowa for t, _ in var.dolne if isinstance(t, Konkret)}
 
 
-def _poszlaki(var):
-    noty = [n for _, n in var.dolne if n] + [n for _, n in var.górne if n]
-    widziane, out = set(), []
-    for n in noty:
-        if n not in widziane:
-            widziane.add(n)
-            out.append(n)
+LIMIT_POSZLAK = 12
+
+
+def _opis_zmiennej(v):
+    return v.etykieta or f"zmienna typowa {v!r}"
+
+
+def _render_typu(t, widziane=None):
+    """Typ do komunikatu: argumenty konstruktorów zmaterializowane
+    (Ogniwo[Liczba], nie Ogniwo[t5]); zmienna → jej materializacja
+    albo '?'."""
+    if widziane is None:
+        widziane = set()
+    if isinstance(t, Zmienna):
+        if t in widziane:
+            return "…"
+        widziane.add(t)
+        try:
+            m = _zmaterializuj(t)
+        except TypeCheckError:
+            m = None
+        return _render_typu(m, widziane) if m is not None else "?"
+    if t is None:
+        return "?"
+    if not t.args:
+        return t.głowa
+    if t.głowa == ARROW:
+        args = [_render_typu(a, widziane) for a in t.args]
+        return f"({', '.join(args[:-1])}) → {args[-1]}"
+    return (t.głowa + "["
+            + ", ".join(_render_typu(a, widziane) for a in t.args) + "]")
+
+
+def _unia_ze_składem(h):
+    czł = członkowie(h)
+    if czł is None:
+        return h
+    return f"{h} ({' albo '.join(sorted(czł))})"
+
+
+def _poszlakownik(var):
+    """Pełny zrzut ograniczeń zmiennej: wszystkie granice z liniami —
+    programista sam wskazuje, która poszlaka jest błędna."""
+    linie = [f"{_opis_zmiennej(var)}:"]
+
+    def blok(tytuł, pary):
+        if not pary:
+            return
+        linie.append(f"  {tytuł}:")
+        for t, nota in pary[:LIMIT_POSZLAK]:
+            wiersz = f"    • {_render_typu(t)}"
+            if nota:
+                wiersz += f" — {nota}"
+            linie.append(wiersz)
+        if len(pary) > LIMIT_POSZLAK:
+            linie.append(f"    … i {len(pary) - LIMIT_POSZLAK} dalszych "
+                         f"(najstarsze pominięte)")
+
+    blok("wpływa do niej", var.dolne)
+    blok("wymaga się od niej", var.górne)
+    if var.alternatywy is not None:
+        opcje = ", ".join(sorted(var.alternatywy))
+        skąd = f" — {var.alternatywy_nota}" if var.alternatywy_nota else ""
+        linie.append(f"  możliwości (dysjunkcja): {opcje}{skąd}")
+    return "\n".join(linie)
+
+
+def _odległość(a, b):
+    """Odległość edycyjna (Levenshtein) — do podpowiedzi literówek."""
+    if abs(len(a) - len(b)) > 2:
+        return 3
+    poprz = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        bież = [i]
+        for j, cb in enumerate(b, 1):
+            bież.append(min(poprz[j] + 1, bież[-1] + 1,
+                            poprz[j - 1] + (ca != cb)))
+        poprz = bież
+    return poprz[-1]
+
+
+def _podobne(cel, kandydaci, prog=2):
+    """Kandydaci w odległości ≤ prog od celu, od najbliższych."""
+    trafienia = sorted(
+        ((k, _odległość(cel, k)) for k in kandydaci),
+        key=lambda p: p[1])
+    return [k for k, d in trafienia if d <= prog and k != cel][:3]
+
+
+def _sugestia_unii(głowy):
+    """Podpowiedź przy niełączliwych dolnych: prawie pasujące unie
+    (ze składem i brakami) + szablon deklaracji."""
+    linie = []
+    for decl in (module.body if module is not None else []):
+        if not isinstance(decl, ast.UnionDef):
+            continue
+        uh = "".join(decl.name)
+        czł = {"".join(m) for m in decl.members}
+        pokryte = {g for g in głowy if g == uh or g in czł}
+        if pokryte and pokryte != set(głowy):
+            poza = sorted(set(głowy) - pokryte)
+            linie.append(f"    • {_unia_ze_składem(uh)} — nie obejmuje: "
+                         f"{', '.join(poza)}")
+    out = (f"\n  żadna zadeklarowana unia nie łączy "
+           f"{{{', '.join(sorted(głowy))}}}")
+    if linie:
+        out += "; prawie pasują:\n" + "\n".join(linie)
+    out += (f"\n  jeśli to zamierzone, zadeklaruj unię: "
+            f"`NazwaUnii to {' albo '.join(sorted(głowy))}`")
     return out
 
 
 def _msg_konflikt(a, b, noty_a=(), noty_b=()):
-    msg = f"nie można zunifikować {a!r} z {b!r}"
+    msg = f"nie można zunifikować {_render_typu(a)} z {_render_typu(b)}"
     linie = []
     if noty_a:
-        linie.append(f"  poszlaki o {a!r}: " + "; ".join(noty_a[-8:]))
+        linie.append(f"  poszlaki o {_render_typu(a)}: "
+                     + "; ".join(noty_a[-LIMIT_POSZLAK:]))
     if noty_b:
-        linie.append(f"  poszlaki o {b!r}: " + "; ".join(noty_b[-8:]))
+        linie.append(f"  poszlaki o {_render_typu(b)}: "
+                     + "; ".join(noty_b[-LIMIT_POSZLAK:]))
     if linie:
         msg += " — zdecyduj, która poszlaka jest błędna:\n" + "\n".join(linie)
     return msg
+
+
+def _z_poszlakownikiem(e, var):
+    """Dołóż do błędu pełny zrzut ograniczeń zmiennej, przez którą
+    konflikt przepłynął (raz na zmienną, z limitem długości)."""
+    opis = _opis_zmiennej(var)
+    tekst = str(e)
+    if (not var.dolne and not var.górne) or opis in tekst \
+            or len(tekst) > 4000:
+        return e
+    return TypeCheckError(f"{tekst}\n{_poszlakownik(var)}")
 
 
 def _zawęź_alternatywy(var, głowa_faktu):
@@ -311,10 +440,13 @@ def _zawęź_alternatywy(var, głowa_faktu):
         or czy_głowa_podtypem(h, głowa_faktu)
     }
     if not zgodne:
-        opcje = ", ".join(sorted(var.alternatywy))
+        opcje = ", ".join(_unia_ze_składem(h)
+                          for h in sorted(var.alternatywy))
+        skąd = (f" ({var.alternatywy_nota})"
+                if var.alternatywy_nota else "")
         raise TypeCheckError(
             f"typ '{głowa_faktu}' nie pasuje do żadnej z możliwości "
-            f"{{{opcje}}} zebranych z wcześniejszych użyć")
+            f"{{{opcje}}} zebranych z wcześniejszych użyć{skąd}")
     var.alternatywy = zgodne
     if len(zgodne) == 1:
         (jedyna_inst,) = zgodne.values()
@@ -333,10 +465,15 @@ def _dodaj_dolną(var, typ):
         if len(nowe) > 1 and najmniejsza_unia(nowe) is None:
             stare = next(t for t, _ in var.dolne
                          if isinstance(t, Konkret) and t.głowa != ARROW)
-            raise TypeCheckError(_msg_konflikt(
-                stare, typ,
-                _poszlaki(var),
-                [_current_note] if _current_note else ()))
+            nadchodzi = f"\n  nadchodzi:\n    • {_render_typu(typ)}"
+            if _current_note:
+                nadchodzi += f" — {_current_note}"
+            nadchodzi += "   ← sprzeczna z powyższymi"
+            raise TypeCheckError(
+                f"nie można zunifikować {_render_typu(stare)} "
+                f"z {_render_typu(typ)} — zdecyduj, która poszlaka "
+                f"jest błędna:\n{_poszlakownik(var)}{nadchodzi}"
+                + _sugestia_unii(nowe))
         _zawęź_alternatywy(var, typ.głowa)
     var.dolne.append((typ, _current_note))
     if _current_note and _current_note not in var.ślad:
@@ -373,20 +510,30 @@ def ogranicz(pod, nad):
         # w obie strony.
         _dodaj_górną(pod, nad)
         _dodaj_dolną(nad, pod)
-        for d, nota in list(pod.dolne):
-            if d is not nad:
-                _przepchnij(d, nad, nota)
-        for g, nota in list(nad.górne):
-            if g is not pod:
-                _przepchnij(pod, g, nota)
+        try:
+            for d, nota in list(pod.dolne):
+                if d is not nad:
+                    _przepchnij(d, nad, nota)
+            for g, nota in list(nad.górne):
+                if g is not pod:
+                    _przepchnij(pod, g, nota)
+        except TypeCheckError as e:
+            raise _z_poszlakownikiem(_z_poszlakownikiem(e, pod), nad) \
+                from None
     elif isinstance(pod, Zmienna):
         if _dodaj_górną(pod, nad):
-            for d, nota in list(pod.dolne):
-                _przepchnij(d, nad, nota)
+            try:
+                for d, nota in list(pod.dolne):
+                    _przepchnij(d, nad, nota)
+            except TypeCheckError as e:
+                raise _z_poszlakownikiem(e, pod) from None
     else:
         if _dodaj_dolną(nad, pod):
-            for g, nota in list(nad.górne):
-                _przepchnij(pod, g, nota)
+            try:
+                for g, nota in list(nad.górne):
+                    _przepchnij(pod, g, nota)
+            except TypeCheckError as e:
+                raise _z_poszlakownikiem(e, nad) from None
 
 
 def _przepchnij(pod, nad, nota):
@@ -394,8 +541,11 @@ def _przepchnij(pod, nad, nota):
     try:
         ogranicz(pod, nad)
     except TypeCheckError as e:
+        # Kolejne poziomy dokładają swoje kroki — czytane od góry tworzą
+        # drogę wartości od źródła do pękającego slotu.
         if nota and nota not in str(e):
-            raise TypeCheckError(f"{e}\n  przez granicę: {nota}") from None
+            raise TypeCheckError(f"{e}\n  ↳ droga wartości: {nota}") \
+                from None
         raise
 
 
@@ -405,7 +555,10 @@ def _ogranicz_konkrety(pod, nad):
             raise TypeCheckError(_msg_konflikt(pod, nad))
         if len(pod.args) != len(nad.args):
             raise TypeCheckError(
-                f"niezgodna liczba argumentów funkcji: {pod!r} vs {nad!r}")
+                f"niezgodna liczba argumentów funkcji: wartość funkcyjna "
+                f"{_render_typu(pod)} przyjmuje {len(pod.args) - 1}, "
+                f"a użycie {_render_typu(nad)} wymaga "
+                f"{len(nad.args) - 1}")
         *pa, pret = pod.args
         *na, nret = nad.args
         for x, y in zip(pa, na):
@@ -427,6 +580,17 @@ def _ogranicz_konkrety(pod, nad):
             if i < len(pod.args) and j < len(nad.args):
                 _inwariantnie(nad.głowa, j, pod.args[i], nad.args[j])
         return
+    if członkowie(pod.głowa) is not None \
+            and czy_głowa_podtypem(nad.głowa, pod.głowa):
+        # Unia w slocie wariantu: w runtime wartość może być innym
+        # członkiem — podpowiedz zawężenie zamiast surowego konfliktu.
+        inni = sorted((członkowie(pod.głowa) or set()) - {nad.głowa})
+        raise TypeCheckError(
+            f"wartość typu unii '{_unia_ze_składem(pod.głowa)}' nie "
+            f"mieści się w slocie oczekującym dokładnie "
+            f"{_render_typu(nad)} — w runtime może być: "
+            f"{', '.join(inni)}; zawęź dopasowaniem `jest:` przed "
+            f"przekazaniem")
     raise TypeCheckError(_msg_konflikt(pod, nad))
 
 
@@ -464,10 +628,24 @@ def _zmaterializuj(t, wymagaj=False, widziane=None):
         return None
     widziane.add(t)
     if t.alternatywy is not None and len(t.alternatywy) > 1:
-        opcje = ", ".join(sorted(t.alternatywy))
+        opcje = ", ".join(_unia_ze_składem(h)
+                          for h in sorted(t.alternatywy))
+        skąd = (f" (możliwości zebrane: {t.alternatywy_nota})"
+                if t.alternatywy_nota else "")
+        # Dyskryminatory: członkowie występujący tylko w jednej opcji.
+        wskazówka = ""
+        składy = {h: (członkowie(h) or {h}) for h in t.alternatywy}
+        unikaty = []
+        for h, czł in składy.items():
+            reszta = set().union(*(c for g, c in składy.items() if g != h))
+            for w in sorted(czł - reszta):
+                unikaty.append(f"{w} (tylko {h})")
+        if unikaty:
+            wskazówka = (f"; rozstrzygnie użycie wariantu-dyskryminatora: "
+                         f"{', '.join(unikaty[:4])} — albo adnotacja")
         raise TypeCheckError(
-            f"typ pasuje do wielu możliwości: {opcje} — dodaj adnotację "
-            f"typu")
+            f"typ pasuje do wielu możliwości: {opcje}{skąd} — dodaj "
+            f"adnotację typu{wskazówka}")
     konkrety = [x for x, _ in t.dolne if isinstance(x, Konkret)]
     dolne_vars = [x for x, _ in t.dolne if isinstance(x, Zmienna)]
     for dv in dolne_vars:
@@ -483,8 +661,11 @@ def _zmaterializuj(t, wymagaj=False, widziane=None):
             return konkrety[0]
         unia = najmniejsza_unia(głowy)
         if unia is None:
-            raise TypeCheckError(_msg_konflikt(
-                konkrety[0], konkrety[-1], _poszlaki(t)))
+            raise TypeCheckError(
+                f"nie można zunifikować {_render_typu(konkrety[0])} "
+                f"z {_render_typu(konkrety[-1])} — zdecyduj, która "
+                f"poszlaka jest błędna:\n{_poszlakownik(t)}"
+                + _sugestia_unii(głowy))
         return _unia_applied(unia)
     górne = [x for x, _ in t.górne if isinstance(x, Konkret)]
     if górne:
@@ -550,7 +731,8 @@ class Scope:
                        for b in v.scope_keys):
                     return t
             s = s.parent
-        new_t = new_type()
+        new_t = new_type(f"zmienna '{'_'.join(identifier.surface)}'"
+                         + (f" ({_ctx_fun})" if _ctx_fun else ""))
         self.types.append((identifier, new_t))
         return new_t
 
@@ -582,7 +764,8 @@ class Scope:
         t = self._find(identifier)
         if t is not None:
             return t
-        new_t = new_type()
+        new_t = new_type(f"zmienna '{'_'.join(identifier.surface)}'"
+                         + (f" ({_ctx_fun})" if _ctx_fun else ""))
         self.types.append((identifier, new_t))
         return new_t
 
@@ -634,9 +817,10 @@ def _kopiuj(t, memo):
         return Konkret(t.głowa, tuple(_kopiuj(a, memo) for a in t.args))
     if t in memo:
         return memo[t]
-    n = new_type()
+    n = new_type(t.etykieta)
     memo[t] = n
     n.ślad = list(t.ślad)
+    n.alternatywy_nota = t.alternatywy_nota
     if t.alternatywy is not None:
         n.alternatywy = {h: _kopiuj(k, memo)
                          for h, k in t.alternatywy.items()}
@@ -671,8 +855,12 @@ def elaborate(tref, env, fresh_unknown=False, alias_args=False):
             if tref.args and not (alias_args
                                   or all(ta.name is not None
                                          for ta in tref.args)):
+                params = _union_param_names(h)
+                przykład = (min(params[0], key=len) if params else "NAZWIE")
                 raise TypeCheckError(
-                    f"typ wariantowy '{h}' nie przyjmuje argumentów typu")
+                    f"typ wariantowy '{h}' nie przyjmuje argumentów typu "
+                    f"pozycyjnych — aplikacja na unii jest wyłącznie "
+                    f"nazwana: `{h} o {przykład} Typ`")
             bound = {
                 "".join(ta.name): elaborate(ta.type, env, fresh_unknown,
                                             alias_args=True)
@@ -682,8 +870,13 @@ def elaborate(tref, env, fresh_unknown=False, alias_args=False):
                 znane = _union_param_names(h)
                 for nm in bound:
                     if not any(nm in names for names in znane):
-                        dostępne = ", ".join(
-                            sorted(min(ns, key=len) for ns in znane)) or "brak"
+                        opisy = []
+                        for i in range(len(znane)):
+                            pname, origin = _param_pedigree(h, i)
+                            if pname:
+                                opisy.append(f"{pname} (z definicji "
+                                             f"{origin})")
+                        dostępne = ", ".join(opisy) or "brak"
                         raise TypeCheckError(
                             f"typ wariantowy '{h}' nie ma parametru '{nm}' "
                             f"— parametry: {dostępne}")
@@ -763,8 +956,15 @@ def _validate_alias_tref(tref, seen):
                 raise TypeCheckError(
                     f"typ wbudowany '{h}' nie przyjmuje argumentów typu")
             return
+        znane_typy = {"".join(d.name) for d in module.body
+                      if isinstance(d, (ast.StructDef, ast.UnionDef,
+                                        ast.TypeAlias))} | BUILTINS
+        sugestie = _podobne(h, znane_typy)
+        hint = (f" — czy chodziło o "
+                f"{', '.join(repr(s) for s in sugestie)}?"
+                if sugestie else "")
         raise TypeCheckError(
-            f"nieznany typ '{h}' w deklaracji aliasu '{seen[0]}'")
+            f"nieznany typ '{h}' w deklaracji aliasu '{seen[0]}'{hint}")
     if sd is not None:
         params = [frozenset("".join(l) for l in p.name.lemmas_set)
                   for p in sd.params]
@@ -894,17 +1094,24 @@ def resolve_module(node):
     for decl in node.body:
         if isinstance(decl, ast.FunctionDef):
             fenv = {}
+            fname = "_".join(decl.name.surface)
             arg_types = [
                 elaborate(p.type, fenv, fresh_unknown=True)
-                if p.type is not None else new_type()
+                if p.type is not None else new_type(
+                    f"parametr '{'_'.join(p.name.surface)}' "
+                    f"funkcji '{fname}'")
                 for p in decl.params
             ]
             if decl.return_type is not None:
                 ret = elaborate(decl.return_type, fenv, fresh_unknown=True)
                 annotated = True
             else:
-                ret = new_type()
+                ret = new_type(f"wynik funkcji '{fname}'")
                 annotated = False
+            for h, v in fenv.items():
+                if isinstance(v, Zmienna) and v.etykieta is None:
+                    v.etykieta = (f"parametr typu '{h}' sygnatury "
+                                  f"'{fname}'")
             fdt = FunDefTypes(name=decl.name, arg_types=arg_types,
                               ret_type=ret, ret_annotated=annotated)
             fun_decls.append((decl.name, fdt))
@@ -918,6 +1125,11 @@ def resolve_module(node):
                 ret_type=elaborate(decl.return_type, fenv,
                                    fresh_unknown=True),
                 ret_annotated=True, extern=True)
+            fname = "_".join(decl.name.surface)
+            for h, v in fenv.items():
+                if isinstance(v, Zmienna) and v.etykieta is None:
+                    v.etykieta = (f"parametr typu '{h}' sygnatury "
+                                  f"externa '{fname}'")
             fun_decls.append((decl.name, fdt))
 
     scopes = {}
@@ -931,7 +1143,14 @@ def resolve_module(node):
             resolve_function_def(decl, scope)
             if not _returns_totally(decl.body):
                 _set_note(f"niejawny zwrot Nic z '{_ctx_fun}'")
-                ogranicz(Konkret("Nic"), fdt.ret_type)
+                try:
+                    ogranicz(Konkret("Nic"), fdt.ret_type)
+                except TypeCheckError as e:
+                    raise TypeCheckError(
+                        f"funkcja '{_ctx_fun}' jest częściowa: któraś "
+                        f"ścieżka nie kończy się `zwróć`, więc zwraca "
+                        f"Nic — dopisz `zwróć` na końcu albo zadeklaruj "
+                        f"unię z Nic — {e}") from None
     _bieżąca_składowa = set()
     fun_scopes = [(decl, scopes[i])
                   for i, (decl, _) in enumerate(module_funcs)]
@@ -972,11 +1191,29 @@ def _check_grounded(decl, scope):
                 line = getattr(ident, "line", None)
                 ślad = _ślady_z_grafu(t) if isinstance(t, Zmienna) else []
                 źródło = ("; " + "; ".join(ślad[-4:])) if ślad else ""
+                # Klasyfikacja przyczyny po kształcie grafu granic.
+                przyczyna = ""
+                rada = "użyj wartości strukturalnie albo dodaj adnotację typu"
+                zrzut = ""
+                if isinstance(t, Zmienna):
+                    if (not t.dolne and not t.górne
+                            and t.alternatywy is None and not t.ślad):
+                        przyczyna = ("nigdzie nie otrzymuje wartości ani "
+                                     "nie jest wymagana — martwa zmienna? ")
+                        rada = ("usuń ją albo nadaj jej wartość")
+                    elif not any(isinstance(d, Konkret) or
+                                 isinstance(d, Zmienna)
+                                 for d, _ in t.dolne) and t.górne:
+                        przyczyna = "znana wyłącznie z wymagań — "
+                        rada = ("domyślkowanie niejednoznaczne; dodaj "
+                                "adnotację typu")
+                    if t.dolne or t.górne or t.alternatywy is not None:
+                        zrzut = "\n" + _poszlakownik(t)
                 raise TypeCheckError(
                     f"nie można wywnioskować konkretnego typu zmiennej "
                     f"'{'_'.join(ident.surface)}' (linia {line}); "
-                    f"pozostało {t!r}{źródło} — użyj wartości "
-                    f"strukturalnie albo dodaj adnotację typu")
+                    f"{przyczyna}pozostało {t!r}{źródło}"
+                    f"{zrzut}\n  — {rada}")
 
 
 # ---------- funkcje i instrukcje ----------
@@ -1095,6 +1332,22 @@ def resolve_while(node, scope):
 
 # ---------- dopasowanie `jest:` ----------
 
+def _nota_o_głowie(t, głowa):
+    """Nota granicy, która wprowadziła daną głowę na zmienną — „skąd
+    wiadomo, że wartość jest tego typu"."""
+    if not isinstance(t, Zmienna):
+        return None
+    for d, n in list(t.dolne) + list(t.górne):
+        if isinstance(d, Konkret) and d.głowa == głowa and n:
+            return n
+    for d, _ in t.dolne:
+        if isinstance(d, Zmienna):
+            n = _nota_o_głowie(d, głowa)
+            if n:
+                return n
+    return None
+
+
 def _głowy_znane(t):
     """Głowy konkretów znanych o typie (materializacja miękka) — do
     rozstrzygania kandydatów dopasowań i łańcuchów."""
@@ -1153,19 +1406,43 @@ def _union_for_match(subject_t, branch_heads, line):
             if czł is not None:
                 brakuje = czł - branch_set
                 nadmiar = branch_set - czł
+                skąd = _nota_o_głowie(subject_t, głowa)
+                pochodzenie = (f" (podmiot jest "
+                               f"'{_unia_ze_składem(głowa)}'"
+                               + (f"; skąd: {skąd}" if skąd else "") + ")")
                 if brakuje:
                     raise TypeCheckError(
                         f"dopasowanie 'jest:' (linia {line}) na wartości "
-                        f"typu '{głowa}' — brakuje gałęzi: "
-                        f"{', '.join(sorted(brakuje))}")
+                        f"typu '{głowa}'{pochodzenie} — brakuje gałęzi: "
+                        f"{', '.join(sorted(brakuje))} (dopisz je albo "
+                        f"dodaj `inaczej:`)")
                 if nadmiar:
                     raise TypeCheckError(
                         f"dopasowanie 'jest:' (linia {line}) ma gałęzie "
-                        f"spoza unii: {', '.join(sorted(nadmiar))}")
+                        f"spoza unii: {', '.join(sorted(nadmiar))}"
+                        f"{pochodzenie}")
+        # Prawie-trafienia: unie o niepustym przecięciu z gałęziami.
+        blisko = []
+        for decl in module.body:
+            if not isinstance(decl, ast.UnionDef):
+                continue
+            czł = {"".join(m) for m in decl.members}
+            if czł & branch_set:
+                braki = sorted(czł - branch_set)
+                nadmiar = sorted(branch_set - czł)
+                opis = _unia_ze_składem("".join(decl.name))
+                szczegóły = []
+                if braki:
+                    szczegóły.append(f"brakuje: {', '.join(braki)}")
+                if nadmiar:
+                    szczegóły.append(f"nadmiarowe: {', '.join(nadmiar)}")
+                blisko.append(f"    • {opis} — {'; '.join(szczegóły)}")
+        podpowiedź = ("\n  najbliżej:\n" + "\n".join(blisko[:4])
+                      if blisko else "")
         raise TypeCheckError(
             f"gałęzie dopasowania 'jest:' (linia {line}) — "
             f"{', '.join(sorted(branch_set))} — nie odpowiadają członkom "
-            f"żadnego zadeklarowanego typu wariantowego")
+            f"żadnego zadeklarowanego typu wariantowego{podpowiedź}")
     opts = ", ".join(sorted("".join(c.name) for c in cands))
     raise TypeCheckError(
         f"dopasowanie 'jest:' (linia {line}) pasuje do wielu typów "
@@ -1228,6 +1505,8 @@ def resolve_match(node, scope):
             if isinstance(subject_t, Zmienna):
                 alt = {"".join(c.name): _unia_applied("".join(c.name))
                        for c in cands}
+                subject_t.alternatywy_nota = (
+                    f"dopasowanie z 'inaczej:' (linia {node.line})")
                 if subject_t.alternatywy is None:
                     subject_t.alternatywy = alt
                 else:
@@ -1266,9 +1545,20 @@ def resolve_match(node, scope):
         for fid in br.fields:
             f = _find_field_for_ident(sd, fid)
             if f is None:
+                pola = ", ".join(
+                    f"{'_'.join(pf.name.surface)} "
+                    f"({'_'.join(pf.type.head)})"
+                    for pf in sd.fields) or "brak pól"
+                sugestia = _podobne(
+                    "_".join(fid.surface),
+                    ["_".join(pf.name.surface) for pf in sd.fields])
+                hint = (f"; czy chodziło o "
+                        f"{', '.join(repr(s) for s in sugestia)}?"
+                        if sugestia else "")
                 raise TypeCheckError(
                     f"'{'_'.join(fid.surface)}' nie jest polem struktury "
-                    f"'{'_'.join(br.type_name)}' (linia {br.line})")
+                    f"'{'_'.join(br.type_name)}' (linia {br.line}) — "
+                    f"{'_'.join(br.type_name)} ma pola: {pola}{hint}")
             br_scope.declare(fid, elaborate(f.type, env))
         if br.alias is not None:
             br_scope.declare(br.alias, inst)
@@ -1412,7 +1702,20 @@ def resolve_function_call(node, scope):
     for i, (slot, p) in enumerate(zip(arg_types, node.params)):
         t = resolve_expression(p, scope)
         _set_note(f"argument {i + 1} wywołania '{fname}'")
-        ogranicz(t, slot)
+        try:
+            ogranicz(t, slot)
+        except TypeCheckError as e:
+            if f"wywołania '{fname}'" in str(e).splitlines()[0]:
+                raise
+            oczekiwano = _render_typu(slot)
+            otrzymano = _render_typu(t)
+            kontrast = ""
+            if oczekiwano != "?" and otrzymano != "?":
+                kontrast = (f": oczekiwano {oczekiwano}, "
+                            f"otrzymano {otrzymano}")
+            raise TypeCheckError(
+                f"argument {i + 1} wywołania '{fname}'{kontrast} — {e}"
+            ) from None
     return ret_type
 
 
@@ -1561,6 +1864,43 @@ def _jako_struktura(t):
     return sd, env
 
 
+def _wspólne_pola(głowy_członków):
+    """Pola (powierzchnie) wspólne wszystkim wariantom-strukturom unii —
+    dostępne bez zawężania."""
+    zbiory = []
+    for g in głowy_członków:
+        sd = find_struct_def((g,))
+        if sd is None:
+            return set()
+        zbiory.append({"_".join(pf.name.surface) for pf in sd.fields})
+    return set.intersection(*zbiory) if zbiory else set()
+
+
+def _diagnoza_łańcucha(chain, struct):
+    """Gdzie łańcuch pęka na danym kandydacie — do listy powodów
+    w błędzie „żadna nie domyka"."""
+    cur_sd = struct
+    cur_env = {}
+    poprzednie = "_".join(struct.name)
+    for ident in reversed(chain):
+        nazwa = "_".join(ident.surface)
+        if cur_sd is None:
+            return (f"'{poprzednie}' nie jest strukturą — nie można "
+                    f"czytać z niego pola '{nazwa}'")
+        f = _find_field_for_ident(cur_sd, ident)
+        if f is None:
+            pola = ", ".join("_".join(pf.name.surface)
+                             for pf in cur_sd.fields) or "brak"
+            return (f"struktura '{''.join(cur_sd.name)}' nie ma pola "
+                    f"'{nazwa}' (ma: {pola})")
+        wynik = elaborate(f.type, cur_env)
+        poprzednie = nazwa
+        cur_sd, cur_env = _jako_struktura(wynik)
+        if cur_sd is None and isinstance(wynik, Konkret):
+            poprzednie = f"{nazwa} ({wynik.głowa})"
+    return "domyka się"
+
+
 def resolve_getter_chain(node, scope):
     penultimate_word = node.chain[-2]
     structs = _struktury_z_polem(penultimate_word)
@@ -1575,10 +1915,24 @@ def resolve_getter_chain(node, scope):
         surfaces = " ".join("_".join(w.surface) for w in node.chain)
         if structs:
             cand = ", ".join(sorted("_".join(s.name) for s in structs))
+            powody = "\n".join(
+                f"    • {'_'.join(s.name)}: "
+                f"{_diagnoza_łańcucha(node.chain[:-1], s)}"
+                for s in structs[:4])
             detail = (f"pole '{field_surface}' mają struktury: {cand}, "
-                      f"ale żadna nie domyka dalszej części łańcucha")
+                      f"ale żadna nie domyka dalszej części łańcucha:\n"
+                      f"{powody}")
         else:
-            detail = f"żadna struktura nie ma pola '{field_surface}'"
+            wszystkie_pola = {
+                "_".join(pf.name.surface)
+                for decl in module.body if isinstance(decl, ast.StructDef)
+                for pf in decl.fields}
+            sugestie = _podobne(field_surface, wszystkie_pola)
+            hint = (f"; czy chodziło o "
+                    f"{', '.join(repr(s) for s in sugestie)}?"
+                    if sugestie else "")
+            detail = (f"żadna struktura nie ma pola "
+                      f"'{field_surface}'{hint}")
         raise TypeCheckError(
             f"nie można zresolvować łańcucha dopełniaczowego '{surfaces}' "
             f"(linia {line}) — {detail}")
@@ -1609,14 +1963,36 @@ def resolve_getter_chain(node, scope):
                         if "".join(s.name) in czł)
                     if warianty:
                         nic = " (może być Niczym)" if "Nic" in czł else ""
+                        skąd = _nota_o_głowie(base_t, głowa)
+                        pochodzenie = (f"; wartość stała się unią: {skąd}"
+                                       if skąd else "")
+                        wspólne = _wspólne_pola(czł)
+                        dostępne = (f"; bez zawężenia dostępne pola "
+                                    f"wspólne wariantom: "
+                                    f"{', '.join(sorted(wspólne))}"
+                                    if wspólne else "")
                         raise TypeCheckError(
                             f"pole '{field_surface}' czytane z wartości "
-                            f"typu unii '{głowa}'{nic} (linia {line}) — "
-                            f"zawęź dopasowaniem `jest:`; pole ma wariant "
-                            f"{', '.join(warianty)}")
+                            f"typu unii '{_unia_ze_składem(głowa)}'{nic} "
+                            f"(linia {line}) — zawęź dopasowaniem "
+                            f"`jest:`; pole ma wariant "
+                            f"{', '.join(warianty)}"
+                            f"{pochodzenie}{dostępne}")
+            zrzut = ("\n" + _poszlakownik(base_t)
+                     if isinstance(base_t, Zmienna)
+                     and (base_t.dolne or base_t.górne) else "")
+            pola_typu = ""
+            for głowa in sorted(znane):
+                sd_znany = find_struct_def((głowa,))
+                if sd_znany is not None:
+                    pola_typu = (f"; '{głowa}' ma pola: "
+                                 + (", ".join(
+                                     "_".join(pf.name.surface)
+                                     for pf in sd_znany.fields) or "brak"))
             raise TypeCheckError(
                 f"pole '{field_surface}' (linia {line}) nie występuje "
-                f"w typie {sorted(znane)} podstawy łańcucha")
+                f"w typie {sorted(znane)} podstawy łańcucha"
+                f"{pola_typu}{zrzut}")
         candidates = przeżyli
     if len(candidates) == 1:
         s, base_inst, result_t = candidates[0]
@@ -1628,6 +2004,8 @@ def resolve_getter_chain(node, scope):
     # z dysjunkcją głów wyników (rozstrzygną inne wystąpienia).
     if isinstance(base_t, Zmienna):
         alt = {"".join(s.name): inst for s, inst, _ in candidates}
+        base_t.alternatywy_nota = (f"łańcuch '{field_surface} …' "
+                                   f"(linia {line})")
         if base_t.alternatywy is None:
             base_t.alternatywy = alt
         else:
@@ -1640,7 +2018,9 @@ def resolve_getter_chain(node, scope):
                     wybrany = next(c for c in candidates
                                    if "".join(c[0].name) == h)
                     return wybrany[2]
-    wynik = new_type()
+    wynik = new_type(f"wynik łańcucha '{field_surface} …' (linia {line})")
+    wynik.alternatywy_nota = (f"łańcuch '{field_surface} …' o wielu "
+                              f"kandydatach (linia {line})")
     for _, _, rt in candidates:
         m = rt if isinstance(rt, Konkret) else _zmaterializuj(rt)
         if m is not None:

@@ -79,9 +79,12 @@ def test_unify_error_lists_clues_about_both_sides(parse):
         typechecker.resolve_module(parse(src))
     msg = str(ei.value)
     assert "nie można zunifikować" in msg
-    assert "poszlaki o" in msg
-    assert "linia 2" in msg          # pierwsze przypisanie (Liczba)
+    assert "zmienna 'rzecz'" in msg          # etykieta zamiast tN
+    assert "wpływa do niej" in msg           # poszlakownik: pełne granice
+    assert "linia 2" in msg                  # pierwsze przypisanie (Liczba)
     assert "przypisanie do 'rzecz'" in msg
+    assert "← sprzeczna" in msg              # nadchodząca granica oznaczona
+    assert "zadeklaruj unię" in msg          # sugestia naprawy
 
 
 # =====================================================================
@@ -209,9 +212,9 @@ def test_chain_on_union_value_suggests_narrowing(parse):
     )
     with pytest.raises(
         typechecker.TypeCheckError,
-        match=r"pole 'imię' czytane z wartości typu unii 'Zwierzę' "
-              r"\(linia 14\) — zawęź dopasowaniem `jest:`; "
-              r"pole ma wariant Kot",
+        match=r"(?s)pole 'imię' czytane z wartości typu unii "
+              r"'Zwierzę \(Kot albo Pies\)'.*zawęź dopasowaniem "
+              r"`jest:`.*pole ma wariant Kot.*wartość stała się unią",
     ):
         typechecker.resolve_module(parse(src))
 
@@ -230,8 +233,8 @@ def test_chain_on_union_with_nic_mentions_nic(parse):
     )
     with pytest.raises(
         typechecker.TypeCheckError,
-        match=r"pole 'głowa' czytane z wartości typu unii 'Lista' "
-              r"\(może być Niczym\)",
+        match=r"(?s)pole 'głowa' czytane z wartości typu unii "
+              r"'Lista \(Nic albo Ogniwo\)' \(może być Niczym\)",
     ):
         typechecker.resolve_module(parse(src))
 
@@ -303,8 +306,8 @@ def test_grounding_error_names_extern_origin(parse):
     )
     with pytest.raises(
         typechecker.TypeCheckError,
-        match=r"nie można wywnioskować konkretnego typu zmiennej 'wynik'.*"
-              r"pochodzi z externa 'zapisz' \(czysta świeżość\).*"
+        match=r"(?s)nie można wywnioskować konkretnego typu zmiennej "
+              r"'wynik'.*pochodzi z externa 'zapisz' \(czysta świeżość\).*"
               r"użyj wartości strukturalnie albo dodaj adnotację",
     ):
         typechecker.resolve_module(parse(src))
@@ -494,3 +497,83 @@ def test_match_binding_without_shadowing_is_silent(parse, capsys):
     )
     parse(src)
     assert "OSTRZEŻENIE" not in capsys.readouterr().err
+
+
+# =====================================================================
+# MLsub — nowa diagnostyka (komunikaty_błędów.md po migracji)
+# =====================================================================
+
+@pytest.mark.integration
+def test_kontrast_oczekiwane_otrzymane_w_argumencie(parse):
+    src = (
+        "aby brać x (Znak) -> Znak:\n"
+        "    zwróć x\n"
+        "\n"
+        "aby działać:\n"
+        "    y to bierz pięć\n"
+    )
+    with pytest.raises(
+        typechecker.TypeCheckError,
+        match=r"argument 1 wywołania 'bierz': oczekiwano Znak, "
+              r"otrzymano Liczba",
+    ):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_prawie_trafienia_unii_w_dopasowaniu(parse):
+    src = (
+        "definicja Kota:\n    imię (Znak)\n"
+        "\n"
+        "definicja Psa:\n    kość (Znak)\n"
+        "\n"
+        "definicja Chomika:\n    futro (Znak)\n"
+        "\n"
+        "Zwierzę to Kot albo Pies\n"
+        "\n"
+        "aby badać coś:\n"
+        "    coś jest:\n"
+        "        Kotem:\n"
+        "            zwróć jeden\n"
+        "        Chomikiem:\n"
+        "            zwróć dwa\n"
+    )
+    with pytest.raises(
+        typechecker.TypeCheckError,
+        match=r"(?s)nie odpowiadają członkom.*najbliżej:.*"
+              r"Zwierzę \(Kot albo Pies\) — brakuje: Pies; "
+              r"nadmiarowe: Chomik",
+    ):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_dyskryminatory_przy_nierozstrzygniętej_dysjunkcji(parse):
+    src = (
+        "definicja Sukcesu z elementem:\n    wartość (element)\n"
+        "\n"
+        "definicja Błędu:\n    numer (Liczba)\n"
+        "\n"
+        "definicja Porażki:\n    powód (Znak)\n"
+        "\n"
+        "Rezultat to Sukces albo Błąd\n"
+        "Wynik to Sukces albo Porażka\n"
+        "\n"
+        "aby wytwarzać coś:\n"
+        "    zwróć coś\n"
+        "\n"
+        "aby działać:\n"
+        "    tajemnica to wytwarzaj pięć\n"
+        "    tajemnica jest:\n"
+        "        Sukcesem:\n"
+        "            x to jeden\n"
+        "        inaczej:\n"
+        "            x to dwa\n"
+    )
+    with pytest.raises(
+        typechecker.TypeCheckError,
+        match=r"(?s)pasuje do wielu możliwości.*"
+              r"możliwości zebrane: dopasowanie z 'inaczej:'.*"
+              r"wariantu-dyskryminatora: Błąd \(tylko Rezultat\)",
+    ):
+        typechecker.resolve_module(parse(src))
