@@ -122,6 +122,42 @@ def test_lex_string_empty():
     assert text_values == [""]
 
 
+# ---------- Literał znakowy (pojedyncze cudzysłowy) ----------
+
+def test_lex_char_literal():
+    toks = lexer.lex("x to 'a'\n")
+    char_values = [t[1] for t in toks if t[0] is lexer.Token.CHAR]
+    assert char_values == ["a"]
+
+
+def test_lex_char_literal_polish_letter():
+    toks = lexer.lex("x to 'ó'\n")
+    char_values = [t[1] for t in toks if t[0] is lexer.Token.CHAR]
+    assert char_values == ["ó"]
+
+
+def test_lex_char_literal_with_escape():
+    toks = lexer.lex("x to '\\n'\n")
+    char_values = [t[1] for t in toks if t[0] is lexer.Token.CHAR]
+    assert char_values == ["\n"]
+
+
+def test_lex_char_literal_quote_escape():
+    toks = lexer.lex("x to '\\''\n")
+    char_values = [t[1] for t in toks if t[0] is lexer.Token.CHAR]
+    assert char_values == ["'"]
+
+
+def test_lex_char_literal_multichar_raises():
+    with pytest.raises(ast.InterpreterError, match="dokładnie jeden znak"):
+        lexer.lex("x to 'ab'\n")
+
+
+def test_lex_char_literal_empty_raises():
+    with pytest.raises(ast.InterpreterError, match="dokładnie jeden znak"):
+        lexer.lex("x to ''\n")
+
+
 def test_lex_colon_split_from_preceding_word():
     toks = lexer.lex("klienta:\n")
     kinds = [t[0] for t in toks]

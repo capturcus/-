@@ -1,3 +1,5 @@
+uwzględnij przygrywka.ć
+
 # Typechecker przecięciowy: `pupil` bez adnotacji dostaje dwa ograniczenia
 # górne (≤ Domownik z pierwszego wywołania, ≤ Futrzak z drugiego); ich
 # przecięcie {Kot} to jedyny typ argumentu — wywołanie z Kotem przechodzi

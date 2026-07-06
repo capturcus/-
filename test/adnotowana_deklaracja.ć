@@ -1,3 +1,5 @@
+uwzględnij przygrywka.ć
+
 # Adnotowana deklaracja (`zwierzę (Zwierzę) to ...`) — cel przypisania to
 # węzeł Typed, który executor rozpakowuje (adnotacja bez znaczenia w runtime).
 # Dawniej: AttributeError w execute_block (bad/adnotowana_deklaracja.ć).

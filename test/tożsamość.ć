@@ -1,3 +1,5 @@
+uwzględnij przygrywka.ć
+
 # `równe` = równość STRUKTURALNA (skrót tożsamościowy, rekurencja po polach,
 # cykle bezpieczne), `tożsame` = równość REFERENCYJNA (ten sam obiekt;
 # wartości proste po wartości). Rozstrzygnięcie bad/równość_struktur.ć.

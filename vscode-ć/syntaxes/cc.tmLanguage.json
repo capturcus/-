@@ -25,7 +25,18 @@
       "patterns": [
         {
           "name": "constant.character.escape.cc",
-          "match": "\\\\[nrt\\\\\"0]"
+          "match": "\\\\[nrt\\\\\"'0]"
+        }
+      ]
+    },
+    {
+      "name": "string.quoted.single.cc",
+      "begin": "'",
+      "end": "'",
+      "patterns": [
+        {
+          "name": "constant.character.escape.cc",
+          "match": "\\\\[nrt\\\\\"'0]"
         }
       ]
     },

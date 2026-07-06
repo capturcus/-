@@ -1,3 +1,5 @@
+uwzględnij przygrywka.ć
+
 # Odroczona alternatywa więzów: chain `lewy_syn drzewa` ma dwóch kandydatów
 # (Drzewo i Węzeł), więc `filar` startuje jako dysjunkcja typów ich pól
 # {Drzewo | Gałąź}. Przybycie konkretu (`filar to Węzeł ...`) rozstrzyga:

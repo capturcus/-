@@ -1,3 +1,5 @@
+uwzględnij przygrywka.ć
+
 # Niejawne parametry unii nie zabijają mapy zmieniającej typ elementu:
 # ukryte argumenty unii są świeże per wystąpienie (równości wyprowadza
 # ciało), więc `mapować : ∀a,b. (Ogon[a], a→b) → Ogon[b]` — lista Liczb

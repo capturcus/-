@@ -362,6 +362,11 @@ class StrLit:
 
 
 @dataclass
+class CharLit:
+    value: str  # dokładnie jeden znak
+
+
+@dataclass
 class BoolLit:
     value: bool
 

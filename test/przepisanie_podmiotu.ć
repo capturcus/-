@@ -1,3 +1,5 @@
+uwzględnij przygrywka.ć
+
 # Zapis do nazwy podmiotu w gałęzi jest widoczny PO bloku dopasowania:
 # pierwszy match podmienia zwierzę na Psa, drugi widzi już Psa. Typ
 # zewnętrzny akumuluje zapis (Zwierzę), więc oba matche są wyczerpujące.

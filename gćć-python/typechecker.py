@@ -911,12 +911,16 @@ def resolve_expression(node, scope):
     if isinstance(node, ast.IntLit):
         return variant(["Liczba"])
     if isinstance(node, ast.StrLit):
-        # Moduł z aliasem `Tekst` (przygrywka): literał tekstowy jest listą
-        # znaków — typ przez przezroczystą ekspansję aliasu. Bez aliasu
-        # Tekst pozostaje wbudowanym konkretem.
-        if find_type_alias("Tekst") is not None:
-            return elaborate(ast.TypeRef(head=("Tekst",), args=[]), {})
-        return variant(["Tekst"])
+        # Literał tekstowy jest listą znaków — typ przez przezroczystą
+        # ekspansję aliasu `Tekst` (przygrywka). `Tekst` nie jest już
+        # typem wbudowanym, więc bez aliasu literał nie ma typu.
+        if find_type_alias("Tekst") is None:
+            raise TypeCheckError(
+                "literał tekstowy wymaga aliasu typu 'Tekst' "
+                "(np. uwzględnij przygrywka.ć)")
+        return elaborate(ast.TypeRef(head=("Tekst",), args=[]), {})
+    if isinstance(node, ast.CharLit):
+        return variant(["Znak"])
     if isinstance(node, ast.BoolLit):
         return variant(["Przełącznik"])
 
@@ -1498,7 +1502,7 @@ def find_field(struct_def, field_key):
     return None
 
 
-BUILTINS = {"Liczba", "Tekst", "Przełącznik", "Nic", "Znak"}
+BUILTINS = {"Liczba", "Przełącznik", "Nic", "Znak"}
 
 
 def _struct_env(struct_def, args):

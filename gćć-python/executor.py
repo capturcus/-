@@ -46,8 +46,8 @@ def _field_set(struct, keys, value):
     raise RuntimeError(f"pole nie znalezione {keys}")
 
 # Moduł z aliasem `Tekst` (przygrywka) reprezentuje tekst listą znaków:
-# (nazwa ogniwa, klucz pola-głowy, klucz pola-ogona). None → Tekst
-# wbudowany (skalarny string, dotychczasowe zachowanie).
+# (nazwa ogniwa, klucz pola-głowy, klucz pola-ogona). None → moduł bez
+# aliasu `Tekst` (literały tekstowe są wtedy nielegalne — typechecker).
 tekst_lista = None
 
 def _wykryj_tekst_listowy(module_node):
@@ -207,9 +207,14 @@ class RuntimeScope:
 
 def execute_expression(expr_node, scope):
     if isinstance(expr_node, ast.StrLit):
-        if tekst_lista is not None:
-            return _lista_znaków(str(expr_node.value))
-        return RuntimeValue(value=str(expr_node.value), type="Tekst")
+        # Typechecker gwarantuje alias `Tekst` w module z literałem
+        # tekstowym; None zostaje tylko gdy alias nie opisuje listy znaków.
+        if tekst_lista is None:
+            raise RuntimeError(
+                "literał tekstowy: alias 'Tekst' nie opisuje listy znaków")
+        return _lista_znaków(str(expr_node.value))
+    if isinstance(expr_node, ast.CharLit):
+        return RuntimeValue(value=expr_node.value, type="Znak")
     if isinstance(expr_node, ast.IntLit):
         return RuntimeValue(value=int(expr_node.value), type="Liczba")
     if isinstance(expr_node, ast.BoolLit):

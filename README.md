@@ -7,11 +7,11 @@ w zdaniu decydują przypadki gramatyczne i przyimki, nie pozycja czy
 interpunkcja. Program w Ć czyta się jak (nieco techniczna) polszczyzna:
 
 ```
+uwzględnij przygrywka.ć
+
 definicja Użytkownika:
     imię (Tekst)
     wiek (Liczba)
-
-można skleić tekst (Tekst) z drugim (Tekst) -> Tekst
 
 aby przywitać użytkownika (Użytkownik) -> Tekst:
     zwróć sklej "cześć, " z imieniem użytkownika
@@ -116,8 +116,15 @@ zero    jeden    dwadzieścia trzy    sto dwadzieścia pięć tysięcy czterysta
 **Prawda i fałsz** (typ `Przełącznik`): `prawda` / `fałsz` — działają też
 w odmianie (`przyjmij prawdę`).
 
-**Teksty** w cudzysłowach, ze znakami ucieczki `\n \t \r \\ \" \0`:
-`"pierwszy wiersz\ndrugi"`.
+**Teksty** w cudzysłowach, ze znakami ucieczki `\n \t \r \\ \" \' \0`:
+`"pierwszy wiersz\ndrugi"`. Tekst nie jest typem wbudowanym — literał
+tekstowy wymaga aliasu `Tekst` (dostajesz go przez `uwzględnij
+przygrywka.ć`, gdzie `Tekst to Lista o elemencie Znak`); pusty tekst
+`""` ≡ `Nic`.
+
+**Znaki** (typ `Znak`) w pojedynczych cudzysłowach, z tymi samymi
+znakami ucieczki: `'a'`, `'ż'`, `'\n'`. Literał musi zawierać dokładnie
+jeden znak.
 
 ---
 
@@ -458,7 +465,8 @@ niejawny parametr typu — tak powstają funkcje generyczne.
 Funkcja `działać` to punkt wejścia: wszystkie jej zmienne muszą mieć
 w pełni konkretne typy (odpowiednik „type annotations needed").
 
-Typy wbudowane: `Liczba`, `Tekst`, `Przełącznik`, `Nic`, `Znak`.
+Typy wbudowane: `Liczba`, `Przełącznik`, `Nic`, `Znak`. `Tekst` to alias
+z przygrywki (`Tekst to Lista o elemencie Znak`) — nie jest wbudowany.
 
 ---
 

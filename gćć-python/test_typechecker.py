@@ -163,9 +163,9 @@ def test_unify_abstract_with_concrete_resolves_to_concrete():
 
 def test_unify_concrete_with_abstract_order_independent():
     a = typechecker.new_type()
-    result = typechecker.unify_types(conc("Tekst"), a)
-    assert ty(result) == "Tekst"
-    assert ty(a) == "Tekst"
+    result = typechecker.unify_types(conc("Znak"), a)
+    assert ty(result) == "Znak"
+    assert ty(a) == "Znak"
 
 
 def test_unify_equal_concrete_returns_concrete():
@@ -175,7 +175,7 @@ def test_unify_equal_concrete_returns_concrete():
 def test_unify_conflicting_concrete_raises():
     # kolizja konkretów: puste przecięcie wariantów → TypeCheckError
     with pytest.raises(typechecker.TypeCheckError):
-        typechecker.unify_types(conc("Liczba"), conc("Tekst"))
+        typechecker.unify_types(conc("Liczba"), conc("Znak"))
 
 
 def test_unify_is_transitive_through_var():
@@ -191,10 +191,10 @@ def test_unify_propagates_to_already_linked_vars():
     a, b, c = (typechecker.new_type() for _ in range(3))
     typechecker.unify_types(a, b)
     typechecker.unify_types(b, c)
-    typechecker.unify_types(c, conc("Tekst"))
-    assert ty(a) == "Tekst"
-    assert ty(b) == "Tekst"
-    assert ty(c) == "Tekst"
+    typechecker.unify_types(c, conc("Znak"))
+    assert ty(a) == "Znak"
+    assert ty(b) == "Znak"
+    assert ty(c) == "Znak"
 
 
 # =====================================================================
@@ -278,11 +278,11 @@ def test_instantiate_shares_vars_within_one_instance():
 def test_instantiate_keeps_concrete_types():
     t0 = typechecker.new_type()
     fdt = typechecker.FunDefTypes(
-        name=make_fid("robić"), arg_types=[conc("Liczba"), t0], ret_type=conc("Tekst")
+        name=make_fid("robić"), arg_types=[conc("Liczba"), t0], ret_type=conc("Znak")
     )
     args, ret = typechecker.instantiate(fdt)
     assert ty(args[0]) == "Liczba"
-    assert ty(ret) == "Tekst"
+    assert ty(ret) == "Znak"
     assert args[1] is not t0  # zmienna nadal świeżona
 
 
@@ -394,7 +394,7 @@ def test_scope_declare_binds_atom():
 def test_scope_declare_is_idempotent():
     scope = typechecker.Scope()
     scope.declare(atom_ident("x"), conc("Liczba"))
-    scope.declare(atom_ident("x"), conc("Tekst"))  # już zadeklarowane → ignorowane
+    scope.declare(atom_ident("x"), conc("Znak"))  # już zadeklarowane → ignorowane
     assert ty(scope.get_type(atom_ident("x"))) == "Liczba"
 
 
@@ -464,8 +464,15 @@ def test_resolve_int_literal():
     assert ty(typechecker.resolve_expression(ast.IntLit(5), typechecker.Scope())) == "Liczba"
 
 
-def test_resolve_str_literal():
-    assert ty(typechecker.resolve_expression(ast.StrLit("x"), typechecker.Scope())) == "Tekst"
+def test_resolve_str_literal_requires_tekst_alias():
+    # `Tekst` nie jest typem wbudowanym — literał tekstowy wymaga aliasu
+    # (przygrywka); moduł bez aliasu → czytelny błąd typów.
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_expression(ast.StrLit("x"), typechecker.Scope())
+
+
+def test_resolve_char_literal():
+    assert ty(typechecker.resolve_expression(ast.CharLit("a"), typechecker.Scope())) == "Znak"
 
 
 def test_resolve_unwraps_phrase_and_word():
@@ -480,7 +487,7 @@ def test_resolve_typed_unifies_matching():
 
 
 def test_resolve_typed_conflict_raises():
-    node = ast.Typed(expr=ast.IntLit(1), type=ast.TypeRef(head=("Tekst",)))
+    node = ast.Typed(expr=ast.IntLit(1), type=ast.TypeRef(head=("Znak",)))
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_expression(node, typechecker.Scope())
 
@@ -505,7 +512,7 @@ def test_assignment_conflict_raises():
     )
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_assignment(
-            ast.Assignment(target=phrase(target), value=phrase(ast.StrLit("x"))), scope
+            ast.Assignment(target=phrase(target), value=phrase(ast.CharLit("x"))), scope
         )
 
 
@@ -548,7 +555,7 @@ def test_function_call_propagates_arg_type_to_return():
 
 
 def test_polymorphic_calls_do_not_interfere():
-    """Sedno polimorfizmu: ten sam schemat wywołany z Liczba i z Tekst —
+    """Sedno polimorfizmu: ten sam schemat wywołany z Liczba i ze Znakiem —
     oba wywołania udane, bo `instantiate` daje świeże zmienne. Bez
     instancjonowania drugie wywołanie skolidowałoby z pierwszym."""
     fid, fdt, t = _register_identity_like()
@@ -558,23 +565,23 @@ def test_polymorphic_calls_do_not_interfere():
         ast.FunctionCall(name=fid, params=[ast.IntLit(1)]), scope
     )
     r2 = typechecker.resolve_function_call(
-        ast.FunctionCall(name=fid, params=[ast.StrLit("x")]), scope
+        ast.FunctionCall(name=fid, params=[ast.CharLit("x")]), scope
     )
 
     assert ty(r1) == "Liczba"
-    assert ty(r2) == "Tekst"
+    assert ty(r2) == "Znak"
     # schemat (generalizacja) NIE jest skażony przez żadne wywołanie
     assert typechecker.find_type(fdt.ret_type) is t
 
 
 def test_shared_type_var_enforced_within_single_call():
     """Dwa parametry dzielące zmienną w schemacie muszą mieć ten sam typ
-    w obrębie jednego wywołania → konflikt Liczba/Tekst rzuca."""
+    w obrębie jednego wywołania → konflikt Liczba/Znak rzuca."""
     fid = make_fid("robić")
     t = typechecker.new_type()
     fdt = typechecker.FunDefTypes(name=fid, arg_types=[t, t], ret_type=t)
     typechecker.fun_decls.append((fid, fdt))
-    call = ast.FunctionCall(name=fid, params=[ast.IntLit(1), ast.StrLit("x")])
+    call = ast.FunctionCall(name=fid, params=[ast.IntLit(1), ast.CharLit("x")])
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_function_call(call, typechecker.Scope())
 
@@ -619,33 +626,33 @@ def parse(db, preps):
 
 @pytest.mark.integration
 def test_module_typechecks_polymorphic_program(parse):
-    """Funkcja z nietypowanym parametrem wołana raz z liczbą, raz z tekstem.
+    """Funkcja z nietypowanym parametrem wołana raz z liczbą, raz ze znakiem.
     Polimorfizm pozwala obu wywołaniom przejść; w scope `liczba` ma typ
-    Liczba, a `słowo` typ Tekst (dwa różne typy konkretne współistnieją)."""
+    Liczba, a `litera` typ Znak (dwa różne typy konkretne współistnieją)."""
     src = (
         "aby przetwarzać dla x:\n"
         "    zwróć jeden\n"
         "\n"
         "aby działać:\n"
         "    liczba to jeden\n"
-        "    słowo to \"tekst\"\n"
+        "    litera to 'z'\n"
         "    a to przetwarzać dla liczby\n"
-        "    b to przetwarzać dla słowa\n"
+        "    b to przetwarzać dla litery\n"
     )
     module = parse(src)
     typechecker.resolve_module(module)  # nie rzuca = polimorfizm działa
     types = _var_types()
     assert types["liczba"] == "Liczba"
-    assert types["słowo"] == "Tekst"
+    assert types["litera"] == "Znak"
 
 
 @pytest.mark.integration
 def test_module_detects_type_conflict(parse):
-    """Przypisanie liczby a potem tekstu do tej samej zmiennej → kolizja."""
+    """Przypisanie liczby a potem znaku do tej samej zmiennej → kolizja."""
     src = (
         "aby działać:\n"
         "    rzecz to jeden\n"
-        "    rzecz to \"tekst\"\n"
+        "    rzecz to 'z'\n"
     )
     module = parse(src)
     with pytest.raises(typechecker.TypeCheckError):
@@ -676,11 +683,11 @@ def test_module_struct_creation_infers_struct_type(parse):
     """Tworzenie struktury nadaje zmiennej typ nazwy struktury."""
     src = (
         "definicja UżytkownikaSerwisu:\n"
-        "    imię (Tekst)\n"
+        "    imię (Znak)\n"
         "    identyfikator (Liczba)\n"
         "\n"
         "aby działać:\n"
-        "    użytkownik to UżytkownikSerwis o imieniu \"Marcin\" "
+        "    użytkownik to UżytkownikSerwis o imieniu 'M' "
         "o identyfikatorze siedem\n"
     )
     module = parse(src)
@@ -731,7 +738,7 @@ def test_param_usage_constrains_signature(parse):
 @pytest.mark.integration
 def test_bad_call_after_inferred_param_raises(parse):
     """A2 (negative): skoro `opakować` ma teraz sygnaturę Liczba→…, wywołanie
-    go na tekście jest błędem typu (przed fixem: cicho akceptowane)."""
+    go na znaku jest błędem typu (przed fixem: cicho akceptowane)."""
     src = (
         "aby wymagać_liczby dla n (Liczba):\n"
         "    zwróć n\n"
@@ -740,7 +747,7 @@ def test_bad_call_after_inferred_param_raises(parse):
         "    zwróć wymagać_liczby dla x\n"
         "\n"
         "aby działać:\n"
-        "    wynik to opakuj dla \"tekst\"\n"
+        "    wynik to opakuj dla 'z'\n"
     )
     module = parse(src)
     with pytest.raises(typechecker.TypeCheckError):
@@ -793,7 +800,7 @@ def test_fixpoint_propagates_through_chain(parse):
 
 @pytest.mark.integration
 def test_fixpoint_preserves_polymorphism_and_terminates(parse):
-    """Funkcja generyczna wołana raz na liczbie, raz na tekście. resolve_module
+    """Funkcja generyczna wołana raz na liczbie, raz na znaku. resolve_module
     kończy bez zawieszenia (fixpoint), a argument zostaje WOLNY — czyli nadal
     polimorficzny, nie sklejony do jednego typu przez iterację."""
     src = (
@@ -802,7 +809,7 @@ def test_fixpoint_preserves_polymorphism_and_terminates(parse):
         "\n"
         "aby działać:\n"
         "    a to przetwarzać dla jeden\n"
-        "    b to przetwarzać dla \"tekst\"\n"
+        "    b to przetwarzać dla 'z'\n"
     )
     module = parse(src)
     typechecker.resolve_module(module)  # nie zawiesza się
@@ -839,7 +846,7 @@ def test_find_struct_def_by_name():
     sd = ast.StructDef(
         name=("Użytkownik",),
         fields=[
-            ast.Field(name=make_ident("imię", gender="n"), type=ast.TypeRef(head=("Tekst",))),
+            ast.Field(name=make_ident("imię", gender="n"), type=ast.TypeRef(head=("Znak",))),
             ast.Field(name=make_ident("wiek"), type=ast.TypeRef(head=("Liczba",))),
         ],
     )
@@ -852,12 +859,12 @@ def test_find_field_by_key_and_type():
     sd = ast.StructDef(
         name=("Użytkownik",),
         fields=[
-            ast.Field(name=make_ident("imię", gender="n"), type=ast.TypeRef(head=("Tekst",))),
+            ast.Field(name=make_ident("imię", gender="n"), type=ast.TypeRef(head=("Znak",))),
             ast.Field(name=make_ident("wiek"), type=ast.TypeRef(head=("Liczba",))),
         ],
     )
     imie = typechecker.find_field(sd, (("imię",), "sg", "n"))
-    assert imie is not None and "".join(imie.type.head) == "Tekst"
+    assert imie is not None and "".join(imie.type.head) == "Znak"
     wiek = typechecker.find_field(sd, (("wiek",), "sg", "m"))
     assert wiek is not None and "".join(wiek.type.head) == "Liczba"
     assert typechecker.find_field(sd, (("brak",), "sg", "m")) is None
@@ -865,7 +872,7 @@ def test_find_field_by_key_and_type():
 
 _STRUCT_DEF = (
     "definicja UżytkownikaSerwisu:\n"
-    "    imię (Tekst)\n"
+    "    imię (Znak)\n"
     "    identyfikator (Liczba)\n"
     "\n"
 )
@@ -875,7 +882,7 @@ _STRUCT_DEF = (
 def test_struct_explicit_values_typecheck(parse):
     src = _STRUCT_DEF + (
         "aby działać:\n"
-        "    u to UżytkownikSerwisu o imieniu \"Marcin\" o identyfikatorze cztery\n"
+        "    u to UżytkownikSerwisu o imieniu 'M' o identyfikatorze cztery\n"
     )
     typechecker.resolve_module(parse(src))  # bez błędu
 
@@ -886,7 +893,7 @@ def test_struct_out_of_order_typechecks(parse):
     # → błąd. Brak błędu dowodzi dopasowania po nazwie i unifikacji per pole.
     src = _STRUCT_DEF + (
         "aby działać:\n"
-        "    u to UżytkownikSerwisu o identyfikatorze cztery o imieniu \"Marcin\"\n"
+        "    u to UżytkownikSerwisu o identyfikatorze cztery o imieniu 'M'\n"
     )
     typechecker.resolve_module(parse(src))  # bez błędu
 
@@ -896,7 +903,7 @@ def test_struct_field_type_mismatch_raises(parse):
     src = _STRUCT_DEF + (
         "aby działać:\n"
         "    u to UżytkownikSerwisu o imieniu cztery "
-        "o identyfikatorze pięć\n"  # Liczba w pole Tekst
+        "o identyfikatorze pięć\n"  # Liczba w pole Znak
     )
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(parse(src))
@@ -904,10 +911,10 @@ def test_struct_field_type_mismatch_raises(parse):
 
 @pytest.mark.integration
 def test_struct_shorthand_typechecks(parse):
-    # odwzorowanie test_typów.ć: pole imię:Tekst wypełniane zmienną imię:Tekst
+    # odwzorowanie test_typów.ć: pole imię:Znak wypełniane zmienną imię:Znak
     src = _STRUCT_DEF + (
         "aby działać:\n"
-        "    imię to \"Marcin\"\n"
+        "    imię to 'M'\n"
         "    użytkownik to UżytkownikSerwisu z imieniem o identyfikatorze dwa\n"
     )
     typechecker.resolve_module(parse(src))  # bez błędu
@@ -915,7 +922,7 @@ def test_struct_shorthand_typechecks(parse):
 
 @pytest.mark.integration
 def test_struct_shorthand_type_mismatch_raises(parse):
-    # zmienna imię:Liczba vs pole imię:Tekst → konflikt
+    # zmienna imię:Liczba vs pole imię:Znak → konflikt
     src = _STRUCT_DEF + (
         "aby działać:\n"
         "    imię to pięć\n"
@@ -961,7 +968,7 @@ def test_unify_struct_with_union_widens():
 def test_unify_widen_without_covering_union_raises():
     _install_unions(("Rezultat", ["Wynik", "Błąd"]))
     with pytest.raises(typechecker.TypeCheckError):
-        typechecker.unify_types(conc("Wynik"), conc("Tekst"), widen=True)
+        typechecker.unify_types(conc("Wynik"), conc("Znak"), widen=True)
 
 
 def test_unify_two_unions_raises():
@@ -1040,7 +1047,7 @@ def test_struct_creation_of_union_raises():
 
 _UNION_SRC = (
     "definicja Błędu:\n"
-    "    opis (Tekst)\n"
+    "    opis (Znak)\n"
     "\n"
     "definicja Wyniku z elementem:\n"
     "    wynik (element)\n"
@@ -1058,7 +1065,7 @@ def test_function_returning_two_variants_gets_union_type(parse):
         "    jeśli tekst równe zero:\n"
         "        zwróć Wynik o wyniku zero\n"
         "    inaczej:\n"
-        "        zwróć Błąd o opisie \"nie udało się\"\n"
+        "        zwróć Błąd o opisie 'e'\n"
     )
     typechecker.resolve_module(parse(src))
     assert ty(_fdt_by_surface(("zapisywać",)).ret_type) == "Rezultat"
@@ -1072,7 +1079,7 @@ def test_function_returning_two_variants_infers_union_without_annotation(parse):
         "    jeśli tekst równe zero:\n"
         "        zwróć Wynik o wyniku zero\n"
         "    inaczej:\n"
-        "        zwróć Błąd o opisie \"nie udało się\"\n"
+        "        zwróć Błąd o opisie 'e'\n"
     )
     typechecker.resolve_module(parse(src))
     assert ty(_fdt_by_surface(("zapisywać",)).ret_type) == "Rezultat"
@@ -1086,7 +1093,7 @@ def test_branches_returning_unrelated_types_raise(parse):
         "    jeśli tekst równe zero:\n"
         "        zwróć Wynik o wyniku zero\n"
         "    inaczej:\n"
-        "        zwróć \"niepowiązany tekst\"\n"
+        "        zwróć 'x'\n"
     )
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(parse(src))
@@ -1097,7 +1104,7 @@ def test_assigning_two_variants_widens_variable(parse, capsys):
     src = _UNION_SRC + (
         "aby przygotowywać dla x:\n"
         "    rzecz to Wynik o wyniku zero\n"
-        "    rzecz to Błąd o opisie \"e\"\n"
+        "    rzecz to Błąd o opisie 'e'\n"
         "    zwróć rzecz\n"
     )
     typechecker.resolve_module(parse(src))
@@ -1106,7 +1113,7 @@ def test_assigning_two_variants_widens_variable(parse, capsys):
 
 @pytest.mark.integration
 def test_match_exhaustive_typechecks_and_binds_field_types(parse):
-    """Pełne dopasowanie `jest:`: pole `opis` związane jako Tekst (typ z deklaracji
+    """Pełne dopasowanie `jest:`: pole `opis` związane jako Znak (typ z deklaracji
     struktury), pole `wynik` (parametr `element`) konkretyzuje się przez
     użycie (`plus jeden` → Liczba)."""
     src = _UNION_SRC + (
@@ -1120,7 +1127,7 @@ def test_match_exhaustive_typechecks_and_binds_field_types(parse):
     )
     typechecker.resolve_module(parse(src))
     types = _var_types()
-    assert types["wiadomość"] == "Tekst"
+    assert types["wiadomość"] == "Znak"
     assert types["liczba"] == "Liczba"
 
 
@@ -1229,7 +1236,7 @@ def test_passing_variant_to_union_param_typechecks(parse):
         "    zwróć zero\n"
         "\n"
         "aby działać:\n"
-        "    n to przyjmuj Błąd o opisie \"e\"\n"
+        "    n to przyjmuj Błąd o opisie 'e'\n"
     )
     typechecker.resolve_module(parse(src))  # bez błędu
 
@@ -1241,7 +1248,7 @@ def test_union_in_struct_field_accepts_variant(parse):
         "    zawartość (Rezultat)\n"
         "\n"
         "aby działać:\n"
-        "    pudełko to Pudełko o zawartości Błąd o opisie \"e\"\n"
+        "    pudełko to Pudełko o zawartości Błąd o opisie 'e'\n"
     )
     typechecker.resolve_module(parse(src))  # bez błędu
 
@@ -1301,14 +1308,14 @@ def test_branch_reassignment_unifies_with_outer_var(parse):
 @pytest.mark.integration
 def test_branch_reassignment_type_conflict_raises(parse):
     """Reasignacja w gałęzi unifikuje się z zewnętrzną zmienną — konflikt
-    typów (Liczba vs Tekst) jest wykrywany. (Dawniej: gałęziowa zmienna była
+    typów (Liczba vs Znak) jest wykrywany. (Dawniej: gałęziowa zmienna była
     osobna, konflikt przechodził bez błędu.)"""
     src = (
         "aby działać:\n"
         "    flaga to jeden\n"
         "    licznik to zero\n"
         "    jeśli flaga równe jeden:\n"
-        "        licznik to \"tekst\"\n"
+        "        licznik to 'z'\n"
     )
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(parse(src))
@@ -1320,7 +1327,7 @@ def test_match_branch_reassignment_unifies_with_outer_var(parse):
     zmienna w obu modelach, typ z gałęzi widoczny po matchu."""
     src = (
         "definicja Błędu:\n"
-        "    opis (Tekst)\n"
+        "    opis (Znak)\n"
         "\n"
         "definicja Wyniku z elementem:\n"
         "    wynik (element)\n"
@@ -1329,15 +1336,15 @@ def test_match_branch_reassignment_unifies_with_outer_var(parse):
         "\n"
         "aby działać:\n"
         "    rezultat (Rezultat) to Wynik o wyniku zero\n"
-        "    komunikat to \"\"\n"
+        "    komunikat to '?'\n"
         "    rezultat jest:\n"
         "        Błędem z opisem:\n"
         "            komunikat to opis\n"
         "        Wynikiem:\n"
-        "            komunikat to \"ok\"\n"
+        "            komunikat to 'k'\n"
         "    wiadomość to komunikat\n"
     )
-    typechecker.resolve_module(parse(src))  # komunikat/wiadomość: Tekst
+    typechecker.resolve_module(parse(src))  # komunikat/wiadomość: Znak
 
 
 def _reset_typechecker_state():
@@ -1353,11 +1360,11 @@ def test_intersection_of_union_bounds(parse):
     (≤ Domownik i ≤ Futrzak) zawęża się do wspólnego wariantu (Kot) —
     wywołanie z Kotem przechodzi, z Psem (tylko Domownik) odrzucane."""
     prelude = (
-        "definicja Kota:\n    imię (Tekst)\n"
+        "definicja Kota:\n    imię (Znak)\n"
         "\n"
-        "definicja Psa:\n    kość (Tekst)\n"
+        "definicja Psa:\n    kość (Znak)\n"
         "\n"
-        "definicja Chomika:\n    futro (Tekst)\n"
+        "definicja Chomika:\n    futro (Znak)\n"
         "\n"
         "Domownik to Kot albo Pies\n"
         "\n"
@@ -1366,10 +1373,10 @@ def test_intersection_of_union_bounds(parse):
         "można wypisać coś (Cokolwiek) -> Nic\n"
         "\n"
         "aby przygarnąć domownika (Domownik):\n"
-        "    wypisz \"przygarnięty\"\n"
+        "    wypisz 'p'\n"
         "\n"
         "aby wyczesać futrzaka (Futrzak):\n"
-        "    wypisz \"wyczesany\"\n"
+        "    wypisz 'w'\n"
         "\n"
         "aby doglądać pupila:\n"
         "    przygarnij pupila\n"
@@ -1377,11 +1384,11 @@ def test_intersection_of_union_bounds(parse):
         "\n"
     )
     typechecker.resolve_module(parse(
-        prelude + "aby działać:\n    doglądaj Kot o imieniu \"Mruczek\"\n"))
+        prelude + "aby działać:\n    doglądaj Kot o imieniu 'M'\n"))
     _reset_typechecker_state()
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(parse(
-            prelude + "aby działać:\n    doglądaj Pies o kości \"szynka\"\n"))
+            prelude + "aby działać:\n    doglądaj Pies o kości 's'\n"))
 
 
 @pytest.mark.integration
@@ -1390,14 +1397,14 @@ def test_subject_reassign_widens_outer_rejecting_later_chain(parse):
     zewnętrzny do unii — chain po bloku, zakładający stary wariant,
     jest odrzucany (dawniej zapis szedł w cień i chain przechodził)."""
     src = (
-        "definicja Tulipana:\n    płatek (Tekst)\n"
+        "definicja Tulipana:\n    płatek (Znak)\n"
         "\n"
         "definicja Róży:\n    wysokość (Liczba)\n"
         "\n"
         "Kwiatki to Róża albo Tulipan\n"
         "\n"
         "aby działać:\n"
-        "    kwiatek to Tulipan o płatku \"x\"\n"
+        "    kwiatek to Tulipan o płatku 'x'\n"
         "    kwiatek jest:\n"
         "        Tulipanem:\n"
         "            kwiatek to Róża o wysokości pięć\n"
@@ -1416,17 +1423,17 @@ def test_annotated_subject_reassign_goes_outward(parse):
     nowy wariant, więc chain po bloku po starym wariancie odpada —
     dawniej typował się i padał w runtime."""
     src = (
-        "definicja Kota:\n    imię (Tekst)\n"
+        "definicja Kota:\n    imię (Znak)\n"
         "\n"
-        "definicja Psa:\n    kość (Tekst)\n"
+        "definicja Psa:\n    kość (Znak)\n"
         "\n"
         "Zwierzę to Kot albo Pies\n"
         "\n"
         "aby działać:\n"
-        "    zwierzę to Kot o imieniu \"Mruczek\"\n"
+        "    zwierzę to Kot o imieniu 'M'\n"
         "    zwierzę jest:\n"
         "        Kotem:\n"
-        "            zwierzę (Zwierzę) to Pies o kości \"szynka\"\n"
+        "            zwierzę (Zwierzę) to Pies o kości 's'\n"
         "        Psem:\n"
         "            nic to zero\n"
         "    ozdoba to imię zwierzęcia\n"
@@ -1465,21 +1472,21 @@ def test_equality_family_rejects_ununifiable_operands(parse):
     (bez unii) i Kot vs Liczba są odrzucane statycznie; `tożsame` zwraca
     Przełącznik, więc arytmetyka na wyniku też odpada."""
     prelude = (
-        "definicja Kota:\n    imię (Tekst)\n"
+        "definicja Kota:\n    imię (Znak)\n"
         "\n"
-        "definicja Psa:\n    kość (Tekst)\n"
+        "definicja Psa:\n    kość (Znak)\n"
         "\n"
     )
     zle = [
         "aby działać:\n"
-        "    kot to Kot o imieniu \"a\"\n"
-        "    pies to Pies o kości \"b\"\n"
+        "    kot to Kot o imieniu 'a'\n"
+        "    pies to Pies o kości 'b'\n"
         "    wynik to kot równe pies\n",
         "aby działać:\n"
-        "    kot to Kot o imieniu \"a\"\n"
+        "    kot to Kot o imieniu 'a'\n"
         "    wynik to kot tożsame pięć\n",
         "aby działać:\n"
-        "    kot to Kot o imieniu \"a\"\n"
+        "    kot to Kot o imieniu 'a'\n"
         "    wynik to (kot tożsame kot) plus jeden\n",
     ]
     for src in zle:
@@ -1496,7 +1503,7 @@ _LISTA_LICZB = (
     "Ogon to Węzeł albo Nic\n"
     "\n"
     "definicja Kota:\n"
-    "    imię (Tekst)\n"
+    "    imię (Znak)\n"
     "\n"
 )
 
@@ -1505,11 +1512,11 @@ _LISTA_LICZB = (
 def test_union_params_reject_mixed_elements(parse):
     """Niejawne parametry unii (dawne bad/wymazany_element.ć): pole
     `ogon (Ogon)` przechwytuje `element` z definicji Węzła, więc ogon
-    Liczbowego węzła nie przyjmie węzła z Tekstem — lista jest jednorodna."""
+    Liczbowego węzła nie przyjmie węzła ze Znakiem — lista jest jednorodna."""
     src = _LISTA_LICZB + (
         "aby działać:\n"
         "    głowa to Węzeł o wartości pięć o ogonie "
-        "(Węzeł o wartości \"abc\" o ogonie Nic)\n"
+        "(Węzeł o wartości 'a' o ogonie Nic)\n"
     )
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(parse(src))
@@ -1556,9 +1563,9 @@ def test_join_of_two_free_params(parse):
     dolne — parametry pozostają niezależne (bez sklejania równością),
     a ret jest ich kresem: Kot ⊔ Pies = Domownik w miejscu wywołania."""
     src = (
-        "definicja Kota:\n    imię (Tekst)\n"
+        "definicja Kota:\n    imię (Znak)\n"
         "\n"
-        "definicja Psa:\n    kość (Tekst)\n"
+        "definicja Psa:\n    kość (Znak)\n"
         "\n"
         "Domownik to Kot albo Pies\n"
         "\n"
@@ -1568,8 +1575,8 @@ def test_join_of_two_free_params(parse):
         "    zwróć pies\n"
         "\n"
         "aby działać:\n"
-        "    kot to Kot o imieniu \"Mruczek\"\n"
-        "    pies to Pies o kości \"szynka\"\n"
+        "    kot to Kot o imieniu 'M'\n"
+        "    pies to Pies o kości 's'\n"
         "    pupil to wybierz prawda kota psa\n"
     )
     typechecker.resolve_module(parse(src))
@@ -1610,7 +1617,7 @@ def test_union_value_into_variant_slot_raises(parse):
     wariantu — wymagaj zawężenia przez `jest:` (dawne
     bad/unia_do_wariantu.ć typowało się i padało w runtime)."""
     src = (
-        "definicja Kota:\n    imię (Tekst)\n"
+        "definicja Kota:\n    imię (Znak)\n"
         "\n"
         "Zwierzę to Kot albo Nic\n"
         "\n"
@@ -1618,7 +1625,7 @@ def test_union_value_into_variant_slot_raises(parse):
         "\n"
         "aby wybrać flagę:\n"
         "    jeśli flaga:\n"
-        "        zwróć Kot o imieniu \"Mruczek\"\n"
+        "        zwróć Kot o imieniu 'M'\n"
         "    zwróć Nic\n"
         "\n"
         "aby przedstawić kota (Kot):\n"
@@ -1640,13 +1647,13 @@ def test_fallthrough_unifies_nic_into_return(parse):
     i widoczny w typie)."""
     src = (
         "definicja Kota:\n"
-        "    imię (Tekst)\n"
+        "    imię (Znak)\n"
         "\n"
         "Zwierzę to Kot albo Nic\n"
         "\n"
         "aby szukać flagi:\n"
         "    jeśli flaga:\n"
-        "        zwróć Kot o imieniu \"Filemon\"\n"
+        "        zwróć Kot o imieniu 'F'\n"
     )
     typechecker.resolve_module(parse(src))
     assert ty(_fdt_by_surface(("szukać",)).ret_type) == "Zwierzę"
@@ -1659,11 +1666,11 @@ def test_fallthrough_without_union_raises(parse):
     (bad/nietotalny_zwrot.ć)."""
     src = (
         "definicja Kota:\n"
-        "    imię (Tekst)\n"
+        "    imię (Znak)\n"
         "\n"
         "aby szukać flagi:\n"
         "    jeśli flaga:\n"
-        "        zwróć Kot o imieniu \"Filemon\"\n"
+        "        zwróć Kot o imieniu 'F'\n"
     )
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(parse(src))
@@ -1682,19 +1689,19 @@ def test_unused_parameterized_alias_fails_grounding(parse):
         "    wynik (element)\n"
         "\n"
         "definicja Błędu:\n"
-        "    opis (Tekst)\n"
+        "    opis (Znak)\n"
         "\n"
         "Rezultat to Wynik albo Błąd\n"
         "\n"
-        "można zapisać dane (Tekst) -> Rezultat\n"
+        "można zapisać dane (Znak) -> Rezultat\n"
         "\n"
         "aby działać:\n"
-        "    rezultat to zapisz \"abc\"\n"
+        "    rezultat to zapisz 'd'\n"
         "    rezultat jest:\n"
         "        Wynikiem jako paczka:\n"
-        "            komunikat to \"ok\"\n"
+        "            komunikat to 'k'\n"
         "        Błędem:\n"
-        "            komunikat to \"źle\"\n"
+        "            komunikat to 'z'\n"
     )
     with pytest.raises(typechecker.TypeCheckError, match="paczka"):
         typechecker.resolve_module(parse(src))
@@ -1711,15 +1718,15 @@ def test_extern_call_typechecks_and_grounds(parse, capsys):
     zmiennej, grounding przechodzi (dawniej: find_fdt zwracał None i
     typechecker wywalał się AttributeError)."""
     src = (
-        "można wysłać tekst (Tekst) do wtyczki (Liczba) -> Liczba\n"
+        "można wysłać znak (Znak) do wtyczki (Liczba) -> Liczba\n"
         "\n"
         "aby działać:\n"
         "    wtyczka to siedem\n"
-        "    wynik to wyślij \"abc\" do wtyczki\n"
+        "    wynik to wyślij 'a' do wtyczki\n"
     )
     typechecker.resolve_module(parse(src))
     fdt = _fdt_by_surface(("wysłać",))
-    assert ty(fdt.arg_types[0]) == "Tekst"
+    assert ty(fdt.arg_types[0]) == "Znak"
     assert ty(fdt.arg_types[1]) == "Liczba"
     assert ty(fdt.ret_type) == "Liczba"
 
@@ -1727,7 +1734,7 @@ def test_extern_call_typechecks_and_grounds(parse, capsys):
 @pytest.mark.integration
 def test_extern_arg_type_mismatch_raises(parse):
     src = (
-        "można wypisać tekst (Tekst) -> Nic\n"
+        "można wypisać znak (Znak) -> Nic\n"
         "\n"
         "aby działać:\n"
         "    wypisz pięć\n"
@@ -1740,27 +1747,27 @@ def test_extern_arg_type_mismatch_raises(parse):
 def test_extern_signature_constrains_caller_param(parse):
     """Typ z sygnatury externa wnioskuje typ parametru funkcji wołającej."""
     src = (
-        "można policzyć x (Tekst) -> Liczba\n"
+        "można policzyć x (Znak) -> Liczba\n"
         "\n"
         "aby opakować rzecz:\n"
         "    zwróć policz rzecz\n"
     )
     typechecker.resolve_module(parse(src))
     fdt = _fdt_by_surface(("opakować",))
-    assert ty(fdt.arg_types[0]) == "Tekst"
+    assert ty(fdt.arg_types[0]) == "Znak"
     assert ty(fdt.ret_type) == "Liczba"
 
 
 @pytest.mark.integration
 def test_extern_unknown_type_shared_within_signature(parse):
     """Niezdefiniowana głowa (Miejsce) działa jak parametr typu sygnatury —
-    oba wystąpienia muszą dostać TEN SAM typ; konflikt Liczba/Tekst rzuca."""
+    oba wystąpienia muszą dostać TEN SAM typ; konflikt Liczba/Znak rzuca."""
     src = (
         "można leżeć na polanie (Miejsce) w lesie (Miejsce) "
         "przy jeziorze (Liczba) -> Liczba\n"
         "\n"
         "aby działać:\n"
-        "    n to leż na pięć w \"las\" przy siedem\n"
+        "    n to leż na pięć w 'l' przy siedem\n"
     )
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(parse(src))
@@ -1783,21 +1790,21 @@ def test_extern_returning_union_typechecks(parse):
     """Extern może zwracać typ wariantowy — dopasowanie `jest:` na wyniku działa."""
     src = (
         "definicja Błędu:\n"
-        "    opis (Tekst)\n"
+        "    opis (Znak)\n"
         "\n"
         "definicja Wyniku z elementem:\n"
         "    wynik (element)\n"
         "\n"
         "Rezultat to Wynik albo Błąd\n"
         "\n"
-        "można zapisać dane (Tekst) -> Rezultat\n"
+        "można zapisać dane (Znak) -> Rezultat\n"
         "\n"
         "aby działać:\n"
-        "    rezultat to zapisz \"abc\"\n"
-        "    komunikat to \"\"\n"
+        "    rezultat to zapisz 'd'\n"
+        "    komunikat to '?'\n"
         "    rezultat jest:\n"
         "        Wynikiem:\n"
-        "            komunikat to \"ok\"\n"
+        "            komunikat to 'k'\n"
         "        Błędem z opisem:\n"
         "            komunikat to opis\n"
     )
@@ -1810,7 +1817,7 @@ def test_extern_returning_union_typechecks(parse):
 
 _FIXPOINT_PRELUDE = (
     "definicja Błędu:\n"
-    "    opis (Tekst)\n"
+    "    opis (Znak)\n"
     "\n"
     "definicja Wyniku z elementem:\n"
     "    wynik (element)\n"
@@ -1833,7 +1840,7 @@ def _widening_cycle_src():
         if i == 0:
             base = "    jeśli x równe zero:\n        zwróć Wynik o wyniku zero\n"
         if i == n // 2:
-            base = "    jeśli x równe jeden:\n        zwróć Błąd o opisie \"e\"\n"
+            base = "    jeśli x równe jeden:\n        zwróć Błąd o opisie 'e'\n"
         parts.append(
             f"aby robić_{c} dla x:\n{base}    zwróć rób_{nxt} dla x\n"
         )
@@ -1873,7 +1880,7 @@ def test_fixpoint_converges_on_widening_relay(parse, capsys):
         else:
             parts.append(
                 f"aby robić_{c} dla x:\n"
-                f"    zwróć Błąd o opisie \"e\"\n"
+                f"    zwróć Błąd o opisie 'e'\n"
             )
     module = parse("\n".join(parts))
     typechecker.resolve_module(module)
@@ -1931,8 +1938,8 @@ def test_no_return_in_body_types_as_nic(parse):
 def test_no_return_in_nested_blocks_types_as_nic(parse):
     """Brak `zwróć` także w zagnieżdżonych blokach → Nic. `zwróć` ukryty
     tylko w gałęzi `jeśli` to funkcja CZĘŚCIOWA: fall-through dounifikowuje
-    Nic, a Tekst∪Nic nie ma wspólnej unii → odrzucona (dawniej typowała
-    się jako Tekst i padała w runtime — bad/nietotalny_zwrot.ć)."""
+    Nic, a Znak∪Nic nie ma wspólnej unii → odrzucona (dawniej typowała
+    się jako Znak i padała w runtime — bad/nietotalny_zwrot.ć)."""
     src = (
         "aby testować_nic flaga:\n"
         "    jeśli flaga równe jeden:\n"
@@ -1944,7 +1951,7 @@ def test_no_return_in_nested_blocks_types_as_nic(parse):
     czesciowa = (
         "aby badać flagę:\n"
         "    jeśli flaga równe jeden:\n"
-        "        zwróć \"tekst\"\n"
+        "        zwróć 'z'\n"
     )
     with pytest.raises(typechecker.TypeCheckError):
         typechecker.resolve_module(parse(czesciowa))
@@ -1952,9 +1959,9 @@ def test_no_return_in_nested_blocks_types_as_nic(parse):
 
 @pytest.mark.integration
 def test_annotated_return_without_return_raises(parse):
-    """Jawna adnotacja `-> Tekst` przy ciele bez `zwróć` → konflikt z Nic."""
+    """Jawna adnotacja `-> Znak` przy ciele bez `zwróć` → konflikt z Nic."""
     src = (
-        "aby testować_nic -> Tekst:\n"
+        "aby testować_nic -> Znak:\n"
         "    wynik to pięć\n"
     )
     with pytest.raises(typechecker.TypeCheckError):
@@ -1979,26 +1986,26 @@ def test_union_with_nic_member_widens_returns(parse):
 def test_match_with_nic_branch_typechecks(parse):
     """Gałąź `Niczym:` (narzędnik wbudowanego Nic) w dopasowaniu unii."""
     src = _NIC_UNION + (
-        "aby opisywać rezultat -> Tekst:\n"
+        "aby opisywać rezultat -> Znak:\n"
         "    rezultat jest:\n"
         "        Czymś z wartością:\n"
-        "            zwróć \"jest coś\"\n"
+        "            zwróć 'c'\n"
         "        Niczym:\n"
-        "            zwróć \"pusto\"\n"
+        "            zwróć 'p'\n"
     )
     typechecker.resolve_module(parse(src))
     fdt = _fdt_by_surface(("opisywać",))
     assert ty(fdt.arg_types[0]) == "Rezultat"
-    assert ty(fdt.ret_type) == "Tekst"
+    assert ty(fdt.ret_type) == "Znak"
 
 
 @pytest.mark.integration
 def test_match_missing_nic_branch_raises(parse):
     src = _NIC_UNION + (
-        "aby opisywać rezultat (Rezultat) -> Tekst:\n"
+        "aby opisywać rezultat (Rezultat) -> Znak:\n"
         "    rezultat jest:\n"
         "        Czymś z wartością:\n"
-        "            zwróć \"jest coś\"\n"
+        "            zwróć 'c'\n"
     )
     with pytest.raises(typechecker.TypeCheckError, match="brakuje gałęzi: Nic"):
         typechecker.resolve_module(parse(src))
@@ -2013,14 +2020,14 @@ _TRY_PRELUDE = (
     "    wartość (element)\n"
     "\n"
     "definicja Błędu:\n"
-    "    opis (Tekst)\n"
+    "    opis (Znak)\n"
     "\n"
     "Rezultat to Sukces albo Błąd\n"
     "\n"
     "aby wybrać pozycję z listy:\n"
     "    jeśli pozycja równe zero:\n"
-    "        zwróć Sukces o wartości \"głowa\"\n"
-    "    zwróć Błąd o opisie \"poza zakresem\"\n"
+    "        zwróć Sukces o wartości 'g'\n"
+    "    zwróć Błąd o opisie 'p'\n"
     "\n"
 )
 
@@ -2123,7 +2130,7 @@ def test_try_call_in_function_without_return_raises(parse):
 @pytest.mark.integration
 def test_try_call_with_conflicting_annotation_raises(parse):
     src = _TRY_PRELUDE + (
-        "aby przetwarzać części -> Tekst:\n"
+        "aby przetwarzać części -> Znak:\n"
         "    napis to wybrałbyś zero z części?\n"
         "    zwróć napis\n"
     )
@@ -2139,6 +2146,27 @@ def test_try_call_with_conflicting_annotation_raises(parse):
 def test_resolve_bool_literal():
     t = typechecker.resolve_expression(ast.BoolLit(True), typechecker.Scope())
     assert ty(t) == "Przełącznik"
+
+
+@pytest.mark.integration
+def test_char_literal_types_as_znak(parse):
+    src = (
+        "aby działać:\n"
+        "    litera to 'a'\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["litera"] == "Znak"
+
+
+@pytest.mark.integration
+def test_char_literal_conflict_with_liczba_raises(parse):
+    src = (
+        "aby działać:\n"
+        "    litera to 'a'\n"
+        "    litera to pięć\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError):
+        typechecker.resolve_module(parse(src))
 
 
 @pytest.mark.integration
@@ -2188,29 +2216,29 @@ def test_inflected_bool_literal_as_argument(parse):
 def test_arrow_unification_propagates_args_and_ret():
     a, r = typechecker.new_type(), typechecker.new_type()
     f1 = typechecker.arrow([a], r)
-    f2 = typechecker.arrow([conc("Liczba")], conc("Tekst"))
+    f2 = typechecker.arrow([conc("Liczba")], conc("Znak"))
     typechecker.unify_types(f1, f2)
     assert ty(a) == "Liczba"
-    assert ty(r) == "Tekst"
+    assert ty(r) == "Znak"
 
 
 def test_arrow_arity_mismatch_raises_readable():
-    f1 = typechecker.arrow([conc("Liczba")], conc("Tekst"))
-    f2 = typechecker.arrow([conc("Liczba"), conc("Liczba")], conc("Tekst"))
+    f1 = typechecker.arrow([conc("Liczba")], conc("Znak"))
+    f2 = typechecker.arrow([conc("Liczba"), conc("Liczba")], conc("Znak"))
     with pytest.raises(typechecker.TypeCheckError,
                        match="liczba argumentów"):
         typechecker.unify_types(f1, f2)
 
 
 def test_arrow_repr_readable():
-    f = typechecker.arrow([conc("Liczba"), conc("Tekst")], conc("Nic"))
-    assert repr(typechecker.find_type(f)) == "(Liczba, Tekst) → Nic"
+    f = typechecker.arrow([conc("Liczba"), conc("Znak")], conc("Nic"))
+    assert repr(typechecker.find_type(f)) == "(Liczba, Znak) → Nic"
 
 
 def test_arrow_does_not_widen_into_union():
     """Strzałka nie należy do żadnej unii — widening odpada błędem,
     nie cichym rozszerzeniem."""
-    f = typechecker.arrow([conc("Liczba")], conc("Tekst"))
+    f = typechecker.arrow([conc("Liczba")], conc("Znak"))
     with pytest.raises(typechecker.TypeCheckError, match="cannot unify"):
         typechecker.unify_types(f, conc("Błąd"), widen=True)
 
@@ -2290,14 +2318,14 @@ def test_function_ref_forward_declared(parse):
 @pytest.mark.integration
 def test_function_ref_to_extern(parse):
     src = (
-        "można zakodować liczbę (Liczba) -> Tekst\n"
+        "można zakodować liczbę (Liczba) -> Znak\n"
         "\n"
         "aby działać:\n"
         "    kod to zastosuj zakodowanie z pięć\n"
     )
     module = parse(src)
     typechecker.resolve_module(module)
-    assert _var_types()["kod"] == "Tekst"
+    assert _var_types()["kod"] == "Znak"
 
 
 @pytest.mark.integration
@@ -2349,7 +2377,7 @@ def test_try_apply_typechecks_with_rezultat(parse):
         "    wartość (element)\n"
         "\n"
         "definicja Błędu:\n"
-        "    opis (Tekst)\n"
+        "    opis (Znak)\n"
         "\n"
         "Rezultat to Sukces albo Błąd\n"
         "\n"
@@ -2394,13 +2422,13 @@ def test_unapplied_generic_ref_in_dzialac_not_grounded(parse):
 
 _KWIATKI = (
     "definicja Tulipana:\n"
-    "    płatek (Tekst)\n"
+    "    płatek (Znak)\n"
     "\n"
     "definicja Róży:\n"
-    "    płatek (Tekst)\n"
+    "    płatek (Znak)\n"
     "\n"
     "definicja Bratka:\n"
-    "    płatek (Tekst)\n"
+    "    płatek (Znak)\n"
     "\n"
     "Kwiatki to Róża albo Tulipan albo Bratek\n"
     "\n"
@@ -2416,23 +2444,23 @@ def test_partial_match_union_from_other_occurrence(parse, capsys):
         "    wartość (element)\n"
         "\n"
         "definicja Błędu:\n"
-        "    opis (Tekst)\n"
+        "    opis (Znak)\n"
         "\n"
         "definicja Porażki:\n"
-        "    powód (Tekst)\n"
+        "    powód (Znak)\n"
         "\n"
         "Rezultat to Sukces albo Błąd\n"
         "Wynik to Sukces albo Porażka\n"
         "\n"
-        "aby przyjąć rezultat (Rezultat) -> Tekst:\n"
-        "    zwróć \"ok\"\n"
+        "aby przyjąć rezultat (Rezultat) -> Znak:\n"
+        "    zwróć 'k'\n"
         "\n"
         "aby badać coś:\n"
         "    coś jest:\n"
         "        Sukcesem:\n"
-        "            napis to \"sukces\"\n"
+        "            napis to 's'\n"
         "        inaczej:\n"
-        "            napis to \"nie sukces\"\n"
+        "            napis to 'n'\n"
         "    zwróć przyjmij coś\n"
     )
     module = parse(src)
@@ -2450,10 +2478,10 @@ def test_partial_match_unresolved_ambiguity_not_grounded(parse):
         "    wartość (element)\n"
         "\n"
         "definicja Błędu:\n"
-        "    opis (Tekst)\n"
+        "    opis (Znak)\n"
         "\n"
         "definicja Porażki:\n"
-        "    powód (Tekst)\n"
+        "    powód (Znak)\n"
         "\n"
         "Rezultat to Sukces albo Błąd\n"
         "Wynik to Sukces albo Porażka\n"
@@ -2465,9 +2493,9 @@ def test_partial_match_unresolved_ambiguity_not_grounded(parse):
         "    tajemnica to wytwarzaj pięć\n"
         "    tajemnica jest:\n"
         "        Sukcesem:\n"
-        "            napis to \"sukces\"\n"
+        "            napis to 's'\n"
         "        inaczej:\n"
-        "            napis to \"nie sukces\"\n"
+        "            napis to 'n'\n"
     )
     module = parse(src)
     with pytest.raises(typechecker.TypeCheckError):
@@ -2478,17 +2506,17 @@ def test_partial_match_unresolved_ambiguity_not_grounded(parse):
 def test_partial_match_branches_not_subset_raises(parse):
     src = _KWIATKI + (
         "definicja Psa:\n"
-        "    imię (Tekst)\n"
+        "    imię (Znak)\n"
         "\n"
         "aby działać:\n"
-        "    kwiatki to Tulipan o płatku \"x\"\n"
+        "    kwiatki to Tulipan o płatku 'x'\n"
         "    kwiatki są:\n"
         "        Tulipanem:\n"
-        "            napis to \"t\"\n"
+        "            napis to 't'\n"
         "        Psem:\n"
-        "            napis to \"p\"\n"
+        "            napis to 'p'\n"
         "        inaczej:\n"
-        "            napis to \"reszta\"\n"
+        "            napis to 'r'\n"
     )
     module = parse(src)
     with pytest.raises(typechecker.TypeCheckError,
@@ -2536,7 +2564,7 @@ def test_alias_to_builtin_rejects_conflict(parse):
         "Numer to Liczba\n"
         "\n"
         "aby działać:\n"
-        "    wynik (Numer) to \"tekst\"\n"
+        "    wynik (Numer) to 'z'\n"
     )
     module = parse(src)
     with pytest.raises(typechecker.TypeCheckError):
@@ -2579,7 +2607,7 @@ def test_alias_binds_union_param(parse):
 
 @pytest.mark.integration
 def test_alias_bound_param_rejects_wrong_element(parse):
-    """Węzeł z tekstową głową nie przechodzi przez slot (Ciąg) —
+    """Węzeł ze znakową głową nie przechodzi przez slot (Ciąg) —
     wiązanie `o elemencie Liczba` faktycznie ogranicza."""
     src = _OGNIWA + (
         "Ciąg to Łańcuszek o elemencie Liczba\n"
@@ -2588,7 +2616,7 @@ def test_alias_bound_param_rejects_wrong_element(parse):
         "    zwróć jeden\n"
         "\n"
         "aby działać:\n"
-        "    ogniwo to Węzeł o głowie \"tekst\" o ogonie Nic\n"
+        "    ogniwo to Węzeł o głowie 'g' o ogonie Nic\n"
         "    wynik to mierz ogniwo\n"
     )
     module = parse(src)
@@ -2608,7 +2636,7 @@ def test_alias_generic_stays_free(parse):
         "\n"
         "aby działać:\n"
         "    a to mierz (Węzeł o głowie pięć o ogonie Nic)\n"
-        "    b to mierz (Węzeł o głowie \"tekst\" o ogonie Nic)\n"
+        "    b to mierz (Węzeł o głowie 'g' o ogonie Nic)\n"
     )
     module = parse(src)
     typechecker.resolve_module(module)
@@ -2640,7 +2668,7 @@ def test_alias_nested_application_rejects_wrong_inner(parse):
         "    zwróć jeden\n"
         "\n"
         "aby działać:\n"
-        "    ogniwo to Węzeł o głowie (Węzeł o głowie \"tekst\" o ogonie Nic) o ogonie Nic\n"
+        "    ogniwo to Węzeł o głowie (Węzeł o głowie 'g' o ogonie Nic) o ogonie Nic\n"
         "    wynik to bierz ogniwo\n"
     )
     module = parse(src)
@@ -2651,10 +2679,10 @@ def test_alias_nested_application_rejects_wrong_inner(parse):
 @pytest.mark.integration
 def test_alias_to_struct_named_application(parse):
     src = _BRATKI + (
-        "Okaz to Bratek o elemencie Liczba o wartości Tekst\n"
+        "Okaz to Bratek o elemencie Liczba o wartości Znak\n"
         "\n"
         "aby działać:\n"
-        "    kwiatek (Okaz) to Bratek o płatku jeden o zawartości \"rosa\"\n"
+        "    kwiatek (Okaz) to Bratek o płatku jeden o zawartości 'r'\n"
     )
     module = parse(src)
     typechecker.resolve_module(module)
@@ -2664,10 +2692,10 @@ def test_alias_to_struct_named_application(parse):
 @pytest.mark.integration
 def test_alias_to_struct_rejects_wrong_field(parse):
     src = _BRATKI + (
-        "Okaz to Bratek o elemencie Liczba o wartości Tekst\n"
+        "Okaz to Bratek o elemencie Liczba o wartości Znak\n"
         "\n"
         "aby działać:\n"
-        "    kwiatek (Okaz) to Bratek o płatku \"płatek\" o zawartości \"rosa\"\n"
+        "    kwiatek (Okaz) to Bratek o płatku 'p' o zawartości 'r'\n"
     )
     module = parse(src)
     with pytest.raises(typechecker.TypeCheckError):
@@ -2677,17 +2705,17 @@ def test_alias_to_struct_rejects_wrong_field(parse):
 @pytest.mark.integration
 def test_alias_partial_application(parse):
     """Wiązanie częściowe: `wartość` związana, `element` wolny — kwiatki
-    o różnych płatkach przechodzą, byle zawartość była tekstowa."""
+    o różnych płatkach przechodzą, byle zawartość była znakowa."""
     src = _BRATKI + (
         "Kwiatek to Bratek albo Nic\n"
-        "Połówka to Kwiatek o wartości Tekst\n"
+        "Połówka to Kwiatek o wartości Znak\n"
         "\n"
         "aby przyjąć kwiat (Połówka):\n"
         "    zwróć jeden\n"
         "\n"
         "aby działać:\n"
-        "    a to przyjmij (Bratek o płatku jeden o zawartości \"x\")\n"
-        "    b to przyjmij (Bratek o płatku \"y\" o zawartości \"z\")\n"
+        "    a to przyjmij (Bratek o płatku jeden o zawartości 'x')\n"
+        "    b to przyjmij (Bratek o płatku 'y' o zawartości 'z')\n"
     )
     module = parse(src)
     typechecker.resolve_module(module)
@@ -2697,7 +2725,7 @@ def test_alias_partial_application(parse):
 def test_alias_partial_application_rejects_bound_param(parse):
     src = _BRATKI + (
         "Kwiatek to Bratek albo Nic\n"
-        "Połówka to Kwiatek o wartości Tekst\n"
+        "Połówka to Kwiatek o wartości Znak\n"
         "\n"
         "aby przyjąć kwiat (Połówka):\n"
         "    zwróć jeden\n"
@@ -2714,7 +2742,7 @@ def test_alias_partial_application_rejects_bound_param(parse):
 def test_alias_bound_does_not_leak_into_struct_env(parse):
     """Alias ze związanym `elementem` użyty w polu struktury, której WŁASNY
     parametr też nazywa się `element`: wiązanie aliasu NIE może przechwycić
-    (i zbetonować) parametru struktury — `zawartość` zostaje tekstowa."""
+    (i zbetonować) parametru struktury — `zawartość` zostaje znakowa."""
     src = _OGNIWA + (
         "Ciąg to Łańcuszek o elemencie Liczba\n"
         "\n"
@@ -2723,7 +2751,7 @@ def test_alias_bound_does_not_leak_into_struct_env(parse):
         "    etykieta (Ciąg)\n"
         "\n"
         "aby działać:\n"
-        "    pudełko to Pudełko o zawartości \"tekst\" o etykiecie Nic\n"
+        "    pudełko to Pudełko o zawartości 't' o etykiecie Nic\n"
     )
     module = parse(src)
     typechecker.resolve_module(module)
@@ -2744,7 +2772,7 @@ def test_alias_generic_captures_struct_param(parse):
         "    rzeczy (Ciąg)\n"
         "\n"
         "aby działać:\n"
-        "    skrzynia to Skrzynia o zawartości jeden o rzeczach (Węzeł o głowie \"tekst\" o ogonie Nic)\n"
+        "    skrzynia to Skrzynia o zawartości jeden o rzeczach (Węzeł o głowie 'g' o ogonie Nic)\n"
     )
     module = parse(src)
     with pytest.raises(typechecker.TypeCheckError):
@@ -2839,7 +2867,7 @@ def test_alias_unknown_param_name_rejected(parse):
 @pytest.mark.integration
 def test_alias_duplicate_binding_rejected(parse):
     src = _OGNIWA + (
-        "Ciąg to Łańcuszek o elemencie Liczba o elemencie Tekst\n"
+        "Ciąg to Łańcuszek o elemencie Liczba o elemencie Znak\n"
         "\n"
         "aby działać:\n"
         "    zwróć jeden\n"
@@ -2853,7 +2881,7 @@ def test_alias_duplicate_binding_rejected(parse):
 @pytest.mark.integration
 def test_alias_builtin_with_args_rejected(parse):
     src = (
-        "Alfa to Liczba o elemencie Tekst\n"
+        "Alfa to Liczba o elemencie Znak\n"
         "\n"
         "aby działać:\n"
         "    zwróć jeden\n"
@@ -2869,7 +2897,7 @@ def test_alias_of_alias_with_args_rejected(parse):
     parametrów nie re-aplikuje."""
     src = _OGNIWA + (
         "Ciąg to Łańcuszek o elemencie Liczba\n"
-        "Sznur to Ciąg o elemencie Tekst\n"
+        "Sznur to Ciąg o elemencie Znak\n"
         "\n"
         "aby działać:\n"
         "    zwróć jeden\n"
@@ -2911,9 +2939,9 @@ def test_alias_name_collides_with_union(parse):
 
 
 @pytest.mark.integration
-def test_alias_shadows_builtin_tekst(parse):
-    """Builtin `Tekst` wolno przesłonić aliasem (migracja tekstu na listę
-    znaków) — literał tekstowy typuje się wtedy przez alias."""
+def test_alias_tekst_enables_text_literals(parse):
+    """`Tekst` nie jest builtinem — deklaracja aliasu `Tekst` wprowadza go
+    do modułu, a literał tekstowy typuje się przez ten alias."""
     src = _OGNIWA + (
         "Tekst to Łańcuszek o elemencie Znak\n"
         "\n"
@@ -2926,8 +2954,8 @@ def test_alias_shadows_builtin_tekst(parse):
 
 
 @pytest.mark.integration
-def test_alias_shadowing_other_builtin_rejected(parse):
-    """Przesłonić wolno TYLKO `Tekst` — pozostałe builtiny kolidują."""
+def test_alias_shadowing_builtin_rejected(parse):
+    """Builtinów nie wolno przesłaniać aliasem — kolizja nazw."""
     src = _OGNIWA + (
         "Liczba to Łańcuszek\n"
     )
@@ -2966,7 +2994,7 @@ def test_alias_use_with_args_rejected(parse):
     src = _OGNIWA + (
         "Ciąg to Łańcuszek o elemencie Liczba\n"
         "\n"
-        "aby brać łańcuszek (Ciąg o elemencie Tekst):\n"
+        "aby brać łańcuszek (Ciąg o elemencie Znak):\n"
         "    zwróć jeden\n"
         "\n"
         "aby działać:\n"

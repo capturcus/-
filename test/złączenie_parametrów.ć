@@ -1,3 +1,5 @@
+uwzględnij przygrywka.ć
+
 # Pełne więzy podtypowania: `zwróć kot` / `zwróć pies` to poszlaki DOLNE
 # (kot ≤ ret, pies ≤ ret) — parametry nie sklejają się w jedną zmienną,
 # a ret jest ich kresem: w tym wywołaniu Kot ⊔ Pies = Domownik.

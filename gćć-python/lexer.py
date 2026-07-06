@@ -7,6 +7,7 @@ class Token(Enum):
     NEWLINE = auto()
     WORD = auto()
     TEXT = auto()
+    CHAR = auto()
     COLON = auto()
     ASSIGN = auto()
     LPAREN = auto()
@@ -32,7 +33,9 @@ class Tok(tuple):
         return t
 
 
-_TOKEN_RE = re.compile(r'"((?:\\.|[^"\\])*)"|(->)|(:)|([()])|(\?)|([^\s:"()?]+)')
+_TOKEN_RE = re.compile(
+    r'"((?:\\.|[^"\\])*)"|\'((?:\\.|[^\'\\])*)\'|(->)|(:)|([()])|(\?)'
+    r'|([^\s:"\'()?]+)')
 
 
 _ESC_MAP = {
@@ -41,6 +44,7 @@ _ESC_MAP = {
     "r": "\r",
     "\\": "\\",
     '"': '"',
+    "'": "'",
     "0": "\0",
 }
 
@@ -67,7 +71,7 @@ def _unescape_string(raw, line_no):
         if esc not in _ESC_MAP:
             raise InterpreterError(
                 f"nieznany escape '\\{esc}' w literale stringowym; "
-                f"wspierane: \\n \\t \\r \\\\ \\\" \\0",
+                f"wspierane: \\n \\t \\r \\\\ \\\" \\' \\0",
                 line=line_no,
             )
         out.append(_ESC_MAP[esc])
@@ -120,9 +124,19 @@ def lex(text):
         indent_level = line_indents
         before = len(ret)
         for m in _TOKEN_RE.finditer(stripped):
-            text_, arrow, colon, paren, question, word = m.groups()
+            text_, char_, arrow, colon, paren, question, word = m.groups()
             if text_ is not None:
                 ret.append(Tok(Token.TEXT, _unescape_string(text_, line_no), line=line_no))
+            elif char_ is not None:
+                znak = _unescape_string(char_, line_no)
+                if len(znak) != 1:
+                    from ast_nodes import InterpreterError
+                    raise InterpreterError(
+                        f"literał znakowy '{char_}' musi zawierać dokładnie "
+                        f"jeden znak",
+                        line=line_no,
+                    )
+                ret.append(Tok(Token.CHAR, znak, line=line_no))
             elif arrow is not None:
                 ret.append(Tok(Token.ARROW, None, line=line_no))
             elif colon is not None:

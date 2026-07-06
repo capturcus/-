@@ -535,7 +535,7 @@ class Parser:
                 pname = "_".join(p.name.surface)
                 raise InterpreterError(
                     f"deklaracja 'można {fname}' wymaga jawnego typu "
-                    f"parametru '{pname}' — np. {pname} (Tekst)",
+                    f"parametru '{pname}' — np. {pname} (Liczba)",
                     line=p.name.line,
                 )
         if return_type is None:

@@ -1,3 +1,5 @@
+uwzględnij przygrywka.ć
+
 definicja Tulipana:
     płatek (Tekst)
 
@@ -9,9 +11,9 @@ definicja Ogrodu:
 
 definicja Węzła:
     wartość (Liczba)
-    następnik (Ogniwo)
+    następnik (Łącze)
 
-Ogniwo to Węzeł albo Nic
+Łącze to Węzeł albo Nic
 
 można wypisać coś (Cokolwiek) -> Nic
 

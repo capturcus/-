@@ -36,7 +36,7 @@ from morph_anal import canonical
 from ast_nodes import (
     Identifier, FunctionIdentifier, FunctionIdentifierError,
     StructDef, FunctionDef, ExternFunctionDef, UnionDef, Match,
-    IntLit, StrLit, BoolLit, BinOp, UnaryOp, And, Or, Not,
+    IntLit, StrLit, CharLit, BoolLit, BinOp, UnaryOp, And, Or, Not,
     FunctionCall, FunctionRef, Apply, GetterChain, StructCreation,
     StructArg, StructCtx, TryCall, TypeAlias,
     Typed, ResolveError, Word, LOGICAL_OPS,
@@ -427,6 +427,10 @@ class ExpressionParser:
             self.advance()
             self.last_production = {"kind": "literal", "type": "text"}
             return StrLit(t[1])
+        if kind is lexer.Token.CHAR:
+            self.advance()
+            self.last_production = {"kind": "literal", "type": "char"}
+            return CharLit(t[1])
         if kind is lexer.Token.BOOL_LIT:
             self.advance()
             self.last_production = {"kind": "literal", "type": "bool"}
@@ -943,7 +947,7 @@ class ExpressionParser:
 
 # ---------- module-level resolver ----------
 
-builtin_types = [("Tekst",), ("Liczba",), ("Przełącznik",), ("Znak",), ("Nic",)]
+builtin_types = [("Liczba",), ("Przełącznik",), ("Znak",), ("Nic",)]
 
 def _build_ctx(module):
     function_defs = {}
@@ -963,13 +967,7 @@ def _build_ctx(module):
             unions[node.name] = node
             types.add(node.name)
         elif isinstance(node, TypeAlias):
-            # Wbudowany `Tekst` wolno przesłonić aliasem (przygrywka:
-            # `Tekst to Lista o elemencie Znak` — migracja tekstu na listę
-            # znaków); każda inna kolizja nazw pozostaje błędem.
-            collides = (node.name in unions or node.name in fields_by_type
-                        or node.name in aliases
-                        or (node.name in types and node.name != ("Tekst",)))
-            if collides:
+            if node.name in types:
                 raise ResolveError(
                     f"typ '{'_'.join(node.name)}' zadeklarowany dwukrotnie",
                     line=node.line,
