@@ -541,59 +541,62 @@ def _dodaj_górną(var, typ):
 
 def ogranicz(pod, nad):
     """Biunifikacja: `pod` (typ produkowany) płynie w `nad` (wymaganie).
-    Granice tylko przybywają; para (pod, nad) przetwarzana raz."""
-    if pod is nad:
-        return
-    klucz = (id(pod), id(nad))
-    if klucz in _pary:
-        return
-    _pary.add(klucz)
-    _pary_żywe.append((pod, nad))
-    if isinstance(pod, Konkret) and isinstance(nad, Konkret):
-        _ogranicz_konkrety(pod, nad)
-    elif isinstance(pod, Zmienna) and isinstance(nad, Zmienna):
-        # Krawędź var–var zapisywana OBUSTRONNIE: górna na pod, dolna na
-        # nad — grounding i materializacja czytają dolne, poszlaki płyną
-        # w obie strony.
-        _dodaj_górną(pod, nad)
-        _dodaj_dolną(nad, pod)
+    Granice tylko przybywają; para (pod, nad) przetwarzana raz.
+    Domknięcie przechodnie ITERACYJNE (kolejka robocza) — rekurencja
+    pythonowa pękała na głębokich strukturach (drzewa AVL)."""
+    kolejka = [(pod, nad, None)]
+
+    def wstaw(a, b, nota):
+        # Filtr przy WKŁADANIU: bez niego kolejka puchnie duplikatami
+        # (setki milionów odrzutów przy głębokich strukturach).
+        if a is not b and (id(a), id(b)) not in _pary:
+            kolejka.append((a, b, nota))
+
+    while kolejka:
+        p, n, nota = kolejka.pop()
+        if p is n:
+            continue
+        klucz = (id(p), id(n))
+        if klucz in _pary:
+            continue
+        _pary.add(klucz)
+        _pary_żywe.append((p, n))
         try:
-            for d, nota in list(pod.dolne):
-                if d is not nad:
-                    _przepchnij(d, nad, nota)
-            for g, nota in list(nad.górne):
-                if g is not pod:
-                    _przepchnij(pod, g, nota)
+            if isinstance(p, Konkret) and isinstance(n, Konkret):
+                _ogranicz_konkrety(p, n)
+            elif isinstance(p, Zmienna) and isinstance(n, Zmienna):
+                # Krawędź var-var: pojedyncza, BEZ materializacji
+                # domknięcia przechodniego po zmiennych (to kwadrat
+                # krawędzi, który instancjacja by potem kopiowała).
+                # Przez krawędź przepychamy wyłącznie KONKRETY; inwariant:
+                # każda zmienna zna wszystkie osiągalne konkretne granice,
+                # więc łączliwość dolnych i konflikty konkret-konkret
+                # wykrywane są tak samo jak przy pełnym domknięciu.
+                _dodaj_górną(p, n)
+                _dodaj_dolną(n, p)
+                for d, nd in list(p.dolne):
+                    if isinstance(d, Konkret):
+                        wstaw(d, n, nd)
+                for g, ng in list(n.górne):
+                    if isinstance(g, Konkret):
+                        wstaw(p, g, ng)
+            elif isinstance(p, Zmienna):
+                if _dodaj_górną(p, n):
+                    for d, nd in list(p.dolne):
+                        wstaw(d, n, nd)
+            else:
+                if _dodaj_dolną(n, p):
+                    for g, ng in list(n.górne):
+                        wstaw(p, g, ng)
         except TypeCheckError as e:
-            raise _z_poszlakownikiem(_z_poszlakownikiem(e, pod), nad) \
-                from None
-    elif isinstance(pod, Zmienna):
-        if _dodaj_górną(pod, nad):
-            try:
-                for d, nota in list(pod.dolne):
-                    _przepchnij(d, nad, nota)
-            except TypeCheckError as e:
-                raise _z_poszlakownikiem(e, pod) from None
-    else:
-        if _dodaj_dolną(nad, pod):
-            try:
-                for g, nota in list(nad.górne):
-                    _przepchnij(pod, g, nota)
-            except TypeCheckError as e:
-                raise _z_poszlakownikiem(e, nad) from None
-
-
-def _przepchnij(pod, nad, nota):
-    """Domknięcie przechodnie z dekoracją poszlaką granicy pośredniczącej."""
-    try:
-        ogranicz(pod, nad)
-    except TypeCheckError as e:
-        # Kolejne poziomy dokładają swoje kroki — czytane od góry tworzą
-        # drogę wartości od źródła do pękającego slotu.
-        if nota and nota not in str(e):
-            raise TypeCheckError(f"{e}\n  ↳ droga wartości: {nota}") \
-                from None
-        raise
+            # Dekoracja drogą wartości (nota granicy pośredniczącej)
+            # i poszlakownikami zmiennych, przez które konflikt płynie.
+            if nota and nota not in str(e):
+                e = TypeCheckError(f"{e}\n  ↳ droga wartości: {nota}")
+            for strona in (p, n):
+                if isinstance(strona, Zmienna):
+                    e = _z_poszlakownikiem(e, strona)
+            raise e from None
 
 
 def _ogranicz_konkrety(pod, nad):

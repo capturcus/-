@@ -1,0 +1,116 @@
+# Słownik (mapa klucz→wartość) na drzewie AVL: klucze to Teksty
+# w porządku leksykograficznym (operacje_tekstowe.porównać), wartości
+# generyczne. Wkładanie funkcyjne (nowe drzewo) z wyważaniem rotacjami;
+# wzrost (wysokość) trzymany w konarze. Pusty słownik ≡ Nic.
+
+uwzględnij przygrywka.ć
+uwzględnij operacje_tekstowe.ć
+
+definicja Konaru z owocem:
+    klucz (Tekst)
+    zapas (owoc)
+    lewica (Słownik)
+    prawica (Słownik)
+    wzrost (Liczba)
+
+Słownik to Konar albo Nic
+
+aby zmierzyć_wzrost słownika (Słownik) -> Liczba:
+    słownik jest:
+        Konarem ze wzrostem:
+            zwróć wzrost
+        Niczym:
+            zwróć zero
+
+# Przewaga lewej strony nad prawą (dodatnia → lewa wyższa).
+aby wyznaczyć_przewagę słownika (Słownik) -> Liczba:
+    słownik jest:
+        Konarem z lewicą z prawicą:
+            zwróć (zmierz_wzrost lewicy) minus (zmierz_wzrost prawicy)
+        Niczym:
+            zwróć zero
+
+aby wybrać_większe z pierwszej (Liczba) z drugiej (Liczba) -> Liczba:
+    jeśli pierwsza mniejsze od druga:
+        zwróć druga
+    zwróć pierwsza
+
+aby zbudować_konar z klucza (Tekst) z zapasu z lewicy (Słownik) z prawicy (Słownik) -> Słownik:
+    zwróć Konar o kluczu klucz o zapasie zapas o lewicy lewica o prawicy prawica o wzroście (jeden plus (wybierz_większe z (zmierz_wzrost lewicy) z (zmierz_wzrost prawicy)))
+
+aby obrócić_w_prawo słownik (Słownik) -> Słownik:
+    słownik jest:
+        Konarem jako korzeń:
+            lewica korzenia jest:
+                Konarem jako oś:
+                    zwróć zbuduj_konar z (klucz osi) z (zapas osi) z (lewica osi) z (zbuduj_konar z (klucz korzenia) z (zapas korzenia) z (prawica osi) z (prawica korzenia))
+                Niczym:
+                    zwróć słownik
+        Niczym:
+            zwróć słownik
+
+aby obrócić_w_lewo słownik (Słownik) -> Słownik:
+    słownik jest:
+        Konarem jako korzeń:
+            prawica korzenia jest:
+                Konarem jako oś:
+                    zwróć zbuduj_konar z (klucz osi) z (zapas osi) z (zbuduj_konar z (klucz korzenia) z (zapas korzenia) z (lewica korzenia) z (lewica osi)) z (prawica osi)
+                Niczym:
+                    zwróć słownik
+        Niczym:
+            zwróć słownik
+
+aby wyrównać słownik (Słownik) -> Słownik:
+    przewaga to wyznacz_przewagę słownika
+    jeśli przewaga większe od jeden:
+        słownik jest:
+            Konarem jako korzeń:
+                jeśli (wyznacz_przewagę (lewica korzenia)) mniejsze od zero:
+                    zwróć obróć_w_prawo (zbuduj_konar z (klucz korzenia) z (zapas korzenia) z (obróć_w_lewo (lewica korzenia)) z (prawica korzenia))
+                zwróć obróć_w_prawo słownik
+            Niczym:
+                zwróć słownik
+    jeśli przewaga mniejsze od (minus jeden):
+        słownik jest:
+            Konarem jako korzeń:
+                jeśli (wyznacz_przewagę (prawica korzenia)) większe od zero:
+                    zwróć obróć_w_lewo (zbuduj_konar z (klucz korzenia) z (zapas korzenia) z (lewica korzenia) z (obróć_w_prawo (prawica korzenia)))
+                zwróć obróć_w_lewo słownik
+            Niczym:
+                zwróć słownik
+    zwróć słownik
+
+# Wkładanie: istniejący klucz nadpisuje wartość; nowy schodzi w gałąź
+# wyznaczoną porządkiem leksykograficznym, a droga powrotna wyważa.
+aby włożyć zapas pod kluczem (Tekst) do słownika (Słownik) -> Słownik:
+    słownik jest:
+        Niczym:
+            zwróć zbuduj_konar z klucza z zapasu z Nic z Nic
+        Konarem jako korzeń:
+            porządek to porównaj klucz z (klucz korzenia)
+            jeśli porządek równe zero:
+                zwróć zbuduj_konar z klucza z zapasu z (lewica korzenia) z (prawica korzenia)
+            jeśli porządek mniejsze od zero:
+                zwróć wyrównaj (zbuduj_konar z (klucz korzenia) z (zapas korzenia) z (włóż zapas pod kluczem do (lewica korzenia)) z (prawica korzenia))
+            zwróć wyrównaj (zbuduj_konar z (klucz korzenia) z (zapas korzenia) z (lewica korzenia) z (włóż zapas pod kluczem do (prawica korzenia)))
+
+# Odczyt: Sukces z wartością albo Błąd, gdy klucza nie ma.
+aby znaleźć klucz (Tekst) w słowniku (Słownik):
+    słownik jest:
+        Niczym:
+            zwróć Błąd o opisie "nie znaleziono"
+        Konarem jako korzeń:
+            porządek to porównaj klucz z (klucz korzenia)
+            jeśli porządek równe zero:
+                zwróć Sukces o wartości (zapas korzenia)
+            jeśli porządek mniejsze od zero:
+                zwróć znajdź (klucz) w (lewica korzenia)
+            zwróć znajdź (klucz) w (prawica korzenia)
+
+# Liczba wpisów.
+aby zliczyć_wpisy słownika (Słownik) -> Liczba:
+    słownik jest:
+        Konarem z lewicą z prawicą:
+            zwróć jeden plus (zliczyć_wpisy lewicy) plus (zliczyć_wpisy prawicy)
+        Niczym:
+            zwróć zero

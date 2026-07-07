@@ -1,0 +1,32 @@
+# Testy słownika AVL: wkładanie kluczy ROSNĄCO (wymusza rotacje),
+# odczyty trafione i pudło, nadpisanie wartości, liczba wpisów oraz
+# wyważenie (siedem wpisów → wzrost trzy, nie siedem).
+
+uwzględnij słownik.ć
+
+aby odczytać klucz (Tekst) ze słownika (Słownik):
+    wynik to znajdź klucz w słowniku
+    wynik jest:
+        Sukcesem z wartością:
+            wypisz wartość
+        Błędem z opisem:
+            wypisz opis
+
+aby działać:
+    baza (Słownik) to Nic
+    baza to włóż jeden pod "ala" do bazy
+    baza to włóż dwa pod "bok" do bazy
+    baza to włóż trzy pod "cel" do bazy
+    baza to włóż cztery pod "dom" do bazy
+    baza to włóż pięć pod "echo" do bazy
+    baza to włóż sześć pod "fala" do bazy
+    baza to włóż siedem pod "gong" do bazy
+    wypisz (zliczyć_wpisy bazy)
+    wypisz (zmierzyć_wzrost bazy)
+    odczytaj "ala" z bazy
+    odczytaj "dom" z bazy
+    odczytaj "gong" z bazy
+    odczytaj "zzz" z bazy
+    baza to włóż dziewięć pod "dom" do bazy
+    odczytaj "dom" z bazy
+    wypisz (zliczyć_wpisy bazy)

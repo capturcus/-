@@ -168,3 +168,32 @@ aby pokazać liczbę (Liczba) -> Tekst:
     jeśli liczba mniejsze od zero:
         zwróć sklej "-" z (rozwijaj (zero minus liczba))
     zwróć rozwijaj liczbę
+
+# Quicksort (rosnąco, po `mniejsze od` — elementy to Liczby): oś to
+# głowa; mniejsze przed nią, reszta (równe i większe) za nią.
+aby wybrać_mniejsze od osi (Liczba) z listy (Lista) -> Lista:
+    lista jest:
+        Ogniwem z głową z ogonem:
+            reszta to wybierz_mniejsze od osi z ogona
+            jeśli głowa mniejsze od oś:
+                zwróć Ogniwo o głowie głowa o ogonie reszta
+            zwróć resztę
+        Niczym:
+            zwróć Nic
+
+aby wybrać_resztę od osi (Liczba) z listy (Lista) -> Lista:
+    lista jest:
+        Ogniwem z głową z ogonem:
+            reszta to wybierz_resztę od osi z ogona
+            jeśli głowa mniejsze od oś:
+                zwróć resztę
+            zwróć Ogniwo o głowie głowa o ogonie reszta
+        Niczym:
+            zwróć Nic
+
+aby sortować_szybko listę (Lista) -> Lista:
+    lista jest:
+        Ogniwem z głową z ogonem:
+            zwróć sklej (sortuj_szybko (wybierz_mniejsze od głowy z ogona)) z (Ogniwo o głowie głowa o ogonie (sortuj_szybko (wybierz_resztę od głowy z ogona)))
+        Niczym:
+            zwróć Nic

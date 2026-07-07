@@ -1,0 +1,20 @@
+# Testy operacji tekstowych: porządek leksykograficzny, cięcie po
+# separatorze, podział/złączenie (odwrotność), obecność znaku.
+
+uwzględnij operacje_tekstowe.ć
+
+aby działać:
+    wypisz (porównaj "abc" z "abd")
+    wypisz (porównaj "b" z "abc")
+    wypisz (porównaj "raz" z "raz")
+    wypisz (porównaj "" z "a")
+    wypisz (porównaj "ab" z "a")
+    wypisz (utnij "klucz=wartość" przed '=')
+    wypisz (odetnij "klucz=wartość" za '=')
+    wypisz (utnij "bez_separatora" przed '=')
+    wypisz (sprawdź_obecność ',' w "a,b")
+    wypisz (sprawdź_obecność ';' w "a,b")
+    kawałki to podziel_tekst "a,bb,c" po ','
+    wypisz (zmierz kawałki)
+    wypisz (złącz kawałki ';')
+    wypisz (złącz (podziel_tekst "solo" po ',') ',')

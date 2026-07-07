@@ -1,0 +1,21 @@
+# Quicksort z przygrywki: przypadki z powtórkami, posortowany,
+# odwrotny, pusty i jednoelementowy.
+
+uwzględnij przygrywka.ć
+
+aby ogłosić listę (Lista):
+    lista jest:
+        Ogniwem z głową z ogonem:
+            wypisz głowa
+            ogłoś ogon
+        Niczym:
+            zwróć Nic
+
+aby działać:
+    liczby to Ogniwo o głowie trzy o ogonie (Ogniwo o głowie jeden o ogonie (Ogniwo o głowie pięć o ogonie (Ogniwo o głowie jeden o ogonie (Ogniwo o głowie cztery o ogonie Nic))))
+    ogłoś (sortuj_szybko liczby)
+    wypisz (zmierz (sortuj_szybko liczby))
+    próżnia (Lista) to Nic
+    wypisz (zmierz (sortuj_szybko próżnię))
+    solo to Ogniwo o głowie dwa o ogonie Nic
+    ogłoś (sortuj_szybko solo)

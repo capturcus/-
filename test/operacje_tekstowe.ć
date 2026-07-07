@@ -1,0 +1,76 @@
+# Operacje tekstowe: drobiazgi wcześniej powielane po programach
+# (uciąć/odciąć z http.ć) plus porównanie leksykograficzne, podział
+# po separatorze, złączanie i sprawdzanie obecności znaku.
+
+uwzględnij przygrywka.ć
+
+# Porządek leksykograficzny po punktach kodowych: minus jeden gdy
+# pierwszy tekst wcześniejszy, zero gdy równe, jeden gdy późniejszy.
+aby porównać tekst (Tekst) z drugim (Tekst) -> Liczba:
+    tekst jest:
+        Niczym:
+            drugi jest:
+                Niczym:
+                    zwróć zero
+                Ogniwem:
+                    zwróć minus jeden
+        Ogniwem jako czoło:
+            drugi jest:
+                Niczym:
+                    zwróć jeden
+                Ogniwem jako zaplecze:
+                    kod to zapisz_liczbą (głowa czoła)
+                    kod_drugi to zapisz_liczbą (głowa zaplecza)
+                    jeśli kod mniejsze od kod_drugi:
+                        zwróć minus jeden
+                    jeśli kod_drugi mniejsze od kod:
+                        zwróć jeden
+                    zwróć porównaj (ogon czoła) z (ogon zaplecza)
+
+# Czy znak występuje w tekście.
+aby sprawdzić_obecność rozdzielnika (Znak) w tekście (Tekst) -> Przełącznik:
+    tekst jest:
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa rozdzielnik:
+                zwróć prawda
+            zwróć sprawdź_obecność rozdzielnika w ogonie
+        Niczym:
+            zwróć fałsz
+
+# Prefiks do pierwszego rozdzielnika (bez niego); brak → cały tekst.
+aby uciąć tekst (Tekst) przed rozdzielnikiem (Znak) -> Tekst:
+    tekst jest:
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa rozdzielnik:
+                zwróć Nic
+            zwróć Ogniwo o głowie głowa o ogonie (utnij ogon przed rozdzielnikiem)
+        Niczym:
+            zwróć Nic
+
+# Sufiks za pierwszym rozdzielnikiem; brak → pusty tekst.
+aby odciąć tekst (Tekst) za rozdzielnikiem (Znak) -> Tekst:
+    tekst jest:
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa rozdzielnik:
+                zwróć ogon
+            zwróć odetnij ogon za rozdzielnikiem
+        Niczym:
+            zwróć Nic
+
+# Podział po rozdzielniku na listę kawałków (pusty kawałek ≡ Nic).
+aby podzielić_tekst całość (Tekst) po rozdzielniku (Znak) -> Lista:
+    jeśli sprawdź_obecność rozdzielnika w całości:
+        zwróć Ogniwo o głowie (utnij całość przed rozdzielnikiem) o ogonie (podziel_tekst (odetnij całość za rozdzielnikiem) po rozdzielniku)
+    zwróć Ogniwo o głowie całość o ogonie Nic
+
+# Złączenie kawałków rozdzielnikiem (odwrotność podziału).
+aby złączyć kawałki (Lista) rozdzielnikiem (Znak) -> Tekst:
+    kawałki są:
+        Ogniwem z głową z ogonem:
+            ogon jest:
+                Niczym:
+                    zwróć głowa
+                inaczej:
+                    zwróć sklej głowę z (Ogniwo o głowie rozdzielnik o ogonie (złącz ogon rozdzielnikiem))
+        Niczym:
+            zwróć Nic
