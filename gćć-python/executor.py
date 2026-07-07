@@ -38,6 +38,17 @@ class ErrorPropagation(Exception):
     def __init__(self, value):
         self.value = value
 
+class _TailCall:
+    """Ogonowe `zwróć wywołanie` — trampolina w execute_function podmienia
+    argumenty pętli zamiast rekurować (TCO: pętle ogonowe w O(1) stosu
+    Pythona i Ć)."""
+    __slots__ = ("lemmas", "args")
+
+    def __init__(self, lemmas, args):
+        self.lemmas = lemmas
+        self.args = args
+
+
 class ReturnUnwind(Exception):
     """`zwróć` w zagnieżdżonym bloku — przerywa ciało funkcji z wartością."""
     def __init__(self, value):
@@ -59,6 +70,8 @@ def _brak_pola(czynność, struct, keys):
 
 def _field_value(struct, keys):
     """Wartość pola struktury (RuntimeValue) po scope-keys pola."""
+    if tekst_lista is not None:
+        _wymuś_tekst(struct)
     if isinstance(struct.value, dict):
         for stored_key, value in struct.value.items():
             if any(ast.scope_key_matches(k, stored_key) for k in keys):
@@ -68,6 +81,8 @@ def _field_value(struct, keys):
 def _field_set(struct, keys, value):
     """Zapis pola po scope-keys; konstrukcja jest zawsze pełna, więc brak
     wpisu to błąd interpretera."""
+    if tekst_lista is not None:
+        _wymuś_tekst(struct)
     if isinstance(struct.value, dict):
         for stored_key in struct.value:
             if any(ast.scope_key_matches(k, stored_key) for k in keys):
@@ -139,6 +154,41 @@ def _wykryj_tekst_listowy(module_node):
                 _field_canonical_lemma(ogony[0].name))
     return None
 
+class _LeniwyTekst:
+    """Kompaktowa reprezentacja tekstu: python-str + offset zamiast
+    łańcucha słowników-ogniw. Materializuje się PO JEDNYM OGNIWIE przy
+    pierwszym dostępie do pól (match, łańcuch, zapis); wypis, równość
+    tekst-tekst i konwersje plikowe idą fast-pathem bez materializacji.
+    Literał / odczyt pliku: O(1) zamiast O(n) słowników."""
+    __slots__ = ("napis", "start")
+
+    def __init__(self, napis, start=0):
+        self.napis = napis
+        self.start = start
+
+    def reszta(self):
+        return self.napis[self.start:]
+
+
+def _wymuś_tekst(rv):
+    """Zmaterializuj JEDEN poziom leniwego tekstu w miejscu (głowa-Znak
+    + leniwy ogon) — wołane przy dostępie do pól."""
+    w = rv.value
+    if type(w) is _LeniwyTekst:
+        ogniwo, klucz_głowy, klucz_ogona = tekst_lista
+        następny = w.start + 1
+        if następny < len(w.napis):
+            ogon = RuntimeValue(
+                value=_LeniwyTekst(w.napis, następny), type=ogniwo)
+        else:
+            ogon = RuntimeValue(value=None, type="Nic")
+        rv.value = {
+            klucz_głowy: RuntimeValue(value=w.napis[w.start], type="Znak"),
+            klucz_ogona: ogon,
+        }
+    return rv
+
+
 def _lista_tekstów(napisy):
     """Lista Tekstów (argumenty programu) z pythonowych stringów — te
     same ogniwa co listy przygrywki; pusta lista ≡ Nic."""
@@ -152,16 +202,11 @@ def _lista_tekstów(napisy):
     return wynik
 
 def _lista_znaków(napis):
-    """Desugar literału tekstowego: łańcuch ogniw znaków budowany od
-    końca. Pusty tekst ≡ Nic (świadoma decyzja przygrywki)."""
-    ogniwo, klucz_głowy, klucz_ogona = tekst_lista
-    wynik = RuntimeValue(value=None, type="Nic")
-    for znak in reversed(napis):
-        wynik = RuntimeValue(
-            value={klucz_głowy: RuntimeValue(value=znak, type="Znak"),
-                   klucz_ogona: wynik},
-            type=ogniwo)
-    return wynik
+    """Tekst z pythonowego stringa: leniwa reprezentacja O(1).
+    Pusty tekst ≡ Nic (świadoma decyzja przygrywki)."""
+    if not napis:
+        return RuntimeValue(value=None, type="Nic")
+    return RuntimeValue(value=_LeniwyTekst(napis), type=tekst_lista[0])
 
 def _znaki_ogniw(rv):
     """Łańcuch ogniw znaków → python str; None gdy to nie tekst (głowa
@@ -170,6 +215,9 @@ def _znaki_ogniw(rv):
     ogniwo, klucz_głowy, klucz_ogona = tekst_lista
     znaki = []
     while rv.type == ogniwo:
+        if type(rv.value) is _LeniwyTekst:
+            znaki.append(rv.value.reszta())
+            return "".join(znaki)
         if len(znaki) > LIMIT_WYPISU:
             return None
         głowa = rv.value[klucz_głowy]
@@ -188,6 +236,8 @@ def _tekst(rv, depth=0):
         return "prawda" if rv.value else "fałsz"
     if rv.type == "Nic":
         return "Nic"
+    if type(rv.value) is _LeniwyTekst:
+        return rv.value.reszta()
     if isinstance(rv.value, dict):
         if tekst_lista is not None and rv.type == tekst_lista[0]:
             napis = _znaki_ogniw(rv)
@@ -224,7 +274,14 @@ def _tekst_do_pythona(rv):
         return None
     ogniwo, klucz_głowy, klucz_ogona = tekst_lista
     znaki = []
+    widziane = set()
     while rv.type == ogniwo:
+        if type(rv.value) is _LeniwyTekst:
+            znaki.append(rv.value.reszta())
+            return "".join(znaki)
+        if id(rv.value) in widziane:   # cykl — to nie tekst
+            return None
+        widziane.add(id(rv.value))
         głowa = rv.value[klucz_głowy]
         if głowa.type != "Znak":
             return None
@@ -322,6 +379,18 @@ def _równe(a, b, visited=None):
         return True
     if a.type != b.type:
         return False
+    if type(a.value) is _LeniwyTekst and type(b.value) is _LeniwyTekst:
+        return a.value.reszta() == b.value.reszta()
+    if tekst_lista is not None and a.type == tekst_lista[0]:
+        # Iteracyjne porównanie łańcuchów znaków (mieszanych: leniwe
+        # i zmaterializowane) — rekurencja po ogonach przepełniała stos
+        # Pythona na długich tekstach.
+        ta, tb = _tekst_do_pythona(a), _tekst_do_pythona(b)
+        if ta is not None and tb is not None:
+            return ta == tb
+    if tekst_lista is not None:
+        _wymuś_tekst(a)
+        _wymuś_tekst(b)
     if not isinstance(a.value, dict):
         return a.value == b.value
     if visited is None:
@@ -446,6 +515,9 @@ def execute_expression(expr_node, scope):
         return RuntimeValue(value=left.value or right.value, type="Przełącznik")
 
 def execute_function(function_lemmas, args):
+  # Trampolina TCO: ogonowe `zwróć wywołanie` wraca tu jako _TailCall
+  # i podmienia (function_lemmas, args) bez nowej ramki.
+  while True:
     for f in BUILTIN_FUNCTIONS:
         for function_lemma in function_lemmas:
             if function_lemma in f[0]:
@@ -467,6 +539,9 @@ def execute_function(function_lemmas, args):
         execute_block(function_node.body, scope)
     except ReturnUnwind as r:
         call_stack.pop()
+        if type(r.value) is _TailCall:
+            function_lemmas, args = r.value.lemmas, r.value.args
+            continue
         return r.value
     except ErrorPropagation as e:
         call_stack.pop()
@@ -559,7 +634,19 @@ def execute_block(stmts, scope):
         if isinstance(stmt, ast.Return):
             if stmt.value is None:  # gołe `zwróć`
                 raise ReturnUnwind(RuntimeValue(value=None, type="Nic"))
-            raise ReturnUnwind(execute_expression(stmt.value.resolved, scope))
+            wynik = stmt.value.resolved
+            # Pozycja ogonowa: `zwróć wywołanie` idzie przez trampolinę
+            # (argumenty wyewaluowane TERAZ, wywołanie w pętli ramki).
+            if isinstance(wynik, ast.FunctionCall):
+                params = [execute_expression(e.value, scope)
+                          for e in wynik.params]
+                raise ReturnUnwind(_TailCall(wynik.name.lemmas_set, params))
+            if isinstance(wynik, ast.Apply):
+                fn = execute_expression(wynik.fn, scope)
+                params = [execute_expression(w.value, scope)
+                          for w in wynik.args]
+                raise ReturnUnwind(_TailCall([fn.value], params))
+            raise ReturnUnwind(execute_expression(wynik, scope))
 
 def execute(module_node, argumenty=None):
     global module_funcs, tekst_lista, unie_liście

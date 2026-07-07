@@ -91,11 +91,13 @@ def test_unify_error_lists_clues_about_both_sides(parse):
 # Pkt 2 + 20 — Ć-owy stos wywołań; przekroczenie głębokości rekursji
 # =====================================================================
 
+# UWAGA: rekursja NIE-ogonowa (`jeden plus licz x`) — ogonową
+# eliminuje trampolina TCO i pętla kręciłaby się w nieskończoność.
 _REKURSJA_BEZ_DNA = (
     "aby liczyć x:\n"
     "    jeśli x równe zero:\n"
     "        zwróć zero\n"
-    "    zwróć licz x\n"
+    "    zwróć jeden plus licz x\n"
     "\n"
     "aby działać:\n"
     "    wynik to licz jeden\n"
@@ -526,3 +528,63 @@ def test_dyskryminatory_przy_nierozstrzygniętej_dysjunkcji(parse):
               r"wariantu-dyskryminatora: Błąd \(tylko Rezultat\)",
     ):
         typechecker.resolve_module(parse(src))
+
+
+# =====================================================================
+# TCO i leniwy Tekst
+# =====================================================================
+
+_PRZYGRYWKA_DIAG = open(
+    "../test/przygrywka.ć", encoding="utf-8").read() + "\n"
+
+
+@pytest.mark.integration
+def test_tco_pętla_ogonowa_nie_rośnie_stosem(run, capsys):
+    """50 tysięcy iteracji ogonowych — dawniej RecursionError ~3-4k."""
+    src = (
+        "można wypisać coś (Cokolwiek) -> Nic\n"
+        "\n"
+        "aby liczyć x (Liczba) -> Liczba:\n"
+        "    jeśli x równe zero:\n"
+        "        zwróć zero\n"
+        "    zwróć licz (x minus jeden)\n"
+        "\n"
+        "aby działać:\n"
+        "    wypisz (licz pięćdziesiąt tysięcy)\n"
+    )
+    run(src)
+    assert capsys.readouterr().out == "0\n"
+
+
+@pytest.mark.integration
+def test_leniwy_tekst_duży_plik_w_obie_strony(run, capsys, tmp_path):
+    """Zapis/odczyt ~24k znaków i porównanie równości — fast-pathy
+    leniwego tekstu (dawniej dict-ogniwo per znak)."""
+    ścieżka = tmp_path / "duży.txt"
+    src = (
+        _PRZYGRYWKA_DIAG
+        + "aby powielić tekst (Tekst) -> Tekst:\n"
+        "    krok to zero\n"
+        "    wynik to tekst\n"
+        "    dopóki krok mniejsze od trzynaście:\n"
+        "        wynik to sklej wynik z wynikiem\n"
+        "        krok to krok plus jeden\n"
+        "    zwróć wynik\n"
+        "\n"
+        "aby działać:\n"
+        f"    ścieżka to \"{ścieżka}\"\n"
+        "    zapis to zapisz_plik dla (powiel \"abc\") do ścieżki\n"
+        "    zapis jest:\n"
+        "        Sukcesem z wartością:\n"
+        "            wypisz wartość\n"
+        "        Błędem z opisem:\n"
+        "            wypisz opis\n"
+        "    odczyt to czytaj_plik ze ścieżki\n"
+        "    odczyt jest:\n"
+        "        Sukcesem z wartością:\n"
+        "            wypisz (wartość równa (powiel \"abc\"))\n"
+        "        Błędem z opisem:\n"
+        "            wypisz opis\n"
+    )
+    run(src)
+    assert capsys.readouterr().out.splitlines() == ["24576", "prawda"]

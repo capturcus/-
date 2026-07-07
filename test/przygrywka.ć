@@ -63,12 +63,10 @@ aby zmierzyć listę (Lista) -> Liczba:
             zwróć zero
 
 # Sklejenie dwóch list: elementy pierwszej, potem drugiej.
+# Dwa OGONOWE przebiegi przez `przełożyć` (trampolina TCO) zamiast
+# rekursji budującej stos — skleja listy dowolnej długości.
 aby skleić listę (Lista) z resztą (Lista) -> Lista:
-    lista jest:
-        Ogniwem z głową z ogonem:
-            zwróć Ogniwo o głowie głowa o ogonie (sklej ogon z resztą)
-        Niczym:
-            zwróć resztę
+    zwróć przełóż (przełóż listę na Nic) na resztę
 
 # Odwrócenie listy przez akumulator (element po elemencie na przód).
 aby przełożyć listę (Lista) na stos (Lista) -> Lista:
