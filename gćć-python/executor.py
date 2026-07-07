@@ -139,6 +139,18 @@ def _wykryj_tekst_listowy(module_node):
                 _field_canonical_lemma(ogony[0].name))
     return None
 
+def _lista_tekstów(napisy):
+    """Lista Tekstów (argumenty programu) z pythonowych stringów — te
+    same ogniwa co listy przygrywki; pusta lista ≡ Nic."""
+    ogniwo, klucz_głowy, klucz_ogona = tekst_lista
+    wynik = RuntimeValue(value=None, type="Nic")
+    for napis in reversed(napisy):
+        wynik = RuntimeValue(
+            value={klucz_głowy: _lista_znaków(napis),
+                   klucz_ogona: wynik},
+            type=ogniwo)
+    return wynik
+
 def _lista_znaków(napis):
     """Desugar literału tekstowego: łańcuch ogniw znaków budowany od
     końca. Pusty tekst ≡ Nic (świadoma decyzja przygrywki)."""
@@ -549,14 +561,22 @@ def execute_block(stmts, scope):
                 raise ReturnUnwind(RuntimeValue(value=None, type="Nic"))
             raise ReturnUnwind(execute_expression(stmt.value.resolved, scope))
 
-def execute(module_node):
+def execute(module_node, argumenty=None):
     global module_funcs, tekst_lista, unie_liście
     module_funcs = [node for node in module_node.body if isinstance(node, ast.FunctionDef)]
     tekst_lista = _wykryj_tekst_listowy(module_node)
     unie_liście = _wylicz_unie(module_node)
     call_stack.clear()
+    # `działać` opcjonalnie przyjmuje argumenty wywołania (po `--` w CLI)
+    # jako Listę Tekstów; typechecker gwarantuje 0 albo 1 parametr
+    # i obecność przygrywkowych typów przy 1.
+    działać = next((f for f in module_funcs
+                    if ("działać",) in f.name.lemmas_set), None)
+    args = []
+    if działać is not None and len(działać.params) == 1:
+        args = [_lista_tekstów(argumenty or [])]
     try:
-        execute_function([("działać",)], [])
+        execute_function([("działać",)], args)
     except RecursionError:
         # Tu Ć-owe ramki są już odwinięte (wolne miejsce na stosie
         # Pythona), a call_stack wciąż pełny — zdejmowany dopiero teraz.

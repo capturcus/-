@@ -1180,6 +1180,33 @@ def resolve_module(node):
                                   f"externa '{fname}'")
             fun_decls.append((decl.name, fdt))
 
+    # Punkt wejścia jest JEDYNĄ funkcją o dwóch dozwolonych sygnaturach:
+    # `aby działać:` (bez argumentów) albo `aby działać dla argumentów:`
+    # — wtedy parametr to argumenty wywołania programu (po `--` w CLI),
+    # przybite do Listy o elemencie Tekst.
+    for decl, fdt in module_funcs:
+        if ("działać",) not in decl.name.lemmas_set:
+            continue
+        if len(decl.params) > 1:
+            raise TypeCheckError(
+                "funkcja 'działać' przyjmuje najwyżej JEDEN parametr — "
+                "listę argumentów wywołania programu (Lista o elemencie "
+                "Tekst); argumenty CLI podaje się po znaczniku `--`")
+        if len(decl.params) == 1:
+            if (find_union_def(("Lista",)) is None
+                    or find_type_alias(("Tekst",)) is None):
+                raise TypeCheckError(
+                    "parametr 'działać' to argumenty wywołania programu "
+                    "typu Lista o elemencie Tekst — wymaga typów Lista "
+                    "i Tekst (uwzględnij przygrywka.ć)")
+            _set_note("argumenty wywołania programu (parametr 'działać')")
+            typ = elaborate(ast.TypeRef(head=("Lista",), args=[
+                ast.TypeArg(prep=("o",), case=None, name=("element",),
+                            type=ast.TypeRef(head=("Tekst",), args=[]))
+            ]), {})
+            ogranicz(typ, fdt.arg_types[0])
+            ogranicz(fdt.arg_types[0], typ)
+
     scopes = {}
     for składowa in _scc_kolejność(module_funcs):
         _bieżąca_składowa = {id(module_funcs[i][1]) for i in składowa}

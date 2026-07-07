@@ -1,0 +1,23 @@
+# Argumenty wywołania programu: `działać` opcjonalnie przyjmuje JEDEN
+# parametr — Listę Tekstów z argumentami podanymi w CLI po znaczniku
+# `--` (tu: z pliku argumenty.argumenty). Zwykłe listowe narzędzia
+# przygrywki działają na niej wprost.
+
+uwzględnij przygrywka.ć
+
+aby ogłosić listę (Lista):
+    lista jest:
+        Ogniwem z głową z ogonem:
+            wypisz głowa
+            ogłoś ogon
+        Niczym:
+            zwróć Nic
+
+aby działać dla argumentów:
+    wypisz (zmierz argumenty)
+    ogłoś argumenty
+    argumenty są:
+        Ogniwem z głową:
+            wypisz (sklej "pierwszy: " z głową)
+        Niczym:
+            wypisz "brak argumentów"

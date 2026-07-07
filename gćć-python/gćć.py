@@ -15,6 +15,15 @@ from ast_nodes import InterpreterError
 
 
 def main():
+    # Argumenty PROGRAMU Ć stoją po znaczniku `--` (jak w POSIX):
+    #   gćć.py --redis plik.ć -- raz dwa trzy
+    # i trafiają do `działać` jako Lista o elemencie Tekst.
+    argv = sys.argv[1:]
+    argumenty_programu = []
+    if "--" in argv:
+        i = argv.index("--")
+        argumenty_programu = argv[i + 1:]
+        argv = argv[:i]
     argp = argparse.ArgumentParser()
     argp.add_argument("input", nargs="?", default=None,
                       help="plik .ć (domyślnie stdin)")
@@ -23,7 +32,7 @@ def main():
                       help="lematyzuj przez lokalny Redis (zero ładowania; "
                            "wymaga migracji: sgjp_do_redisa.py)")
     argp.add_argument("--redis-url", default="redis://localhost:6379/0")
-    args = argp.parse_args()
+    args = argp.parse_args(argv)
 
     # Pass 0: scalenie plików (dyrektywa `uwzględnij`) — na czystym
     # tekście, zanim ruszy reszta maszynerii. Dalej `text` to jeden
@@ -75,7 +84,7 @@ def main():
     # po prostu to odpal, to python. jak się otypowało w poprzednim kroku to będzie git.
     # nie potrzeba żadnych informacji dotyczących typów do wykonania programu
     try:
-        executor.execute(module)
+        executor.execute(module, argumenty=argumenty_programu)
     except executor.CRuntimeError as e:
         _print_runtime_error(filename, e, scalony)
         sys.exit(1)

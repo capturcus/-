@@ -1345,3 +1345,56 @@ def test_liść_przechodzi_do_slotu_babki(parse):
     )
     typechecker.resolve_module(parse(src))
     assert _var_types()["n"] == "Liczba"
+
+
+# =====================================================================
+# Punkt wejścia z argumentami — `aby działać dla argumentów:`
+# =====================================================================
+
+@pytest.mark.integration
+def test_działać_z_parametrem_dostaje_listę_tekstów(parse):
+    src = _PRZYGRYWKA + (
+        "aby działać dla argumentów:\n"
+        "    rozmiar to zmierz argumenty\n"
+    )
+    typechecker.resolve_module(parse(src))
+    types = _var_types()
+    assert types["argumentów"] == "Lista[Lista[Znak]]"   # Lista[Tekst]
+    assert types["rozmiar"] == "Liczba"
+
+
+@pytest.mark.integration
+def test_działać_z_dwoma_parametrami_rzuca(parse):
+    src = _PRZYGRYWKA + (
+        "aby działać dla argumentów z liczbą (Liczba):\n"
+        "    zwróć jeden\n"
+    )
+    with pytest.raises(TypeCheckError,
+                       match="najwyżej JEDEN parametr"):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_działać_z_parametrem_bez_przygrywki_rzuca(parse):
+    src = (
+        "aby działać dla argumentów:\n"
+        "    zwróć jeden\n"
+    )
+    with pytest.raises(TypeCheckError,
+                       match="uwzględnij przygrywka.ć"):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_działać_z_parametrem_odrzuca_złe_użycie(parse):
+    """Argument programu to Tekst — dodanie go do Liczby pęka."""
+    src = _PRZYGRYWKA + (
+        "aby działać dla argumentów:\n"
+        "    argumenty są:\n"
+        "        Ogniwem z głową:\n"
+        "            suma to głowa plus jeden\n"
+        "        Niczym:\n"
+        "            zwróć Nic\n"
+    )
+    with pytest.raises(TypeCheckError):
+        typechecker.resolve_module(parse(src))

@@ -119,7 +119,22 @@ aby działać:
   wobec pliku, więc program poza katalogiem `test/` wskazuje ją np. jako
   `uwzględnij ../test/przygrywka.ć`.
 - `aby działać:` to punkt wejścia — interpreter po sprawdzeniu typów
-  wywołuje funkcję o lemacie `działać` (bez argumentów).
+  wywołuje funkcję o lemacie `działać`.
+
+Punkt wejścia ma — jako jedyna funkcja w języku — **dwie dozwolone
+sygnatury**: bezargumentową albo z jednym parametrem, który dostaje
+argumenty wywołania programu (typu `Lista o elemencie Tekst`; pusta
+lista ≡ `Nic`). Argumenty podaje się w CLI po znaczniku `--`:
+
+```
+aby działać dla argumentów:
+    wypisz (zmierz argumenty)
+```
+
+```
+$ python3 gćć-python/gćć.py --redis program.ć -- raz dwa trzy
+3
+```
 
 `wypisz` przyjmuje dowolną wartość: teksty drukuje wprost, liczby
 dziesiętnie, `Nic` jako `Nic`, struktury jako `Nazwa(pole: wartość, …)`
@@ -965,6 +980,7 @@ obecnym interpreterem, a `*.wynik` pokazuje jego wyjście:
 | `tekst_lista.ć`, `znak.ć`, `znak_liczba.ć`, `łańcuchy.ć`, `dna.ć` | teksty, znaki, most Znak↔Liczba |
 | `kolekcje.ć`, `mapowanie.ć`, `aplikacja.ć` | funkcje wyższego rzędu |
 | `rezultat.ć`, `pliki.ć` | `Rezultat`, `?`, operacje na plikach |
+| `argumenty.ć`, `argumenty_puste.ć` | argumenty wywołania programu (`działać dla argumentów`) |
 | `http.ć`, `brainfuck.ć`, `brainfuck_mutowalny.ć` | większe programy (parser HTTP, interpreter brainfucka) |
 
 Większe programy przykładowe leżą w `manual_test/` (nie są uruchamiane

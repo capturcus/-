@@ -1,0 +1,12 @@
+# Program z parametrem `działać` uruchomiony BEZ argumentów: lista jest
+# pusta (≡ Nic) — stare programy bezparametrowe działają bez zmian.
+
+uwzględnij przygrywka.ć
+
+aby działać dla argumentów:
+    wypisz (zmierz argumenty)
+    argumenty są:
+        Ogniwem z głową:
+            wypisz głowa
+        Niczym:
+            wypisz "brak argumentów"

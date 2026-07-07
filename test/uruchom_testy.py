@@ -29,8 +29,15 @@ def main():
             porazki += 1
             continue
         oczekiwane = wynik_path.read_text(encoding="utf-8")
+        # Opcjonalny plik NAZWA.argumenty: linie przekazywane programowi
+        # po znaczniku `--` (argumenty `działać`).
+        argumenty = []
+        arg_path = plik.with_suffix(".argumenty")
+        if arg_path.exists():
+            argumenty = ["--"] + arg_path.read_text(
+                encoding="utf-8").split()
         proces = subprocess.run(
-            [sys.executable, str(GCC), "--redis", str(plik)],
+            [sys.executable, str(GCC), "--redis", str(plik), *argumenty],
             capture_output=True, text=True,
         )
         if proces.returncode != 0:
