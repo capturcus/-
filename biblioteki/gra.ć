@@ -1,0 +1,69 @@
+# Gra: builtiny graficzne (pygame) w trybie natychmiastowym. Program
+# otwiera okno, rysuje w pętli i odpytuje wejście; `pokaż_klatkę` wyświetla
+# narysowaną klatkę, ogranicza tempo do 30 klatek na sekundę, zbiera
+# wydarzenia (dla `pobierz_wydarzenia`) i czyści ekran pod następną
+# klatkę. Zwraca fałsz po zamknięciu okna, więc szkielet każdej gry to:
+#
+#     otwórz_okno o szerokości ... o wysokości ... z tytułem "..."
+#     dopóki pokaż_klatkę:
+#         <logika i rysowanie>
+#
+# Współrzędne ekranowe: piksele, `od lewej` rośnie w prawo, `od góry`
+# rośnie w dół (jak w pygame). Implementacje w gćć-python/gra_builtins.py;
+# wymaga zainstalowanego pygame (pip3 install pygame-ce). Argumenty
+# wywołań to `przyimek + wartość` — nazwy parametrów z deklaracji nie
+# występują w wywołaniu; gdy farba jest zmienną typu Barwa:
+#
+#     narysuj_prostokąt od dziesięciu od dziesięciu o pięćdziesięciu o dwudziestu w farbie
+
+uwzględnij przygrywka.ć
+
+# Barwa RGB, składowe 0–255. Gotowe barwy daje `dobierz_barwę o nazwie
+# "zieleń"` (polskie rzeczowniki: czerń, biel, szarość, czerwień, zieleń,
+# błękit, żółć, pomarańcz, fiolet, róż, brąz) albo zapis "#RRGGBB".
+definicja Barwy:
+    czerwień (Liczba)
+    zieleń (Liczba)
+    błękit (Liczba)
+
+# Wydarzenia z klawiatury i myszy zebrane między klatkami. Nazwy klawiszy
+# jak w `zbadaj_klawisz`: "lewo", "prawo", "góra", "dół", "spacja",
+# "enter", "wyjście", litery i cyfry. Przycisk myszy: jeden (lewy),
+# dwa (środkowy), trzy (prawy).
+definicja Naciśnięcia:
+    klawisz (Tekst)
+
+definicja Kliknięcia:
+    poziom (Liczba)
+    pion (Liczba)
+    przycisk (Liczba)
+
+definicja Ruchu:
+    poziom (Liczba)
+    pion (Liczba)
+
+Wydarzenie to Naciśnięcie albo Kliknięcie albo Ruch
+
+można otworzyć_okno o szerokości (Liczba) o wysokości (Liczba) z tytułem (Tekst) -> Nic
+
+można pokazać_klatkę -> Przełącznik
+
+# Kształty: koło od środka, prostokąt od lewego górnego rogu.
+można narysować_koło od lewej (Liczba) od góry (Liczba) o promieniu (Liczba) w barwie (Barwa) -> Nic
+
+można narysować_prostokąt od lewej (Liczba) od góry (Liczba) o szerokości (Liczba) o wysokości (Liczba) w barwie (Barwa) -> Nic
+
+można narysować_napis treść (Tekst) od lewej (Liczba) od góry (Liczba) o rozmiarze (Liczba) w barwie (Barwa) -> Nic
+
+# Duszek: obrazek z pliku (np. PNG z przezroczystością), rysowany od
+# lewego górnego rogu; wczytany plik jest buforowany po ścieżce.
+można narysować_duszka ze ścieżki (Tekst) od lewej (Liczba) od góry (Liczba) -> Nic
+
+# `dobierz_barwę "zieleń"`, `dobierz_barwę "#204080"`.
+można dobrać_barwę nazwę (Tekst) -> Barwa
+
+# Stan klawisza w tej chwili (do ruchu ciągłego) — wydarzenia służą
+# akcjom jednorazowym. `zbadaj_klawisz "lewo"`.
+można zbadać_klawisz nazwę (Tekst) -> Przełącznik
+
+można pobrać_wydarzenia -> Lista o elemencie Wydarzenie

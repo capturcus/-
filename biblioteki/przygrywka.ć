@@ -101,6 +101,10 @@ można zapisać_plik dla zawartości (Tekst) do ścieżki (Tekst) -> Rezultat o 
 # (EOF) daje pusty tekst (≡ Nic).
 można wczytać_wejście -> Tekst
 
+# Losowa liczba całkowita z domkniętego przedziału (oba końce możliwe);
+# pusty przedział (minimum > maksimum) to błąd wykonania.
+można wylosować_liczbę od minimum (Liczba) do maksimum (Liczba) -> Liczba
+
 # Fold prawostronny: złóż [a, b, c] z op z akc = op(a, op(b, op(c, akc))).
 # Operacja to wartość funkcyjna (referencja gerundialna, np. `z dodawaniem`).
 aby złożyć listę (Lista) z operacją z akumulatorem:

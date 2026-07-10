@@ -1,0 +1,6 @@
+uwzględnij przygrywka.ć
+
+aby działać:
+    wypisz (wylosuj_liczbę od pięciu do pięciu)
+    los to wylosuj_liczbę od jednego do sześciu
+    wypisz ((los większy równy jednemu) i (los mniejszy równy sześciu))

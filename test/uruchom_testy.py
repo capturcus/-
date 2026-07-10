@@ -4,12 +4,17 @@
 Każdy plik `*.ć` w tym katalogu jest uruchamiany przez `gćć.py --redis`,
 a jego stdout porównywany 1:1 z plikiem `*.wynik` o tej samej nazwie.
 """
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 KATALOG = Path(__file__).resolve().parent
 GCC = KATALOG.parent / "gćć-python" / "gćć.py"
+
+# Builtiny graficzne (gra.ć) rysują na sucho — bez otwierania prawdziwych
+# okien; dla testów bez grafiki ta zmienna jest obojętna.
+ŚRODOWISKO = {**os.environ, "SDL_VIDEODRIVER": "dummy"}
 
 # Pliki biblioteczne (dołączane przez `uwzględnij`) — nie są testami,
 # nie mają `aby działać` ani pliku .wynik. Standardowe biblioteki
@@ -46,7 +51,7 @@ def main():
                    if wejście_path.exists() else "")
         proces = subprocess.run(
             [sys.executable, str(GCC), "--redis", str(plik), *argumenty],
-            capture_output=True, text=True, input=wejście,
+            capture_output=True, text=True, input=wejście, env=ŚRODOWISKO,
         )
         if proces.returncode != 0:
             print(f"PORAŻKA {plik.name}: exit {proces.returncode}")

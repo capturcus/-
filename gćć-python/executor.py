@@ -352,6 +352,16 @@ def _wczytaj_wejście(args):
     return _lista_znaków(sys.stdin.readline().removesuffix("\n"))
 
 
+def _wylosuj_liczbę(args):
+    """randint: losowa liczba całkowita z domkniętego przedziału."""
+    import random
+    dolna, górna = args[0].value, args[1].value
+    if dolna > górna:
+        raise RuntimeError(
+            f"pusty przedział losowania: od {dolna} do {górna}")
+    return RuntimeValue(value=random.randint(dolna, górna), type="Liczba")
+
+
 # Wbudowane funkcje: implementacja tutaj, sygnatura jako deklaracja
 # `można` w programie (przygrywka deklaruje podzielić/wziąć_resztę…/
 # czytać_plik/zapisać_plik/wczytać_wejście).
@@ -364,7 +374,14 @@ BUILTIN_FUNCTIONS = [
     ([("czytać", "plik")], _czytaj_plik),
     ([("zapisać", "plik")], _zapisz_plik),
     ([("wczytać", "wejście")], _wczytaj_wejście),
+    ([("wylosować", "liczba")], _wylosuj_liczbę),
 ]
+
+# Builtiny graficzne — oddzielny moduł z leniwym importem pygame, żeby
+# interpreter działał bez zainstalowanego pygame. Import cykliczny jest
+# bezpieczny: gra_builtins sięga do atrybutów executora tylko w runtime.
+import gra_builtins
+BUILTIN_FUNCTIONS.extend(gra_builtins.BUILTIN_FUNCTIONS)
 
 # op → (funkcja, typ wyniku); semantyka jak w typechecker.resolve_bin_op
 BIN_OPS = {

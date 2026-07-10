@@ -1,0 +1,98 @@
+# Wąż — klasyczny snake na siatce 20×15 pól po 30 pikseli (okno 600×450).
+# Sterowanie strzałkami; wąż rośnie po zjedzeniu owocu, a gra kończy się
+# na ścianie albo własnym ogonie. Zamknięcie okna krzyżykiem kończy pętlę
+# (`pokaż_klatkę` zwraca wtedy fałsz).
+
+uwzględnij gra.ć
+
+definicja Pola:
+    kolumna (Liczba)
+    wiersz (Liczba)
+
+aby wskazać_czoło węża:
+    wąż jest:
+        Ogniwem z głową:
+            zwróć głowa
+        Niczym:
+            zwróć Pole o kolumnie zero o wierszu zero
+
+# Lista bez ostatniego elementu — wąż przesuwa się gubiąc koniec ogona.
+aby skrócić listę:
+    lista jest:
+        Ogniwem z głową z ogonem:
+            jeśli ogon równy Nic:
+                zwróć Nic
+            zwróć Ogniwo o głowie głowa o ogonie (skróć ogon)
+        Niczym:
+            zwróć Nic
+
+aby sprawdzić_obecność pola na liście:
+    lista jest:
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa pole:
+                zwróć prawdę
+            zwróć sprawdź_obecność pola na ogonie
+        Niczym:
+            zwróć fałsz
+
+# Nowy kierunek ze strzałek; skręcać można tylko prostopadle (zakaz
+# zawracania o sto osiemdziesiąt stopni).
+aby sterować kierunkiem:
+    jeśli zbadaj_klawisz "lewo" i kolumna kierunku równa zero:
+        zwróć Pole o kolumnie zero minus jeden o wierszu zero
+    jeśli zbadaj_klawisz "prawo" i kolumna kierunku równa zero:
+        zwróć Pole o kolumnie jeden o wierszu zero
+    jeśli zbadaj_klawisz "góra" i wiersz kierunku równa zero:
+        zwróć Pole o kolumnie zero o wierszu zero minus jeden
+    jeśli zbadaj_klawisz "dół" i wiersz kierunku równa zero:
+        zwróć Pole o kolumnie zero o wierszu jeden
+    zwróć kierunek
+
+aby wylosować_pole:
+    zwróć Pole o kolumnie wylosuj_liczbę od zera do dziewiętnastu o wierszu wylosuj_liczbę od zera do czternastu
+
+aby wylosować_owoc poza wężem:
+    pole to wylosuj_pole
+    jeśli sprawdź_obecność pola na wężu:
+        zwróć wylosuj_owoc poza wężem
+    zwróć pole
+
+# Pola listy jako kwadraty (z jednopikselową szczeliną między segmentami).
+aby malować listę w barwie:
+    lista jest:
+        Ogniwem z głową z ogonem:
+            narysuj_prostokąt od (kolumna głowy razy trzydzieści plus jeden) od (wiersz głowy razy trzydzieści plus jeden) o dwadzieścia osiem o dwadzieścia osiem w barwie
+            maluj ogon w barwie
+        Niczym:
+            zwróć Nic
+
+aby działać:
+    otwórz_okno o sześciuset o czterysta pięćdziesiąt z "Wąż"
+    zieleń to dobierz_barwę "zieleń"
+    czerwień to dobierz_barwę "czerwień"
+    biel to dobierz_barwę "biel"
+    wąż to Ogniwo o głowie Pole o kolumnie dziesięć o wierszu siedem o ogonie Nic
+    kierunek to Pole o kolumnie jeden o wierszu zero
+    owoc to wylosuj_owoc poza wężem
+    licznik to zero
+    koniec to fałsz
+    dopóki pokaż_klatkę:
+        licznik to licznik plus jeden
+        jeśli nie koniec:
+            kierunek to steruj kierunkiem
+            jeśli (weź_resztę_z_dzielenia licznika przez cztery) równa zero:
+                czoło to wskaż_czoło węża
+                przód to Pole o kolumnie kolumna czoła plus kolumna kierunku o wierszu wiersz czoła plus wiersz kierunku
+                jeśli kolumna przodu mniejsza od zera lub kolumna przodu większa od dziewiętnastu lub wiersz przodu mniejszy od zera lub wiersz przodu większy od czternastu lub sprawdź_obecność przodu na wężu:
+                    koniec to prawda
+                inaczej:
+                    jeśli przód równy owoc:
+                        wąż to Ogniwo o głowie przód o ogonie wąż
+                        owoc to wylosuj_owoc poza wężem
+                    inaczej:
+                        wąż to Ogniwo o głowie przód o ogonie skróć węża
+        maluj węża w zieleni
+        narysuj_koło od (kolumna owocu razy trzydzieści plus piętnaście) od (wiersz owocu razy trzydzieści plus piętnaście) o dwunastu w czerwieni
+        narysuj_napis sklej "Wynik: " z pokaż (zmierz węża minus jeden) od dziesięciu od dziesięciu o trzydziestu w bieli
+        jeśli koniec:
+            narysuj_napis "Koniec gry" od dwieście dwadzieścia od dwieście o pięćdziesięciu w bieli
