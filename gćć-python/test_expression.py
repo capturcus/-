@@ -2097,6 +2097,73 @@ def test_parenthesized_apply_as_fcall_arg(parse):
     assert len(inner.args) == 1
 
 
+# ---------- bejcowanie (`zwiąż`) ----------
+
+
+def test_bind_builds_bind_node(parse):
+    src = _HOF_BASE + (
+        "aby działać:\n"
+        "    domknięcie to zwiąż polubienie z jeden\n"
+    )
+    m = parse(src)
+    val = m.body[1].body[0].value.resolved
+    assert isinstance(val, ast.Bind)
+    assert isinstance(val.fn, ast.FunctionRef)
+    assert val.fn.key == ("polubić",)
+    assert len(val.args) == 1
+    assert val.args[0].prep == ("z",)
+
+
+def test_bind_zero_args(parse):
+    """`zwiąż F` bez argumentów — degeneruje do samej referencji."""
+    src = _HOF_BASE + (
+        "aby działać:\n"
+        "    domknięcie to zwiąż polubienie\n"
+    )
+    m = parse(src)
+    val = m.body[1].body[0].value.resolved
+    assert isinstance(val, ast.Bind)
+    assert val.args == []
+
+
+def test_bind_arg_not_instrumental_raises(parse):
+    src = _HOF_BASE + (
+        "aby działać wpis:\n"
+        "    domknięcie to zwiąż polubienie z wpis\n"
+    )
+    with pytest.raises(ast.ResolveError, match="narzędniku"):
+        parse(src)
+
+
+def test_bind_conditional_mood_raises(parse):
+    """Bejcowanie nie zawodzi — tryb przypuszczający jest błędem."""
+    src = _HOF_BASE + (
+        "aby działać:\n"
+        "    domknięcie to związałbyś polubienie z jeden\n"
+    )
+    with pytest.raises(ast.ResolveError, match="nie zawodzi"):
+        parse(src)
+
+
+def test_bind_verb_is_reserved(parse):
+    src = (
+        "aby związać snopek:\n"
+        "    zwróć snopek\n"
+    )
+    with pytest.raises(ast.InterpreterError, match="związać"):
+        parse(src)
+
+
+def test_bind_multiseg_definition_allowed(parse):
+    """Wielosegmentowe `związać_X` nie koliduje z dyspozycją `zwiąż`."""
+    src = (
+        "aby związać_snopek na polu:\n"
+        "    zwróć pole\n"
+    )
+    m = parse(src)
+    assert isinstance(m.body[0], ast.FunctionDef)
+
+
 # =====================================================================
 # Zgoda liczby w dopasowaniu: `jest:` / `są:` + mianownik podmiotu
 # =====================================================================

@@ -1738,6 +1738,8 @@ def resolve_expression(node, scope):
         return resolve_function_ref(node, scope)
     if isinstance(node, ast.Apply):
         return resolve_apply(node, scope)
+    if isinstance(node, ast.Bind):
+        return resolve_bind(node, scope)
     if isinstance(node, ast.TryCall):
         return resolve_try_call(node, scope)
     if isinstance(node, ast.GetterChain):
@@ -1874,6 +1876,38 @@ def resolve_apply(node, scope):
         _set_note(f"argument zastosowania (linia {node.line})")
         ogranicz(t, slot)
     return ret
+
+
+def resolve_bind(node, scope):
+    """`zwiąż F z X` — bejcowanie: ogranicza pierwsze k slotów strzałki
+    odbiorcy, typem wartości jest strzałka pozostałych slotów.
+
+    Odbiorca MUSI materializować się do konkretnej strzałki (referencja
+    gerundialna albo zmienna z już ustaloną strzałką): „strzałka o co
+    najmniej k argumentach" wymagałaby polimorfizmu wierszowego, którego
+    solver nie ma — wiązanie na nieustalonej wartości funkcyjnej (np. na
+    parametrze generycznym) jest odrzucane wprost."""
+    t_f = resolve_expression(node.fn, scope)
+    m = _zmaterializuj(t_f)
+    if m is None or m.głowa != ARROW:
+        otrzymano = _render_typu(t_f)
+        kontrast = f" (otrzymano: {otrzymano})" if otrzymano != "?" else ""
+        raise TypeCheckError(
+            f"'zwiąż' (linia {node.line}) wymaga wartości funkcyjnej "
+            f"o znanej strzałce{kontrast} — użyj referencji gerundialnej "
+            f"(np. 'zwiąż dodanie z dwa') albo zmiennej, której funkcyjność "
+            f"jest już ustalona")
+    n = len(m.args) - 1
+    k = len(node.args)
+    if k > n:
+        raise TypeCheckError(
+            f"'zwiąż' (linia {node.line}) wiąże {k} argument(ów), "
+            f"a funkcja przyjmuje {n}")
+    for i, w in enumerate(node.args):
+        t = resolve_expression(w.value, scope)
+        _set_note(f"argument {i + 1} wiązania 'zwiąż' (linia {node.line})")
+        ogranicz(t, m.args[i])
+    return Konkret(ARROW, m.args[k:])
 
 
 def _require_rezultat(line):

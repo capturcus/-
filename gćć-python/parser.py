@@ -469,16 +469,23 @@ class Parser:
         return For(var=var, collection=collection, body=body)
 
     def _reject_reserved(self, name):
-        """`zastosować` to wbudowany czasownik aplikacji wartości funkcyjnych
-        (`zastosuj F z X`) — własna definicja zmieniałaby znaczenie każdego
-        zastosowania w module. Nazwy wielosegmentowe (`zastosować_filtr`)
-        nie kolidują z dyspozycją i są dozwolone."""
-        if ("zastosować",) in name.lemmas_set:
-            raise InterpreterError(
-                "'zastosować' jest wbudowanym czasownikiem aplikacji "
-                "funkcji (zastosuj F z X) i nie może być definiowane",
-                line=name.line,
-            )
+        """`zastosować`/`związać` to wbudowane czasowniki operacji na
+        wartościach funkcyjnych (`zastosuj F z X` — aplikacja, `zwiąż F
+        z X` — bejcowanie) — własna definicja zmieniałaby znaczenie
+        każdego użycia w module. Nazwy wielosegmentowe
+        (`zastosować_filtr`, `związać_snopek`) nie kolidują z dyspozycją
+        i są dozwolone."""
+        opisy = {
+            ("zastosować",): "aplikacji funkcji (zastosuj F z X)",
+            ("związać",): "wiązania argumentów funkcji (zwiąż F z X)",
+        }
+        for lemma, opis in opisy.items():
+            if lemma in name.lemmas_set:
+                raise InterpreterError(
+                    f"'{lemma[0]}' jest wbudowanym czasownikiem {opis} "
+                    f"i nie może być definiowane",
+                    line=name.line,
+                )
 
     def parse_func_def(self):
         aby_tok = self.expect(lexer.Token.WORD)  # aby

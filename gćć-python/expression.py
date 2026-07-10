@@ -38,7 +38,7 @@ from ast_nodes import (
     Identifier, FunctionIdentifier, FunctionIdentifierError,
     StructDef, FunctionDef, ExternFunctionDef, UnionDef, Match,
     IntLit, StrLit, CharLit, BoolLit, BinOp, UnaryOp, And, Or, Not,
-    FunctionCall, FunctionRef, Apply, GetterChain, StructCreation,
+    FunctionCall, FunctionRef, Apply, Bind, GetterChain, StructCreation,
     StructArg, StructCtx, TryCall, TypeAlias,
     Typed, ResolveError, InterpreterError, Word, LOGICAL_OPS,
     Assignment, If, While, For, Return, Phrase,
@@ -568,6 +568,10 @@ class ExpressionParser:
             # Wbudowana aplikacja wartości funkcyjnej — nie ma wpisu w
             # function_defs, odbiorca jest wyrażeniem, arność wariadyczna.
             call = self._parse_apply(head_ident)
+        elif ("związać",) in name.lemmas_set:
+            # Bejcowanie nie zawodzi, więc nie współpracuje z trybem
+            # przypuszczającym — wyjście przed pętlą TryCall poniżej.
+            return self._parse_bind(head_ident)
         else:
             matched_lemma = next(
                 (lemma for lemma in name.lemmas_set if lemma in self.ctx.function_defs),
@@ -824,19 +828,19 @@ class ExpressionParser:
 
     # ---------- aplikacja wartości funkcyjnej ----------
 
-    def _parse_apply(self, head_ident):
-        """`zastosuj F z X z Y` — wariadyczna aplikacja wartości funkcyjnej.
+    def _parse_fn_value_args(self, head_ident, czasownik):
+        """Wspólny szkielet `zastosuj`/`zwiąż`: odbiorca-primary + zachłanna
+        pętla argumentów `z <primary>` (narzędnik dla słów, pozycyjnie).
 
         Odbiorca to primary (zmienna, referencja gerundialna, łańcuch,
-        nawiasy); każdy argument wprowadza przyimek `z` i stoi w narzędniku,
-        dopasowanie czysto pozycyjne. Pętla argumentów jest zachłanna —
-        zagnieżdżony goły apply zjadłby `z ...` rodzica, stąd zalecenie
-        nawiasów; wyjątek: `z <pole>` będące skrótem niezajętego pola
-        wierzchniej konstrukcji struktury oddajemy strukturze."""
+        nawiasy). Pętla argumentów jest zachłanna — zagnieżdżone gołe
+        wyrażenie zjadłoby `z ...` rodzica, stąd zalecenie nawiasów;
+        wyjątek: `z <pole>` będące skrótem niezajętego pola wierzchniej
+        konstrukcji struktury oddajemy strukturze."""
         if self.peek() is None:
             raise ResolveError(
-                "'zastosuj' wymaga wartości funkcyjnej (zmiennej, referencji "
-                "gerundialnej albo wyrażenia w nawiasach)",
+                f"'{czasownik}' wymaga wartości funkcyjnej (zmiennej, "
+                f"referencji gerundialnej albo wyrażenia w nawiasach)",
                 line=head_ident.line,
             )
         fn = self.parse_primary()
@@ -858,16 +862,37 @@ class ExpressionParser:
             case = self._infer_case(value)
             if case is not None and "inst" not in case:
                 raise ResolveError(
-                    f"argument zastosowania po 'z' musi być w narzędniku "
+                    f"argument '{czasownik}' po 'z' musi być w narzędniku "
                     f"(np. 'z wynikiem', nie 'z wynik')",
                     line=getattr(z_tok, "line", None),
                 )
             args.append(Word(prep=("z",), value=value, case=case))
+        return fn, args
+
+    def _parse_apply(self, head_ident):
+        """`zastosuj F z X z Y` — wariadyczna aplikacja wartości funkcyjnej."""
+        fn, args = self._parse_fn_value_args(head_ident, "zastosuj")
         self.last_production = {
             "kind": "apply",
             "n_args": len(args),
         }
         return Apply(fn=fn, args=args, line=head_ident.line)
+
+    def _parse_bind(self, head_ident):
+        """`zwiąż F z X z Y` — bejcowanie: zamraża pierwsze k argumentów
+        funkcji, wartością jest domknięcie oczekujące pozostałych."""
+        if _has_cond_reading(head_ident):
+            raise ResolveError(
+                "'zwiąż' nie zawodzi — tryb przypuszczający (wywołanie "
+                "z obsługą błędu '?') nie dotyczy wiązania argumentów",
+                line=head_ident.line,
+            )
+        fn, args = self._parse_fn_value_args(head_ident, "zwiąż")
+        self.last_production = {
+            "kind": "bind",
+            "n_args": len(args),
+        }
+        return Bind(fn=fn, args=args, line=head_ident.line)
 
     def _match_args_to_slots(self, arg_meta, sig, name):
         def _on_error(arg_index=None):

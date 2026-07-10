@@ -474,6 +474,19 @@ class Apply:
 
 
 @dataclass
+class Bind:
+    """Bejcowanie (częściowa aplikacja): `zwiąż F z X z Y` zamraża pierwsze
+    k argumentów funkcji i daje wartość funkcyjną oczekującą pozostałych.
+    Odbiorca i argumenty jak w Apply (wyrażenie + `z` z narzędnikiem,
+    pozycyjnie); typ odbiorcy musi być ZNANĄ strzałką (typechecker odrzuca
+    wiązanie na nieustalonej wartości funkcyjnej). `związać` jest
+    zarezerwowane jak `zastosować`."""
+    fn: object
+    args: list
+    line: int = None
+
+
+@dataclass
 class GetterChain:
     chain: list
 

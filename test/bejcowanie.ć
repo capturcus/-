@@ -1,0 +1,10 @@
+uwzględnij przygrywka.ć
+
+aby dodać liczbę do innej_liczby:
+    zwróć liczba plus inna_liczba
+
+aby działać:
+    dodanie_dwóch to zwiąż dodanie z dwa
+    wynik to zastosuj dodanie_dwóch z trzy
+    wypisz wynik
+    # 5

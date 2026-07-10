@@ -11,7 +11,7 @@ aby usunąć_podzielne przez dzielnik z listy:
             inaczej:
                 zwróć Ogniwo z głową o ogonie usuń_podzielne przez dzielnik z ogona
 
-aby wysiać do limitu (Liczba):
+aby wysiać do limitu:
     licznik to limit
     lista to Nic
     dopóki licznik większy od zera:

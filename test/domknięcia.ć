@@ -1,0 +1,28 @@
+# Mechanika bejcowania: domknięcia z `zwiąż` we wszystkich rolach —
+# aplikacja, dowiązanie do domknięcia, thunk (pełne związanie), wiązanie
+# builtinu, pozycja ogonowa (trampolina TCO), wypis wartości funkcyjnej.
+
+uwzględnij przygrywka.ć
+
+aby dodać liczbę do innej_liczby:
+    zwróć liczba plus inna_liczba
+
+aby pomnożyć liczbę przez inną_liczbę:
+    zwróć liczba razy inna_liczba
+
+aby wywołać przepis z liczbą (Liczba) -> Liczba:
+    zwróć zastosuj przepis z liczbą
+
+aby działać:
+    podwojenie to zwiąż pomnożenie z dwa
+    wypisz (zastosuj podwojenie z dwadzieścia jeden)
+    stała to zwiąż dodanie z dwadzieścia z dwadzieścia dwa
+    wypisz (zastosuj stałą)
+    dodanie_dwóch to zwiąż dodanie z dwa
+    odroczenie to zwiąż dodanie_dwóch z trzy
+    wypisz (zastosuj odroczenie)
+    połowienie to zwiąż podzielenie z sto
+    wypisz (zastosuj połowienie z pięć)
+    wypisz (wywołaj (zwiąż dodanie z dziesięć) z pięć)
+    wypisz podwojenie
+    wypisz dodanie

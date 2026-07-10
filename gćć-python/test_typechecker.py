@@ -1126,6 +1126,109 @@ def test_referencja_gerundialna_daje_strzałkę(parse):
 
 
 # =====================================================================
+# Bejcowanie (`zwiąż`)
+# =====================================================================
+
+_DODAWANIE = (
+    "aby dodać liczbę (Liczba) do innej_liczby (Liczba) -> Liczba:\n"
+    "    zwróć liczba plus inna_liczba\n"
+    "\n"
+)
+
+
+@pytest.mark.integration
+def test_zwiąż_typuje_strzałkę_pozostałych(parse):
+    src = _DODAWANIE + (
+        "aby działać:\n"
+        "    domknięcie to zwiąż dodanie z dwa\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["domknięcie"] == "→[Liczba, Liczba]"
+
+
+@pytest.mark.integration
+def test_zwiąż_potem_zastosuj_typuje_wynik(parse):
+    src = _DODAWANIE + (
+        "aby działać:\n"
+        "    domknięcie to zwiąż dodanie z dwa\n"
+        "    wynik to zastosuj domknięcie z trzy\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["wynik"] == "Liczba"
+
+
+@pytest.mark.integration
+def test_zwiąż_wszystkie_argumenty_daje_gruszkę(parse):
+    """Związanie pełnej arności → strzałka zeroargumentowa (thunk)."""
+    src = _DODAWANIE + (
+        "aby działać:\n"
+        "    domknięcie to zwiąż dodanie z dwa z trzy\n"
+        "    wynik to zastosuj domknięcie\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["domknięcie"] == "→[Liczba]"
+    assert _var_types()["wynik"] == "Liczba"
+
+
+@pytest.mark.integration
+def test_zwiąż_argument_złego_typu_rzuca(parse):
+    src = _DODAWANIE + (
+        "aby działać:\n"
+        "    domknięcie to zwiąż dodanie z prawda\n"
+    )
+    with pytest.raises(TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_zwiąż_nadwiązanie_rzuca(parse):
+    src = _DODAWANIE + (
+        "aby działać:\n"
+        "    domknięcie to zwiąż dodanie z jeden z dwa z trzy\n"
+    )
+    with pytest.raises(TypeCheckError, match="przyjmuje 2"):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_zwiąż_nie_funkcja_rzuca(parse):
+    src = (
+        "aby działać:\n"
+        "    pięść to pięć\n"
+        "    domknięcie to zwiąż pięścią z dwa\n"
+    )
+    with pytest.raises(TypeCheckError, match="wartości funkcyjnej"):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_zwiąż_nieustalony_parametr_rzuca(parse):
+    """Wiązanie na generycznym parametrze (nieznana strzałka) — jawny
+    błąd zamiast polimorfizmu wierszowego."""
+    src = (
+        "aby wiązać operację:\n"
+        "    zwróć zwiąż operację z jeden\n"
+    )
+    with pytest.raises(TypeCheckError, match="znanej strzałce"):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_zwiąż_domknięcie_przez_slot_funkcyjny(parse):
+    """Domknięcie przekazane jako argument aplikuje się w ciele odbiorcy."""
+    src = _DODAWANIE + (
+        "aby brać operację z liczbą (Liczba) -> Liczba:\n"
+        "    zwróć zastosuj operację z liczbą\n"
+        "\n"
+        "aby działać:\n"
+        "    domknięcie to zwiąż dodanie z dwa\n"
+        "    wynik to bierz domknięcie z pięć\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["wynik"] == "Liczba"
+
+
+# =====================================================================
 # Integracja: totalność zwrotów i grounding
 # =====================================================================
 

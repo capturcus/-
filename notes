@@ -71,3 +71,5 @@ v odmiana większe od/mniejsze od/równe
 v odmiana liczb
 v wczytaj_wejście
 v jakiś engine graficzny
+
+explicit curry

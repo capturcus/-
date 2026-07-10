@@ -49,6 +49,31 @@ class _TailCall:
         self.args = args
 
 
+class Domknięcie:
+    """Wartość `zwiąż F z X` — klucz funkcji + zamrożone pierwsze argumenty.
+    Aplikacja dokleja resztę (`_rozwiąż_funkcyjną`); ponowne wiązanie
+    konkatenuje. Nośnikiem gołej referencji pozostaje sam klucz-krotka."""
+    __slots__ = ("klucz", "związane")
+
+    def __init__(self, klucz, związane):
+        self.klucz = klucz
+        self.związane = związane
+
+
+def _zwiąż(nośnik, args):
+    if isinstance(nośnik, Domknięcie):
+        return Domknięcie(nośnik.klucz, nośnik.związane + args)
+    return Domknięcie(nośnik, args)
+
+
+def _rozwiąż_funkcyjną(nośnik, args):
+    """Wartość funkcyjna → (lemmas, pełne argumenty) dla execute_function:
+    domknięcie dokleja zamrożone argumenty przed podanymi."""
+    if isinstance(nośnik, Domknięcie):
+        return [nośnik.klucz], nośnik.związane + args
+    return [nośnik], args
+
+
 class ReturnUnwind(Exception):
     """`zwróć` w zagnieżdżonym bloku — przerywa ciało funkcji z wartością."""
     def __init__(self, value):
@@ -236,6 +261,11 @@ def _tekst(rv, depth=0):
         return "prawda" if rv.value else "fałsz"
     if rv.type == "Nic":
         return "Nic"
+    if rv.type == "Funkcja":
+        if isinstance(rv.value, Domknięcie):
+            return (f"funkcja {'_'.join(rv.value.klucz)} "
+                    f"(związane argumenty: {len(rv.value.związane)})")
+        return f"funkcja {'_'.join(rv.value)}"
     if type(rv.value) is _LeniwyTekst:
         return rv.value.reszta()
     if isinstance(rv.value, dict):
@@ -492,7 +522,12 @@ def execute_expression(expr_node, scope):
     if isinstance(expr_node, ast.Apply):
         fn = execute_expression(expr_node.fn, scope)
         args = [execute_expression(w.value, scope) for w in expr_node.args]
-        return execute_function([fn.value], args)
+        lemmas, args = _rozwiąż_funkcyjną(fn.value, args)
+        return execute_function(lemmas, args)
+    if isinstance(expr_node, ast.Bind):
+        fn = execute_expression(expr_node.fn, scope)
+        args = [execute_expression(w.value, scope) for w in expr_node.args]
+        return RuntimeValue(value=_zwiąż(fn.value, args), type="Funkcja")
     if isinstance(expr_node, ast.StructCreation):
         # Jawne `Nic` (konstrukcja bez pól) normalizuje się do kanonicznej
         # wartości None — tej samej, którą daje fall-through funkcji i
@@ -669,7 +704,8 @@ def execute_block(stmts, scope):
                 fn = execute_expression(wynik.fn, scope)
                 params = [execute_expression(w.value, scope)
                           for w in wynik.args]
-                raise ReturnUnwind(_TailCall([fn.value], params))
+                lemmas, params = _rozwiąż_funkcyjną(fn.value, params)
+                raise ReturnUnwind(_TailCall(lemmas, params))
             raise ReturnUnwind(execute_expression(wynik, scope))
 
 def execute(module_node, argumenty=None):

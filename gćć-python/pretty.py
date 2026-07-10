@@ -49,7 +49,7 @@ def _groups(node):
         if node.params:
             return [("params", node.params)]
         return None
-    if isinstance(node, ast.Apply):
+    if isinstance(node, (ast.Apply, ast.Bind)):
         groups = [("fn", [node.fn])]
         if node.args:
             groups.append(("args", node.args))
@@ -152,6 +152,8 @@ def _label(node):
         return f"FunctionRef {'_'.join(node.surface)} -> {'_'.join(node.key)}"
     if isinstance(node, ast.Apply):
         return "Apply"
+    if isinstance(node, ast.Bind):
+        return "Bind"
     if isinstance(node, ast.TryCall):
         if isinstance(node.call, ast.Apply):
             return "TryCall zastosowanie"
