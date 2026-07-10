@@ -1,0 +1,25 @@
+uwzględnij przygrywka.ć
+
+aby usunąć_podzielne przez dzielnik z listy:
+    lista jest:
+        Niczym:
+            zwróć Nic
+        Ogniwem z głową z ogonem:
+            wynik to weź_resztę_z_dzielenia głowy przez dzielnik
+            jeśli wynik równy zero i głowa nierówna dzielnikowi:
+                zwróć usuń_podzielne przez dzielnik z ogona
+            inaczej:
+                zwróć Ogniwo z głową o ogonie usuń_podzielne przez dzielnik z ogona
+
+aby działać:
+    limit to sto
+    lista to Nic
+    dopóki limit większy od zera:
+        limit to limit minus jeden
+        lista to Ogniwo o głowie sto minus limit o ogonie lista
+    lista to odwróć listę
+    dzielnik to dwa
+    dopóki dzielnik mniejsze od (podziel sto przez dwa):
+        lista to usuń_podzielne przez dzielnik z listy
+        dzielnik to dzielnik plus jeden
+    przekształcaj listę z wypisaniem

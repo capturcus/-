@@ -2,7 +2,8 @@
 
 Cztery przebiegi:
 1. Scal pary `mniejsze+od / większe+od / mniejsze+równe / większe+równe`
-   oraz solo `równe / nierówne` w token `CMP_OP`.
+   (w dowolnej odmianie: `większy od`, `mniejsza równa`, …) oraz solo
+   `równe / nierówne` (też w dowolnej odmianie) w token `CMP_OP`.
 2. Oznacz solo `plus / minus` jako `ARITH_OP`, `razy` jako `TERM_OP`.
 3. Oznacz formy lemm `prawda` / `fałsz` jako literały logiczne `BOOL_LIT`
    (Przełącznik). Po lemmie — `prawdę`, `fałszem` itd. też są literałami
@@ -13,13 +14,15 @@ Cztery przebiegi:
 Kolejność jest istotna: porównania PRZED liczebnikami, żeby `mniejsze od pięć`
 nie zgubiło `pięć` w czasie scalania ciągu liczebnikowego.
 
-Rozpoznawanie operatorów porównania: PO SURFACE FORMIE — bo w SGJP
-`mniejsze` ma lemmę `mały` (comparative), więc po lemacie nie da się odróżnić
-od zwykłego `mały`. Konwencja matematyczna używa neutrum singularis:
-`mniejsze/większe/równe/nierówne`.
+Rozpoznawanie `mniejszy/większy` (wszystkie odmiany: `mniejsza od`, `większym
+od`, …): po analizie adj w stopniu wyższym (`:com`) — lemma to wtedy
+`mały`/`duży`/`wielki`, więc sam lemat nie wystarcza, potrzebny jest też tag
+stopnia (odróżnia od zwykłego `mały`). Drugie słowo: `od` (surface) daje
+ostre `<`/`>`, dowolna forma lemmy `równy` daje `<=`/`>=`.
 
-Operatory arytmetyczne (plus/minus/razy) i `równe/nierówne` rozpoznawane
-po canonical lemma (bo lemmy są już kanoniczne).
+Operatory arytmetyczne (plus/minus/razy) rozpoznawane po surface,
+`równe/nierówne` po canonical lemma — więc wszystkie odmiany
+(`równy/równa/nierównym/…`) też są operatorami.
 """
 
 import lexer
@@ -27,12 +30,9 @@ from morph_anal import canonical
 from number_parser import is_number_word, parse_number_words
 
 
-_CMP_2WORD = {
-    ("mniejsze", "od"): "<",
-    ("większe", "od"): ">",
-    ("mniejsze", "równe"): "<=",
-    ("większe", "równe"): ">=",
-}
+# Lemma stopnia wyższego → kierunek porównania. `większe` ma w SGJP dwie
+# lemmy (duży i wielki) — obie znaczą `>`.
+_CMP_COMPARATIVE_LEMMAS = {"mały": "<", "duży": ">", "wielki": ">"}
 
 _CMP_1WORD_LEMMAS = {
     ("równy",): "=",
@@ -62,18 +62,35 @@ def _surface_or_none(tok):
     return tok[1][0]
 
 
+def _comparative_dir(tok):
+    """`"<"` dla odmian `mniejszy`, `">"` dla `większy`, inaczej None."""
+    if tok is None or tok[0] is not lexer.Token.WORD or len(tok[1]) != 1:
+        return None
+    for ana in tok[2][0]:
+        if ana.pos == "adj" and ana.tag.endswith(":com"):
+            direction = _CMP_COMPARATIVE_LEMMAS.get(ana.lemma)
+            if direction is not None:
+                return direction
+    return None
+
+
 def _scan_cmp(tokens):
     out = []
     i = 0
     n = len(tokens)
     while i < n:
-        s1 = _surface_or_none(tokens[i])
-        s2 = _surface_or_none(tokens[i + 1]) if i + 1 < n else None
-        if s1 is not None and s2 is not None and (s1, s2) in _CMP_2WORD:
-            line = getattr(tokens[i], "line", None)
-            out.append(lexer.Tok(lexer.Token.CMP_OP, _CMP_2WORD[(s1, s2)], None, line=line))
-            i += 2
-            continue
+        direction = _comparative_dir(tokens[i])
+        if direction is not None and i + 1 < n:
+            op = None
+            if _surface_or_none(tokens[i + 1]) == "od":
+                op = direction
+            elif _canon_or_none(tokens[i + 1]) == ("równy",):
+                op = direction + "="
+            if op is not None:
+                line = getattr(tokens[i], "line", None)
+                out.append(lexer.Tok(lexer.Token.CMP_OP, op, None, line=line))
+                i += 2
+                continue
         c1 = _canon_or_none(tokens[i])
         if c1 in _CMP_1WORD_LEMMAS:
             line = getattr(tokens[i], "line", None)

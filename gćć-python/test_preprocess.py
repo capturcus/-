@@ -41,6 +41,38 @@ def test_cmp_op_scaling(pp, src, op):
     assert _kinds_values(toks) == [(lexer.Token.CMP_OP, op)]
 
 
+@pytest.mark.parametrize("src,op", [
+    # odmiany rodzajowo-przypadkowe komparatywów
+    ("mniejszy od", "<"),
+    ("mniejsza od", "<"),
+    ("mniejszym od", "<"),
+    ("większy od", ">"),
+    ("większa od", ">"),
+    ("większym od", ">"),
+    # dwuwyrazowe z odmienioną formą `równy`
+    ("mniejszy równy", "<="),
+    ("mniejsza równa", "<="),
+    ("większy równy", ">="),
+    ("większa równa", ">="),
+    # odmiany `równy` / `nierówny` solo
+    ("równy", "="),
+    ("równa", "="),
+    ("nierówny", "!="),
+    ("nierówna", "!="),
+    ("nierównym", "!="),
+])
+def test_cmp_op_inflected_forms(pp, src, op):
+    """Operatory porównania działają we wszystkich formach gramatycznych."""
+    toks = pp(src)
+    assert _kinds_values(toks) == [(lexer.Token.CMP_OP, op)]
+
+
+def test_positive_degree_is_not_cmp_op(pp):
+    """`mały`/`duży` w stopniu równym to zwykłe słowa, nie operatory."""
+    toks = pp("mały od")
+    assert toks[0][0] is lexer.Token.WORD
+
+
 def test_cmp_with_args(pp):
     # pięć mniejsze od dziesięć
     toks = pp("pięć mniejsze od dziesięć")

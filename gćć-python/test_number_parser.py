@@ -43,6 +43,17 @@ def test_is_number_word_whitelist_for_genpl_magnitudes(analyze, word):
 
 
 @pytest.mark.parametrize("word", [
+    "zera", "zeru", "zerem", "zerze",       # subst-only odmiany `zero`
+    "jednego", "jedną", "jednym", "jedna",  # adj-only odmiany `jeden`
+    "dwóch", "dwie", "pięciu", "trzem", "dziesięciu", "stu",  # num odmiany
+])
+def test_is_number_word_inflected_forms(analyze, word):
+    """Wszystkie formy gramatyczne liczebników są liczbami."""
+    toks = analyze(word)
+    assert np.is_number_word(toks[0]), f"{word!r} powinno być liczebnikiem"
+
+
+@pytest.mark.parametrize("word", [
     "użytkownik", "kot", "pisze", "nazwa", "duży",
 ])
 def test_is_number_word_rejects_non_numerals(analyze, word):
@@ -58,6 +69,15 @@ def _parse(analyze, text):
 
 def test_parse_zero(analyze):
     assert _parse(analyze, "zero") == 0
+
+
+@pytest.mark.parametrize("word,value", [
+    ("zera", 0), ("zeru", 0), ("zerem", 0),
+    ("jednego", 1), ("jedną", 1),
+    ("dwóch", 2), ("pięciu", 5), ("dziesięciu", 10), ("stu", 100),
+])
+def test_parse_inflected_forms(analyze, word, value):
+    assert _parse(analyze, word) == value
 
 
 def test_parse_one(analyze):

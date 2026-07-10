@@ -1,9 +1,11 @@
 """Parser liczebników słownych: `sto dwadzieścia trzy` → 123.
 
-Liczbą jest słowo, które ma w SGJP analizę z `pos == "num"` LUB którego canonical
-lemma należy do `MAGNITUDE_LEMMAS` (gen pl `tysięcy/milionów/miliardów/...` jest
-w SGJP tagowane wyłącznie jako subst, a musi być rozpoznawane jako część liczby
-typu `pięć tysięcy`).
+Liczbą jest słowo, które ma w SGJP analizę z `pos == "num"` LUB którego lemma
+(na dowolnej analizie) należy do znanych słowników liczebnikowych. Whitelist
+lemmowa jest konieczna, bo część form fleksyjnych nie ma w SGJP tagu num:
+gen pl magnitud (`tysięcy/milionów/...`) jest tagowane wyłącznie jako subst,
+odmiany `zera/zeru/zerem` tylko jako subst, a `jednego/jedną/jednym` tylko
+jako adj — wszystkie muszą dawać wartość liczbową.
 """
 
 import lexer
@@ -54,9 +56,10 @@ def _num_lemma(token):
     Iteruje po wszystkich analizach SGJP. Preferuje analizy z `pos == "num"`
     których lemma trafia w słowniki (priorytet 1), żeby ominąć fakt, że SGJP
     czasem ma lemmy w formie potocznej np. `tysiące:tysiące:num` zamiast
-    kanonicznego `tysiąc`. W drugiej kolejności sprawdza whitelistę
-    magnitudową na DOWOLNEJ analizie — to ratuje `tysięcy/milionów` (gen pl
-    tagowane wyłącznie jako subst).
+    kanonicznego `tysiąc`. W drugiej kolejności sprawdza whitelistę lemmową
+    na DOWOLNEJ analizie — to ratuje formy bez tagu num: `tysięcy/milionów`
+    (gen pl tagowane wyłącznie jako subst), `zera/zeru` (subst) oraz
+    `jednego/jedną` (adj).
     """
     kind, surface, analyses = token
     if kind is not lexer.Token.WORD:
@@ -68,9 +71,9 @@ def _num_lemma(token):
     for ana in seg_anas:
         if ana.pos == "num" and ana.lemma in _ALL_LEMMAS:
             return ana.lemma
-    # 2) whitelist magnitudowa po dowolnej lemmie (subst gen pl, num potoczne itp.)
+    # 2) whitelist lemmowa po dowolnej analizie (subst/adj odmiany liczebników)
     for ana in seg_anas:
-        if ana.lemma in MAGNITUDE_LEMMAS:
+        if ana.lemma in _ALL_LEMMAS:
             return ana.lemma
     # 3) dowolna num-analiza (zachowamy oryginalną lemmę dla diagnostyki)
     for ana in seg_anas:
