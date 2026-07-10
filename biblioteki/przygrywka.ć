@@ -96,6 +96,11 @@ można czytać_plik ze ścieżki (Tekst) -> Rezultat o elemencie Tekst
 
 można zapisać_plik dla zawartości (Tekst) do ścieżki (Tekst) -> Rezultat o elemencie Liczba
 
+# Standardowe wejście — wbudowane w interpreter (jak `input` w Pythonie).
+# Zwraca jedną linię bez końcowego znaku nowej linii; koniec strumienia
+# (EOF) daje pusty tekst (≡ Nic).
+można wczytać_wejście -> Tekst
+
 # Fold prawostronny: złóż [a, b, c] z op z akc = op(a, op(b, op(c, akc))).
 # Operacja to wartość funkcyjna (referencja gerundialna, np. `z dodawaniem`).
 aby złożyć listę (Lista) z operacją z akumulatorem:
@@ -168,6 +173,40 @@ aby pokazać liczbę (Liczba) -> Tekst:
     jeśli liczba mniejsze od zero:
         zwróć sklej "-" z (rozwijaj (zero minus liczba))
     zwróć rozwijaj liczbę
+
+# Wartość cyfry dziesiętnej znaku (odwrotność `przedstawić`): Sukces
+# z liczbą 0–9 albo Błąd dla znaku niebędącego cyfrą. Punkt kodowy
+# '0' to 48, '9' to 57.
+aby odcyfrować znak (Znak) -> Rezultat o elemencie Liczba:
+    wartość to (zapisz_liczbą znak) minus czterdzieści osiem
+    jeśli wartość mniejsza od zera lub wartość większa od dziewięciu:
+        zwróć Błąd o opisie (sklej "nie jest cyfrą: " z (Ogniwo o głowie znak o ogonie Nic))
+    zwróć Sukces z wartością
+
+aby zbierać_cyfry z napisu (Tekst) z sumą (Liczba) -> Rezultat o elemencie Liczba:
+    napis jest:
+        Ogniwem z głową z ogonem:
+            cyfra to odcyfrowałbyś głowę?
+            zwróć zbieraj_cyfry z ogona z (suma razy dziesięć plus cyfra)
+        Niczym:
+            zwróć Sukces o wartości suma
+
+# Liczba z tekstu dziesiętnego (odwrotność `pokazać`): Sukces z wartością
+# liczbową napisu albo Błąd z opisem (pusty napis, sam minus, znak
+# niebędący cyfrą). Wiodący '-' daje liczbę ujemną.
+aby odczytać_liczbę z napisu (Tekst) -> Rezultat o elemencie Liczba:
+    napis jest:
+        Ogniwem z głową z ogonem:
+            jeśli głowa równa '-':
+                ogon jest:
+                    Ogniwem:
+                        liczba to zbierałbyś_cyfry z ogona z zerem?
+                        zwróć Sukces o wartości minus liczba
+                    Niczym:
+                        zwróć Błąd o opisie "sam minus nie jest liczbą"
+            zwróć zbieraj_cyfry z napisu z zerem
+        Niczym:
+            zwróć Błąd o opisie "pusty napis nie jest liczbą"
 
 # Quicksort (rosnąco, po `mniejsze od` — elementy to Liczby): oś to
 # głowa; mniejsze przed nią, reszta (równe i większe) za nią.

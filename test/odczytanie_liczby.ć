@@ -1,0 +1,20 @@
+uwzględnij przygrywka.ć
+
+aby sprawdzić napis (Tekst):
+    rezultat to odczytaj_liczbę z napisu
+    rezultat jest:
+        Sukcesem z wartością:
+            wypisz wartość
+        Błędem z opisem:
+            wypisz opis
+
+aby działać:
+    sprawdź "0"
+    sprawdź "7"
+    sprawdź "123"
+    sprawdź "-45"
+    sprawdź "007"
+    sprawdź ""
+    sprawdź "-"
+    sprawdź "12a3"
+    sprawdź "kot"

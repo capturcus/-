@@ -38,9 +38,15 @@ def main():
         if arg_path.exists():
             argumenty = ["--"] + arg_path.read_text(
                 encoding="utf-8").split()
+        # Opcjonalny plik NAZWA.wejście: standardowe wejście programu
+        # (dla `wczytaj_wejście`). Bez pliku program dostaje puste
+        # wejście (EOF), żeby test nigdy nie zawisł na terminalu.
+        wejście_path = plik.with_suffix(".wejście")
+        wejście = (wejście_path.read_text(encoding="utf-8")
+                   if wejście_path.exists() else "")
         proces = subprocess.run(
             [sys.executable, str(GCC), "--redis", str(plik), *argumenty],
-            capture_output=True, text=True,
+            capture_output=True, text=True, input=wejście,
         )
         if proces.returncode != 0:
             print(f"PORAŻKA {plik.name}: exit {proces.returncode}")

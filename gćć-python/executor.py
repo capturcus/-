@@ -346,9 +346,15 @@ def _zapisz_plik(args):
                      f"{e.strerror or e}")
 
 
+def _wczytaj_wejście(args):
+    """input: jedna linia ze standardowego wejścia (bez końcowego znaku
+    nowej linii) jako Tekst. Koniec strumienia (EOF) daje pusty tekst."""
+    return _lista_znaków(sys.stdin.readline().removesuffix("\n"))
+
+
 # Wbudowane funkcje: implementacja tutaj, sygnatura jako deklaracja
 # `można` w programie (przygrywka deklaruje podzielić/wziąć_resztę…/
-# czytać_plik/zapisać_plik).
+# czytać_plik/zapisać_plik/wczytać_wejście).
 BUILTIN_FUNCTIONS = [
     ([("wypisać",)], lambda args: print(_tekst(args[0]))),
     ([("podzielić",)], _podziel),
@@ -357,6 +363,7 @@ BUILTIN_FUNCTIONS = [
     ([("zapisać", "liczba")], _zapisz_liczbą),
     ([("czytać", "plik")], _czytaj_plik),
     ([("zapisać", "plik")], _zapisz_plik),
+    ([("wczytać", "wejście")], _wczytaj_wejście),
 ]
 
 # op → (funkcja, typ wyniku); semantyka jak w typechecker.resolve_bin_op
