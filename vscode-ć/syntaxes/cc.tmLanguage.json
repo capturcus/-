@@ -65,7 +65,7 @@
     },
     {
       "name": "keyword.control.apply.cc",
-      "match": "\\b(zastosuj|zastosować)\\b"
+      "match": "\\b(zastosuj|zastosować|zwiąż|związać)\\b"
     },
     {
       "name": "constant.language.cc",
@@ -73,11 +73,11 @@
     },
     {
       "name": "constant.numeric.cc",
-      "match": "\\b(zero|zera|zeru|zerem|zerze|jeden|jedna|jedno|jednego|jednej|jednym|jedną|dwa|dwie|dwóch|dwom|dwoma|dwiema|trzy|trzech|trzem|trzema|cztery|czterech|czterem|czterema|pięć|pięciu|pięcioma|sześć|sześciu|sześcioma|siedem|siedmiu|siedmioma|osiem|ośmiu|ośmioma|dziewięć|dziewięciu|dziewięcioma|dziesięć|dziesięciu|dziesięcioma|jedenaście|jedenastu|dwanaście|dwunastu|trzynaście|trzynastu|czternaście|czternastu|piętnaście|piętnastu|szesnaście|szesnastu|siedemnaście|siedemnastu|osiemnaście|osiemnastu|dziewiętnaście|dziewiętnastu|dwadzieścia|dwudziestu|trzydzieści|trzydziestu|czterdzieści|czterdziestu|pięćdziesiąt|pięćdziesięciu|sześćdziesiąt|sześćdziesięciu|siedemdziesiąt|siedemdziesięciu|osiemdziesiąt|osiemdziesięciu|dziewięćdziesiąt|dziewięćdziesięciu|sto|stu|dwieście|dwustu|trzysta|trzystu|czterysta|czterystu|pięćset|pięciuset|sześćset|sześciuset|siedemset|siedmiuset|osiemset|ośmiuset|dziewięćset|dziewięciuset|tysiąc|tysiąca|tysiące|tysięcy|tysiącem|tysiącami|milion|miliona|miliony|milionów|miliard|miliarda|miliardy|miliardów)\\b"
+      "match": "\\b(zero|zera|zeru|zerem|zerze|jeden|jedna|jedno|jednego|jednej|jednym|jedną|dwa|dwie|dwóch|dwom|dwoma|dwiema|trzy|trzech|trzem|trzema|cztery|czterech|czterem|czterema|pięć|pięciu|pięcioma|sześć|sześciu|sześcioma|siedem|siedmiu|siedmioma|osiem|ośmiu|ośmioma|dziewięć|dziewięciu|dziewięcioma|dziesięć|dziesięciu|dziesięcioma|jedenaście|jedenastu|dwanaście|dwunastu|trzynaście|trzynastu|czternaście|czternastu|piętnaście|piętnastu|szesnaście|szesnastu|siedemnaście|siedemnastu|osiemnaście|osiemnastu|dziewiętnaście|dziewiętnastu|dwadzieścia|dwudziestu|trzydzieści|trzydziestu|czterdzieści|czterdziestu|pięćdziesiąt|pięćdziesięciu|sześćdziesiąt|sześćdziesięciu|siedemdziesiąt|siedemdziesięciu|osiemdziesiąt|osiemdziesięciu|dziewięćdziesiąt|dziewięćdziesięciu|sto|stu|dwieście|dwustu|trzysta|trzystu|czterysta|czterystu|pięćset|pięciuset|sześćset|sześciuset|siedemset|siedmiuset|osiemset|ośmiuset|dziewięćset|dziewięciuset|tysiąc|tysiąca|tysiące|tysięcy|tysiącem|tysiącami|milion|miliona|miliony|milionów|miliard|miliarda|miliardy|miliardów|jedenastoma|dwunastoma|trzynastoma|czternastoma|piętnastoma|szesnastoma|siedemnastoma|osiemnastoma|dziewiętnastoma|dwudziestoma|trzydziestoma|czterdziestoma|pięćdziesięcioma|sześćdziesięcioma|siedemdziesięcioma|osiemdziesięcioma|dziewięćdziesięcioma|stoma)\\b"
     },
     {
       "name": "keyword.operator.comparison.cc",
-      "match": "\\b(mniejsze|większe)\\s+(od|równe)\\b|\\b(równe|nierówne)\\b"
+      "match": "\\b(mniejsz|większ)(y|a|e|ą|ym|ej|ych|ymi|i)\\s+(od|równ(y|a|e|ą|ym|ej|ych|ymi|i))\\b|\\b(nierówn|równ|tożsam)(y|a|e|ą|ym|ej|ych|ymi|i)\\b"
     },
     {
       "name": "keyword.operator.arithmetic.cc",

@@ -21,7 +21,7 @@ aby przywitać użytkownika (Użytkownik) -> Tekst:
 aby działać:
     gość to Użytkownik o imieniu "Ada" o wieku trzydzieści
     wypisz (przywitaj gościa)
-    jeśli wiek gościa większe od osiemnaście:
+    jeśli wiek gościa większy od osiemnastu:
         wypisz "pełnoletnia"
 ```
 
@@ -51,8 +51,10 @@ Spis treści:
 - [Unie — `albo` i dopasowanie `jest:`](#unie--albo-i-dopasowanie-jest)
 - [Typy parametryzowane i aliasy](#typy-parametryzowane-i-aliasy)
 - [Funkcje wyższego rzędu](#funkcje-wyższego-rzędu)
+- [Bejcowanie — częściowa aplikacja `zwiąż`](#bejcowanie--częściowa-aplikacja-zwiąż)
 - [Obsługa błędów — `Rezultat` i tryb przypuszczający](#obsługa-błędów--rezultat-i-tryb-przypuszczający)
 - [Przygrywka — biblioteka standardowa](#przygrywka--biblioteka-standardowa)
+- [Grafika i gry — biblioteka `gra.ć`](#grafika-i-gry--biblioteka-grać)
 - [Wiele plików — `uwzględnij`](#wiele-plików--uwzględnij)
 - [System typów](#system-typów)
 - [Pułapki, o których warto wiedzieć](#pułapki-o-których-warto-wiedzieć)
@@ -245,8 +247,8 @@ być pole struktury: `wiek użytkownika to wiek użytkownika plus jeden`.
 | operatory | znaczenie |
 |---|---|
 | `plus`, `minus`, `razy` | arytmetyka na `Liczbie` |
-| `mniejsze od`, `większe od`, `mniejsze równe`, `większe równe` | porównania liczb (dają `Przełącznik`) |
-| `równe`, `nierówne` | równość **strukturalna** — rekurencyjnie po polach, bezpieczna dla cykli |
+| `mniejsze od`, `większe od`, `mniejsze równe`, `większe równe` — w dowolnej odmianie (`większy od`, `mniejsza równa`) | porównania liczb (dają `Przełącznik`) |
+| `równe`, `nierówne` — w dowolnej odmianie (`równy`, `nierówna`) | równość **strukturalna** — rekurencyjnie po polach, bezpieczna dla cykli |
 | `tożsame` | równość **referencyjna** — ten sam obiekt (wartości proste po wartości) |
 | `i`, `lub`, `nie` | logika na `Przełączniku` |
 
@@ -259,9 +261,11 @@ suma to (dwa plus trzy) razy cztery
 gotowe to nie zajęte i suma większe od dziesięć
 ```
 
-`równe` i `tożsame` odmieniają się przez rodzaj zgodnie z podmiotem
-(`głowa równa zasadzie`, `znak równy '+'`); wielosłowne porównania mają
-formę stałą (`mniejsze od`). Równość wymaga porównywalnych typów (wspólna
+**Wszystkie porównania odmieniają się** przez rodzaj i przypadek zgodnie
+ze zdaniem: `głowa równa zasadzie`, `znak równy '+'`, `limit większy od
+zera`, `wartość mniejsza równa dziewięciu`, `głowa nierówna dzielnikowi`.
+Liczebniki po prawej stronie też mogą stać w dowolnym przypadku (`od
+zera`, `od dziewiętnastu`). Równość wymaga porównywalnych typów (wspólna
 głowa albo wspólna unia) — porównanie `Liczby` ze `Znakiem` to błąd typów.
 
 **Dzielenia nie ma wśród operatorów** — to funkcje wbudowane deklarowane
@@ -363,7 +367,8 @@ można wypisać tekst (Tekst) -> Nic
 można czytać_plik ze ścieżki (Tekst) -> Rezultat o elemencie Tekst
 ```
 
-Interpreter ma wbudowane implementacje siedmiu funkcji, zadeklarowane w przygrywce:
+Interpreter ma wbudowane implementacje dziewięciu funkcji, zadeklarowane
+w przygrywce (osobny zestaw graficzny deklaruje [`gra.ć`](#grafika-i-gry--biblioteka-grać)):
 
 | funkcja | znaczenie |
 |---|---|
@@ -374,6 +379,8 @@ Interpreter ma wbudowane implementacje siedmiu funkcji, zadeklarowane w przygryw
 | `zapisać_liczbą znak (Znak) -> Liczba` | znak → punkt kodowy (`ord`) |
 | `czytać_plik ze ścieżki (Tekst) -> Rezultat o elemencie Tekst` | odczyt pliku |
 | `zapisać_plik dla zawartości (Tekst) do ścieżki (Tekst) -> Rezultat o elemencie Liczba` | zapis pliku (Sukces = liczba bajtów) |
+| `wczytać_wejście -> Tekst` | jedna linia ze standardowego wejścia, bez końcowego znaku nowej linii (jak `input` w Pythonie); EOF daje pusty tekst (≡ `Nic`) |
+| `wylosować_liczbę od minimum (Liczba) do maksimum (Liczba) -> Liczba` | losowa liczba z domkniętego przedziału; pusty przedział to błąd wykonania |
 
 Nieznana głowa typu w sygnaturze `można` (np. `Cokolwiek`, `Uchwyt`)
 działa jak **niejawny parametr typu** współdzielony w obrębie sygnatury —
@@ -595,8 +602,10 @@ członem tuż przed nim — szersze otypowanie wymaga nawiasów:
 Funkcję przekazuje się przez jej **rzeczownik odczasownikowy**:
 `dodawanie` to referencja do funkcji `dodawać`, `przekraczanie_progu` —
 do `przekraczać_próg`. Referencje wskazują funkcje zdefiniowane
-w programie — jak wskaźniki funkcji w C, bez domknięć. Zmienna o tym
-samym lemacie przesłania referencję.
+w programie (także wbudowane, np. `z wypisaniem`); domknięcia powstają
+wyłącznie przez [bejcowanie `zwiąż`](#bejcowanie--częściowa-aplikacja-zwiąż)
+— nie ma przechwytywania zmiennych z otoczenia. Zmienna o tym samym
+lemacie przesłania referencję.
 
 Wartość funkcyjną wywołuje wbudowany czasownik `zastosuj` — argumenty
 pozycyjnie, każdy przez `z` + narzędnik:
@@ -630,6 +639,47 @@ Zasady:
 
 Gotowe fold/mapa/filtr/indeksowanie są w przygrywce (`złożyć`,
 `przekształcać`, `przesiewać`, `wskazać`); użycie: `test/kolekcje.ć`.
+
+---
+
+## Bejcowanie — częściowa aplikacja `zwiąż`
+
+Wbudowany czasownik `zwiąż` zamraża **pierwszych k argumentów** funkcji
+(pozycyjnie) i zwraca wartość funkcyjną oczekującą pozostałych:
+
+```
+aby dodać liczbę do innej_liczby:
+    zwróć liczba plus inna_liczba
+
+aby działać:
+    dodanie_dwóch to zwiąż dodanie z dwa
+    wypisz (zastosuj dodanie_dwóch z trzy)      # 5
+```
+
+Domknięcie jest zwykłą wartością funkcyjną — można je przekazać do
+funkcji, zastosować przez `zastosuj`, dowiązać kolejnym `zwiąż` (argumenty
+się doklejają) i wypisać. Typowy duet z przygrywkowym filtrem:
+
+```
+warunek to zwiąż stwierdzenie_podzielności z dzielnikiem
+lista to przesiewaj listę przez warunek
+```
+
+Zasady:
+
+- Odbiorca i argumenty jak w `zastosuj`: odbiorca to primary (referencja
+  gerundialna, zmienna, nawiasy), każdy argument przez `z` + narzędnik.
+- **Typ odbiorcy musi być znaną strzałką** — referencja gerundialna albo
+  zmienna o już ustalonym typie funkcyjnym. Wiązanie na nieustalonej
+  wartości (np. generycznym parametrze) to błąd typów — Ć konsekwentnie
+  wymaga znanej arności.
+- Związanie **wszystkich** argumentów daje bezargumentowy odkładany
+  obliczeniowo „thunk" (`zastosuj F` bez argumentów); związanie **zbyt
+  wielu** to błąd typów.
+- Wiązać można też funkcje wbudowane: `zwiąż podzielenie z sto`.
+- `związać` jest zarezerwowane jak `zastosować` (`związać_snopek` — można).
+- Bejcowanie nie zawodzi — tryb przypuszczający (`związałbyś …?`) jest
+  błędem.
 
 ---
 
@@ -716,10 +766,69 @@ każdej innej liście):
 | `wskazać pozycję na liście` | indeksowanie od **jedynki**, zwraca `Rezultat` |
 | `pokazać liczbę -> Tekst` | liczba jako tekst dziesiętny (z minusem) |
 | `przedstawić cyfrę -> Znak`, `rozwijać liczbę -> Tekst` | cegiełki `pokazać` |
+| `odczytać_liczbę z napisu -> Rezultat o elemencie Liczba` | tekst dziesiętny → liczba (odwrotność `pokazać`, z minusem); zły znak / pusty napis / sam minus dają `Błąd` z opisem |
+| `odcyfrować znak -> Rezultat o elemencie Liczba` | wartość cyfry `'0'`–`'9'` (odwrotność `przedstawić`) |
 
 Plus deklaracje wbudowanych: `podzielić`, `wziąć_resztę_z_dzielenia`,
-`zapisać_znakiem`, `zapisać_liczbą`, `czytać_plik`, `zapisać_plik`
+`zapisać_znakiem`, `zapisać_liczbą`, `czytać_plik`, `zapisać_plik`,
+`wczytać_wejście`, `wylosować_liczbę`
 (tabela w sekcji [`można`](#funkcje-wbudowane-i-zewnętrzne--można)).
+
+Typowy program interaktywny: `wczytaj_wejście` + `odczytaj_liczbę`
+z dopasowaniem `Rezultatu` — zobacz `test/sito_z_wejścia.ć`.
+
+---
+
+## Grafika i gry — biblioteka `gra.ć`
+
+`uwzględnij gra.ć` (dołącza też przygrywkę) daje builtiny graficzne
+oparte na pygame, w trybie natychmiastowym: program otwiera okno, rysuje
+w pętli i odpytuje wejście. Wymagana instalacja `pip3 install pygame-ce`
+(właśnie **pygame-ce**, nie klasyczny pygame — ten nie ma wheeli dla
+świeżych Pythonów); pygame jest importowany leniwie, więc bez niego
+interpreter i wszystkie programy niegraficzne działają normalnie.
+
+Szkielet każdej gry:
+
+```
+uwzględnij gra.ć
+
+aby działać:
+    otwórz_okno o sześciuset o (czterysta pięćdziesiąt) z "Tytuł"
+    dopóki pokaż_klatkę:
+        <logika i rysowanie>
+```
+
+`pokaż_klatkę` robi całą obsługę klatki naraz: wyświetla narysowane,
+ogranicza tempo do **30 klatek na sekundę**, zbiera wydarzenia i czyści
+ekran pod następną klatkę; po zamknięciu okna krzyżykiem zwraca `fałsz`
+i pętla naturalnie się kończy. Współrzędne w pikselach: `od lewej`
+rośnie w prawo, `od góry` w dół.
+
+| funkcja | znaczenie |
+|---|---|
+| `otworzyć_okno o szerokości o wysokości z tytułem (Tekst) -> Nic` | otwiera okno gry |
+| `pokazać_klatkę -> Przełącznik` | klatka: flip + 30 fps + wydarzenia + czyszczenie; `fałsz` po zamknięciu |
+| `narysować_koło od lewej od góry o promieniu w barwie -> Nic` | koło (od środka) |
+| `narysować_prostokąt od lewej od góry o szerokości o wysokości w barwie -> Nic` | prostokąt (od lewego górnego rogu) |
+| `narysować_napis treść (Tekst) od lewej od góry o rozmiarze w barwie -> Nic` | tekst na ekranie |
+| `narysować_duszka ze ścieżki (Tekst) od lewej od góry -> Nic` | sprite z pliku (PNG z przezroczystością; buforowany) |
+| `dobrać_barwę nazwę (Tekst) -> Barwa` | barwa po polskiej nazwie albo `"#RRGGBB"` |
+| `zbadać_klawisz nazwę (Tekst) -> Przełącznik` | czy klawisz jest wciśnięty teraz (ruch ciągły) |
+| `pobrać_wydarzenia -> Lista o elemencie Wydarzenie` | wydarzenia od ostatniej klatki (akcje jednorazowe) |
+
+Typy z `gra.ć`: struktura `Barwa` (`czerwień`/`zieleń`/`błękit`, 0–255;
+gotowe barwy przez `dobierz_barwę "zieleń"` — czerń, biel, szarość,
+czerwień, zieleń, błękit, żółć, pomarańcz, fiolet, róż, brąz) oraz unia
+`Wydarzenie to Naciśnięcie albo Kliknięcie albo Ruch` — obsługiwana
+zwykłym dopasowaniem `jest:`. Nazwy klawiszy: `"lewo"`, `"prawo"`,
+`"góra"`, `"dół"`, `"spacja"`, `"enter"`, `"wyjście"`, litery i cyfry.
+
+Kompletna gra przykładowa: **`manual_test/wąż.ć`** (snake — siatka,
+sterowanie strzałkami, wynik, koniec gry). Interpreter jest wolny —
+budżet na klatkę starcza na proste gry (wąż, pong), nie na systemy
+cząsteczkowe. Testy graficzne działają bezokienkowo przez
+`SDL_VIDEODRIVER=dummy` (runner ustawia to sam).
 
 ---
 
@@ -985,16 +1094,23 @@ obecnym interpreterem, a `*.wynik` pokazuje jego wyjście:
 | `adnotowana_deklaracja.ć`, `adnotowane_przepisanie.ć`, `aliasy.ć` | adnotacje i aliasy |
 | `tożsamość.ć`, `cykl.ć` | `równe` vs `tożsame`, struktury cykliczne |
 | `tekst_lista.ć`, `znak.ć`, `znak_liczba.ć`, `łańcuchy.ć`, `dna.ć` | teksty, znaki, most Znak↔Liczba |
+| `formy_gramatyczne.ć` | odmiany liczebników i porównań (`zera`, `większa od`, `nierówny`) |
 | `kolekcje.ć`, `mapowanie.ć`, `aplikacja.ć` | funkcje wyższego rzędu |
+| `bejcowanie.ć`, `domknięcia.ć`, `sito_bejcowane.ć` | częściowa aplikacja `zwiąż`, thunki, domknięcia w filtrze |
 | `rezultat.ć`, `pliki.ć` | `Rezultat`, `?`, operacje na plikach |
+| `wczytanie_wejścia.ć`, `odczytanie_liczby.ć`, `sito_z_wejścia.ć` | standardowe wejście, parsowanie liczb z tekstu |
+| `wylosowanie.ć` | losowość |
+| `grafika.ć` | builtiny graficzne (bezokienkowo) |
 | `argumenty.ć`, `argumenty_puste.ć` | argumenty wywołania programu (`działać dla argumentów`) |
 | `http.ć`, `brainfuck.ć`, `brainfuck_mutowalny.ć` | większe programy (parser HTTP, interpreter brainfucka) |
 
 Większe programy przykładowe leżą w `manual_test/` (nie są uruchamiane
-automatycznie): backend aplikacji instagramopodobnej (`instagram.ć`),
-parser JSON-a (`json.ć`), parser wyrażeń samego Ć (`wyrażenia.ć`),
-drzewa AVL (`parametryzowane.ć` + `użyj_drzewa.ć`), analizator
-morfologiczny (`analizator_morfologiczny.ć`).
+automatycznie): gra wąż na pygame (`wąż.ć`), backend aplikacji
+instagramopodobnej (`instagram.ć`), parser JSON-a (`json.ć`), parser
+wyrażeń samego Ć (`wyrażenia.ć`), drzewa AVL (`parametryzowane.ć` +
+`użyj_drzewa.ć`), analizator morfologiczny
+(`analizator_morfologiczny.ć`), sito Eratostenesa w dwóch stylach
+(`sito_eratostenesa.ć`, `sito_eratostenesa_bejcowane.ć`).
 
 ---
 
@@ -1002,7 +1118,7 @@ morfologiczny (`analizator_morfologiczny.ć`).
 
 ```
 gćć-python/        interpreter (lexer → morfologia → parser → typechecker → executor) + testy pytest
-biblioteki/        biblioteki standardowe (przygrywka.ć, operacje_tekstowe.ć) — fallback dla `uwzględnij`
+biblioteki/        biblioteki standardowe (przygrywka.ć, gra.ć, operacje_tekstowe.ć) — fallback dla `uwzględnij`
 test/              testy end-to-end języka (pary *.ć / *.wynik)
 manual_test/       większe programy przykładowe
 vscode-ć/          wtyczka VS Code (kolorowanie składni)

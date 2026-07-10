@@ -2,7 +2,7 @@
   "name": "jezyk-c",
   "displayName": "Język Ć",
   "description": "Kolorowanie składni języka Ć (kod po polsku z fleksją) — w barwach biało-czerwonych.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "mparafiniuk",
   "engines": {
     "vscode": "^1.75.0"
