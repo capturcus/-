@@ -12,8 +12,10 @@ KATALOG = Path(__file__).resolve().parent
 GCC = KATALOG.parent / "gćć-python" / "gćć.py"
 
 # Pliki biblioteczne (dołączane przez `uwzględnij`) — nie są testami,
-# nie mają `aby działać` ani pliku .wynik.
-BIBLIOTEKI = {"przygrywka.ć", "operacje_tekstowe.ć", "słownik.ć"}
+# nie mają `aby działać` ani pliku .wynik. Standardowe biblioteki
+# (przygrywka.ć, operacje_tekstowe.ć) mieszkają w ../biblioteki i tak
+# nie trafiają do globu; tu zostają tylko biblioteki lokalne dla testów.
+BIBLIOTEKI = {"słownik.ć"}
 
 
 def main():

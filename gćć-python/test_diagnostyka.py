@@ -535,7 +535,7 @@ def test_dyskryminatory_przy_nierozstrzygniętej_dysjunkcji(parse):
 # =====================================================================
 
 _PRZYGRYWKA_DIAG = open(
-    "../test/przygrywka.ć", encoding="utf-8").read() + "\n"
+    "../biblioteki/przygrywka.ć", encoding="utf-8").read() + "\n"
 
 
 @pytest.mark.integration

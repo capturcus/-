@@ -60,7 +60,7 @@ def parse(db, preps):
 
 
 _PRZYGRYWKA = open(
-    os.path.join(os.path.dirname(__file__), "..", "test", "przygrywka.ć"),
+    os.path.join(os.path.dirname(__file__), "..", "biblioteki", "przygrywka.ć"),
     encoding="utf-8",
 ).read() + "\n"
 

@@ -13,9 +13,14 @@ powiela deklaracji `c`, a cykl (a→b→a) kończy się naturalnie, bo plik
 w trakcie scalania jest już odnotowany jako widziany.
 
 Składnia dyrektywy: wiersz zaczynający się (od kolumny zerowej) słowem
-`uwzględnij`, po którym następuje ścieżka — RELATYWNA względem pliku,
-w którym stoi dyrektywa. To dyrektywa tekstowa, nie identyfikator —
-rozpoznawana literalnie, bez odmiany.
+`uwzględnij`, po którym następuje ścieżka. To dyrektywa tekstowa, nie
+identyfikator — rozpoznawana literalnie, bez odmiany.
+
+ROZSTRZYGANIE ŚCIEŻKI dwuetapowe: najpierw RELATYWNIE względem pliku,
+w którym stoi dyrektywa; gdy tam pliku nie ma — w folderze `biblioteki`
+(rozstrzyganym względem lokalizacji interpretera, nie katalogu roboczego).
+Dzięki temu `uwzględnij przygrywka.ć` znajduje bibliotekę standardową
+z dowolnego katalogu, a lokalny plik o tej samej nazwie ma pierwszeństwo.
 
 NUMERY LINII: każda linia scalonego tekstu pochodzi verbatim z dokładnie
 jednego pliku źródłowego, więc scalanie buduje mapę pochodzenia
@@ -34,6 +39,12 @@ from dataclasses import dataclass
 from ast_nodes import InterpreterError
 
 DIRECTIVE = "uwzględnij"
+
+# Folder z bibliotekami standardowymi (przygrywka.ć, operacje_tekstowe.ć…).
+# Rozstrzygany względem lokalizacji interpretera — katalog tego modułu leży
+# w `gćć-python/`, a `biblioteki/` jest jego sąsiadem w korzeniu repo.
+BIBLIOTEKI = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          os.pardir, "biblioteki")
 
 # Odwołania do linii wbudowane w treść komunikatów ("(linia 42)",
 # "w linii 42") — tłumaczone przez Scalony.translate.
@@ -87,6 +98,20 @@ def parse_directive(line):
     return path or None
 
 
+def _resolve(base, target):
+    """Ścieżka do pliku z dyrektywy `uwzględnij <target>`: najpierw
+    relatywnie do katalogu `base` (pliku z dyrektywą), a gdy tam pliku
+    nie ma — w folderze `biblioteki`. Gdy nigdzie go nie ma, zwraca
+    ścieżkę relatywną, żeby komunikat błędu wskazał to, co napisał autor."""
+    relative = os.path.join(base, target)
+    if os.path.exists(relative):
+        return relative
+    library = os.path.join(BIBLIOTEKI, target)
+    if os.path.exists(library):
+        return library
+    return relative
+
+
 def _key(path):
     """Klucz deduplikacji: realpath (symlinki, `..`) + normalizacja NFC
     (ta sama nazwa w NFC i NFD to ten sam plik na macOS)."""
@@ -102,7 +127,7 @@ def _merge_text(text, base, source_name, seen, out):
         if target is None:
             out.append((line, (source_name, lineno)))
             continue
-        _merge_file(os.path.join(base, target), seen, out,
+        _merge_file(_resolve(base, target), seen, out,
                     from_file=source_name, from_line=lineno)
 
 

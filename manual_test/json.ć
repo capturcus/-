@@ -10,7 +10,7 @@
 # Świadome uproszczenia: brak \uXXXX i ułamków/wykładników; wypis nie
 # eskejpuje z powrotem znaków specjalnych (to podgląd, nie serializacja).
 
-uwzględnij ../test/przygrywka.ć
+uwzględnij przygrywka.ć
 
 # ---------- drzewo wartości JSON ----------
 

@@ -115,9 +115,11 @@ aby działać:
 
 - `uwzględnij przygrywka.ć` dołącza bibliotekę standardową
   ([przygrywkę](#przygrywka--biblioteka-standardowa)) — m.in. typ `Tekst`,
-  bez którego literały tekstowe się nie typują; funkcja `wypisać`. Ścieżka jest względna
-  wobec pliku, więc program poza katalogiem `test/` wskazuje ją np. jako
-  `uwzględnij ../test/przygrywka.ć`.
+  bez którego literały tekstowe się nie typują; funkcja `wypisać`. Ścieżkę
+  interpreter rozstrzyga dwuetapowo: najpierw względem pliku z dyrektywą,
+  a gdy tam jej nie ma — w folderze `biblioteki/` (rozstrzyganym względem
+  lokalizacji interpretera). Dlatego `uwzględnij przygrywka.ć` działa
+  z dowolnego katalogu, a lokalny plik o tej samej nazwie ma pierwszeństwo.
 - `aby działać:` to punkt wejścia — interpreter po sprawdzeniu typów
   wywołuje funkcję o lemacie `działać`.
 
@@ -682,7 +684,7 @@ Uwaga na pary aspektowe także tutaj: `wybrałbyś` → lemat `wybrać`,
 
 ## Przygrywka — biblioteka standardowa
 
-`test/przygrywka.ć` to standardowa biblioteka dołączana przez
+`biblioteki/przygrywka.ć` to standardowa biblioteka dołączana przez
 `uwzględnij`. Najważniejszy skutek: **`Tekst` przestaje być czymkolwiek
 wbudowanym i staje się listą znaków** — literały tekstowe to łańcuchy
 ogniw, każda funkcja listowa działa na tekstach, a pusty tekst ≡ `Nic`.
@@ -729,10 +731,15 @@ kolejności, więc to wystarcza):
 
 ```
 uwzględnij przygrywka.ć
-uwzględnij biblioteki/napisy.ć
+uwzględnij pod/napisy.ć
 ```
 
-- Ścieżka jest **względna wobec pliku, w którym stoi dyrektywa**.
+- Ścieżkę interpreter rozstrzyga **dwuetapowo**: najpierw **względem
+  pliku, w którym stoi dyrektywa**, a gdy tam jej nie ma — w folderze
+  `biblioteki/` (rozstrzyganym względem lokalizacji interpretera). Dzięki
+  temu biblioteki standardowe (`przygrywka.ć`, `operacje_tekstowe.ć`) są
+  widoczne z dowolnego katalogu, a lokalny plik o tej samej nazwie ma
+  pierwszeństwo.
 - **Każdy plik wchodzi najwyżej raz** — gdy dwa pliki uwzględniają tę
   samą bibliotekę, jej deklaracje się nie powielają; cykle są bezpieczne.
 - Dyrektywa musi zaczynać się w kolumnie zerowej i jest rozpoznawana
@@ -995,7 +1002,8 @@ morfologiczny (`analizator_morfologiczny.ć`).
 
 ```
 gćć-python/        interpreter (lexer → morfologia → parser → typechecker → executor) + testy pytest
-test/              testy end-to-end języka (pary *.ć / *.wynik) + przygrywka.ć
+biblioteki/        biblioteki standardowe (przygrywka.ć, operacje_tekstowe.ć) — fallback dla `uwzględnij`
+test/              testy end-to-end języka (pary *.ć / *.wynik)
 manual_test/       większe programy przykładowe
 vscode-ć/          wtyczka VS Code (kolorowanie składni)
 sgjp.tab           słownik SGJP (niewersjonowany, do pobrania z sgjp.pl)

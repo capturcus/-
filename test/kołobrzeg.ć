@@ -1,0 +1,22 @@
+uwzględnij przygrywka.ć
+uwzględnij operacje_tekstowe.ć
+
+definicja Psa:
+    imię (Tekst)
+
+aby nakarmić pupila jedzeniem:
+    wypisz imię pupila
+    wypisz "spożywa"
+    wypisz jedzenie
+
+aby zorganizować operację rzeczy z pupilem:
+    wynik to zastosuj operację z rzeczą
+    nakarm pupila wynikiem
+
+aby zjeść rzecz:
+    zwróć sklej "ugotowana " z rzeczą
+
+aby działać:
+    kiełbasa to "kiełbasa"
+    burek to Pies o imieniu "Burek"
+    zorganizuj zjedzenie kiełbasy z burkiem
