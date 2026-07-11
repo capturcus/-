@@ -2016,7 +2016,14 @@ def resolve_function_call(node, scope):
             oczekiwano = _render_typu(slot)
             otrzymano = _render_typu(t)
             kontrast = ""
-            if oczekiwano != "?" and otrzymano != "?":
+            # Kontrast tylko, gdy coś kontrastuje: po nieudanym ogranicz
+            # slot bywa już skażony odrzuconym argumentem (dolna granica
+            # dopisana przed pęknięciem przechodniości), więc obie strony
+            # potrafią wyrenderować się IDENTYCZNIE — wtedy zdanie
+            # „oczekiwano X, otrzymano X" tylko myli, a prawdziwy
+            # konflikt opisuje komunikat wewnętrzny.
+            if (oczekiwano != "?" and otrzymano != "?"
+                    and oczekiwano != otrzymano):
                 kontrast = (f": oczekiwano {oczekiwano}, "
                             f"otrzymano {otrzymano}")
             raise TypeCheckError(

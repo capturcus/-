@@ -1945,6 +1945,40 @@ def test_zapis_warunkowy_poszerza_element_czysty_błąd(parse):
 
 
 @pytest.mark.integration
+def test_kontrast_pusty_pomijany_w_błędzie_argumentu(parse):
+    """Regresja komunikatu: przy konflikcie KONTRAWARIANTNYM obie strony
+    renderują się identycznie (slot skażony odrzuconym argumentem) —
+    puste „oczekiwano X, otrzymano X" jest pomijane, zostaje prawdziwe
+    wyjaśnienie."""
+    src = (
+        "definicja Kota:\n"
+        "    imię (Znak)\n"
+        "\n"
+        "definicja Psa:\n"
+        "    kość (Znak)\n"
+        "\n"
+        "Zwierzę to Kot albo Pies\n"
+        "\n"
+        "można wypisać coś (Cokolwiek) -> Nic\n"
+        "\n"
+        "aby głaskać kota (Kot):\n"
+        "    wypisz imię kota\n"
+        "\n"
+        "aby traktować zwierzę (Zwierzę) operacją:\n"
+        "    zwróć zastosuj operację ze zwierzęciem\n"
+        "\n"
+        "aby działać:\n"
+        "    traktuj (Pies o kości 'k') głaskaniem\n"
+    )
+    with pytest.raises(TypeCheckError) as ei:
+        typechecker.resolve_module(parse(src))
+    tekst = str(ei.value)
+    assert "wartość typu unii 'Zwierzę (Kot albo Pies)' nie mieści się" \
+        in tekst
+    assert "oczekiwano" not in tekst
+
+
+@pytest.mark.integration
 def test_pole_związane_wszystkie_formy_legalne(parse):
     """Wiązania, które POZOSTAJĄ legalne: konkret w aplikacji nazwanej,
     parametr struktury wprost, przechwyt po nazwie, alias."""
