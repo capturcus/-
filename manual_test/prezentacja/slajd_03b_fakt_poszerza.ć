@@ -1,0 +1,18 @@
+# SLAJD 3b (bliźniak): FAKT poszerza — po przypisaniu Psa zmienna jest
+# Zwierzęciem i pole `imię` (tylko Kot) wymaga zawężenia.
+# Oczekiwany BŁĄD: „pole 'imię' nie jest wspólne wariantom unii…".
+
+definicja Kota:
+    imię (Znak)
+
+definicja Psa:
+    kość (Znak)
+
+Zwierzę to Kot albo Pies
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    pupil to Kot o imieniu 'M'
+    pupil to Pies o kości 'k'
+    wypisz imię pupila

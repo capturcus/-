@@ -1,0 +1,13 @@
+# SLAJD 1 (Obietnica): zero adnotacji typów — rekursja, arytmetyka,
+# warunki. Wszystko wywnioskowane i sprawdzone przed uruchomieniem.
+# Oczekiwane wyjście: 120
+
+uwzględnij przygrywka.ć
+
+aby policzyć_silnię z liczby:
+    jeśli liczba mniejsza od dwóch:
+        zwróć jeden
+    zwróć liczba razy policz_silnię z (liczba minus jeden)
+
+aby działać:
+    wypisz policz_silnię z pięciu

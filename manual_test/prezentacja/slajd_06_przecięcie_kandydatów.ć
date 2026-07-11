@@ -1,0 +1,22 @@
+# SLAJD 6 (Łańcuchy jako poszlaki): funkcja czyta `waga rzeczy`
+# i `uszko rzeczy` — samo UŻYCIE wyznacza, czym jest rzecz: jedyną
+# strukturą, która ma OBA pola. „Coś, co ma wagę i uszko" — semantyka
+# polskiej frazy nominalnej wykonana przez solver.
+# Oczekiwane wyjście: 5, potem u
+
+można wypisać coś (Cokolwiek) -> Nic
+
+definicja Kubła:
+    waga (Liczba)
+    uszko (Znak)
+
+definicja Worka:
+    waga (Liczba)
+    troczek (Znak)
+
+aby obejrzeć rzecz:
+    wypisz waga rzeczy
+    wypisz uszko rzeczy
+
+aby działać:
+    obejrzyj (Kubeł o wadze pięć o uszku 'u')

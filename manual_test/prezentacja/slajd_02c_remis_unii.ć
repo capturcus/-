@@ -1,0 +1,20 @@
+# SLAJD 2c (Krata): gdy dwie minimalne unie pokrywają te same fakty,
+# system NIE zgaduje — remis to błąd z prośbą o adnotację.
+# Oczekiwany BŁĄD: „pokrywa więcej niż jedna minimalna unia".
+
+definicja Kota:
+    znak (Znak)
+
+definicja Psa:
+    znak (Znak)
+
+Domownik to Kot albo Pies
+
+Futrzak to Kot albo Pies
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    pupil to Kot o znaku 'k'
+    pupil to Pies o znaku 'p'
+    wypisz pupila

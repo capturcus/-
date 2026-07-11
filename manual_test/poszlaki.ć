@@ -1,0 +1,18 @@
+# Materiał na prezentację: JEDEN błąd typowania, TRZY poszlaki.
+#
+# Zmienna `rzecz` zbiera ślady z trzech niezależnych miejsc programu:
+#   1. fakt:      linia z `rzecz to pięć`          → wpływa Liczba
+#   2. wymaganie: linia z `rzecz plus jeden`       → żąda się Liczby
+#   3. fakt:      linia z `rzecz to 'a'`           → wpływa Znak ← sprawca
+# Trzecia poszlaka jest sprzeczna z dwiema pierwszymi — komunikat
+# wypisuje WSZYSTKIE z liniami i prosi programistę o werdykt
+# („zdecyduj, która poszlaka jest błędna"). To jest dowód niespójności
+# więzów pokazany użytkownikowi wprost.
+
+uwzględnij przygrywka.ć
+
+aby działać:
+    rzecz to pięć
+    wypisz (rzecz plus jeden)
+    rzecz to 'a'
+    wypisz rzecz

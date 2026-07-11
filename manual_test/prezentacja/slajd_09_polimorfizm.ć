@@ -1,0 +1,13 @@
+# SLAJD 9 (Maszyna): polimorfizm MIĘDZY wywołaniami — każde wywołanie
+# dostaje świeży egzemplarz sygnatury, więc ta sama funkcja obsługuje
+# Liczbę i Znak bez konfliktu.
+# Oczekiwane wyjście: 5, potem a
+
+uwzględnij przygrywka.ć
+
+aby powtórzyć rzecz:
+    zwróć rzecz
+
+aby działać:
+    wypisz powtórz pięć
+    wypisz powtórz 'a'

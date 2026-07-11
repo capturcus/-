@@ -1,0 +1,31 @@
+# SLAJD 5 (Inwariancja po polsku): upcast mutowalnego kontenera NIE
+# jest zakazany (jak w Javie) — zamiast tego sloty elementów SKLEJAJĄ
+# się przy każdym przepływie wartości:
+#   akt 1: zwierzęcy alias kociego stada — legalny,
+#   akt 2: dopisanie Psa przez alias — legalne (element to Zwierzę),
+#   akt 3: odczyt przez KOCI uchwyt widzi uczciwe Zwierzę i dopasowanie
+#          samym Kotem odpada. Nie ma dwóch prawd o jednej liście.
+# Oczekiwany BŁĄD: „brakuje gałęzi: Pies (dopisz je albo dodaj inaczej:)".
+
+uwzględnij przygrywka.ć
+
+definicja Kota:
+    imię (Znak)
+
+definicja Psa:
+    kość (Znak)
+
+Zwierzę to Kot albo Pies
+
+aby działać:
+    stado to Ogniwo o głowie (Kot o imieniu 'm') o ogonie Nic
+    zwierzęta (Lista o elemencie Zwierzę) to stado
+    zwierzęta są:
+        Ogniwem jako cel:
+            głowa celu to Pies o kości 'p'
+        Niczym:
+            wypisz 'n'
+    pierwszy to głowa stada
+    pierwszy jest:
+        Kotem z imieniem:
+            wypisz imię

@@ -1,0 +1,25 @@
+# SLAJD 8b (bliźniak): brak gałęzi dla Psa — dopasowanie musi
+# pokrywać CAŁĄ unię. Oczekiwany BŁĄD wyczerpania.
+
+
+
+definicja Jamnika:
+    znak (Znak)
+
+definicja Pudla:
+    znak (Znak)
+
+definicja Kota:
+    znak (Znak)
+
+Pies to Jamnik albo Pudel
+
+Zwierzę to Kot albo Pies
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    okaz (Zwierzę) to Jamnik o znaku 'j'
+    okaz jest:
+        Kotem:
+            wypisz 'k'

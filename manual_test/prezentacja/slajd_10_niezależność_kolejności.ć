@@ -1,0 +1,11 @@
+# SLAJD 10 (Gwarancje): wynik wnioskowania nie zależy od kolejności —
+# pola konstrukcji w dowolnym szyku dają ten sam typ.
+# Oczekiwane wyjście: 5, potem 6
+
+uwzględnij przygrywka.ć
+
+aby działać:
+    spód to Ogniwo o głowie pięć o ogonie Nic
+    wierzch to Ogniwo o ogonie Nic o głowie sześć
+    wypisz głowa spodu
+    wypisz głowa wierzchu

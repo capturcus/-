@@ -911,13 +911,15 @@ niejawnych konwersji.
 
 Dwie konsekwencje wariancji:
 
-- **Pola struktur są inwariantne** — bo są mutowalne. Skoro
-  `Lista o elemencie Kot` pozwala dopisywać elementy, nie może udawać
-  `Listy o elemencie Zwierzę` (ktoś dopisałby Psa). Dlatego kontener
-  kotów **nie jest** kontenerem zwierząt, a listy są jednorodne —
-  `Ogniwo o głowie pięć o ogonie (Ogniwo o głowie 'a' o ogonie Nic)`
-  to błąd („niejawny argument 'element' nie zgadza się między
-  wystąpieniami").
+- **Pola struktur są inwariantne** — bo są mutowalne. Listy są
+  jednorodne: `Ogniwo o głowie pięć o ogonie (Ogniwo o głowie 'a'
+  o ogonie Nic)` to błąd („niejawny argument 'element' nie zgadza się
+  między wystąpieniami"). Upcast kontenera nie jest przy tym zakazany —
+  przepływ wartości **skleja sloty elementów**: gdy kocie stado dostanie
+  zwierzęcy alias (albo trafi do funkcji od `Listy o elemencie
+  Zwierzę`), element poszerza się we WSZYSTKICH widokach naraz, więc
+  dopisanie Psa przez alias uczciwie zmusza także „koci" uchwyt do
+  gałęzi na Psa. Nie ma dwóch prawd o jednej liście.
 - **Wartości funkcyjne**: argumenty kontrawariantnie, wynik
   kowariantnie. Tam, gdzie oczekiwana jest funkcja z `Kota`, pasuje
   funkcja ze `Zwierzęcia` (przyjmuje więcej); tam, gdzie oczekiwany

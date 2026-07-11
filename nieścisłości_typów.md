@@ -119,6 +119,16 @@ asercja w `test_unia_współdzielony_parametr_przepływa`.
 - pole o nazwie własnego parametru, element `Nic`, thunk builtina
   używany wielokrotnie, monomorficzność domknięć (świadomy rank-1).
 
+### 10. Rekursja diagnostyki w `_nota_o_głowie` (znaleziona później) ✔
+Cykliczny graf granic (zapis przez łańcuch sprzęga bazę z instancją
+w obie strony) zapętlał wędrówkę po notach — RecursionError przy
+budowie komunikatu o zawężeniu.
+
+**Naprawa**: zbiór odwiedzonych w `_nota_o_głowie` (jak w pozostałych
+wędrowcach). Test: `test_zapis_warunkowy_poszerza_element_czysty_błąd`
+(przy okazji dokumentuje niewrażliwość na przepływ sterowania: zapis
+pod `jeśli` poszerza element bezwarunkowo).
+
 ## Pozostałe rysy (świadomie poza zakresem tej sesji)
 
 - surowe tracebacki Pythona z builtinów (`ord()`, `+`) przy błędach

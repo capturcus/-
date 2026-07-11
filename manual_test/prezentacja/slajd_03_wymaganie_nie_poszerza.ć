@@ -1,0 +1,22 @@
+# SLAJD 3 (Fakty i wymagania): Kot przekazany funkcji od Zwierząt
+# POZOSTAJE Kotem — wymaganie (slot ≤ Zwierzę) filtruje, nie poszerza;
+# pole `imię` czyta się dalej bez zawężania.
+# Oczekiwane wyjście: z, potem M
+
+definicja Kota:
+    imię (Znak)
+
+definicja Psa:
+    kość (Znak)
+
+Zwierzę to Kot albo Pies
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby przywitać zwierzę (Zwierzę):
+    wypisz 'z'
+
+aby działać:
+    mruczek to Kot o imieniu 'M'
+    przywitaj mruczka
+    wypisz imię mruczka

@@ -1,0 +1,22 @@
+# SLAJD 5b (Wariancja strzałek): funkcja od KOTÓW nie nadaje się tam,
+# gdzie potrzeba funkcji od KAŻDEGO Zwierzęcia (przyjmuje za mało).
+# Oczekiwany BŁĄD: unia 'Zwierzę' nie mieści się w slocie Kot.
+
+definicja Kota:
+    imię (Znak)
+
+definicja Psa:
+    kość (Znak)
+
+Zwierzę to Kot albo Pies
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby głaskać kota (Kot):
+    wypisz imię kota
+
+aby traktować zwierzę (Zwierzę) operacją:
+    zwróć zastosuj operację ze zwierzęciem
+
+aby działać:
+    traktuj (Pies o kości 'k') głaskaniem

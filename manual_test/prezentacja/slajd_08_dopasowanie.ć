@@ -1,0 +1,27 @@
+# SLAJD 8 (Dopasowanie): `jest:` to jedyna droga w dół — zawęża
+# z kontrolą wyczerpania; gałąź-unia `Psem:` łapie każdy liść Psa,
+# także w runtime.
+# Oczekiwane wyjście: p
+
+definicja Jamnika:
+    znak (Znak)
+
+definicja Pudla:
+    znak (Znak)
+
+definicja Kota:
+    znak (Znak)
+
+Pies to Jamnik albo Pudel
+
+Zwierzę to Kot albo Pies
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    okaz (Zwierzę) to Jamnik o znaku 'j'
+    okaz jest:
+        Kotem:
+            wypisz 'k'
+        Psem:
+            wypisz 'p'

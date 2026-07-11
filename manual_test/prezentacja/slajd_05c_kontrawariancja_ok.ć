@@ -1,0 +1,23 @@
+# SLAJD 5c (Wariancja strzałek, bliźniak): funkcja od ZWIERZĄT nadaje
+# się tam, gdzie potrzeba funkcji od Kotów (przyjmuje więcej) —
+# argumenty strzałek są kontrawariantne.
+# Oczekiwane wyjście: z
+
+definicja Kota:
+    imię (Znak)
+
+definicja Psa:
+    kość (Znak)
+
+Zwierzę to Kot albo Pies
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby opisać zwierzę (Zwierzę):
+    wypisz 'z'
+
+aby pieścić kota (Kot) operacją:
+    zwróć zastosuj operację z kotem
+
+aby działać:
+    pieść (Kot o imieniu 'm') opisaniem

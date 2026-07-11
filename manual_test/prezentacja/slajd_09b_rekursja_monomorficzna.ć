@@ -1,0 +1,14 @@
+# SLAJD 9b (bliźniak): rekursja jest MONOMORFICZNA — wywołanie
+# rekurencyjne współdzieli sygnaturę, więc funkcja nie może wewnątrz
+# siebie użyć się na dwóch typach.
+# Oczekiwany BŁĄD: Liczba vs Znak w parametrze 'rzecz'.
+
+uwzględnij przygrywka.ć
+
+aby mieszać rzecz:
+    jeśli prawda:
+        zwróć mieszaj 'a'
+    zwróć rzecz
+
+aby działać:
+    wypisz mieszaj pięć

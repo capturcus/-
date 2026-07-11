@@ -1909,6 +1909,42 @@ def test_pola_tej_samej_lemmy_niejednoznaczny_odczyt(parse):
 
 
 @pytest.mark.integration
+def test_zapis_warunkowy_poszerza_element_czysty_błąd(parse):
+    """Zapis pod `jeśli` (choćby losowym) poszerza element BEZWARUNKOWO
+    — typ to podsumowanie wszystkich przebiegów; a cykliczny graf granic
+    (zapis przez łańcuch) nie może zapętlać diagnostyki (regresja:
+    RecursionError w _nota_o_głowie)."""
+    src = (
+        "definicja Ogniwa z elementem:\n"
+        "    głowa (element)\n"
+        "    ogon (Lista)\n"
+        "\n"
+        "Lista to Ogniwo albo Nic\n"
+        "\n"
+        "definicja Kota:\n"
+        "    imię (Znak)\n"
+        "\n"
+        "definicja Psa:\n"
+        "    kość (Znak)\n"
+        "\n"
+        "Zwierzę to Kot albo Pies\n"
+        "\n"
+        "można wypisać coś (Cokolwiek) -> Nic\n"
+        "\n"
+        "aby działać:\n"
+        "    stado to Ogniwo o głowie (Kot o imieniu 'm') o ogonie Nic\n"
+        "    jeśli prawda:\n"
+        "        głowa stada to Pies o kości 'p'\n"
+        "    pierwszy to głowa stada\n"
+        "    pierwszy jest:\n"
+        "        Kotem z imieniem:\n"
+        "            wypisz imię\n"
+    )
+    with pytest.raises(TypeCheckError, match="brakuje gałęzi: Pies"):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
 def test_pole_związane_wszystkie_formy_legalne(parse):
     """Wiązania, które POZOSTAJĄ legalne: konkret w aplikacji nazwanej,
     parametr struktury wprost, przechwyt po nazwie, alias."""

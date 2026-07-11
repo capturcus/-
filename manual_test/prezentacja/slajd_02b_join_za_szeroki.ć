@@ -1,0 +1,26 @@
+# SLAJD 2b (Krata, bliźniak): Jamnik ⊔ Kot = Zwierzę — a Zwierzę NIE
+# mieści się w slocie od Psów. Oczekiwany BŁĄD z pełnym składem unii.
+
+
+definicja Jamnika:
+    znak (Znak)
+
+definicja Pudla:
+    znak (Znak)
+
+definicja Kota:
+    znak (Znak)
+
+Pies to Jamnik albo Pudel
+
+Zwierzę to Kot albo Pies
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby zagwizdać na psa (Pies):
+    wypisz 'p'
+
+aby działać:
+    pupil to Jamnik o znaku 'j'
+    pupil to Kot o znaku 'k'
+    zagwiżdż na pupila

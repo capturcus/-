@@ -1,0 +1,25 @@
+# SLAJD 7b (bliźniak): `kierunek stanu` — pole ma TYLKO Pełzanie,
+# więc odczyt przez unię odpada z listą braków i receptą.
+
+# Oczekiwany BŁĄD: „nie jest wspólne wariantom … zawęź `jest:`".
+
+definicja Pełzania:
+    owoc (Znak)
+    kierunek (Znak)
+
+definicja Porażki:
+    owoc (Znak)
+    powód (Znak)
+
+Rozgrywka to Pełzanie albo Porażka
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby rozstrzygać od flagi:
+    jeśli flaga:
+        zwróć Pełzanie o owocu 'o' o kierunku 'k'
+    zwróć Porażka o owocu 'x' o powodzie 's'
+
+aby działać:
+    stan to rozstrzygaj od prawdy
+    wypisz kierunek stanu

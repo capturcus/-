@@ -1568,17 +1568,23 @@ def resolve_while(node, scope):
 
 # ---------- dopasowanie `jest:` ----------
 
-def _nota_o_głowie(t, głowa):
+def _nota_o_głowie(t, głowa, _widziane=None):
     """Nota granicy, która wprowadziła daną głowę na zmienną — „skąd
-    wiadomo, że wartość jest tego typu"."""
+    wiadomo, że wartość jest tego typu". Graf granic bywa cykliczny
+    (zapis przez łańcuch sprzęga bazę z instancją w obie strony)."""
     if not isinstance(t, Zmienna):
         return None
+    if _widziane is None:
+        _widziane = set()
+    if t in _widziane:
+        return None
+    _widziane.add(t)
     for d, n in list(t.dolne) + list(t.górne):
         if isinstance(d, Konkret) and d.głowa == głowa and n:
             return n
     for d, _ in t.dolne:
         if isinstance(d, Zmienna):
-            n = _nota_o_głowie(d, głowa)
+            n = _nota_o_głowie(d, głowa, _widziane)
             if n:
                 return n
     return None
