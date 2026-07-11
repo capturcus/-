@@ -132,3 +132,92 @@ Dwie rzeczy do pokazania palcem:
    kratę — join czterech zwrotów pełznąć (Pełzanie ⊔ Porażka) oraz
    rozstrzygnięcie kandydata łańcucha `owoc stanu` (fakt-unia →
    odczyt pola wspólnego).
+
+## Graf 3: graf wywołań — „w jakiej kolejności"
+
+Krawędzie WYMIERZONE z solvera (`_wywoływane` na ciałach funkcji),
+nie narysowane z pamięci. Ciągła strzałka = wywołanie wprost;
+przerywana = referencja gerundialna (funkcja przekazana jako
+wartość — `zwiąż namalowanie…`, fold `z obróceniem`). Żółte węzły
+mają pętlę własną (samorekursja). Rendery: `wywolania.svg`/`.png`.
+
+Tarjan na tym grafie daje dla węża **29 SCC — same singletony**
+(każda żółta pętla to własny, jednofunkcyjny fixpoint). Kontrast
+z repo: brainfuck.ć ma trzyfunkcyjną SCC `wykonać ↔ zapętlić ↔
+obsłużyć` — tam sygnatury stabilizują się razem. Osiągalne od
+`działać`: 19 z 29 funkcji (10 przygrywkowych nieużywanych
+pominięto na rysunku).
+
+```mermaid
+flowchart TB
+    subgraph W["wąż.ć"]
+        dzialac["działać (punkt wejścia)"]
+        przestawic["przestawić"]
+        pelznac["pełznąć"]
+        obrocic["obrócić"]
+        wskazacleb["wskazać_łeb"]
+        skrocic["skrócić"]
+        sprawdzic["sprawdzić_obecność"]
+        wylowoc["wylosować_owoc"]
+        wylpole["wylosować_pole"]
+        namalowac["namalować"]
+        oglosic["ogłosić"]
+    end
+
+    subgraph P["przygrywka.ć (10 nieużywanych pominięto)"]
+        przeksztalcac["przekształcać (mapa)"]
+        zlozyc["złożyć (fold)"]
+        zmierzyc["zmierzyć"]
+        sklec["skleić"]
+        przelozyc["przełożyć"]
+        pokazac["pokazać"]
+        rozwijac["rozwijać"]
+        przedstawic["przedstawić"]
+    end
+
+    dzialac --> przestawic
+    dzialac --> oglosic
+    dzialac --> wylowoc
+    dzialac --> przeksztalcac
+    dzialac --> zmierzyc
+    dzialac --> pokazac
+    dzialac --> sklec
+    dzialac -. "zwiąż (referencja)" .-> namalowac
+
+    przestawic --> pelznac
+    przestawic --> zlozyc
+    przestawic -. "fold (referencja)" .-> obrocic
+
+    pelznac --> wskazacleb
+    pelznac --> skrocic
+    pelznac --> sprawdzic
+    pelznac --> wylowoc
+
+    wylowoc --> wylpole
+    wylowoc --> sprawdzic
+    wylowoc --> wylowoc
+
+    oglosic --> sklec
+    pokazac --> rozwijac
+    pokazac --> sklec
+    rozwijac --> przedstawic
+    rozwijac --> sklec
+    rozwijac --> rozwijac
+    sklec --> przelozyc
+    przelozyc --> przelozyc
+    skrocic --> skrocic
+    sprawdzic --> sprawdzic
+    zmierzyc --> zmierzyc
+    zlozyc --> zlozyc
+    przeksztalcac --> przeksztalcac
+
+    classDef wejscie fill:#ffe8e8,stroke:#c00,stroke-width:2px
+    classDef samorekursja stroke-dasharray:0,fill:#fffbe6,stroke:#b80
+    class dzialac wejscie
+    class wylowoc,skrocic,sprawdzic,zmierzyc,zlozyc,przeksztalcac,przelozyc,rozwijac samorekursja
+```
+
+Trzy grafy razem: **graf wywołań** decyduje *w jakiej kolejności*
+(SCC + porządek topologiczny), **graf granic** niesie *co wiemy*
+(376 α, 1391 granic dla węża), a **krata** rozstrzyga *czy to się
+składa* (joiny, kandydaci).
