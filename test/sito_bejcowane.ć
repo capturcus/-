@@ -1,6 +1,6 @@
 uwzględnij przygrywka.ć
 
-aby stwierdzić_podzielność przez dzielnik liczby:
+aby stwierdzić_niepodzielność przez dzielnik liczby:
     zwróć (weź_resztę_z_dzielenia liczby przez dzielnik) nierówne zero lub dzielnik równy liczbie
 
 aby wysiać do limitu:
@@ -12,7 +12,7 @@ aby wysiać do limitu:
     lista to odwróć listę
     dzielnik to dwa
     dopóki dzielnik mniejszy od (podziel limit przez dwa):
-        warunek to zwiąż stwierdzenie_podzielności z dzielnikiem
+        warunek to zwiąż stwierdzenie_niepodzielności z dzielnikiem
         lista to przesiewaj listę przez warunek
         dzielnik to dzielnik plus jeden
     przekształcaj listę z wypisaniem

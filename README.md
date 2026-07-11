@@ -15,12 +15,12 @@ definicja Użytkownika:
     imię (Tekst)
     wiek (Liczba)
 
-aby przywitać użytkownika (Użytkownik) -> Tekst:
+aby przywitać użytkownika:
     zwróć sklej "cześć, " z imieniem użytkownika
 
 aby działać:
     gość to Użytkownik o imieniu "Ada" o wieku trzydzieści
-    wypisz (przywitaj gościa)
+    wypisz przywitaj gościa
     jeśli wiek gościa większy od osiemnastu:
         wypisz "pełnoletnia"
 ```

@@ -1,7 +1,15 @@
 # Wąż — klasyczny snake na siatce 20×15 pól po 30 pikseli (okno 600×450).
-# Sterowanie strzałkami; wąż rośnie po zjedzeniu owocu, a gra kończy się
-# na ścianie albo własnym ogonie. Zamknięcie okna krzyżykiem kończy pętlę
-# (`pokaż_klatkę` zwraca wtedy fałsz).
+# Sterowanie strzałkami; wąż rośnie po zjedzeniu owocu. Zamknięcie okna
+# krzyżykiem kończy pętlę (`pokaż_klatkę` zwraca wtedy fałsz).
+#
+# Program celowo objeżdża polskie mechaniki języka:
+# - stan gry to unia Rozgrywka (Pełzanie albo Porażka z powodem) zamiast
+#   flagi — dopasowanie `jest:` steruje pętlą, a ekran końcowy dostaje
+#   powód porażki za darmo,
+# - kierunek zbiera fold po wydarzeniach (`złóż … z obróceniem …`),
+# - malowanie to przygrywkowa mapa ze zbejcowaną barwą (`zwiąż`),
+# - listy segmentów dopasowują się mnogim orzecznikiem (`segmenty są:`),
+# - wąż ma łeb, jak przystało zwierzęciu.
 
 uwzględnij gra.ć
 
@@ -9,8 +17,21 @@ definicja Pola:
     kolumna (Liczba)
     wiersz (Liczba)
 
-aby wskazać_czoło węża:
-    wąż jest:
+definicja Pełzania:
+    segmenty (Lista)
+    kierunek (Pole)
+    owoc (Pole)
+
+definicja Porażki:
+    segmenty (Lista)
+    owoc (Pole)
+    powód (Tekst)
+
+Rozgrywka to Pełzanie albo Porażka
+
+# Łeb węża to pierwszy segment; pusta lista łba nie ma — kąt planszy.
+aby wskazać_łeb segmentów:
+    segmenty są:
         Ogniwem z głową:
             zwróć głowa
         Niczym:
@@ -26,73 +47,91 @@ aby skrócić listę:
         Niczym:
             zwróć Nic
 
-aby sprawdzić_obecność pola na liście:
-    lista jest:
+aby sprawdzić_obecność pola na segmentach:
+    segmenty są:
         Ogniwem z głową z ogonem:
-            jeśli głowa równa pole:
+            jeśli głowa równa polu:
                 zwróć prawdę
             zwróć sprawdź_obecność pola na ogonie
         Niczym:
             zwróć fałsz
 
-# Nowy kierunek ze strzałek; skręcać można tylko prostopadle (zakaz
-# zawracania o sto osiemdziesiąt stopni).
-aby sterować kierunkiem:
-    jeśli zbadaj_klawisz "lewo" i kolumna kierunku równa zero:
-        zwróć Pole o kolumnie zero minus jeden o wierszu zero
-    jeśli zbadaj_klawisz "prawo" i kolumna kierunku równa zero:
-        zwróć Pole o kolumnie jeden o wierszu zero
-    jeśli zbadaj_klawisz "góra" i wiersz kierunku równa zero:
-        zwróć Pole o kolumnie zero o wierszu zero minus jeden
-    jeśli zbadaj_klawisz "dół" i wiersz kierunku równa zero:
-        zwróć Pole o kolumnie zero o wierszu jeden
-    zwróć kierunek
+# Krok folda po wydarzeniach: naciśnięcie strzałki obraca kierunek
+# (skręty tylko prostopadłe — zakaz zawracania), reszta wydarzeń
+# przechodzi bez echa.
+aby obrócić według wydarzenia kierunek:
+    wydarzenie jest:
+        Naciśnięciem z klawiszem:
+            jeśli klawisz równy "lewo" i kolumna kierunku równa zero:
+                zwróć Pole o kolumnie zero minus jeden o wierszu zero
+            jeśli klawisz równy "prawo" i kolumna kierunku równa zero:
+                zwróć Pole o kolumnie jeden o wierszu zero
+            jeśli klawisz równy "góra" i wiersz kierunku równa zero:
+                zwróć Pole o kolumnie zero o wierszu zero minus jeden
+            jeśli klawisz równy "dół" i wiersz kierunku równa zero:
+                zwróć Pole o kolumnie zero o wierszu jeden
+            zwróć kierunek
+        inaczej:
+            zwróć kierunek
 
 aby wylosować_pole:
     zwróć Pole o kolumnie wylosuj_liczbę od zera do dziewiętnastu o wierszu wylosuj_liczbę od zera do czternastu
 
-aby wylosować_owoc poza wężem:
+aby wylosować_owoc poza segmentami:
     pole to wylosuj_pole
-    jeśli sprawdź_obecność pola na wężu:
-        zwróć wylosuj_owoc poza wężem
+    jeśli sprawdź_obecność pola na segmentach:
+        zwróć wylosuj_owoc poza segmentami
     zwróć pole
 
-# Pola listy jako kwadraty (z jednopikselową szczeliną między segmentami).
-aby malować listę w barwie:
-    lista jest:
-        Ogniwem z głową z ogonem:
-            narysuj_prostokąt od (kolumna głowy razy trzydzieści plus jeden) od (wiersz głowy razy trzydzieści plus jeden) o dwadzieścia osiem o dwadzieścia osiem w barwie
-            maluj ogon w barwie
-        Niczym:
-            zwróć Nic
+# Jeden krok węża: łeb przesuwa się o kierunek. Ściana albo własny ogon
+# kończą rozgrywkę Porażką z powodem, owoc wydłuża, inaczej ogon znika.
+aby pełznąć segmentami z kierunkiem do owocu:
+    łeb to wskaż_łeb segmentów
+    przód to Pole o kolumnie kolumna łba plus kolumna kierunku o wierszu wiersz łba plus wiersz kierunku
+    jeśli kolumna przodu mniejsza od zera lub kolumna przodu większa od dziewiętnastu lub wiersz przodu mniejszy od zera lub wiersz przodu większy od czternastu:
+        zwróć Porażka o powodzie "ściana" z segmentami z owocem
+    jeśli sprawdź_obecność przodu na segmentach:
+        zwróć Porażka o powodzie "własny ogon" z segmentami z owocem
+    jeśli przód równy owocowi:
+        ciało to Ogniwo o głowie przód o ogonie segmenty
+        zwróć Pełzanie o segmentach ciało z kierunkiem o owocu (wylosuj_owoc poza ciałem)
+    zwróć Pełzanie o segmentach (Ogniwo o głowie przód o ogonie skróć segmenty) z kierunkiem z owocem
+
+# Takt gry: fold wydarzeń obraca kierunek w każdej klatce, wąż pełznie
+# co czwartą; po Porażce nic się już nie rusza.
+aby przestawić rozgrywkę po takcie:
+    rozgrywka jest:
+        Pełzaniem z segmentami z kierunkiem z owocem:
+            kierunek to złóż pobierz_wydarzenia z obróceniem z kierunkiem
+            jeśli (weź_resztę_z_dzielenia taktu przez cztery) równa zero:
+                zwróć pełznij segmentami z kierunkiem do owocu
+            zwróć Pełzanie z segmentami z kierunkiem z owocem
+        Porażką:
+            zwróć rozgrywkę
+
+# Jeden segment jako kwadrat (z jednopikselową szczeliną); barwa
+# pierwsza, żeby dała się zbejcować.
+aby namalować w barwie pole:
+    narysuj_prostokąt od (kolumna pola razy trzydzieści plus jeden) od (wiersz pola razy trzydzieści plus jeden) o dwadzieścia osiem o dwadzieścia osiem w barwie
+
+# Cała plansza: segmenty mapą ze zbejcowaną barwą, owoc, wynik.
+aby odmalować segmenty z owocem:
+    malowanie to zwiąż namalowanie z dobierz_barwę "zieleń"
+    przekształcaj segmenty z malowaniem
+    narysuj_koło od (kolumna owocu razy trzydzieści plus piętnaście) od (wiersz owocu razy trzydzieści plus piętnaście) o dwunastu w dobierz_barwę "czerwień"
+    narysuj_napis sklej "Wynik: " z pokaż (zmierz segmenty minus jeden) od dziesięciu od dziesięciu o trzydziestu w dobierz_barwę "biel"
 
 aby działać:
     otwórz_okno o sześciuset o czterysta pięćdziesiąt z "Wąż"
-    zieleń to dobierz_barwę "zieleń"
-    czerwień to dobierz_barwę "czerwień"
-    biel to dobierz_barwę "biel"
-    wąż to Ogniwo o głowie Pole o kolumnie dziesięć o wierszu siedem o ogonie Nic
-    kierunek to Pole o kolumnie jeden o wierszu zero
-    owoc to wylosuj_owoc poza wężem
-    licznik to zero
-    koniec to fałsz
+    początek to Ogniwo o głowie Pole o kolumnie dziesięć o wierszu siedem o ogonie Nic
+    stan to Pełzanie o segmentach początek o kierunku Pole o kolumnie jeden o wierszu zero o owocu wylosuj_owoc poza początkiem
+    takt to zero
     dopóki pokaż_klatkę:
-        licznik to licznik plus jeden
-        jeśli nie koniec:
-            kierunek to steruj kierunkiem
-            jeśli (weź_resztę_z_dzielenia licznika przez cztery) równa zero:
-                czoło to wskaż_czoło węża
-                przód to Pole o kolumnie kolumna czoła plus kolumna kierunku o wierszu wiersz czoła plus wiersz kierunku
-                jeśli kolumna przodu mniejsza od zera lub kolumna przodu większa od dziewiętnastu lub wiersz przodu mniejszy od zera lub wiersz przodu większy od czternastu lub sprawdź_obecność przodu na wężu:
-                    koniec to prawda
-                inaczej:
-                    jeśli przód równy owoc:
-                        wąż to Ogniwo o głowie przód o ogonie wąż
-                        owoc to wylosuj_owoc poza wężem
-                    inaczej:
-                        wąż to Ogniwo o głowie przód o ogonie skróć węża
-        maluj węża w zieleni
-        narysuj_koło od (kolumna owocu razy trzydzieści plus piętnaście) od (wiersz owocu razy trzydzieści plus piętnaście) o dwunastu w czerwieni
-        narysuj_napis sklej "Wynik: " z pokaż (zmierz węża minus jeden) od dziesięciu od dziesięciu o trzydziestu w bieli
-        jeśli koniec:
-            narysuj_napis "Koniec gry" od dwieście dwadzieścia od dwieście o pięćdziesięciu w bieli
+        takt to takt plus jeden
+        stan to przestaw stan po takcie
+        stan jest:
+            Pełzaniem z segmentami z owocem:
+                odmaluj segmenty z owocem
+            Porażką z segmentami z owocem z powodem:
+                odmaluj segmenty z owocem
+                narysuj_napis sklej "Koniec gry: " z powodem od stu od dwustu o czterdziestu w dobierz_barwę "biel"
