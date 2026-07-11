@@ -129,6 +129,69 @@ wędrowcach). Test: `test_zapis_warunkowy_poszerza_element_czysty_błąd`
 (przy okazji dokumentuje niewrażliwość na przepływ sterowania: zapis
 pod `jeśli` poszerza element bezwarunkowo).
 
+## Runda 2 — przegląd przedprodukcyjny (2026-07-11, wieczór)
+
+Bateria 18 sond krzyżujących funkcjonalności wg klas błędów znanych
+z produkcyjnych typecheckerów (value restriction z OCamla, ucieczka
+skolemów z Haskella, kowariancja pól ze starej Scali, dywergencja
+solvera na typach cyklicznych/occurs-check).
+
+### 11. CRASH: typ cykliczny przez mutację slotu elementu ✔
+`bad/p01_typ_cykliczny_przez_mutację.ć`:
+
+    węzeł to Ogniwo o głowie pięć o ogonie Nic
+    głowa węzła to węzeł          # element := Ogniwo[element] — cykl W TYPIE
+    wypisz zmierz węzeł
+
+→ dawniej surowy RecursionError w pętli `_render_typu ↔
+_zmaterializuj`. Dwie przyczyny, dwie naprawy: (a) budowa komunikatu
+joinu renderowała argumenty konkretów, a render materializował tę samą
+zmienną — regres PRZED rzuceniem wyjątku; teraz treści diagnoz powstają
+pod flagą `_w_diagnostyce` (`_zbuduj_diagnozę`), więc zagnieżdżona
+materializacja zwraca None („?"); (b) ścieżka SUKCESU joinu tworzyła
+świeże sloty przy każdej materializacji, więc render poprawnego typu
+rekurencyjnego (μt.Ogniwo[t] przez `głowa węzła to węzeł` na liście
+z Nic) nigdy nie domykał cyklu — teraz join jest memoizowany per
+zmienna (wersjonowanie liczbą granic, bo granice tylko rosną).
+Testy: `test_cykl_w_slocie_elementu_czysty_błąd` (konflikt → czysty
+komunikat z poszlakami), `test_cykl_w_slocie_przez_unię_przechodzi`
+(poprawny μ-typ + wymuszony render).
+
+### 12. KOMUNIKAT: zagnieżdżone dopasowanie na zawężonym podmiocie ✔
+`okaz jest: Kotem: okaz jest: Psem:` → „gałęzie — Pies — nie
+odpowiadają członkom żadnego zadeklarowanego typu wariantowego" —
+fałszywa diagnoza (Pies JEST członkiem Zwierzę). NAPRAWIONE: pętla
+znanych głów rozpoznaje głowę-strukturę — „dopasowanie na wartości
+o znanym typie 'Kot' — żadna z gałęzi (Pies) nie obejmuje 'Kot';
+jeśli podmiot został już zawężony zewnętrznym `jest:`, wewnętrzne
+dopasowanie widzi wyłącznie 'Kot'". Test:
+`test_zagnieżdżony_match_na_zawężonym_podmiocie`.
+
+### 13. KOMUNIKAT: odczyt pola na wartości funkcyjnej ✔
+`waga rzeczy` gdy rzecz to domknięcie → dawniej „nie występuje
+w typie ['→']". NAPRAWIONE: „pole 'waga' czytane z WARTOŚCI FUNKCYJNEJ
+typu (Liczba) → Liczba — funkcje nie mają pól; wywołanie to
+'zastosuj … z …'". Test:
+`test_odczyt_pola_z_wartości_funkcyjnej_komunikat`.
+
+### Potwierdzone SOUND w rundzie 2 (14 krzyżówek)
+- samozastosowanie + arytmetyka na wyniku → czysty błąd (render typu
+  cyklicznego strzałek bezpiecznie ucina „…"),
+- `zwiąż` własnej funkcji we własnym ciele (self-closure w SCC) → działa,
+- polimorficzna pustka z funkcji, dwa niezależne światy elementów →
+  działa (brak problemu value restriction: świeża instancja typu
+  + świeży obiekt per wywołanie); jedna zmienna z dwoma elementami →
+  natychmiastowy konflikt,
+- strzałki w polu WSPÓLNYM unii (przez parametr-slot) + `zastosuj`
+  przez unię + `zwiąż` z pola wspólnego → działają,
+- zapis pola wspólnego POD-unii w gałęzi zawężającej → działa,
+- łańcuchowe generyki (kolaps kandydatów przez dwie kopie sygnatur),
+- `zwiąż` wyniku aplikacji zwracającej strzałkę → działa (ponad
+  dokumentowane ograniczenie),
+- TryCall jako podmiot dopasowania; `jako` + reasignacja aliasu,
+- rekurencyjna aplikacja parametru `Drzewo dla (Drzewo dla rzeczy)`,
+- remis dwóch minimalnych unii przy polu wspólnym → czysty błąd remisu.
+
 ## Pozostałe rysy (świadomie poza zakresem tej sesji)
 
 - surowe tracebacki Pythona z builtinów (`ord()`, `+`) przy błędach

@@ -1978,6 +1978,107 @@ def test_kontrast_pusty_pomijany_w_błędzie_argumentu(parse):
     assert "oczekiwano" not in tekst
 
 
+# =====================================================================
+# Typy cykliczne przez mutację slotu + jakość diagnoz (runda 2)
+# =====================================================================
+
+
+@pytest.mark.integration
+def test_cykl_w_slocie_elementu_czysty_błąd(parse):
+    """DAWNY CRASH: `głowa węzła to węzeł` (element := Ogniwo[element],
+    a fakty elementu to {Liczba, Ogniwo}) zapętlał regres
+    komunikat→render→materializacja przed rzuceniem wyjątku — teraz
+    czysty błąd joinu z poszlakami."""
+    src = _OGNIWA + (
+        "aby działać:\n"
+        "    węzeł to Ogniwo o głowie pięć o ogonie Nic\n"
+        "    głowa węzła to węzeł\n"
+        "    wypisz węzeł\n"
+    )
+    with pytest.raises(
+        TypeCheckError,
+        match=r"nie można zunifikować Liczba z Ogniwo",
+    ):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_cykl_w_slocie_przez_unię_przechodzi(parse):
+    """Poprawny typ rekurencyjny μt.Ogniwo[t]: element startuje jako
+    Nic, wpychamy węzeł — join Nic ⊔ Ogniwo = Lista domyka cykl przez
+    unię. Render typu MUSI terminować (memo joinu — bez niego każda
+    materializacja tworzyła świeże sloty i cykl uciekał renderowi)."""
+    src = _OGNIWA + (
+        "aby działać:\n"
+        "    węzeł to Ogniwo o głowie Nic o ogonie Nic\n"
+        "    głowa węzła to węzeł\n"
+        "    wypisz zero\n"
+    )
+    typechecker.resolve_module(parse(src))
+    # wymuś rendery wszystkich zmiennych — dywergencja objawiłaby się
+    # RecursionError/timeoutem tutaj
+    typy = _var_types(lenient=True)
+    assert typy["węzeł"].startswith("Ogniwo[")
+
+
+@pytest.mark.integration
+def test_zagnieżdżony_match_na_zawężonym_podmiocie(parse):
+    """DAWNY MYLĄCY KOMUNIKAT: wewnętrzne `jest:` z gałęzią spoza
+    zawężenia twierdziło, że gałąź nie jest członkiem żadnej unii —
+    teraz mówi o znanym typie podmiotu."""
+    src = (
+        "definicja Kota:\n"
+        "    imię (Znak)\n"
+        "\n"
+        "definicja Psa:\n"
+        "    kość (Znak)\n"
+        "\n"
+        "Zwierzę to Kot albo Pies\n"
+        "\n"
+        "można wypisać coś (Cokolwiek) -> Nic\n"
+        "\n"
+        "aby działać:\n"
+        "    okaz (Zwierzę) to Kot o imieniu 'm'\n"
+        "    okaz jest:\n"
+        "        Kotem:\n"
+        "            okaz jest:\n"
+        "                Psem:\n"
+        "                    wypisz 'p'\n"
+        "        Psem:\n"
+        "            wypisz 'x'\n"
+    )
+    with pytest.raises(
+        TypeCheckError,
+        match=r"(?s)na wartości o znanym typie 'Kot'.*żadna z gałęzi "
+              r"\(Pies\) nie obejmuje 'Kot'.*wewnętrzne dopasowanie "
+              r"widzi wyłącznie 'Kot'",
+    ):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_odczyt_pola_z_wartości_funkcyjnej_komunikat(parse):
+    """DAWNY KOMUNIKAT «w typie ['→']» — teraz pełna strzałka i wprost:
+    funkcje nie mają pól."""
+    src = _OGNIWA + (
+        "definicja Kubła:\n"
+        "    waga (Liczba)\n"
+        "\n"
+        "aby dodać liczbę (Liczba) do innej_liczby (Liczba) -> Liczba:\n"
+        "    zwróć liczba plus inna_liczba\n"
+        "\n"
+        "aby działać:\n"
+        "    rzecz to zwiąż dodanie z dwa\n"
+        "    wypisz waga rzeczy\n"
+    )
+    with pytest.raises(
+        TypeCheckError,
+        match=r"(?s)czytane z WARTOŚCI FUNKCYJNEJ typu "
+              r"\(Liczba\) → Liczba.*funkcje nie mają pól.*zastosuj",
+    ):
+        typechecker.resolve_module(parse(src))
+
+
 @pytest.mark.integration
 def test_pole_związane_wszystkie_formy_legalne(parse):
     """Wiązania, które POZOSTAJĄ legalne: konkret w aplikacji nazwanej,

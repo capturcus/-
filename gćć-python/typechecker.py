@@ -394,16 +394,24 @@ def _unia_ze_składem(h):
 _w_diagnostyce = False
 
 
-def _poszlakownik(var):
-    """Pełny zrzut ograniczeń zmiennej: wszystkie granice z liniami —
-    programista sam wskazuje, która poszlaka jest błędna."""
+def _zbuduj_diagnozę(budowa):
+    """Buduje treść komunikatu pod flagą diagnostyki: rendery typów
+    w środku nie mogą ponownie rzucać (materializacja zwraca wtedy None
+    → „?"), inaczej typ CYKLICZNY zapętla regres komunikat→render→
+    materializacja→komunikat jeszcze PRZED rzuceniem wyjątku."""
     global _w_diagnostyce
     poprzednio = _w_diagnostyce
     _w_diagnostyce = True
     try:
-        return _poszlakownik_właściwy(var)
+        return budowa()
     finally:
         _w_diagnostyce = poprzednio
+
+
+def _poszlakownik(var):
+    """Pełny zrzut ograniczeń zmiennej: wszystkie granice z liniami —
+    programista sam wskazuje, która poszlaka jest błędna."""
+    return _zbuduj_diagnozę(lambda: _poszlakownik_właściwy(var))
 
 
 def _poszlakownik_właściwy(var):
@@ -796,11 +804,20 @@ def _zmaterializuj(t, wymagaj=False, widziane=None):
         if unia is None:
             if _w_diagnostyce:
                 return None
-            raise TypeCheckError(
+            treść = _zbuduj_diagnozę(lambda: (
                 f"nie można zunifikować {_render_typu(konkrety[0])} "
                 f"z {_render_typu(konkrety[-1])} — zdecyduj, która "
-                f"poszlaka jest błędna:\n{_poszlakownik(t)}"
-                + _sugestia_unii(głowy))
+                f"poszlaka jest błędna:\n{_poszlakownik_właściwy(t)}"
+                + _sugestia_unii(głowy)))
+            raise TypeCheckError(treść)
+        # Memo joinu per zmienna (wersjonowane liczbą granic — te tylko
+        # rosną): powtórna materializacja zwraca TEN SAM węzeł, inaczej
+        # świeże sloty per wywołanie robiły z typu cyklicznego
+        # (μt.Ogniwo[t] przez `głowa węzła to węzeł`) niekończący się
+        # łańcuch nowych zmiennych i render nigdy nie domykał cyklu.
+        memo = getattr(t, "_join_memo", None)
+        if memo is not None and memo[0] == len(t.dolne):
+            return memo[1]
         u = _unia_applied(unia)
         # Argumenty joinu: świeże sloty unii dostają wkłady członków jako
         # granice dolne (bez mutowania oryginałów) — materializacja
@@ -814,6 +831,7 @@ def _zmaterializuj(t, wymagaj=False, widziane=None):
                 if (i < len(k.args) and j < len(u.args)
                         and isinstance(u.args[j], Zmienna)):
                     u.args[j].dolne.append((k.args[i], None))
+        t._join_memo = (len(t.dolne), u)
         return u
     górne = [x for x, _ in t.górne if isinstance(x, Konkret)]
     if górne:
@@ -1662,6 +1680,23 @@ def _union_for_match(subject_t, branch_heads, line):
     if not cands:
         for głowa in znane:
             czł = członkowie_przechodni(głowa)
+            if czł is None and find_struct_def((głowa,)) is not None:
+                # Podmiot o ZNANEJ głowie-strukturze (np. już zawężony
+                # wewnętrznym `jest:`): gałęzie muszą go obejmować —
+                # inaczej dawny komunikat kłamał, że gałąź „nie jest
+                # członkiem żadnej unii".
+                pasuje = any(głowa in _liście_gałęzi(b)
+                             for b in branch_set)
+                if not pasuje:
+                    skąd = _nota_o_głowie(subject_t, głowa)
+                    pochodzenie = f"; skąd: {skąd}" if skąd else ""
+                    raise TypeCheckError(
+                        f"dopasowanie 'jest:' (linia {line}) na wartości "
+                        f"o znanym typie '{głowa}'{pochodzenie} — żadna "
+                        f"z gałęzi ({', '.join(sorted(branch_set))}) nie "
+                        f"obejmuje '{głowa}'; jeśli podmiot został już "
+                        f"zawężony zewnętrznym `jest:`, wewnętrzne "
+                        f"dopasowanie widzi wyłącznie '{głowa}'")
             if czł is not None:
                 pokryte, nakładki = set(), []
                 for b in sorted(branch_set):
@@ -2478,6 +2513,15 @@ def _resolve_chain(words, base_t, line, opis_bazy):
                                  + (", ".join(
                                      "_".join(pf.name.surface)
                                      for pf in sd_znany.fields) or "brak"))
+            if ARROW in znane:
+                # Goła głowa '→' nic nie mówi — wyrenderuj pełną strzałkę
+                # i powiedz wprost, że funkcje nie mają pól.
+                strzałka = _zbuduj_diagnozę(lambda: _render_typu(base_t))
+                raise TypeCheckError(
+                    f"pole '{field_surface}' (linia {line}) czytane "
+                    f"z WARTOŚCI FUNKCYJNEJ typu {strzałka} — funkcje "
+                    f"nie mają pól; wywołanie to 'zastosuj … z …'"
+                    f"{zrzut}")
             raise TypeCheckError(
                 f"pole '{field_surface}' (linia {line}) nie występuje "
                 f"w typie {sorted(znane)} podstawy łańcucha"
