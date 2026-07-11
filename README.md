@@ -86,11 +86,15 @@ python3 gćć-python/gćć.py test/dna.ć --redis
 Migracja jest idempotentna — wykrywa nową wersję `sgjp.tab` i wtedy
 przeprowadza się ponownie, w przeciwnym razie nic nie robi.
 
-Testy end-to-end języka (każdy `test/*.ć` uruchamiany i porównywany
-ze swoim `*.wynik`):
+Testy end-to-end języka — pozytywne (`*.ć` + `*.wynik`: stdout 1:1)
+i negatywne (`*.ć` + `*.błąd`: program ma odpaść, stderr zawiera
+wskazane fragmenty); szczegóły w `uruchom_testy.py -h`:
 
 ```
-python3 test/uruchom_testy.py           # wymaga trybu redisowego
+python3 uruchom_testy.py                # oba katalogi; wymaga redisa
+python3 uruchom_testy.py test           # tylko test/
+python3 uruchom_testy.py test_skradzion # scenariusze z suit OCamla,
+                                        # Flow, Crystala i TypeScriptu
 ```
 
 Testy interpretera: `cd gćć-python && python3 -m pytest -q`.
