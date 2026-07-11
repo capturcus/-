@@ -4,8 +4,9 @@
 #
 # Program celowo objeżdża polskie mechaniki języka:
 # - stan gry to unia Rozgrywka (Pełzanie albo Porażka z powodem) zamiast
-#   flagi — dopasowanie `jest:` steruje pętlą, a ekran końcowy dostaje
-#   powód porażki za darmo,
+#   flagi — a `segmenty` i `owoc`, wspólne obu wariantom, czyta się
+#   przez unię BEZ zawężania (`segmenty stanu`, `owoc stanu`); powód
+#   porażki (pole tylko Porażki) wymaga już dopasowania `jest:`,
 # - kierunek zbiera fold po wydarzeniach (`złóż … z obróceniem …`),
 # - malowanie to przygrywkowa mapa ze zbejcowaną barwą (`zwiąż`),
 # - listy segmentów dopasowują się mnogim orzecznikiem (`segmenty są:`),
@@ -114,24 +115,24 @@ aby przestawić rozgrywkę po takcie:
 aby namalować w barwie pole:
     narysuj_prostokąt od (kolumna pola razy trzydzieści plus jeden) od (wiersz pola razy trzydzieści plus jeden) o dwadzieścia osiem o dwadzieścia osiem w barwie
 
-# Cała plansza: segmenty mapą ze zbejcowaną barwą, owoc, wynik.
-aby odmalować segmenty z owocem:
-    malowanie to zwiąż namalowanie z dobierz_barwę "zieleń"
-    przekształcaj segmenty z malowaniem
-    narysuj_koło od (kolumna owocu razy trzydzieści plus piętnaście) od (wiersz owocu razy trzydzieści plus piętnaście) o dwunastu w dobierz_barwę "czerwień"
-    narysuj_napis sklej "Wynik: " z pokaż (zmierz segmenty minus jeden) od dziesięciu od dziesięciu o trzydziestu w dobierz_barwę "biel"
+# Ekran końcowy — powód zna tylko Porażka, więc tu zawężamy.
+aby ogłosić rozgrywkę:
+    rozgrywka jest:
+        Porażką z powodem:
+            narysuj_napis sklej "Koniec gry: " z powodem od stu od dwustu o czterdziestu w dobierz_barwę "biel"
+        inaczej:
+            zwróć Nic
 
 aby działać:
     otwórz_okno o sześciuset o czterysta pięćdziesiąt z "Wąż"
+    malowanie to zwiąż namalowanie z dobierz_barwę "zieleń"
     początek to Ogniwo o głowie Pole o kolumnie dziesięć o wierszu siedem o ogonie Nic
     stan to Pełzanie o segmentach początek o kierunku Pole o kolumnie jeden o wierszu zero o owocu wylosuj_owoc poza początkiem
     takt to zero
     dopóki pokaż_klatkę:
         takt to takt plus jeden
         stan to przestaw stan po takcie
-        stan jest:
-            Pełzaniem z segmentami z owocem:
-                odmaluj segmenty z owocem
-            Porażką z segmentami z owocem z powodem:
-                odmaluj segmenty z owocem
-                narysuj_napis sklej "Koniec gry: " z powodem od stu od dwustu o czterdziestu w dobierz_barwę "biel"
+        przekształcaj segmenty stanu z malowaniem
+        narysuj_koło od (kolumna owocu stanu razy trzydzieści plus piętnaście) od (wiersz owocu stanu razy trzydzieści plus piętnaście) o dwunastu w dobierz_barwę "czerwień"
+        narysuj_napis sklej "Wynik: " z pokaż (zmierz segmenty stanu minus jeden) od dziesięciu od dziesięciu o trzydziestu w dobierz_barwę "biel"
+        ogłoś stan

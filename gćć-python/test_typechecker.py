@@ -87,12 +87,18 @@ def _render(t, widziane):
             + ", ".join(_render(a, widziane) for a in t.args) + "]")
 
 
-def _var_types():
+def _var_types(lenient=False):
+    """`lenient=True` pomija zmienne bez materializacji (np. sygnaturowe
+    dysjunkcje polimorficznych helperów — legalne poza `działać`)."""
     pairs = {}
     for _decl, scope in typechecker.fun_scopes:
         for s in scope.walk():
             for v, t in s.types:
-                pairs["_".join(v.surface)] = ty(t)
+                try:
+                    pairs["_".join(v.surface)] = ty(t)
+                except TypeCheckError:
+                    if not lenient:
+                        raise
     return pairs
 
 
@@ -674,9 +680,9 @@ def test_łańcuch_przez_unię_podpowiada_zawężenie(parse):
     )
     with pytest.raises(
         TypeCheckError,
-        match=r"(?s)pole 'imię' czytane z wartości typu unii "
-              r"'Zwierzę \(Kot albo Pies\)'.*zawęź dopasowaniem "
-              r"`jest:`.*wariant Kot",
+        match=r"(?s)pole 'imię' nie jest wspólne wariantom unii "
+              r"'Zwierzę \(Kot albo Pies\)'.*brakuje go w: Pies.*zawęź "
+              r"dopasowaniem `jest:`",
     ):
         typechecker.resolve_module(parse(src))
 
@@ -1211,6 +1217,376 @@ def test_zwiąż_nieustalony_parametr_rzuca(parse):
     )
     with pytest.raises(TypeCheckError, match="znanej strzałce"):
         typechecker.resolve_module(parse(src))
+
+
+# =====================================================================
+# Gettery pól wspólnych unii — odczyt i zapis przez unię bez zawężania
+# =====================================================================
+
+_ROZGRYWKA = (
+    "definicja Pola:\n"
+    "    kolumna (Liczba)\n"
+    "    wiersz (Liczba)\n"
+    "\n"
+    "definicja Pełzania:\n"
+    "    owoc (Pole)\n"
+    "    kierunek (Pole)\n"
+    "\n"
+    "definicja Porażki:\n"
+    "    owoc (Pole)\n"
+    "    powód (Znak)\n"
+    "\n"
+    "Rozgrywka to Pełzanie albo Porażka\n"
+    "\n"
+    "aby rozstrzygać od flagi:\n"
+    "    jeśli flaga:\n"
+    "        zwróć Pełzanie o owocu (Pole o kolumnie jeden o wierszu dwa)"
+    " o kierunku (Pole o kolumnie zero o wierszu zero)\n"
+    "    zwróć Porażka o owocu (Pole o kolumnie trzy o wierszu cztery)"
+    " o powodzie 'x'\n"
+    "\n"
+)
+
+
+@pytest.mark.integration
+def test_unia_pole_wspólne_przez_fakt_unię(parse):
+    """Wartość z funkcji zwracającej unię — pole wspólne czyta się
+    bez zawężania."""
+    src = _ROZGRYWKA + (
+        "aby działać:\n"
+        "    stan to rozstrzygaj od prawdy\n"
+        "    miejsce to owoc stanu\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["stan"] == "Rozgrywka"
+    assert _var_types()["miejsce"] == "Pole"
+
+
+@pytest.mark.integration
+def test_unia_pole_wspólne_dwa_fakty_warianty(parse):
+    """Zmienna przepisana dwoma wariantami — fakty joinują się do unii,
+    kandydat-unia wygrywa w _zawęź_alternatywy."""
+    src = _ROZGRYWKA + (
+        "aby działać:\n"
+        "    stan to Pełzanie o owocu (Pole o kolumnie jeden o wierszu"
+        " dwa) o kierunku (Pole o kolumnie zero o wierszu zero)\n"
+        "    stan to Porażka o owocu (Pole o kolumnie trzy o wierszu"
+        " cztery) o powodzie 'y'\n"
+        "    miejsce to owoc stanu\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["stan"] == "Rozgrywka"
+    assert _var_types()["miejsce"] == "Pole"
+
+
+@pytest.mark.integration
+def test_unia_pole_wspólne_adnotowany_parametr(parse):
+    """Górna granica (adnotacja) o głowie-kandydacie rozstrzyga odczyt
+    przez unię — jedyny poprawny dla każdego mieszkańca."""
+    src = _ROZGRYWKA + (
+        "aby wskazać_cel rozgrywki (Rozgrywka) -> Pole:\n"
+        "    zwróć owoc rozgrywki\n"
+        "\n"
+        "aby działać:\n"
+        "    miejsce to wskaż_cel (rozstrzygaj od fałszu)\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["miejsce"] == "Pole"
+
+
+@pytest.mark.integration
+def test_unia_pole_wspólne_zgadywanie_z_odczytu(parse):
+    """Nieadnotowany parametr: sam odczyt pola otwiera dysjunkcję
+    {struktury, unia}; każde wywołanie rozstrzyga ją po swojemu."""
+    src = _ROZGRYWKA + (
+        "aby zerkać na rzecz:\n"
+        "    zwróć owoc rzeczy\n"
+        "\n"
+        "aby działać:\n"
+        "    a to zerkaj na (Pełzanie o owocu (Pole o kolumnie jeden"
+        " o wierszu dwa) o kierunku (Pole o kolumnie zero o wierszu"
+        " zero))\n"
+        "    b to zerkaj na (Porażka o owocu (Pole o kolumnie trzy"
+        " o wierszu cztery) o powodzie 'x')\n"
+        "    c to zerkaj na (rozstrzygaj od prawdy)\n"
+    )
+    typechecker.resolve_module(parse(src))
+    # lenient: sygnaturowy parametr `rzecz` helpera zostaje polimorficzną
+    # dysjunkcją — o rozstrzygnięciach mówią wywołania w `działać`
+    typy = _var_types(lenient=True)
+    assert typy["a"] == "Pole"
+    assert typy["b"] == "Pole"
+    assert typy["c"] == "Pole"
+
+
+@pytest.mark.integration
+def test_unia_fakt_struktury_wybiera_strukturę(parse):
+    """Najmniejszy zgodny kandydat: fakt-struktura materializuje
+    strukturę, nie unię — mimo że unia też jest kandydatem."""
+    src = _ROZGRYWKA + (
+        "aby działać:\n"
+        "    ruch to Pełzanie o owocu (Pole o kolumnie jeden o wierszu"
+        " dwa) o kierunku (Pole o kolumnie zero o wierszu zero)\n"
+        "    miejsce to owoc ruchu\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["ruch"] == "Pełzanie"
+    assert _var_types()["miejsce"] == "Pole"
+
+
+@pytest.mark.integration
+def test_unia_pole_wspólne_hierarchia_zagnieżdżona(parse):
+    """Pole wspólne wszystkim LIŚCIOM przechodnim — czyta się przez
+    szczyt hierarchii."""
+    src = (
+        "definicja Kota:\n"
+        "    znak (Znak)\n"
+        "\n"
+        "definicja Jamnika:\n"
+        "    znak (Znak)\n"
+        "\n"
+        "definicja Pudla:\n"
+        "    znak (Znak)\n"
+        "\n"
+        "Pies to Jamnik albo Pudel\n"
+        "\n"
+        "Zwierzę to Kot albo Pies\n"
+        "\n"
+        "aby działać:\n"
+        "    okaz (Zwierzę) to Kot o znaku 'a'\n"
+        "    cecha to znak okazu\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["cecha"] == "Znak"
+
+
+@pytest.mark.integration
+def test_unia_pole_wspólne_łańcuch_głęboki(parse):
+    """Łańcuch przez unię i dalej w głąb struktury."""
+    src = _ROZGRYWKA + (
+        "aby działać:\n"
+        "    stan to rozstrzygaj od prawdy\n"
+        "    numer to kolumna owocu stanu\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["numer"] == "Liczba"
+
+
+@pytest.mark.integration
+def test_unia_pole_wspólne_w_polu_struktury(parse):
+    """Zejście łańcucha trafia w unię W ŚRODKU łańcucha (pole struktury
+    typu unijnego) — odczyt pola wspólnego działa i tam."""
+    src = _ROZGRYWKA + (
+        "definicja Pudełka:\n"
+        "    zawartość (Rozgrywka)\n"
+        "\n"
+        "aby działać:\n"
+        "    pudło to Pudełko o zawartości (rozstrzygaj od prawdy)\n"
+        "    miejsce to owoc zawartości pudła\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["miejsce"] == "Pole"
+
+
+_POJEMNIKI_WSPÓLNE = (
+    "definicja Ogniwa z elementem:\n"
+    "    głowa (element)\n"
+    "    ogon (Lista)\n"
+    "\n"
+    "Lista to Ogniwo albo Nic\n"
+    "\n"
+    "definicja Kubła z elementem:\n"
+    "    zapas (Lista o elemencie element)\n"
+    "\n"
+    "definicja Worka z elementem:\n"
+    "    zapas (Lista o elemencie element)\n"
+    "\n"
+    "Pojemnik to Kubeł albo Worek\n"
+    "\n"
+)
+
+
+@pytest.mark.integration
+def test_unia_współdzielony_parametr_przepływa(parse):
+    """Parametry o tej samej nazwie to JEDEN slot unii — element pola
+    wspólnego przepływa z konstrukcji do odczytu przez unię."""
+    src = _POJEMNIKI_WSPÓLNE + (
+        "aby działać:\n"
+        "    schowek to Kubeł o zapasie (Ogniwo o głowie pięć o ogonie"
+        " Nic)\n"
+        "    schowek to Worek o zapasie (Ogniwo o głowie sześć o ogonie"
+        " Nic)\n"
+        "    zbiór to zapas schowka\n"
+    )
+    typechecker.resolve_module(parse(src))
+    # (materializacja joinu dwóch faktów renderuje argumenty unii jako
+    # świeże — głowa wystarcza; przepływ elementu dowodzi `zbiór`)
+    assert _var_types()["schowek"].startswith("Pojemnik")
+    assert _var_types()["zbiór"] == "Lista[Liczba]"
+
+
+@pytest.mark.integration
+def test_unia_zapis_pola_przez_unię(parse):
+    """Zapis pola wspólnego przez unię — płytki i przez głęboki
+    łańcuch."""
+    src = _ROZGRYWKA + (
+        "aby działać:\n"
+        "    stan to rozstrzygaj od prawdy\n"
+        "    owoc stanu to Pole o kolumnie osiem o wierszu osiem\n"
+        "    kolumna owocu stanu to dziewięć\n"
+    )
+    typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_unia_zapis_złego_typu_rzuca(parse):
+    src = _ROZGRYWKA + (
+        "aby działać:\n"
+        "    stan to rozstrzygaj od prawdy\n"
+        "    owoc stanu to pięć\n"
+    )
+    with pytest.raises(TypeCheckError):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_unia_pole_niewspólne_wymaga_zawężenia(parse):
+    """Pole obecne tylko w części wariantów — czytelna odmowa
+    z listą braków."""
+    src = _ROZGRYWKA + (
+        "aby działać:\n"
+        "    stan to rozstrzygaj od prawdy\n"
+        "    dokąd to kierunek stanu\n"
+    )
+    with pytest.raises(
+        TypeCheckError,
+        match=r"(?s)pole 'kierunek' nie jest wspólne wariantom unii "
+              r"'Rozgrywka \(Pełzanie albo Porażka\)'.*mają je: "
+              r"Pełzanie.*brakuje go w: Porażka.*zawęź dopasowaniem "
+              r"`jest:`",
+    ):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_unia_pole_wspólne_z_nazwy_różne_typy(parse):
+    src = (
+        "definicja Kubła:\n"
+        "    waga (Liczba)\n"
+        "\n"
+        "definicja Worka:\n"
+        "    waga (Znak)\n"
+        "\n"
+        "Pojemnik to Kubeł albo Worek\n"
+        "\n"
+        "aby wybierać od flagi:\n"
+        "    jeśli flaga:\n"
+        "        zwróć Kubeł o wadze pięć\n"
+        "    zwróć Worek o wadze 'w'\n"
+        "\n"
+        "aby działać:\n"
+        "    rupieć to wybieraj od prawdy\n"
+        "    ciężar to waga rupiecia\n"
+    )
+    with pytest.raises(
+        TypeCheckError,
+        match=r"(?s)pole 'waga' jest wspólne wariantom unii "
+              r"'Pojemnik \(Kubeł albo Worek\)' z nazwy, ale nie "
+              r"z typu.*Kubeł ma 'Liczba'.*Worek ma 'Znak'.*"
+              r"identycznego typu",
+    ):
+        typechecker.resolve_module(parse(src))
+
+
+_POJEMNIKI_ROZJECHANE = (
+    "definicja Ogniwa z elementem:\n"
+    "    głowa (element)\n"
+    "    ogon (Lista)\n"
+    "\n"
+    "Lista to Ogniwo albo Nic\n"
+    "\n"
+    "definicja Kubła z gratem:\n"
+    "    zapas (Lista o elemencie grat)\n"
+    "\n"
+    "%s"
+    "\n"
+    "Pojemnik to Kubeł albo Worek\n"
+    "\n"
+    "aby wybierać od flagi:\n"
+    "    jeśli flaga:\n"
+    "        zwróć Kubeł o zapasie (Ogniwo o głowie pięć o ogonie Nic)\n"
+    "    zwróć Worek o zapasie (Ogniwo o głowie sześć o ogonie Nic)\n"
+    "\n"
+    "aby działać:\n"
+    "    rupieć to wybieraj od prawdy\n"
+    "    zbiór to zapas rupiecia\n"
+)
+
+
+@pytest.mark.integration
+def test_unia_parametr_niewspółdzielony_diagnoza(parse):
+    """Pole wspólne z nazwy, ale parametry nazwane różnie to osobne
+    sloty unii — komunikat nazywa oba z rodowodem."""
+    src = _POJEMNIKI_ROZJECHANE % (
+        "definicja Worka ze sztuką:\n"
+        "    zapas (Lista o elemencie sztuka)\n"
+    )
+    with pytest.raises(TypeCheckError) as ei:
+        typechecker.resolve_module(parse(src))
+    tekst = str(ei.value)
+    assert "pole 'zapas' jest wspólne wariantom unii" in tekst
+    assert "parametr nie jest współdzielony" in tekst
+    assert "'grat' (z definicji 'Kubeł')" in tekst
+    assert "'sztuka' (z definicji 'Worek')" in tekst
+    assert "po NAZWIE parametru" in tekst
+
+
+@pytest.mark.integration
+def test_unia_parametr_wolny_kontra_slot_diagnoza(parse):
+    """Jeden wariant wiąże parametr pola, drugi zostawia go wolnym —
+    to też niewspółdzielony slot, z osobnym opisem."""
+    src = _POJEMNIKI_ROZJECHANE % (
+        "definicja Worka:\n"
+        "    zapas (Lista)\n"
+    )
+    with pytest.raises(TypeCheckError) as ei:
+        typechecker.resolve_module(parse(src))
+    tekst = str(ei.value)
+    assert "parametr nie jest współdzielony" in tekst
+    assert "'grat' (z definicji 'Kubeł')" in tekst
+    assert "wolny" in tekst
+
+
+@pytest.mark.integration
+def test_unia_pola_luźne_po_obu_stronach_zgodne(parse):
+    """Pole typu unii generycznej bez wiązania parametru w OBU
+    wariantach — luźne per wystąpienie, jak przy odczycie ze
+    struktury; odczyt przez unię legalny."""
+    src = (
+        "definicja Ogniwa z elementem:\n"
+        "    głowa (element)\n"
+        "    ogon (Lista)\n"
+        "\n"
+        "Lista to Ogniwo albo Nic\n"
+        "\n"
+        "definicja Kubła:\n"
+        "    zapas (Lista)\n"
+        "\n"
+        "definicja Worka:\n"
+        "    zapas (Lista)\n"
+        "\n"
+        "Pojemnik to Kubeł albo Worek\n"
+        "\n"
+        "aby wybierać od flagi:\n"
+        "    jeśli flaga:\n"
+        "        zwróć Kubeł o zapasie Nic\n"
+        "    zwróć Worek o zapasie Nic\n"
+        "\n"
+        "aby działać:\n"
+        "    rupieć to wybieraj od prawdy\n"
+        "    zbiór (Lista) to zapas rupiecia\n"
+    )
+    typechecker.resolve_module(parse(src))
 
 
 @pytest.mark.integration

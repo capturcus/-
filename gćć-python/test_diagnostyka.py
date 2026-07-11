@@ -214,9 +214,10 @@ def test_chain_on_union_value_suggests_narrowing(parse):
     )
     with pytest.raises(
         typechecker.TypeCheckError,
-        match=r"(?s)pole 'imię' czytane z wartości typu unii "
-              r"'Zwierzę \(Kot albo Pies\)'.*zawęź dopasowaniem "
-              r"`jest:`.*pole ma wariant Kot.*wartość stała się unią",
+        match=r"(?s)pole 'imię' nie jest wspólne wariantom unii "
+              r"'Zwierzę \(Kot albo Pies\)'.*mają je: Kot.*brakuje go "
+              r"w: Pies.*zawęź dopasowaniem `jest:`.*wartość stała "
+              r"się unią",
     ):
         typechecker.resolve_module(parse(src))
 
@@ -235,8 +236,9 @@ def test_chain_on_union_with_nic_mentions_nic(parse):
     )
     with pytest.raises(
         typechecker.TypeCheckError,
-        match=r"(?s)pole 'głowa' czytane z wartości typu unii "
-              r"'Lista \(Nic albo Ogniwo\)' \(może być Niczym\)",
+        match=r"(?s)pole 'głowa' nie jest wspólne wariantom unii "
+              r"'Lista \(Nic albo Ogniwo\)'.*brakuje go w: Nic.*wariant "
+              r"Nic nie ma pól \(wartość może być Niczym\)",
     ):
         typechecker.resolve_module(parse(src))
 

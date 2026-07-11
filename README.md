@@ -989,8 +989,15 @@ Trzy narzędzia o różnej semantyce:
 - Zapis do podmiotu w gałęzi idzie do zmiennej **zewnętrznej** — jej typ
   uczciwie poszerza się o zapisany wariant, a odczyty w gałęzi dalej
   widzą typ zawężony. Dzięki temu działa idiom kursora.
-- Pole wspólne wszystkim wariantom unii można czytać **bez zawężania**;
-  pole obecne tylko w niektórych wariantach wymaga `jest:`.
+- Pole wspólne wszystkim wariantom unii (przechodnio, przez całą
+  hierarchię) można czytać **i pisać bez zawężania** — `owoc stanu`
+  działa, czy stan jest Pełzaniem, czy Porażką; „coś, co ma segmenty"
+  wnioskuje się z samego odczytu, jak w polszczyźnie. Warunek: typ pola
+  musi być **identyczny** we wszystkich wariantach (parametry typowe
+  łączą się w jeden slot unii po nazwie — pole `(Lista o elemencie
+  element)` u obu wariantów jest wspólne, u jednego `element`
+  a u drugiego `sztuka` już nie). Pole obecne tylko w niektórych
+  wariantach wymaga `jest:`.
 - Dopasowanie na wartości o nieznanym typie (np. nieadnotowanym
   parametrze) **wnioskuje** jego unię do sygnatury funkcji. Gdy gałęzie
   pasują do kilku unii, decyzja jest **odraczana**: kandydaci trzymani są

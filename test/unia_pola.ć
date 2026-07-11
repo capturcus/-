@@ -1,0 +1,50 @@
+# Gettery pól wspólnych unii: pole obecne we WSZYSTKICH wariantach
+# (o identycznym typie) czyta się i pisze przez wartość typu unii bez
+# zawężania — `owoc stanu` działa, czy stan pełza, czy poległ.
+
+uwzględnij przygrywka.ć
+
+definicja Pola:
+    kolumna (Liczba)
+    wiersz (Liczba)
+
+definicja Pełzania:
+    segmenty (Lista)
+    kierunek (Pole)
+    owoc (Pole)
+
+definicja Porażki:
+    segmenty (Lista)
+    owoc (Pole)
+    powód (Tekst)
+
+Rozgrywka to Pełzanie albo Porażka
+
+aby rozstrzygać od flagi:
+    jeśli flaga:
+        zwróć Pełzanie o segmentach (Ogniwo o głowie (Pole o kolumnie jeden o wierszu jeden) o ogonie Nic) o kierunku (Pole o kolumnie jeden o wierszu zero) o owocu (Pole o kolumnie pięć o wierszu sześć)
+    zwróć Porażka o segmentach Nic o owocu (Pole o kolumnie dwa o wierszu trzy) o powodzie "ściana"
+
+# Odczyt przez adnotowany parametr — działa dla każdego wariantu.
+aby zmierzyć_ciało rozgrywki (Rozgrywka) -> Liczba:
+    zwróć zmierz segmenty rozgrywki
+
+aby działać:
+    # fakt-unia: wynik funkcji zwracającej Rozgrywkę
+    stan to rozstrzygaj od prawdy
+    wypisz kolumna owocu stanu
+    wypisz zmierz_ciało stanu
+    upadek to rozstrzygaj od fałszu
+    wypisz wiersz owocu upadku
+    wypisz zmierz_ciało upadku
+    # dwa fakty-warianty na jednej zmiennej
+    los to rozstrzygaj od prawdy
+    los to Porażka o segmentach Nic o owocu (Pole o kolumnie siedem o wierszu osiem) o powodzie "ogon"
+    wypisz kolumna owocu losu
+    # zapis pola wspólnego przez unię: płytki i głęboki
+    owoc stanu to Pole o kolumnie dziewięć o wierszu dziewięć
+    wypisz kolumna owocu stanu
+    kolumna owocu stanu to czterdzieści dwa
+    wypisz kolumna owocu stanu
+    segmenty losu to Ogniwo o głowie (Pole o kolumnie zero o wierszu zero) o ogonie Nic
+    wypisz zmierz_ciało losu

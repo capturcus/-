@@ -315,6 +315,15 @@ def _unia_applied(głowa, env=None, bound=None):
     return Konkret(głowa, tuple(args))
 
 
+def _env_z_instancji(sd, args):
+    """Env nazwa-parametru → argument dla instancji struktury `sd`."""
+    env = {}
+    for p, a in zip(sd.params, args):
+        for lemmas in p.name.lemmas_set:
+            env["".join(lemmas)] = a
+    return env
+
+
 def _instancja_struktury(sd):
     """Świeża instancja struktury: Konkret(nazwa, świeże argi) + env
     nazwa-parametru → arg."""
@@ -325,11 +334,7 @@ def _instancja_struktury(sd):
                  f" struktury '{nazwa}'")
         for p in sd.params
     ]
-    env = {}
-    for p, a in zip(sd.params, fresh):
-        for lemmas in p.name.lemmas_set:
-            env["".join(lemmas)] = a
-    return Konkret("".join(sd.name), tuple(fresh)), env
+    return Konkret(nazwa, tuple(fresh)), _env_z_instancji(sd, fresh)
 
 
 # ---------- biunifikacja ----------
@@ -677,7 +682,35 @@ def _zmaterializuj(t, wymagaj=False, widziane=None):
     if t in widziane:
         return None
     widziane.add(t)
+    if t.alternatywy is not None and len(t.alternatywy) == 1:
+        # Dysjunkcja zwężona do jednej głowy (np. wynik łańcucha, którego
+        # wszyscy kandydaci zwracają ten sam typ) — to już materializacja.
+        (jedyny,) = t.alternatywy.values()
+        return jedyny
     if t.alternatywy is not None and len(t.alternatywy) > 1:
+        # Najmniejszy kandydat zgodny z FAKTAMI (join semantyki solvera):
+        # fakt-struktura wybiera strukturę, fakt-unia (albo dwa fakty
+        # różnych wariantów) wybiera unię. Kandydaci-unie łańcuchów po
+        # polach wspólnych współistnieją z kandydatami-strukturami —
+        # dopiero fakty rozstrzygają, przez co czytamy.
+        fakty = {x.głowa for x, _ in t.dolne if isinstance(x, Konkret)}
+        for x, _ in t.dolne:
+            if isinstance(x, Zmienna):
+                m = _zmaterializuj(x, widziane=widziane)
+                if m is not None:
+                    fakty.add(m.głowa)
+        if fakty:
+            zgodne = {
+                h: k for h, k in t.alternatywy.items()
+                if all(f == h or czy_głowa_podtypem(f, h) for f in fakty)
+            }
+            if zgodne:
+                rozmiar = {h: len(członkowie_przechodni(h) or {h})
+                           for h in zgodne}
+                porządek = sorted(zgodne, key=lambda h: rozmiar[h])
+                if (len(porządek) == 1
+                        or rozmiar[porządek[0]] < rozmiar[porządek[1]]):
+                    return zgodne[porządek[0]]
         opcje = ", ".join(_unia_ze_składem(h)
                           for h in sorted(t.alternatywy))
         skąd = (f" (możliwości zebrane: {t.alternatywy_nota})"
@@ -1990,83 +2023,173 @@ def _struktury_z_polem(field_name):
     return ret
 
 
-def _chain_przez_strukturę(chain, struct):
-    """Czy łańcuch (bez ostatniego słowa, od zewnątrz) domyka się na
-    strukturze `struct`? → (instancja bazy, typ wyniku) albo None."""
-    base_inst, cur_env = _instancja_struktury(struct)
-    cur_sd = struct
+def _różnica_pól(a, b, sloty):
+    """Pierwsza różnica między typami pola z dwóch wariantów; None, gdy
+    typy są WSPÓLNE. Wspólne są: ta sama zmienna (jeden slot unii),
+    konkrety o tej samej głowie i wspólnych argumentach oraz dwie zmienne
+    ŚWIEŻE per wystąpienie (obie spoza slotów — pole „luźne", jak przy
+    odczycie ze struktury bez zadeklarowanego parametru).
+
+    Zwrócona para dwóch Zmiennych to niewspółdzielony slot parametru
+    (slot śledzi argument per instancja unii, świeża nie — dlatego slot
+    kontra świeża też jest różnicą); każda inna para to różnica
+    strukturalna."""
+    if a is b:
+        return None
+    if isinstance(a, Zmienna) and isinstance(b, Zmienna):
+        if id(a) not in sloty and id(b) not in sloty:
+            return None
+        return (a, b)
+    if (isinstance(a, Konkret) and isinstance(b, Konkret)
+            and a.głowa == b.głowa and len(a.args) == len(b.args)):
+        for x, y in zip(a.args, b.args):
+            r = _różnica_pól(x, y, sloty)
+            if r is not None:
+                return r
+        return None
+    return (a, b)
+
+
+def _opis_slotu(inst, var):
+    """Nazwa i rodowód slotu parametru unii; zmienna spoza slotów to
+    parametr wolny (pole bez zadeklarowanego parametru w definicji)."""
+    for i, a in enumerate(inst.args):
+        if a is var:
+            nazwa, origin = _param_pedigree(inst.głowa, i)
+            if nazwa is not None:
+                return f"'{nazwa}' (z definicji '{origin}')"
+    return "wolny (pole nie wiąże go z parametrem swojej definicji)"
+
+
+def _typ_pola(inst, ident):
+    """Typ pola `ident` czytanego z Konkretu `inst`.
+
+    Struktura → typ pola w env instancji. Unia → pole WSPÓLNE wszystkim
+    liściom (przechodnio), o typie IDENTYCZNYM w env współdzielonych
+    slotów unii — parametry o tej samej nazwie u członków to jeden slot,
+    więc identyczność wychodzi naturalnie, a parametry nazwane różnie
+    dają różne sloty i czytelny błąd.
+
+    → (typ, None) przy sukcesie; (None, diagnoza) gdy pole nie daje się
+    czytać przez unię (diagnoza = pełny komunikat); (None, None) gdy
+    `inst` w ogóle nie ma pola (kandydat pada cicho)."""
+    nazwa_pola = "_".join(ident.surface)
+    sd = find_struct_def((inst.głowa,))
+    if sd is not None:
+        f = _find_field_for_ident(sd, ident)
+        if f is None:
+            return None, None
+        return elaborate(f.type, _env_z_instancji(sd, inst.args)), None
+    liście = członkowie_przechodni(inst.głowa)
+    if liście is None:
+        return None, None
+    typy = {}
+    brakujące = []
+    for m in sorted(liście):
+        msd = find_struct_def((m,))
+        if msd is None:  # Nic — nie ma pól
+            brakujące.append(m)
+            continue
+        f = _find_field_for_ident(msd, ident)
+        if f is None:
+            brakujące.append(m)
+            continue
+        # Parametry członka wskazują współdzielone sloty unii (po nazwie).
+        wybrane = [inst.args[j] for _i, j in _mapowanie_członka(m, inst.głowa)]
+        typy[m] = elaborate(f.type, _env_z_instancji(msd, wybrane))
+    unia_opis = _unia_ze_składem(inst.głowa)
+    if brakujące:
+        nic = (" — wariant Nic nie ma pól (wartość może być Niczym)"
+               if "Nic" in brakujące else "")
+        mają = f" mają je: {', '.join(sorted(typy))};" if typy else ""
+        return None, (
+            f"pole '{nazwa_pola}' nie jest wspólne wariantom unii "
+            f"'{unia_opis}' —{mają} brakuje go w: "
+            f"{', '.join(sorted(brakujące))}{nic}; czytanie pola przez "
+            f"unię wymaga pola w każdym wariancie (o identycznym typie) "
+            f"— zawęź dopasowaniem `jest:`")
+    sloty = {id(a) for a in inst.args}
+    wzorzec_m, wzorzec = next(iter(typy.items()))
+    for m, t in typy.items():
+        różnica = _różnica_pól(t, wzorzec, sloty)
+        if różnica is None:
+            continue
+        if all(isinstance(x, Zmienna) for x in różnica):
+            slot_a = _opis_slotu(inst, różnica[0])
+            slot_b = _opis_slotu(inst, różnica[1])
+            return None, (
+                f"pole '{nazwa_pola}' jest wspólne wariantom unii "
+                f"'{unia_opis}', ale jego parametr nie jest "
+                f"współdzielony: parametr {slot_b} i parametr {slot_a} "
+                f"to osobne sloty unii — sloty łączą się po NAZWIE "
+                f"parametru; nazwij parametry jednakowo we wszystkich "
+                f"wariantach, żeby pole miało wspólny typ")
+        return None, (
+            f"pole '{nazwa_pola}' jest wspólne wariantom unii "
+            f"'{unia_opis}' z nazwy, ale nie z typu: "
+            f"{wzorzec_m} ma '{_render_typu(wzorzec)}', "
+            f"{m} ma '{_render_typu(t)}' — czytanie pola przez unię "
+            f"wymaga identycznego typu we wszystkich wariantach; "
+            f"zawęź dopasowaniem `jest:` albo ujednolić typy pól")
+    return wzorzec, None
+
+
+def _chain_przez_deklarację(chain, decl):
+    """Prowadzi łańcuch (bez ostatniego słowa, od zewnątrz) przez
+    deklarację `decl` — strukturę ALBO unię z polami wspólnymi.
+
+    → (instancja bazy, typ wyniku, None) gdy łańcuch się domyka;
+      (None, None, powód) gdy pęka — powód to pełne zdanie diagnozy,
+      jedyne źródło prawdy o przyczynie dla wszystkich komunikatów."""
+    if isinstance(decl, ast.StructDef):
+        cur, _ = _instancja_struktury(decl)
+    else:
+        cur = _unia_applied("".join(decl.name))
+    base_inst = cur
+    poprzednie = "_".join(decl.name)
     result_t = None
     for ident in reversed(chain):
-        if cur_sd is None:
-            return None
-        f = _find_field_for_ident(cur_sd, ident)
-        if f is None:
-            return None
-        result_t = elaborate(f.type, cur_env)
-        cur_sd, cur_env = _jako_struktura(result_t)
-    return base_inst, result_t
-
-
-def _jako_struktura(t):
-    """Struktura, na którą typ wskazuje (do zejścia w głąb łańcucha)."""
-    m = t if isinstance(t, Konkret) else None
-    if m is None:
-        return None, {}
-    sd = find_struct_def((m.głowa,))
-    if sd is None:
-        return None, {}
-    env = {}
-    for p, a in zip(sd.params, m.args):
-        for lemmas in p.name.lemmas_set:
-            env["".join(lemmas)] = a
-    return sd, env
-
-
-def _wspólne_pola(głowy_członków):
-    """Pola (powierzchnie) wspólne wszystkim wariantom-strukturom unii —
-    dostępne bez zawężania."""
-    zbiory = []
-    for g in głowy_członków:
-        sd = find_struct_def((g,))
-        if sd is None:
-            return set()
-        zbiory.append({"_".join(pf.name.surface) for pf in sd.fields})
-    return set.intersection(*zbiory) if zbiory else set()
-
-
-def _diagnoza_łańcucha(chain, struct):
-    """Gdzie łańcuch pęka na danym kandydacie — do listy powodów
-    w błędzie „żadna nie domyka"."""
-    cur_sd = struct
-    cur_env = {}
-    poprzednie = "_".join(struct.name)
-    for ident in reversed(chain):
         nazwa = "_".join(ident.surface)
-        if cur_sd is None:
-            return (f"'{poprzednie}' nie jest strukturą — nie można "
-                    f"czytać z niego pola '{nazwa}'")
-        f = _find_field_for_ident(cur_sd, ident)
-        if f is None:
+        if not isinstance(cur, Konkret):
+            return None, None, (
+                f"'{poprzednie}' nie jest strukturą — nie można "
+                f"czytać z niego pola '{nazwa}'")
+        result_t, diag = _typ_pola(cur, ident)
+        if result_t is None:
+            if diag is not None:
+                return None, None, diag
+            sd = find_struct_def((cur.głowa,))
+            if sd is None:
+                return None, None, (
+                    f"'{poprzednie}' ({cur.głowa}) nie jest strukturą — "
+                    f"nie można czytać z niego pola '{nazwa}'")
             pola = ", ".join("_".join(pf.name.surface)
-                             for pf in cur_sd.fields) or "brak"
-            return (f"struktura '{''.join(cur_sd.name)}' nie ma pola "
-                    f"'{nazwa}' (ma: {pola})")
-        wynik = elaborate(f.type, cur_env)
+                             for pf in sd.fields) or "brak"
+            return None, None, (
+                f"struktura '{cur.głowa}' nie ma pola '{nazwa}' "
+                f"(ma: {pola})")
         poprzednie = nazwa
-        cur_sd, cur_env = _jako_struktura(wynik)
-        if cur_sd is None and isinstance(wynik, Konkret):
-            poprzednie = f"{nazwa} ({wynik.głowa})"
-    return "domyka się"
+        cur = result_t if isinstance(result_t, Konkret) else None
+    return base_inst, result_t, None
 
 
 def resolve_getter_chain(node, scope):
     penultimate_word = node.chain[-2]
     structs = _struktury_z_polem(penultimate_word)
+    # Kandydaci łańcucha: struktury z polem + KAŻDA unia (pole wspólne
+    # wszystkim liściom, o identycznym typie, czyta się i pisze przez
+    # unię bez zawężania). Powody odpadnięcia zbierane per deklaracja —
+    # jedno źródło dla wszystkich komunikatów poniżej.
+    unie = [d for d in module.body if isinstance(d, ast.UnionDef)]
     candidates = []
-    for s in structs:
-        res = _chain_przez_strukturę(node.chain[:-1], s)
-        if res is not None:
-            candidates.append((s, res[0], res[1]))
+    diagnozy = {}
+    for decl in structs + unie:
+        inst, result_t, powód = _chain_przez_deklarację(
+            node.chain[:-1], decl)
+        if inst is not None:
+            candidates.append((decl, inst, result_t))
+        else:
+            diagnozy["".join(decl.name)] = powód
     field_surface = "_".join(penultimate_word.surface)
     line = getattr(node.chain[0], "line", None)
     if not candidates:
@@ -2074,8 +2197,7 @@ def resolve_getter_chain(node, scope):
         if structs:
             cand = ", ".join(sorted("_".join(s.name) for s in structs))
             powody = "\n".join(
-                f"    • {'_'.join(s.name)}: "
-                f"{_diagnoza_łańcucha(node.chain[:-1], s)}"
+                f"    • {'_'.join(s.name)}: {diagnozy[''.join(s.name)]}"
                 for s in structs[:4])
             detail = (f"pole '{field_surface}' mają struktury: {cand}, "
                       f"ale żadna nie domyka dalszej części łańcucha:\n"
@@ -2097,14 +2219,22 @@ def resolve_getter_chain(node, scope):
     base_t = scope.get_type(node.chain[-1])
     znane = _fakty_dolne(base_t)
     if not znane and isinstance(base_t, Zmienna):
-        # Brak faktów — górne granice działają jak FILTR kandydatów
-        # (`x ≤ Gałąź` dopuszcza członków unii, nie orzeka, że x nią jest).
-        dozwolone = set()
-        for g, _ in base_t.górne:
-            if isinstance(g, Konkret):
-                dozwolone.add(g.głowa)
-                dozwolone |= (członkowie_przechodni(g.głowa) or set())
-        if dozwolone:
+        # Górna granica o głowie będącej kandydatem rozstrzyga wprost:
+        # adnotacja/wymaganie mówi „czytaj przez ten typ" — dla unii to
+        # jedyny odczyt poprawny dla KAŻDEGO możliwego mieszkańca.
+        głowy_górnych = {g.głowa for g, _ in base_t.górne
+                         if isinstance(g, Konkret)}
+        dokładni = [c for c in candidates
+                    if "".join(c[0].name) in głowy_górnych]
+        if len(dokładni) == 1:
+            candidates = dokładni
+        elif głowy_górnych:
+            # Brak faktów — górne granice działają jak FILTR kandydatów
+            # (`x ≤ Gałąź` dopuszcza członków unii, nie orzeka, że x nią
+            # jest).
+            dozwolone = set(głowy_górnych)
+            for g in głowy_górnych:
+                dozwolone |= (członkowie_przechodni(g) or set())
             przefiltrowani = [c for c in candidates
                               if "".join(c[0].name) in dozwolone]
             if przefiltrowani:
@@ -2112,30 +2242,19 @@ def resolve_getter_chain(node, scope):
     if znane:
         przeżyli = [c for c in candidates if "".join(c[0].name) in znane]
         if not przeżyli:
-            # Chain przez wartość typu unii: podpowiedz zawężenie.
+            # Chain przez wartość znanego typu, który odpadł z kandydatów
+            # — powód z przebiegu mówi dokładnie dlaczego (brak pola
+            # w wariancie / typ niewspólny / slot niewspółdzielony /
+            # łańcuch pęka głębiej).
             for głowa in znane:
-                czł = członkowie_przechodni(głowa)
-                if czł is not None:
-                    warianty = sorted(
-                        "".join(s.name) for s, _, _ in candidates
-                        if "".join(s.name) in czł)
-                    if warianty:
-                        nic = " (może być Niczym)" if "Nic" in czł else ""
-                        skąd = _nota_o_głowie(base_t, głowa)
-                        pochodzenie = (f"; wartość stała się unią: {skąd}"
-                                       if skąd else "")
-                        wspólne = _wspólne_pola(czł)
-                        dostępne = (f"; bez zawężenia dostępne pola "
-                                    f"wspólne wariantom: "
-                                    f"{', '.join(sorted(wspólne))}"
-                                    if wspólne else "")
-                        raise TypeCheckError(
-                            f"pole '{field_surface}' czytane z wartości "
-                            f"typu unii '{_unia_ze_składem(głowa)}'{nic} "
-                            f"(linia {line}) — zawęź dopasowaniem "
-                            f"`jest:`; pole ma wariant "
-                            f"{', '.join(warianty)}"
-                            f"{pochodzenie}{dostępne}")
+                if głowa in diagnozy:
+                    skąd = _nota_o_głowie(base_t, głowa)
+                    pochodzenie = (
+                        f"; wartość stała się unią: {skąd}"
+                        if skąd and członkowie(głowa) is not None else "")
+                    raise TypeCheckError(
+                        f"{diagnozy[głowa]} (linia {line})"
+                        f"{pochodzenie}")
             zrzut = ("\n" + _poszlakownik(base_t)
                      if isinstance(base_t, Zmienna)
                      and (base_t.dolne or base_t.górne) else "")
