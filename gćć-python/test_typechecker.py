@@ -1557,6 +1557,134 @@ def test_unia_parametr_wolny_kontra_slot_diagnoza(parse):
     assert "wolny" in tekst
 
 
+# Aplikacja nazwana na STRUKTURZE wiąże argumenty granicami na świeżych
+# zmiennych (nie wprost, jak unia) — porównanie typów pola musi patrzeć
+# przez te granice (`_sedno_pola`).
+
+_PARA = (
+    "definicja Pary z klucza na wartość:\n"
+    "    znamię (klucz)\n"
+    "    ładunek (wartość)\n"
+    "\n"
+)
+
+
+def _pojemnik_przez_parę(kubeł_para, worek_para, worek_binder="z gratem",
+                         worek_znamię="siedem"):
+    return _PARA + (
+        f"definicja Kubła ze sztuką:\n"
+        f"    spis (Para {kubeł_para})\n"
+        f"\n"
+        f"definicja Worka {worek_binder}:\n"
+        f"    spis (Para {worek_para})\n"
+        f"\n"
+        f"Pojemnik to Kubeł albo Worek\n"
+        f"\n"
+        f"aby wybierać od flagi:\n"
+        f"    jeśli flaga:\n"
+        f"        zwróć Kubeł o spisie (Para o znamieniu pięć o ładunku"
+        f" sześć)\n"
+        f"    zwróć Worek o spisie (Para o znamieniu {worek_znamię}"
+        f" o ładunku osiem)\n"
+        f"\n"
+        f"aby działać:\n"
+        f"    rupieć to wybieraj od prawdy\n"
+        f"    wykaz to spis rupiecia\n"
+    )
+
+
+@pytest.mark.integration
+def test_unia_aplikacja_na_strukturze_zgodne_przypięcia(parse):
+    """Ten sam konkret i ten sam slot (po nazwie) w obu wariantach —
+    pole wspólne mimo wiązań przez granice."""
+    src = _pojemnik_przez_parę(
+        "o kluczu Liczba o wartości sztuka",
+        "o kluczu Liczba o wartości sztuka",
+        worek_binder="ze sztuką",
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["wykaz"].startswith("Para")
+
+
+@pytest.mark.integration
+def test_unia_aplikacja_na_strukturze_różne_przypięcia_rzuca(parse):
+    """`Para o kluczu Liczba` kontra `Para o kluczu Znak` — różnica
+    siedzi w granicach świeżych zmiennych, nie w argumentach wprost;
+    bez patrzenia przez granice checker twierdziłby Liczba przy
+    wartości Znak (statyczne kłamstwo)."""
+    src = _pojemnik_przez_parę(
+        "o kluczu Liczba o wartości sztuka",
+        "o kluczu Znak o wartości grat",
+        worek_znamię="'z'",
+    )
+    with pytest.raises(
+        TypeCheckError,
+        match=r"(?s)pole 'spis' jest wspólne wariantom unii "
+              r"'Pojemnik \(Kubeł albo Worek\)' z nazwy, ale nie "
+              r"z typu.*Para\[Liczba, \?\].*Para\[Znak, \?\]",
+    ):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_unia_aplikacja_na_strukturze_różne_sloty_rzuca(parse):
+    """Konkrety zgodne, ale parametry wartości nazwane różnie — slot
+    unii osiągany przez granice też podlega współdzieleniu."""
+    src = _pojemnik_przez_parę(
+        "o kluczu Liczba o wartości sztuka",
+        "o kluczu Liczba o wartości grat",
+    )
+    with pytest.raises(TypeCheckError) as ei:
+        typechecker.resolve_module(parse(src))
+    tekst = str(ei.value)
+    assert "parametr nie jest współdzielony" in tekst
+    assert "'sztuka' (z definicji 'Kubeł')" in tekst
+    assert "'grat' (z definicji 'Worek')" in tekst
+
+
+@pytest.mark.integration
+def test_unia_dwuparametrowe_pole_pierwsza_różnica_wygrywa(parse):
+    """Pole typu unijnego o DWÓCH parametrach, różne na obu pozycjach
+    (strukturalnie i slotowo) — komunikat opisuje pierwszą różnicę
+    w porządku argumentów (strukturalną), z pełnymi typami obu stron."""
+    src = (
+        "definicja Orła z klucza na wartość:\n"
+        "    czub (klucz)\n"
+        "    ogonek (wartość)\n"
+        "\n"
+        "definicja Reszki z klucza na wartość:\n"
+        "    czub (klucz)\n"
+        "    ogonek (wartość)\n"
+        "\n"
+        "Dwojak to Orzeł albo Reszka\n"
+        "\n"
+        "definicja Kubła ze sztuką:\n"
+        "    spis (Dwojak o kluczu Liczba o wartości sztuka)\n"
+        "\n"
+        "definicja Worka z gratem:\n"
+        "    spis (Dwojak o kluczu Znak o wartości grat)\n"
+        "\n"
+        "Pojemnik to Kubeł albo Worek\n"
+        "\n"
+        "aby wybierać od flagi:\n"
+        "    jeśli flaga:\n"
+        "        zwróć Kubeł o spisie (Orzeł o czubie pięć o ogonku"
+        " sześć)\n"
+        "    zwróć Worek o spisie (Orzeł o czubie 'z' o ogonku siedem)\n"
+        "\n"
+        "aby działać:\n"
+        "    rupieć to wybieraj od prawdy\n"
+        "    wykaz to spis rupiecia\n"
+    )
+    with pytest.raises(
+        TypeCheckError,
+        match=r"(?s)pole 'spis' jest wspólne wariantom unii "
+              r"'Pojemnik \(Kubeł albo Worek\)' z nazwy, ale nie "
+              r"z typu.*Dwojak\[Liczba, \?\].*Dwojak\[Znak, \?\]",
+    ):
+        typechecker.resolve_module(parse(src))
+
+
 @pytest.mark.integration
 def test_unia_pola_luźne_po_obu_stronach_zgodne(parse):
     """Pole typu unii generycznej bez wiązania parametru w OBU

@@ -2023,31 +2023,69 @@ def _struktury_z_polem(field_name):
     return ret
 
 
-def _różnica_pól(a, b, sloty):
+def _sedno_pola(t, sloty, _widziane=None):
+    """Istota argumentu typu pola do porównań między wariantami: slot
+    unii (sam sobą, także osiągalny POŚREDNIO przez granice), przypięty
+    konkret (materializacja granic) albo None — zmienna naprawdę luźna.
+
+    Aplikacja nazwana na UNII wstawia wiązania wprost do argumentów;
+    aplikacja na STRUKTURZE wiąże je granicami na świeżych zmiennych —
+    porównanie musi patrzeć przez te granice, inaczej `Para o kluczu
+    Liczba` i `Para o kluczu Znak` uchodziłyby za wspólne."""
+    if not isinstance(t, Zmienna):
+        return t
+    if id(t) in sloty:
+        return t
+    if _widziane is None:
+        _widziane = set()
+    if t in _widziane:
+        return None
+    _widziane.add(t)
+    for g, _ in list(t.dolne) + list(t.górne):
+        if isinstance(g, Zmienna):
+            s = _sedno_pola(g, sloty, _widziane)
+            if isinstance(s, Zmienna):
+                return s
+    try:
+        return _zmaterializuj(t)
+    except TypeCheckError:
+        return None
+
+
+def _różnica_pól(a, b, sloty, _widziane=None):
     """Pierwsza różnica między typami pola z dwóch wariantów; None, gdy
-    typy są WSPÓLNE. Wspólne są: ta sama zmienna (jeden slot unii),
-    konkrety o tej samej głowie i wspólnych argumentach oraz dwie zmienne
-    ŚWIEŻE per wystąpienie (obie spoza slotów — pole „luźne", jak przy
+    typy są WSPÓLNE. Wspólne są: ten sam slot unii, konkrety o tej samej
+    głowie i wspólnych argumentach (po rozwiązaniu zmiennych do ich
+    seden) oraz dwie zmienne naprawdę LUŹNE (pole bez wiązania, jak przy
     odczycie ze struktury bez zadeklarowanego parametru).
 
     Zwrócona para dwóch Zmiennych to niewspółdzielony slot parametru
-    (slot śledzi argument per instancja unii, świeża nie — dlatego slot
-    kontra świeża też jest różnicą); każda inna para to różnica
+    (slot śledzi argument per instancja unii, luźna nie — dlatego slot
+    kontra luźna też jest różnicą); każda inna para to różnica
     strukturalna."""
     if a is b:
         return None
-    if isinstance(a, Zmienna) and isinstance(b, Zmienna):
-        if id(a) not in sloty and id(b) not in sloty:
-            return None
-        return (a, b)
-    if (isinstance(a, Konkret) and isinstance(b, Konkret)
-            and a.głowa == b.głowa and len(a.args) == len(b.args)):
-        for x, y in zip(a.args, b.args):
-            r = _różnica_pól(x, y, sloty)
-            if r is not None:
-                return r
+    if _widziane is None:
+        _widziane = set()
+    if (id(a), id(b)) in _widziane:
         return None
-    return (a, b)
+    _widziane.add((id(a), id(b)))
+    sa = _sedno_pola(a, sloty)
+    sb = _sedno_pola(b, sloty)
+    if sa is sb:
+        return None
+    if isinstance(sa, Zmienna) and isinstance(sb, Zmienna):
+        return (sa, sb)
+    if isinstance(sa, Konkret) and isinstance(sb, Konkret):
+        if sa.głowa == sb.głowa and len(sa.args) == len(sb.args):
+            for x, y in zip(sa.args, sb.args):
+                r = _różnica_pól(x, y, sloty, _widziane)
+                if r is not None:
+                    return r
+            return None
+        return (sa, sb)
+    # Asymetria wiedzy: slot/przypięty konkret kontra zmienna luźna.
+    return (sa if sa is not None else a, sb if sb is not None else b)
 
 
 def _opis_slotu(inst, var):
