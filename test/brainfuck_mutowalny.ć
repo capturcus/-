@@ -34,13 +34,13 @@ aby rozebrać tekst:
             zwróć Rozbiór o programie (Ogniwo o ogonie (program ciągu) o głowie (Krok o znaku głowa)) o reszcie (reszta ciągu)
 
 definicja Taśmy:
-    przeszłość (Lista)
+    przeszłość (Lista o elemencie Liczba)
     komórka (Liczba)
-    przyszłość (Lista)
+    przyszłość (Lista o elemencie Liczba)
 
 definicja Stanu:
     taśma (Taśma)
-    wyjście (Lista)
+    wyjście (Lista o elemencie Liczba)
 
 aby przesunąć_w_prawo taśmę:
     przeszłość taśmy to Ogniwo o głowie (komórka taśmy) o ogonie (przeszłość taśmy)

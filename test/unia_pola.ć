@@ -9,12 +9,12 @@ definicja Pola:
     wiersz (Liczba)
 
 definicja Pełzania:
-    segmenty (Lista)
+    segmenty (Lista o elemencie Pole)
     kierunek (Pole)
     owoc (Pole)
 
 definicja Porażki:
-    segmenty (Lista)
+    segmenty (Lista o elemencie Pole)
     owoc (Pole)
     powód (Tekst)
 

@@ -407,7 +407,22 @@ definicja Użytkownika:
 ```
 
 Nagłówek w dopełniaczu („definicja *czego*"), pola w mianowniku, typy pól
-w nawiasach (obowiązkowe).
+w nawiasach (obowiązkowe). **Typ pola musi być w pełni związany** — pole
+to mutowalny magazyn, więc typechecker musi znać jego zawartość. Typ
+generyczny w polu wiąże się na trzy sposoby:
+
+```
+definicja Kubła z elementem:
+    zapas (Lista)                       # przechwyt po nazwie: element Kubła
+    metka (Tekst)                       # alias — w pełni związany
+definicja Worka:
+    zapas (Lista o elemencie Liczba)    # konkret aplikacją nazwaną
+```
+
+Pole „luźne" (`zapas (Lista)` w strukturze bez parametru `element`) jest
+**zakazane** — komunikat podpowiada obie naprawy. Dawniej takie pole było
+granicą dynamiczną: typu zawartości nikt nie śledził, a błędne założenie
+czytelnika wybuchało dopiero w runtime.
 
 **Konstruktor** to po prostu nazwa typu — wielka litera wystarcza za
 słowo kluczowe. Pola podaje się na dwa sposoby:
@@ -1078,6 +1093,9 @@ Komunikaty niosą pełny ślad wnioskowania:
   `polubienie` ma własny lemat; pole `polubienia` nie koliduje z funkcją
   `polubić`. Za to w referencji gerundialnej do funkcji wielosegmentowej
   podkreślnik jest obowiązkowy (`z polubieniem_wpisu`).
+- **Typ pola musi być w pełni związany** — `zapas (Lista)` przechodzi
+  tylko, gdy struktura ma parametr `element` (wiązanie po nazwie);
+  inaczej podaj konkret: `zapas (Lista o elemencie Liczba)`.
 - **Pusty tekst to `Nic`** — dopasowanie tekstu gałęzią `Niczym:` łapie
   `""`; `"" równe Nic` daje `prawdę`.
 - **Indeksowanie list zaczyna się od jedynki** (`wskaż jeden na liście`).

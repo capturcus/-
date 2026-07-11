@@ -694,9 +694,11 @@ def test_łańcuch_bez_kandydatów_wylicza_struktury(parse):
         "    pies to Pies o kości 'k'\n"
         "    x to imię kości psa\n"
     )
+    # Dzielenie łańcucha rozwiązuje `kości psa` (Znak) i dopiero na tym
+    # wyniku odmawia pola `imię` — błąd wskazuje konkretny typ podstawy.
     with pytest.raises(
         TypeCheckError,
-        match=r"nie można zresolvować łańcucha.*'imię kości psa'",
+        match=r"pole 'imię'.*nie występuje w typie \['Znak'\]",
     ):
         typechecker.resolve_module(parse(src))
 
@@ -1419,9 +1421,7 @@ def test_unia_współdzielony_parametr_przepływa(parse):
         "    zbiór to zapas schowka\n"
     )
     typechecker.resolve_module(parse(src))
-    # (materializacja joinu dwóch faktów renderuje argumenty unii jako
-    # świeże — głowa wystarcza; przepływ elementu dowodzi `zbiór`)
-    assert _var_types()["schowek"].startswith("Pojemnik")
+    assert _var_types()["schowek"] == "Pojemnik[Liczba]"
     assert _var_types()["zbiór"] == "Lista[Liczba]"
 
 
@@ -1542,19 +1542,19 @@ def test_unia_parametr_niewspółdzielony_diagnoza(parse):
 
 
 @pytest.mark.integration
-def test_unia_parametr_wolny_kontra_slot_diagnoza(parse):
-    """Jeden wariant wiąże parametr pola, drugi zostawia go wolnym —
-    to też niewspółdzielony slot, z osobnym opisem."""
+def test_pole_luźne_zakazane_w_wariancie_unii(parse):
+    """Wariant z polem luźnym nie przechodzi walidacji — zakaz pól
+    luźnych uprzedza dawny scenariusz „slot kontra wolny"."""
     src = _POJEMNIKI_ROZJECHANE % (
         "definicja Worka:\n"
         "    zapas (Lista)\n"
     )
-    with pytest.raises(TypeCheckError) as ei:
+    with pytest.raises(
+        TypeCheckError,
+        match=r"(?s)pole 'zapas' struktury 'Worek' nie wiąże parametru "
+              r"'element' typu 'Lista'.*pola luźne są zakazane",
+    ):
         typechecker.resolve_module(parse(src))
-    tekst = str(ei.value)
-    assert "parametr nie jest współdzielony" in tekst
-    assert "'grat' (z definicji 'Kubeł')" in tekst
-    assert "wolny" in tekst
 
 
 # Aplikacja nazwana na STRUKTURZE wiąże argumenty granicami na świeżych
@@ -1686,10 +1686,9 @@ def test_unia_dwuparametrowe_pole_pierwsza_różnica_wygrywa(parse):
 
 
 @pytest.mark.integration
-def test_unia_pola_luźne_po_obu_stronach_zgodne(parse):
-    """Pole typu unii generycznej bez wiązania parametru w OBU
-    wariantach — luźne per wystąpienie, jak przy odczycie ze
-    struktury; odczyt przez unię legalny."""
+def test_pole_luźne_zakazane(parse):
+    """ZAKAZ PÓL LUŹNYCH: pole typu generycznego bez związania
+    parametru odpada w walidacji z receptą naprawy."""
     src = (
         "definicja Ogniwa z elementem:\n"
         "    głowa (element)\n"
@@ -1700,19 +1699,238 @@ def test_unia_pola_luźne_po_obu_stronach_zgodne(parse):
         "definicja Kubła:\n"
         "    zapas (Lista)\n"
         "\n"
-        "definicja Worka:\n"
-        "    zapas (Lista)\n"
-        "\n"
-        "Pojemnik to Kubeł albo Worek\n"
-        "\n"
-        "aby wybierać od flagi:\n"
-        "    jeśli flaga:\n"
-        "        zwróć Kubeł o zapasie Nic\n"
-        "    zwróć Worek o zapasie Nic\n"
+        "aby działać:\n"
+        "    zwróć Nic\n"
+    )
+    with pytest.raises(
+        TypeCheckError,
+        match=r"(?s)pole 'zapas' struktury 'Kubeł' nie wiąże parametru "
+              r"'element' typu 'Lista'.*w pełni związany.*aplikacją "
+              r"nazwaną.*zadeklaruj w nagłówku parametr.*zakazane",
+    ):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_pole_luźne_zakaz_częściowa_aplikacja(parse):
+    """Aplikacja częściowa na strukturze (drugi parametr niezwiązany)
+    to też pole luźne."""
+    src = _PARA + (
+        "definicja Kubła:\n"
+        "    spis (Para o kluczu Liczba)\n"
         "\n"
         "aby działać:\n"
-        "    rupieć to wybieraj od prawdy\n"
-        "    zbiór (Lista) to zapas rupiecia\n"
+        "    zwróć Nic\n"
+    )
+    with pytest.raises(
+        TypeCheckError,
+        match=r"(?s)pole 'spis' struktury 'Kubeł' nie wiąże parametru "
+              r"'wartość' typu 'Para'",
+    ):
+        typechecker.resolve_module(parse(src))
+
+
+# =====================================================================
+# Natychmiastowość joinów (dawne dziury z bad/)
+# =====================================================================
+
+_OGNIWA = (
+    "definicja Ogniwa z elementem:\n"
+    "    głowa (element)\n"
+    "    ogon (Lista)\n"
+    "\n"
+    "Lista to Ogniwo albo Nic\n"
+    "\n"
+    "można wypisać coś (Cokolwiek) -> Nic\n"
+    "\n"
+)
+
+
+@pytest.mark.integration
+def test_join_tej_samej_głowy_unifikuje_argumenty_natychmiast(parse):
+    """Dwa fakty Ogniwo[Liczba]/Ogniwo[Znak] na jednej zmiennej —
+    konflikt w linii sprawcy, nie przy późniejszym odczycie (dawniej:
+    ciche przejście, a z odczytem RecursionError)."""
+    src = _OGNIWA + (
+        "aby działać:\n"
+        "    zbiór to Ogniwo o głowie pięć o ogonie Nic\n"
+        "    zbiór to Ogniwo o głowie 'a' o ogonie Nic\n"
+        "    wypisz zbiór\n"
+    )
+    with pytest.raises(
+        TypeCheckError,
+        match=r"(?s)niejawny argument 'element' typu 'Ogniwo'.*"
+              r"nie można zunifikować",
+    ):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_join_z_odczytem_pola_czysty_błąd(parse):
+    """Wariant z odczytem pola — dawniej nieskończona rekursja
+    diagnostyki (raise→render→raise), teraz czysty komunikat."""
+    src = _OGNIWA + (
+        "aby działać:\n"
+        "    zbiór to Ogniwo o głowie pięć o ogonie Nic\n"
+        "    zbiór to Ogniwo o głowie 'a' o ogonie Nic\n"
+        "    wypisz głowa zbioru\n"
+    )
+    with pytest.raises(TypeCheckError, match="nie można zunifikować"):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_join_z_adnotacją_czysty_błąd(parse):
+    """Konflikt elementów pod adnotowaną deklaracją `(Lista)` — czysty
+    błąd zamiast rekursji diagnostyki."""
+    src = _OGNIWA + (
+        "aby działać:\n"
+        "    zbiór (Lista) to Ogniwo o głowie pięć o ogonie Nic\n"
+        "    zbiór to Ogniwo o głowie 'a' o ogonie Nic\n"
+        "    wypisz zbiór\n"
+    )
+    with pytest.raises(TypeCheckError, match="nie można zunifikować"):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_strzałka_i_konkret_konflikt_natychmiast(parse):
+    """Wartość funkcyjna i zwykła nie łączą się — błąd w linii
+    przypisania, nie dopiero przy `zastosuj`/arytmetyce."""
+    src = _OGNIWA + (
+        "aby dodać liczbę (Liczba) do innej_liczby (Liczba) -> Liczba:\n"
+        "    zwróć liczba plus inna_liczba\n"
+        "\n"
+        "aby działać:\n"
+        "    f to zwiąż dodanie z dwa\n"
+        "    f to pięć\n"
+        "    wypisz f\n"
+    )
+    with pytest.raises(
+        TypeCheckError,
+        match=r"(?s)wartość funkcyjna i zwykła wartość nie łączą się",
+    ):
+        typechecker.resolve_module(parse(src))
+
+
+_MAGAZYNY = (
+    "definicja Ogniwa z elementem:\n"
+    "    głowa (element)\n"
+    "    ogon (Lista)\n"
+    "\n"
+    "Lista to Ogniwo albo Nic\n"
+    "\n"
+    "można wypisać coś (Cokolwiek) -> Nic\n"
+    "\n"
+    "definicja Kubła z elementem:\n"
+    "    zapas (Lista o elemencie element)\n"
+    "\n"
+    "definicja Worka z elementem:\n"
+    "    zapas (Lista o elemencie element)\n"
+    "\n"
+    "aby dodać liczbę (Liczba) do innej_liczby (Liczba) -> Liczba:\n"
+    "    zwróć liczba plus inna_liczba\n"
+    "\n"
+    "aby zajrzeć do rzeczy:\n"
+    "    zwróć zapas rzeczy\n"
+    "\n"
+    "aby zmierzyć listę (Lista) -> Liczba:\n"
+    "    lista jest:\n"
+    "        Ogniwem z ogonem:\n"
+    "            zwróć jeden plus zmierz ogon\n"
+    "        Niczym:\n"
+    "            zwróć zero\n"
+    "\n"
+    "aby złożyć listę (Lista) z operacją z akumulatorem:\n"
+    "    lista jest:\n"
+    "        Ogniwem z głową z ogonem:\n"
+    "            reszta to złóż ogon z operacją z akumulatorem\n"
+    "            zwróć zastosuj operację z głową z resztą\n"
+    "        Niczym:\n"
+    "            zwróć akumulator\n"
+    "\n"
+    "aby działać:\n"
+    "    k to Kubeł o zapasie (Ogniwo o głowie pięć o ogonie Nic)\n"
+    "    w to Worek o zapasie (Ogniwo o głowie 'a' o ogonie Nic)\n"
+    "    siatka to zajrzyj do k\n"
+    "    sakwa to zajrzyj do w\n"
+    "    wypisz złóż siatkę z dodaniem z zero\n"
+)
+
+
+@pytest.mark.integration
+def test_wynik_łańcucha_sprzężony_z_kandydatem(parse):
+    """Wynik łańcucha o wielu kandydatach niesie argumenty ZWYCIĘZCY
+    per wywołanie: fold liczb po kuble liczb przechodzi, a zmierzenie
+    sakwy znaków też — każda instancja rozstrzyga po swojemu."""
+    src = _MAGAZYNY.replace(
+        "    wypisz złóż siatkę z dodaniem z zero\n",
+        "    wypisz złóż siatkę z dodaniem z zero\n"
+        "    wypisz zmierz sakwę\n",
+    )
+    typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_wynik_łańcucha_kontaminacja_odrzucona(parse):
+    """DAWNA DZIURA: fold dodawania po sakwie ZNAKÓW przechodził
+    typechecker (wynik łańcucha gubił argumenty) i wybuchał w runtime —
+    teraz czysty błąd typów."""
+    src = _MAGAZYNY + "    wypisz złóż sakwę z dodaniem z zero\n"
+    with pytest.raises(
+        TypeCheckError,
+        match="nie można zunifikować Znak z Liczba"
+              "|nie można zunifikować Liczba z Znak",
+    ):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_pola_tej_samej_lemmy_niejednoznaczny_odczyt(parse):
+    """DAWNY BŁĄD SEMANTYKI: `formy papieru` czytało pole `forma`
+    (dopasowanie po samej lemmie) — teraz głośna niejednoznaczność."""
+    src = (
+        "można wypisać coś (Cokolwiek) -> Nic\n"
+        "\n"
+        "definicja Ankiety:\n"
+        "    forma (Liczba)\n"
+        "    formy (Znak)\n"
+        "\n"
+        "aby działać:\n"
+        "    papier to Ankieta o formie pięć o formach 'f'\n"
+        "    wypisz formy papieru\n"
+    )
+    with pytest.raises(
+        TypeCheckError,
+        match=r"(?s)jest niejednoznaczny — pasuje do pól:.*'forma'"
+              r".*nazwij pola rozróżnialnie",
+    ):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_pole_związane_wszystkie_formy_legalne(parse):
+    """Wiązania, które POZOSTAJĄ legalne: konkret w aplikacji nazwanej,
+    parametr struktury wprost, przechwyt po nazwie, alias."""
+    src = (
+        "definicja Ogniwa z elementem:\n"
+        "    głowa (element)\n"
+        "    ogon (Lista)\n"
+        "\n"
+        "Lista to Ogniwo albo Nic\n"
+        "\n"
+        "Tekst to Lista o elemencie Znak\n"
+        "\n"
+        "definicja Kubła z elementem:\n"
+        "    zapas (Lista)\n"
+        "    metka (Tekst)\n"
+        "    rozmiar (Liczba)\n"
+        "\n"
+        "definicja Worka:\n"
+        "    zapas (Lista o elemencie Liczba)\n"
+        "\n"
+        "aby działać:\n"
+        "    zwróć Nic\n"
     )
     typechecker.resolve_module(parse(src))
 

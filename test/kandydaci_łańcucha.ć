@@ -1,0 +1,21 @@
+uwzględnij przygrywka.ć
+
+definicja Kubła z elementem:
+    zapas (Lista o elemencie element)
+
+definicja Worka z elementem:
+    zapas (Lista o elemencie element)
+
+aby dodać liczbę do innej_liczby:
+    zwróć liczba plus inna_liczba
+
+aby zajrzeć do rzeczy:
+    zwróć zapas rzeczy
+
+aby działać:
+    k to Kubeł o zapasie (Ogniwo o głowie pięć o ogonie Nic)
+    w to Worek o zapasie (Ogniwo o głowie 'a' o ogonie Nic)
+    siatka to zajrzyj do k
+    sakwa to zajrzyj do w
+    wypisz złóż siatkę z dodaniem z zero
+    wypisz zmierz sakwę

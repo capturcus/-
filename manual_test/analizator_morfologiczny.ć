@@ -45,25 +45,25 @@ definicja Analizy:
     lemat (Tekst)
     etykieta (Tekst)
     kwalifikator (Tekst)
-    przypadki (Lista)
-    liczba (Rezultat)
-    rodzaje (Lista)
+    przypadki (Lista o elemencie Tekst)
+    liczba (Rezultat o elemencie Tekst)
+    rodzaje (Lista o elemencie Tekst)
 
 # Wynik _morpho_for_tag: (case, number, gender).
 definicja Morfologii:
-    przypadki (Lista)
-    liczba (Rezultat)
-    rodzaje (Lista)
+    przypadki (Lista o elemencie Tekst)
+    liczba (Rezultat o elemencie Tekst)
+    rodzaje (Lista o elemencie Tekst)
 
 # Odpowiednik pary (db, preps) zwracanej przez load().
 definicja Bazy:
-    formy (Lista)
-    przyimki (Lista)
+    formy (Lista o elemencie (Hasło o kluczu Tekst o zawartości (Lista o elemencie Analiza)))
+    przyimki (Lista o elemencie (Hasło o kluczu Tekst o zawartości (Lista o elemencie Tekst)))
 
 # Odpowiednik tokenu po analyze(): słowo + analizy z bazy.
 definicja OpisanegoSłowa:
     słowo (Tekst)
-    analizy (Lista)
+    analizy (Lista o elemencie Analiza)
 
 
 # ---------- operacje na listach ----------

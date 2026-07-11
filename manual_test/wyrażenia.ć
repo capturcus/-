@@ -67,7 +67,7 @@ definicja Słowa:
     napis (Tekst)
     lemat (Tekst)
     podstawa (Tekst)
-    przypadki (Lista)
+    przypadki (Lista o elemencie Tekst)
     tryb (Tekst)
 
 definicja Liczebnika:
@@ -101,26 +101,26 @@ definicja Przeczenia:
 
 definicja Odwołania:
     lemat (Tekst)
-    przypadki (Lista)
+    przypadki (Lista o elemencie Tekst)
 
 definicja Odsyłacza:
     cel (Tekst)
-    przypadki (Lista)
+    przypadki (Lista o elemencie Tekst)
 
 definicja Wywołania:
     nazwa (Tekst)
-    argumenty (Lista)
+    argumenty (Lista o elemencie Argument)
 
 definicja Aplikacji:
     funkcja (Wyrażenie)
-    argumenty (Lista)
+    argumenty (Lista o elemencie Argument)
 
 definicja Łańcucha:
-    ogniwa (Lista)
+    ogniwa (Lista o elemencie Tekst)
 
 definicja Konstrukcji:
     typ (Tekst)
-    wpisy (Lista)
+    wpisy (Lista o elemencie Wpis)
 
 definicja Próby:
     wywołanie (Wyrażenie)
@@ -135,7 +135,7 @@ Wyrażenie to Ilość albo Cytat albo Działanie albo Przeczenie albo Odwołanie
 
 definicja Argumentu:
     przyimek (Tekst)
-    przypadki (Lista)
+    przypadki (Lista o elemencie Tekst)
     wartość (Wyrażenie)
 
 definicja Wpisu:
@@ -144,26 +144,26 @@ definicja Wpisu:
 
 definicja Parametru:
     przyimek (Tekst)
-    przypadki (Lista)
+    przypadki (Lista o elemencie Tekst)
 
 definicja Sygnatury:
     nazwa (Tekst)
-    parametry (Lista)
+    parametry (Lista o elemencie Parametr)
 
 definicja Otoczenia:
-    sygnatury (Lista)
-    typy (Lista)
-    pola (Lista)
-    przyimki (Lista)
+    sygnatury (Lista o elemencie Sygnatura)
+    typy (Lista o elemencie Tekst)
+    pola (Lista o elemencie (Hasło o kluczu Tekst o zawartości (Lista o elemencie Tekst)))
+    przyimki (Lista o elemencie Tekst)
 
 definicja Zakresu:
-    zmienne (Lista)
+    zmienne (Lista o elemencie Tekst)
     rodzic (Opieka)
 
 Opieka to Zakres albo Nic
 
 definicja Parsera:
-    żetony (Lista)
+    żetony (Lista o elemencie Żeton)
     otoczenie (Otoczenie)
     zakres (Zakres)
 

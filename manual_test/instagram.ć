@@ -34,7 +34,7 @@ Rezultat to Sukces albo Błąd
 definicja Użytkownika:
     identyfikator (Liczba)
     nazwa (Tekst)
-    obserwowani (Lista)
+    obserwowani (Lista o elemencie Liczba)
 
 definicja Komentarza:
     autor (Liczba)
@@ -45,12 +45,12 @@ definicja Postu:
     autor (Liczba)
     treść (Tekst)
     chwila (Liczba)
-    polubienia (Lista)
-    komentarze (Lista)
+    polubienia (Lista o elemencie Liczba)
+    komentarze (Lista o elemencie Komentarz)
 
 definicja Stanu:
-    użytkownicy (Lista)
-    wpisy (Lista)
+    użytkownicy (Lista o elemencie Użytkownik)
+    wpisy (Lista o elemencie Post)
     licznik (Liczba)
 
 # ---------- świat zewnętrzny ----------

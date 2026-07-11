@@ -639,6 +639,10 @@ def execute_block(stmts, scope):
         if isinstance(stmt, ast.FunctionCall):
             evaluated_params = [execute_expression(expr.value, scope) for expr in stmt.params]
             execute_function(stmt.name.lemmas_set, evaluated_params)
+        if isinstance(stmt, (ast.Apply, ast.Bind, ast.TryCall)):
+            # Gołe `zastosuj F z X` (i pokrewne) jako instrukcja —
+            # wykonaj dla efektów; wynik przepada jak przy FunctionCall.
+            execute_expression(stmt, scope)
         if isinstance(stmt, ast.Assignment):
             value = execute_expression(stmt.value.resolved, scope)
             target = stmt.target.resolved

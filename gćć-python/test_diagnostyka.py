@@ -262,11 +262,12 @@ def test_unresolvable_chain_lists_candidates(parse):
         "    pies to Pies o kości 'k'\n"
         "    x to imię kości psa\n"
     )
+    # Dzielenie łańcucha: `kości psa` domyka się na Psie (Znak), a błąd
+    # precyzyjnie odmawia pola `imię` na Znaku.
     with pytest.raises(
         typechecker.TypeCheckError,
-        match=r"nie można zresolvować łańcucha dopełniaczowego "
-              r"'imię kości psa' \(linia 9\) — pole 'kości' mają struktury: "
-              r"Pies, ale żadna nie domyka",
+        match=r"pole 'imię' \(linia 9\) nie występuje w typie "
+              r"\['Znak'\] podstawy łańcucha",
     ):
         typechecker.resolve_module(parse(src))
 

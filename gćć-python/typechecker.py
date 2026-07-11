@@ -77,6 +77,10 @@ class Zmienna:
     alternatywy_nota: object = None
     ślad: list = field(default_factory=list)
     etykieta: object = None
+    # Sprzężenia dysjunkcji: [(mapa głowa→typ-wyniku, zmienna-wyniku)] —
+    # kolaps alternatyw do głowy h wiąże każdą zmienną-wyniku z jej typem
+    # dla h (wynik łańcucha o wielu kandydatach nie gubi argumentów).
+    zależne: object = None
 
     def __repr__(self):
         return f"t{self.number}"
@@ -383,9 +387,26 @@ def _unia_ze_składem(h):
     return f"{h} ({' albo '.join(sorted(czł))})"
 
 
+# Reentrancja diagnostyki: budowa komunikatu renderuje typy, a render
+# materializuje zmienne — materializacja INNEJ zepsutej zmiennej nie może
+# wtedy rzucać (własnym poszlakownikiem), bo cykl zmiennych wzajemnie
+# powiązanych zapętlałby raise→render→raise w nieskończoność.
+_w_diagnostyce = False
+
+
 def _poszlakownik(var):
     """Pełny zrzut ograniczeń zmiennej: wszystkie granice z liniami —
     programista sam wskazuje, która poszlaka jest błędna."""
+    global _w_diagnostyce
+    poprzednio = _w_diagnostyce
+    _w_diagnostyce = True
+    try:
+        return _poszlakownik_właściwy(var)
+    finally:
+        _w_diagnostyce = poprzednio
+
+
+def _poszlakownik_właściwy(var):
     linie = [f"{_opis_zmiennej(var)}:"]
 
     def blok(tytuł, pary):
@@ -501,16 +522,42 @@ def _zawęź_alternatywy(var, głowa_faktu):
             f"{{{opcje}}} zebranych z wcześniejszych użyć{skąd}")
     var.alternatywy = zgodne
     if len(zgodne) == 1:
-        (jedyna_inst,) = zgodne.values()
+        ((jedyna_głowa, jedyna_inst),) = zgodne.items()
         var.alternatywy = None
         ogranicz(var, jedyna_inst)
+        # Kolaps rozstrzyga też sprzężone wyniki łańcuchów — wynik
+        # dostaje typ pola ZWYCIĘSKIEGO kandydata (argumenty płyną).
+        zależne = var.zależne or []
+        var.zależne = None
+        for mapa, wynik in zależne:
+            rt = mapa.get(jedyna_głowa)
+            if rt is not None:
+                ogranicz(wynik, rt)
+                ogranicz(rt, wynik)
 
 
 def _dodaj_dolną(var, typ):
     """Nowa granica dolna + ZACHŁANNY test łączliwości: głowy wszystkich
-    konkretnych dolnych muszą mieć wspólną głowę albo pokrywającą unię."""
+    konkretnych dolnych muszą mieć wspólną głowę albo pokrywającą unię;
+    join TEJ SAMEJ głowy unifikuje argumenty NATYCHMIAST (inwariancja pól
+    — konflikt wybucha w linii przypisania-sprawcy, nie przy późniejszym
+    odczycie); strzałka i konkret nie łączą się nigdy."""
     if any(t is typ or t == typ for t, _ in var.dolne):
         return False
+    if isinstance(typ, Konkret):
+        for stara, _ in list(var.dolne):
+            if not isinstance(stara, Konkret):
+                continue
+            if (stara.głowa == typ.głowa
+                    and len(stara.args) == len(typ.args)):
+                for i, (x, y) in enumerate(zip(stara.args, typ.args)):
+                    _inwariantnie(typ.głowa, i, x, y)
+            elif (stara.głowa == ARROW) != (typ.głowa == ARROW):
+                raise TypeCheckError(
+                    f"nie można zunifikować {_render_typu(stara)} "
+                    f"z {_render_typu(typ)} — wartość funkcyjna i zwykła "
+                    f"wartość nie łączą się w żadnej unii — zdecyduj, "
+                    f"która poszlaka jest błędna:\n{_poszlakownik(var)}")
     if isinstance(typ, Konkret) and typ.głowa != ARROW:
         głowy = {g for g in _głowy_dolnych(var) if g != ARROW}
         nowe = głowy | {typ.głowa}
@@ -727,6 +774,8 @@ def _zmaterializuj(t, wymagaj=False, widziane=None):
         if unikaty:
             wskazówka = (f"; rozstrzygnie użycie wariantu-dyskryminatora: "
                          f"{', '.join(unikaty[:4])} — albo adnotacja")
+        if _w_diagnostyce:
+            return None
         raise TypeCheckError(
             f"typ pasuje do wielu możliwości: {opcje}{skąd} — dodaj "
             f"adnotację typu{wskazówka}")
@@ -745,12 +794,27 @@ def _zmaterializuj(t, wymagaj=False, widziane=None):
             return konkrety[0]
         unia = najmniejsza_unia(głowy)
         if unia is None:
+            if _w_diagnostyce:
+                return None
             raise TypeCheckError(
                 f"nie można zunifikować {_render_typu(konkrety[0])} "
                 f"z {_render_typu(konkrety[-1])} — zdecyduj, która "
                 f"poszlaka jest błędna:\n{_poszlakownik(t)}"
                 + _sugestia_unii(głowy))
-        return _unia_applied(unia)
+        u = _unia_applied(unia)
+        # Argumenty joinu: świeże sloty unii dostają wkłady członków jako
+        # granice dolne (bez mutowania oryginałów) — materializacja
+        # renderuje Pojemnik[Liczba], nie Pojemnik[?].
+        for k in konkrety:
+            if k.głowa == unia:
+                pary = [(i, i) for i in range(len(k.args))]
+            else:
+                pary = _mapowanie_członka(k.głowa, unia)
+            for i, j in pary:
+                if (i < len(k.args) and j < len(u.args)
+                        and isinstance(u.args[j], Zmienna)):
+                    u.args[j].dolne.append((k.args[i], None))
+        return u
     górne = [x for x, _ in t.górne if isinstance(x, Konkret)]
     if górne:
         głowy = {g.głowa for g in górne}
@@ -908,6 +972,12 @@ def _kopiuj(t, memo):
     if t.alternatywy is not None:
         n.alternatywy = {h: _kopiuj(k, memo)
                          for h, k in t.alternatywy.items()}
+    if t.zależne is not None:
+        n.zależne = [
+            ({h: _kopiuj(rt, memo) for h, rt in mapa.items()},
+             _kopiuj(wynik, memo))
+            for mapa, wynik in t.zależne
+        ]
     n.dolne = [(_kopiuj(x, memo), nota) for x, nota in t.dolne]
     n.górne = [(_kopiuj(x, memo), nota) for x, nota in t.górne]
     return n
@@ -1017,6 +1087,60 @@ def _check_aliases(node):
     for decl in node.body:
         if isinstance(decl, ast.TypeAlias):
             _validate_alias_tref(decl.target, ["".join(decl.name)])
+
+
+def _luźne_argumenty(t, dozwolone, wynik, widziane):
+    """Zbierz pozycje (głowa, indeks) luźnych argumentów w typie pola —
+    zmiennych, które nie są parametrem struktury ani nie zostały
+    związane (brak granic). Wchodzi też w granice zmiennych związanych
+    (aplikacja na strukturze wiąże granicami) i w argumenty konkretów."""
+    if isinstance(t, Zmienna):
+        if t in widziane:
+            return
+        widziane.add(t)
+        for g, _ in list(t.dolne) + list(t.górne):
+            _luźne_argumenty(g, dozwolone, wynik, widziane)
+        return
+    if isinstance(t, Konkret):
+        for i, a in enumerate(t.args):
+            if (isinstance(a, Zmienna) and id(a) not in dozwolone
+                    and not a.dolne and not a.górne):
+                wynik.append((t.głowa, i))
+            else:
+                _luźne_argumenty(a, dozwolone, wynik, widziane)
+
+
+def _check_pola_związane(node):
+    """ZAKAZ PÓL LUŹNYCH: typ pola musi być w pełni związany — każdy
+    parametr typu użytego w polu jest albo parametrem struktury (wiązanie
+    po nazwie / jawne), albo konkretem. Pole luźne (`zapas (Lista)` bez
+    parametru `element` w zasięgu) było granicą dynamiczną — czytelnik
+    zgadywał typ zawartości, a pomyłka wybuchała w runtime."""
+    for decl in node.body:
+        if not isinstance(decl, ast.StructDef):
+            continue
+        inst, env = _instancja_struktury(decl)
+        dozwolone = {id(a) for a in inst.args}
+        nazwa_struktury = "".join(decl.name)
+        for f in decl.fields:
+            t = elaborate(f.type, env)
+            luźne = []
+            _luźne_argumenty(t, dozwolone, luźne, set())
+            if not luźne:
+                continue
+            pole = "_".join(f.name.surface)
+            głowa, i = luźne[0]
+            nazwa_par, _origin = _param_pedigree(głowa, i)
+            przykład_par = nazwa_par or "element"
+            raise TypeCheckError(
+                f"pole '{pole}' struktury '{nazwa_struktury}' nie wiąże "
+                f"parametru '{przykład_par}' typu '{głowa}' — typ pola "
+                f"musi być w pełni związany: podaj argument aplikacją "
+                f"nazwaną (jak 'zapas (Lista o elemencie Liczba)') albo "
+                f"zadeklaruj w nagłówku parametr struktury o nazwie "
+                f"'{przykład_par}' (zwiąże pole po nazwie); pola luźne "
+                f"są zakazane — zawartość bez typu wybuchałaby dopiero "
+                f"w runtime")
 
 
 def _validate_alias_tref(tref, seen):
@@ -1174,6 +1298,7 @@ def resolve_module(node):
     _pary_żywe.clear()
     _bieżąca_składowa = set()
     _check_aliases(node)
+    _check_pola_związane(node)
     module_funcs = []
     for decl in node.body:
         if isinstance(decl, ast.FunctionDef):
@@ -1727,11 +1852,27 @@ def resolve_match(node, scope):
 
 
 def _find_field_for_ident(struct_def, ident):
+    """Pole struktury pasujące do identyfikatora — po PEŁNYM kluczu
+    (lemma, liczba, rodzaj) każdego wariantu odczytu. Gdy warianty
+    trafiają w RÓŻNE pola (`formy` czyta się i jako mianownik lm pola
+    `formy`, i jako dopełniacz lp pola `forma`), wybór byłby cichym
+    hazardem — głośna odmowa z receptą."""
+    trafienia = []
     for key in ident.scope_keys:
         for f in struct_def.fields:
-            if any(ast.scope_key_matches(key, k) for k in f.name.scope_keys):
-                return f
-    return None
+            if (f not in trafienia
+                    and any(ast.scope_key_matches(key, k)
+                            for k in f.name.scope_keys)):
+                trafienia.append(f)
+    if len(trafienia) > 1:
+        opcje = ", ".join(
+            f"'{'_'.join(t.name.surface)}'" for t in trafienia)
+        raise TypeCheckError(
+            f"odczyt pola '{'_'.join(ident.surface)}' struktury "
+            f"'{''.join(struct_def.name)}' jest niejednoznaczny — pasuje "
+            f"do pól: {opcje} (różne klucze: liczba/rodzaj, wspólna "
+            f"odmiana) — nazwij pola rozróżnialnie w każdej odmianie")
+    return trafienia[0] if trafienia else None
 
 
 # ---------- wyrażenia ----------
@@ -2212,7 +2353,21 @@ def _chain_przez_deklarację(chain, decl):
 
 
 def resolve_getter_chain(node, scope):
-    penultimate_word = node.chain[-2]
+    base_t = scope.get_type(node.chain[-1])
+    return _resolve_chain(
+        node.chain[:-1], base_t,
+        getattr(node.chain[0], "line", None),
+        "_".join(node.chain[-1].surface))
+
+
+def _resolve_chain(words, base_t, line, opis_bazy):
+    """Rozwiązuje łańcuch pól `words` (od zewnątrz do wewnątrz) na bazie
+    o typie `base_t`. Gdy żaden kandydat nie domyka CAŁEGO łańcucha
+    (zejście pęka na wolnym parametrze — np. `głowa głowy macierzy`,
+    gdzie element zewnętrznego Ogniwa to zmienna), łańcuch dzieli się:
+    ogniwo wewnętrzne rozwiązuje się osobno, a reszta na jego wyniku —
+    fakty bazy przepływają wtedy przez sprzężone instancje."""
+    penultimate_word = words[-1]
     structs = _struktury_z_polem(penultimate_word)
     # Kandydaci łańcucha: struktury z polem + KAŻDA unia (pole wspólne
     # wszystkim liściom, o identycznym typie, czyta się i pisze przez
@@ -2222,16 +2377,23 @@ def resolve_getter_chain(node, scope):
     candidates = []
     diagnozy = {}
     for decl in structs + unie:
-        inst, result_t, powód = _chain_przez_deklarację(
-            node.chain[:-1], decl)
+        inst, result_t, powód = _chain_przez_deklarację(words, decl)
         if inst is not None:
             candidates.append((decl, inst, result_t))
         else:
             diagnozy["".join(decl.name)] = powód
     field_surface = "_".join(penultimate_word.surface)
-    line = getattr(node.chain[0], "line", None)
     if not candidates:
-        surfaces = " ".join("_".join(w.surface) for w in node.chain)
+        if len(words) > 1:
+            # Dzielenie łańcucha: ogniwo wewnętrzne osobno, reszta na
+            # jego wyniku — zejście przez wolny parametr (typ pola to
+            # zmienna) nie domyka się w jednym przebiegu po deklaracjach.
+            t1 = _resolve_chain(words[-1:], base_t, line, opis_bazy)
+            return _resolve_chain(
+                words[:-1], t1, line,
+                f"{field_surface} {opis_bazy}")
+        surfaces = " ".join(
+            ["_".join(w.surface) for w in words] + [opis_bazy])
         if structs:
             cand = ", ".join(sorted("_".join(s.name) for s in structs))
             powody = "\n".join(
@@ -2254,7 +2416,6 @@ def resolve_getter_chain(node, scope):
         raise TypeCheckError(
             f"nie można zresolvować łańcucha dopełniaczowego '{surfaces}' "
             f"(linia {line}) — {detail}")
-    base_t = scope.get_type(node.chain[-1])
     znane = _fakty_dolne(base_t)
     if not znane and isinstance(base_t, Zmienna):
         # Górna granica o głowie będącej kandydatem rozstrzyga wprost:
@@ -2342,4 +2503,12 @@ def resolve_getter_chain(node, scope):
             if wynik.alternatywy is None:
                 wynik.alternatywy = {}
             wynik.alternatywy.setdefault(m.głowa, m)
+    # Sprzężenie: kolaps dysjunkcji bazy zwiąże wynik z typem pola
+    # zwycięskiego kandydata — bez tego argumenty (element listy) ginęły
+    # i fold po liście znaków przechodził jako lista liczb.
+    if isinstance(base_t, Zmienna):
+        if base_t.zależne is None:
+            base_t.zależne = []
+        base_t.zależne.append(
+            ({"".join(s.name): rt for s, _, rt in candidates}, wynik))
     return wynik

@@ -45,9 +45,9 @@ aby rozebrać tekst:
 # --- taśma: funkcyjny suwak ---
 
 definicja Taśmy:
-    przeszłość (Lista)
+    przeszłość (Lista o elemencie Liczba)
     komórka (Liczba)
-    przyszłość (Lista)
+    przyszłość (Lista o elemencie Liczba)
 
 aby podnieść taśmę:
     zwróć Taśma o przeszłości (przeszłość taśmy) o komórce (komórka taśmy plus jeden) o przyszłości (przyszłość taśmy)
@@ -73,7 +73,7 @@ aby przesunąć_w_lewo taśmę:
 
 definicja Stanu:
     taśma (Taśma)
-    wyjście (Lista)
+    wyjście (Lista o elemencie Liczba)
 
 aby wykonać program na stanie:
     program jest:
