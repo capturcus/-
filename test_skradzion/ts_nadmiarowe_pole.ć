@@ -1,0 +1,11 @@
+# Inspiracja: TypeScript excess property check — konstrukcja z polem
+# spoza definicji struktury musi odpaść.
+
+definicja Kota:
+    imię (Znak)
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    zjawa to Kot o imieniu 'm' o kości 'k'
+    wypisz zjawę

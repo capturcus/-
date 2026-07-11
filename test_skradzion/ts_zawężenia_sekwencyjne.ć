@@ -1,0 +1,29 @@
+# Inspiracja: TypeScript narrowing / Flow refinements_match — dwa
+# kolejne dopasowania tej samej unii; każde zawęża niezależnie,
+# a między nimi typ wraca do pełnej unii.
+
+definicja Kota:
+    imię (Znak)
+
+definicja Psa:
+    kość (Znak)
+
+Zwierzę to Kot albo Pies
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby opisać okaz (Zwierzę):
+    okaz jest:
+        Kotem z imieniem:
+            wypisz imię
+        Psem z kością:
+            wypisz kość
+    okaz jest:
+        Kotem:
+            wypisz 'K'
+        Psem:
+            wypisz 'P'
+
+aby działać:
+    opisz (Kot o imieniu 'm')
+    opisz (Pies o kości 'g')

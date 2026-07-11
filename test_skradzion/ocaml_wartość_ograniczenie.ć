@@ -1,0 +1,25 @@
+# Inspiracja: OCamlowa value restriction — polimorficzna "pusta"
+# wartość z funkcji użyta w dwóch niekompatybilnych światach.
+# W Ć bezpieczne bez specjalnej reguły: świeża instancja typu
+# i świeży obiekt na każde wywołanie.
+
+uwzględnij przygrywka.ć
+
+aby dać_pustkę:
+    zwróć Nic
+
+aby działać:
+    mieszek to daj_pustkę
+    mieszek to Ogniwo o głowie pięć o ogonie mieszek
+    sakwa to daj_pustkę
+    sakwa to Ogniwo o głowie 'z' o ogonie sakwa
+    mieszek jest:
+        Ogniwem z głową:
+            wypisz (głowa plus jeden)
+        Niczym:
+            wypisz zero
+    sakwa jest:
+        Ogniwem z głową:
+            wypisz zapisz_liczbą (głowa)
+        Niczym:
+            wypisz zero

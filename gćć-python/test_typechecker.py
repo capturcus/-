@@ -16,6 +16,7 @@ po reużyciu id() przez odśmiecone Konkrety).
 """
 
 import os
+import re
 
 import pytest
 
@@ -641,8 +642,8 @@ def test_częściowe_dopasowanie_z_inaczej(parse):
 
 @pytest.mark.integration
 def test_zapis_do_podmiotu_idzie_na_zewnątrz(parse):
-    """Idiom kursora: zapis w gałęzi poszerza zmienną ZEWNĘTRZNĄ do unii,
-    a cień zawężenia w gałęzi pozostaje wąski."""
+    """Idiom kursora: zapis w gałęzi poszerza zmienną ZEWNĘTRZNĄ do unii;
+    gałąź zawierająca zapis nie dostaje cienia zawężenia."""
     src = _ZWIERZĘTA + (
         "aby działać:\n"
         "    pupil to Kot o imieniu 'M'\n"
@@ -654,6 +655,147 @@ def test_zapis_do_podmiotu_idzie_na_zewnątrz(parse):
     )
     typechecker.resolve_module(parse(src))
     assert _var_types()["pupil"] == "Zwierzę"
+
+
+# =====================================================================
+# Integracja: zapis do podmiotu gasi cień zawężenia (nieścisłość #14)
+# =====================================================================
+
+_GASZENIE = re.compile(
+    r"(?s)nie obowiązuje, bo gałąź przepisuje 'okaz'.*wiązania")
+
+
+@pytest.mark.integration
+def test_zapis_do_podmiotu_gasi_cień(parse):
+    """Odczyt pola wariantu po przepisaniu podmiotu w jego gałęzi —
+    dziura z suity refinements Flow: bez gaszenia cienia typechecker
+    przepuszczał, a runtime czytał pole z niewłaściwego wariantu."""
+    src = _ZWIERZĘTA + (
+        "aby działać:\n"
+        "    okaz (Zwierzę) to Kot o imieniu 'm'\n"
+        "    okaz jest:\n"
+        "        Kotem:\n"
+        "            okaz to Pies o kości 'k'\n"
+        "            litera to imię okazu\n"
+        "        Psem:\n"
+        "            x to jeden\n"
+    )
+    with pytest.raises(TypeCheckError, match=_GASZENIE):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_zapis_w_pętli_gasi_cień_mimo_odczytu_przed_nim(parse):
+    """Pozycja zapisu jest bez znaczenia: pętla w gałęzi wykonuje odczyt
+    sprzed zapisu również PO nim (krawędź powrotna), więc o cieniu
+    decyduje samo ISTNIENIE zapisu w gałęzi."""
+    src = _ZWIERZĘTA + (
+        "aby działać:\n"
+        "    okaz (Zwierzę) to Kot o imieniu 'm'\n"
+        "    okaz jest:\n"
+        "        Kotem:\n"
+        "            dopóki prawda:\n"
+        "                litera to imię okazu\n"
+        "                okaz to Pies o kości 'k'\n"
+        "        Psem:\n"
+        "            x to jeden\n"
+    )
+    with pytest.raises(TypeCheckError, match=_GASZENIE):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_zapis_w_zagnieżdżonym_bloku_gasi_cień(parse):
+    """Zapis warunkowy (w `jeśli` wewnątrz gałęzi) też gasi cień —
+    statycznie nie wiadomo, czy zaszedł, więc strona bezpieczna."""
+    src = _ZWIERZĘTA + (
+        "aby działać:\n"
+        "    okaz (Zwierzę) to Kot o imieniu 'm'\n"
+        "    okaz jest:\n"
+        "        Kotem:\n"
+        "            jeśli prawda:\n"
+        "                okaz to Pies o kości 'k'\n"
+        "            litera to imię okazu\n"
+        "        Psem:\n"
+        "            x to jeden\n"
+    )
+    with pytest.raises(TypeCheckError, match=_GASZENIE):
+        typechecker.resolve_module(parse(src))
+
+
+@pytest.mark.integration
+def test_gałąź_bez_zapisu_zachowuje_cień(parse):
+    """Kontrola: bez zapisu do podmiotu odczyt wariantowego pola przez
+    cień zawężenia dalej przechodzi."""
+    src = _ZWIERZĘTA + (
+        "aby działać:\n"
+        "    okaz (Zwierzę) to Kot o imieniu 'm'\n"
+        "    okaz jest:\n"
+        "        Kotem:\n"
+        "            litera to imię okazu\n"
+        "        Psem:\n"
+        "            x to jeden\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["litera"] == "Znak"
+
+
+@pytest.mark.integration
+def test_wiązanie_pola_przeżywa_zapis_do_podmiotu(parse):
+    """Wiązanie `z imieniem` to migawka wartości z wejścia do gałęzi —
+    zapis do podmiotu go nie unieważnia (tak czyta idiom kursora)."""
+    src = _ZWIERZĘTA + (
+        "aby działać:\n"
+        "    okaz (Zwierzę) to Kot o imieniu 'm'\n"
+        "    okaz jest:\n"
+        "        Kotem z imieniem:\n"
+        "            litera to imię\n"
+        "            okaz to Pies o kości 'k'\n"
+        "        Psem:\n"
+        "            x to jeden\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["litera"] == "Znak"
+
+
+@pytest.mark.integration
+def test_alias_przeżywa_zapis_do_podmiotu(parse):
+    """Alias `jako` wiąże dopasowaną WARTOŚĆ, nie nazwę — po przepisaniu
+    podmiotu dalej wskazuje starą wartość o wąskim typie."""
+    src = _ZWIERZĘTA + (
+        "aby działać:\n"
+        "    okaz (Zwierzę) to Kot o imieniu 'm'\n"
+        "    okaz jest:\n"
+        "        Kotem jako kiciuś:\n"
+        "            okaz to Pies o kości 'k'\n"
+        "            litera to imię kiciusia\n"
+        "        Psem:\n"
+        "            x to jeden\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["litera"] == "Znak"
+
+
+@pytest.mark.integration
+def test_ponowne_zawężenie_po_zapisie(parse):
+    """Remedium: po zapisie wolno zawęzić ponownie — wewnętrzne `jest:`
+    nie zawiera zapisu, więc dostaje świeży cień."""
+    src = _ZWIERZĘTA + (
+        "aby działać:\n"
+        "    okaz (Zwierzę) to Kot o imieniu 'm'\n"
+        "    okaz jest:\n"
+        "        Kotem:\n"
+        "            okaz to Pies o kości 'k'\n"
+        "            okaz jest:\n"
+        "                Psem:\n"
+        "                    litera to kość okazu\n"
+        "                Kotem:\n"
+        "                    x to jeden\n"
+        "        Psem:\n"
+        "            y to dwa\n"
+    )
+    typechecker.resolve_module(parse(src))
+    assert _var_types()["litera"] == "Znak"
 
 
 # =====================================================================

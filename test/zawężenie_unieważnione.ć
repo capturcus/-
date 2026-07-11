@@ -1,0 +1,18 @@
+definicja Kota:
+    imię (Znak)
+
+definicja Psa:
+    kość (Znak)
+
+Zwierzę to Kot albo Pies
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    okaz (Zwierzę) to Kot o imieniu 'm'
+    okaz jest:
+        Kotem:
+            okaz to Pies o kości 'k'
+            wypisz imię okazu
+        Psem:
+            wypisz 'p'

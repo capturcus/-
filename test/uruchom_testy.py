@@ -3,6 +3,10 @@
 
 Każdy plik `*.ć` w tym katalogu jest uruchamiany przez `gćć.py --redis`,
 a jego stdout porównywany 1:1 z plikiem `*.wynik` o tej samej nazwie.
+
+Test NEGATYWNY to para `NAZWA.ć` + `NAZWA.błąd` (zamiast `.wynik`):
+program ma się NIE powieść (exit ≠ 0), a każda niepusta linia pliku
+`.błąd` musi wystąpić w stderr jako podłańcuch.
 """
 import os
 import subprocess
@@ -31,11 +35,12 @@ def main():
     porazki = 0
     for plik in pliki:
         wynik_path = plik.with_suffix(".wynik")
-        if not wynik_path.exists():
-            print(f"PORAŻKA {plik.name}: brak pliku {wynik_path.name}")
+        błąd_path = plik.with_suffix(".błąd")
+        if not wynik_path.exists() and not błąd_path.exists():
+            print(f"PORAŻKA {plik.name}: brak pliku {wynik_path.name} "
+                  f"ani {błąd_path.name}")
             porazki += 1
             continue
-        oczekiwane = wynik_path.read_text(encoding="utf-8")
         # Opcjonalny plik NAZWA.argumenty: linie przekazywane programowi
         # po znaczniku `--` (argumenty `działać`).
         argumenty = []
@@ -53,6 +58,22 @@ def main():
             [sys.executable, str(GCC), "--redis", str(plik), *argumenty],
             capture_output=True, text=True, input=wejście, env=ŚRODOWISKO,
         )
+        if błąd_path.exists():
+            wzorce = [w for w in błąd_path.read_text(
+                encoding="utf-8").splitlines() if w.strip()]
+            if proces.returncode == 0:
+                print(f"PORAŻKA {plik.name}: miał odpaść, przeszedł")
+                porazki += 1
+            elif not all(w in proces.stderr for w in wzorce):
+                print(f"PORAŻKA {plik.name}: stderr bez oczekiwanego "
+                      f"wzorca")
+                print(f"  oczekiwane fragmenty: {wzorce!r}")
+                print(f"  stderr: {proces.stderr.rstrip()}")
+                porazki += 1
+            else:
+                print(f"OK      {plik.name}")
+            continue
+        oczekiwane = wynik_path.read_text(encoding="utf-8")
         if proces.returncode != 0:
             print(f"PORAŻKA {plik.name}: exit {proces.returncode}")
             print(proces.stderr.rstrip())

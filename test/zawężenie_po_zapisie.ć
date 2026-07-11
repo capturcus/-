@@ -1,0 +1,27 @@
+# Remedia na zgaszony cień zawężenia: gałąź, która przepisuje podmiot,
+# nie widzi go wąsko — ale wiązania `z …` to migawki wartości z wejścia,
+# a po zapisie wolno zawęzić ponownie dopasowaniem `jest:`.
+
+definicja Kota:
+    imię (Znak)
+
+definicja Psa:
+    kość (Znak)
+
+Zwierzę to Kot albo Pies
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    okaz (Zwierzę) to Kot o imieniu 'm'
+    okaz jest:
+        Kotem z imieniem:
+            wypisz imię
+            okaz to Pies o kości 'k'
+            okaz jest:
+                Psem:
+                    wypisz kość okazu
+                Kotem:
+                    wypisz 'x'
+        Psem:
+            wypisz 'p'

@@ -1,0 +1,10 @@
+# Inspiracja: OCaml typing-rectypes — typy rekurencyjne.
+# Poprawny μ-typ: element listy staje się samą listą przez join
+# Nic ⊔ Ogniwo = Lista. Typechecker i materializacja muszą terminować.
+
+uwzględnij przygrywka.ć
+
+aby działać:
+    węzeł to Ogniwo o głowie Nic o ogonie Nic
+    głowa węzła to węzeł
+    wypisz zero

@@ -591,3 +591,15 @@ def test_leniwy_tekst_duży_plik_w_obie_strony(run, capsys, tmp_path):
     )
     run(src)
     assert capsys.readouterr().out.splitlines() == ["24576", "prawda"]
+
+
+def test_brak_pola_nazywa_pole_z_frozensetu():
+    """Nieścisłość #15: scope-keys pola to frozenset krotek — komunikat
+    o brakującym polu ma nazwać pole i typ wartości, a nie paść
+    TypeErrorem przy własnej budowie."""
+    wartość = executor.RuntimeValue(value={}, type="Pies")
+    klucze = frozenset({(("imię",), "sg", "m2"), (("imię",), "sg", "n")})
+    błąd = executor._brak_pola("odczyt", wartość, klucze)
+    assert "pola 'imię'" in str(błąd)
+    assert "Pies" in str(błąd)
+    assert executor._brak_pola("zapis", wartość, frozenset())

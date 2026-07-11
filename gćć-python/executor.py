@@ -88,7 +88,7 @@ class ContinueUnwind(Exception):
 def _brak_pola(czynność, struct, keys):
     """Błąd odczytu/zapisu pola: nazwa pola i typ wartości zamiast surowych
     scope-keys; lokalizację (linia, funkcja) dokleja `execute` ze stosu."""
-    nazwa = "_".join(keys[0][0]) if keys else "?"
+    nazwa = min(("_".join(k[0]) for k in keys), default="?")
     return RuntimeError(
         f"{czynność} pola '{nazwa}' z wartości typu '{struct.type}' — "
         f"wartość nie jest wariantem posiadającym to pole")

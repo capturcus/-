@@ -1548,10 +1548,10 @@ def resolve_assignment(node, scope):
             ogranicz(outer_t, explicit_t)
         else:
             ogranicz(value_type, outer_t)
-        # Zapis do nazwy podmiotu idzie WYŁĄCZNIE na zewnątrz — cień
-        # zawężenia zostaje wąski (idiom kursora czyta głowę i przesuwa
-        # wskaźnik w tej samej gałęzi); odczyty PO bloku widzą typ
-        # zewnętrzny, uczciwie poszerzony o zapis.
+        # Zapis do nazwy podmiotu idzie WYŁĄCZNIE na zewnątrz (idiom
+        # kursora przesuwa wskaźnik w swojej gałęzi); gałąź zawierająca
+        # taki zapis w ogóle nie dostaje cienia zawężenia — patrz
+        # _cień_i_ciało.
         return
     target_type = resolve_expression(target, scope)
     _set_note("zapis pola przez łańcuch dopełniaczowy")
@@ -1786,6 +1786,71 @@ def _unions_for_partial_match(subject_t, branch_heads, line):
     return cands
 
 
+def _linia_zapisu_do(stmts, keys):
+    """Linia pierwszego przypisania do zmiennej o kluczach `keys` w bloku,
+    rekurencyjnie przez zagnieżdżone jeśli/dopóki/jest: (zapis w bloku
+    wewnętrznym wykonuje się w ramach zewnętrznego); None gdy zapisu brak,
+    0 gdy zapis istnieje, ale nie zna swojej linii."""
+    for stmt in stmts:
+        if isinstance(stmt, ast.Assignment):
+            target = stmt.target.resolved
+            if isinstance(target, ast.Typed):
+                target = target.expr
+            if isinstance(target, ast.Identifier) and any(
+                    ast.scope_key_matches(a, b)
+                    for a in keys for b in target.scope_keys):
+                return _node_line(stmt) or 0
+        elif isinstance(stmt, ast.If):
+            linia = (_linia_zapisu_do(stmt.then_body, keys)
+                     or _linia_zapisu_do(stmt.else_body, keys))
+            if linia is not None:
+                return linia
+        elif isinstance(stmt, ast.While):
+            linia = _linia_zapisu_do(stmt.body, keys)
+            if linia is not None:
+                return linia
+        elif isinstance(stmt, ast.Match):
+            for gałąź in stmt.branches:
+                linia = _linia_zapisu_do(gałąź.body, keys)
+                if linia is not None:
+                    return linia
+    return None
+
+
+def _cień_i_ciało(br, br_scope, subject, inst):
+    """Cień zawężenia dostaje wyłącznie gałąź, która NIGDZIE nie
+    przepisuje podmiotu — decyduje istnienie zapisu, nie jego pozycja
+    (pętla w gałęzi wykonuje odczyty sprzed zapisu również PO nim,
+    a strażnik wariantu sprawdza się tylko przy wejściu do gałęzi).
+    Wiązania `z …` i alias `jako` to migawki wartości z wejścia, więc
+    zapis ich nie unieważnia. Gałąź bez cienia dokleja do swoich błędów
+    wskazówkę, czemu zawężenie nie obowiązuje."""
+    zapis = None
+    if inst is not None and isinstance(subject, ast.Identifier):
+        zapis = _linia_zapisu_do(br.body, subject.scope_keys)
+        if zapis is None:
+            br_scope.declare_shadow(subject, inst)
+    if zapis is None:
+        for stmt in br.body:
+            resolve_statement(stmt, br_scope)
+        return
+    nazwa = "_".join(subject.surface)
+    gdzie = f"linia {zapis}" if zapis else "w tej gałęzi"
+    hint = (f"uwaga: zawężenie z gałęzi '{'_'.join(br.type_name)}:' "
+            f"(linia {br.line}) nie obowiązuje, bo gałąź przepisuje "
+            f"'{nazwa}' ({gdzie}) — odczyty '{nazwa}' widzą typ sprzed "
+            f"dopasowania; czytaj pola przez wiązania `z …` albo alias "
+            f"`jako` (migawki wartości), albo zawęź ponownie "
+            f"dopasowaniem `jest:` po zapisie")
+    for stmt in br.body:
+        try:
+            resolve_statement(stmt, br_scope)
+        except TypeCheckError as e:
+            if "nie obowiązuje, bo gałąź przepisuje" in str(e):
+                raise
+            raise TypeCheckError(f"{e}\n  — {hint}") from None
+
+
 def resolve_match(node, scope):
     subject_t = resolve_expression(node.subject, scope)
     _set_note("podmiot dopasowania 'jest:'")
@@ -1843,6 +1908,7 @@ def resolve_match(node, scope):
             # niejawne argumenty z unią podmiotu (po nazwach).
             br_scope = scope.child_for(br, "body")
             głowa_br = "".join(br.type_name)
+            inst = None
             if członkowie(głowa_br) is not None:
                 inst = _unia_applied(głowa_br)
                 if linked is not None:
@@ -1851,13 +1917,9 @@ def resolve_match(node, scope):
                         ogranicz(linked.args[j], inst.args[i])
                 if br.alias is not None:
                     br_scope.declare(br.alias, inst)
-                subject = node.subject.resolved
-                if isinstance(subject, ast.Identifier):
-                    br_scope.declare_shadow(subject, inst)
             elif br.alias is not None:
                 br_scope.declare(br.alias, Konkret(głowa_br))
-            for stmt in br.body:
-                resolve_statement(stmt, br_scope)
+            _cień_i_ciało(br, br_scope, node.subject.resolved, inst)
             continue
         inst, env = _instancja_struktury(sd)
         if linked is not None:
@@ -1885,11 +1947,7 @@ def resolve_match(node, scope):
             br_scope.declare(fid, elaborate(f.type, env))
         if br.alias is not None:
             br_scope.declare(br.alias, inst)
-        subject = node.subject.resolved
-        if isinstance(subject, ast.Identifier):
-            br_scope.declare_shadow(subject, inst)
-        for stmt in br.body:
-            resolve_statement(stmt, br_scope)
+        _cień_i_ciało(br, br_scope, node.subject.resolved, inst)
 
 
 def _find_field_for_ident(struct_def, ident):

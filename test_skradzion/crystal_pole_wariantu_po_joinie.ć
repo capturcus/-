@@ -1,0 +1,18 @@
+# Inspiracja: Crystal union_spec — po joinie gałęzi pole obecne tylko
+# w jednym wariancie wymaga zawężenia.
+
+definicja Kota:
+    imię (Znak)
+
+definicja Psa:
+    kość (Znak)
+
+Zwierzę to Kot albo Pies
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    pupil to Kot o imieniu 'm'
+    jeśli prawda:
+        pupil to Pies o kości 'k'
+    wypisz imię pupila

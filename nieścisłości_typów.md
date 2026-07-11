@@ -192,6 +192,57 @@ typu (Liczba) → Liczba — funkcje nie mają pól; wywołanie to
 - rekurencyjna aplikacja parametru `Drzewo dla (Drzewo dla rzeczy)`,
 - remis dwóch minimalnych unii przy polu wspólnym → czysty błąd remisu.
 
+## Runda 3 — testy skradzione z suit innych kompilatorów (2026-07-12)
+
+Nowy katalog **`test_skradzion/`**: 13 scenariuszy zachowań systemów
+typów zaczerpniętych z suit OCamla (typing-poly/rectypes/misc), Flow
+(refinements/recursive_defs), Crystala (semantic: if/union/recursive
+struct) i TypeScriptu (narrowing/excess property), przepisanych na
+oryginalne programy w Ć. Runner jak w `test/` + rozszerzenie: pary
+`NAZWA.ć`+`NAZWA.błąd` to testy NEGATYWNE (program ma odpaść, stderr
+musi zawierać wzorce). Stan: **13/13 przechodzi**.
+
+### 14. DZIURA: zawężenie nieunieważniane przez przypisanie do podmiotu ✔
+Scenariusz wprost z suity refinements Flow („refinement invalidation"):
+
+    okaz (Zwierzę) to Kot o imieniu 'm'
+    okaz jest:
+        Kotem:
+            okaz to Pies o kości 'k'     # zapis idzie na ZEWNĄTRZ…
+            wypisz imię okazu            # …ale cień gałęzi dalej mówił Kot
+
+Typechecker PRZEPUSZCZAŁ odczyt `imię`, runtime czytał `imię` z Psa →
+brak pola. Rozważona i ODRZUCONA naprawa: kasowanie cienia w miejscu
+zapisu (porządek tekstowy). Kontrprzykład — pętla wewnątrz gałęzi
+wykonuje odczyt sprzed zapisu również PO nim (krawędź powrotna):
+
+    Kotem:
+        dopóki prawda:
+            wypisz imię okazu            # tekstowo PRZED zapisem…
+            okaz to Pies o kości 'k'     # …dynamicznie także PO nim
+
+**Naprawa (bez analizy przepływu, w duchu „ograniczenie z istnienia
+kodu")**: cień zawężenia dostaje wyłącznie gałąź, która NIGDZIE nie
+przepisuje podmiotu (`_cień_i_ciało` + rekurencyjny skan
+`_linia_zapisu_do` przez zagnieżdżone jeśli/dopóki/jest:). Poprawność:
+wiązania `z …` i alias `jako` to migawki wartości z wejścia do gałęzi,
+funkcje nie mogą przepisać cudzej zmiennej lokalnej, więc bez zapisu
+w gałęzi wartość podmiotu między strażnikiem wariantu a odczytem się
+nie zmienia. Idiom kursora przechodzi bez zmian (czyta przez wiązania).
+Gałąź bez cienia dokleja do swoich błędów wskazówkę z linią zapisu
+i remediami (wiązania/alias, ponowne `jest:` po zapisie). Testy:
+`test/zawężenie_unieważnione(.ć/_pętlą.ć)` (negatywne — runner test/
+umie już pary `.ć`+`.błąd`), `test/zawężenie_po_zapisie.ć` (pozytyw),
+7 pytestów w test_typechecker.py.
+
+### 15. BUG diagnostyki runtime: `_brak_pola` wywala się na frozensecie ✔
+Przy okazji #14: zamiast komunikatu o brakującym polu executor padał
+z `TypeError: 'frozenset' object is not subscriptable`
+(`nazwa = "_".join(keys[0][0])` zakładał inny kształt klucza; scope-keys
+to frozenset krotek). Naprawione deterministycznym wyborem nazwy:
+`min(("_".join(k[0]) for k in keys), default="?")`; test w
+test_diagnostyka.py.
+
 ## Pozostałe rysy (świadomie poza zakresem tej sesji)
 
 - surowe tracebacki Pythona z builtinów (`ord()`, `+`) przy błędach

@@ -1,0 +1,13 @@
+# Inspiracja: Crystal recursive_struct_check — struktura ściśle
+# samoreferencyjna (bez unii z Nic po drodze). W Ć deklaracja jest
+# legalna (struktury są referencyjne), ale skonstruować się nie da:
+# pierwszemu Węzłowi nie ma co włożyć w pole `następca`.
+
+można wypisać coś (Cokolwiek) -> Nic
+
+definicja Węzła:
+    następca (Węzeł)
+
+aby działać:
+    korzeń to Węzeł o następcy (Węzeł o następcy Nic)
+    wypisz korzeń

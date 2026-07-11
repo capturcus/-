@@ -1,0 +1,8 @@
+# Inspiracja: OCaml typing-misc (aplikacja nie-funkcji) — wywołanie
+# wartości niebędącej funkcją to czysty błąd typów, nie crash.
+
+uwzględnij przygrywka.ć
+
+aby działać:
+    piątka to pięć
+    wypisz zastosuj piątkę z dwa

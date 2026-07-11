@@ -1,0 +1,12 @@
+# Inspiracja: OCaml typing-poly — jedna funkcja generyczna użyta na
+# trzech niepowiązanych typach (świeża instancja per wywołanie).
+
+uwzględnij przygrywka.ć
+
+aby powtórzyć rzecz:
+    zwróć rzecz
+
+aby działać:
+    wypisz powtórz pięć
+    wypisz powtórz 'a'
+    wypisz zmierz (powtórz (Ogniwo o głowie prawda o ogonie Nic))

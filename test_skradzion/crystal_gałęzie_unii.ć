@@ -1,0 +1,19 @@
+# Inspiracja: Crystal if_spec — gałęzie warunku przypisują różne
+# warianty; typ po bloku to join (zadeklarowana unia), a pole wspólne
+# czyta się bez zawężania.
+
+definicja Kota:
+    znak (Znak)
+
+definicja Psa:
+    znak (Znak)
+
+Zwierzę to Kot albo Pies
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby działać:
+    pupil to Kot o znaku 'k'
+    jeśli prawda:
+        pupil to Pies o znaku 'p'
+    wypisz znak pupila

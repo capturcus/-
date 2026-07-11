@@ -1,0 +1,16 @@
+# Inspiracja: Crystal while/var spec — zmienna pętli akumuluje typ
+# przez iteracje (idiom kursora po liście).
+
+uwzględnij przygrywka.ć
+
+aby działać:
+    reszta to Ogniwo o głowie jeden o ogonie (Ogniwo o głowie dwa o ogonie (Ogniwo o głowie trzy o ogonie Nic))
+    suma to zero
+    dopóki prawda:
+        reszta jest:
+            Niczym:
+                stop
+            Ogniwem z głową z ogonem:
+                suma to suma plus głowa
+                reszta to ogon
+    wypisz suma

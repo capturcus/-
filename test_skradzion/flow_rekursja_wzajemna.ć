@@ -1,0 +1,18 @@
+# Inspiracja: Flow recursive_defs — wzajemna rekursja bez deklaracji
+# wyprzedzających (SCC typowane razem).
+
+uwzględnij przygrywka.ć
+
+aby sprawdzić_parzystość liczby:
+    jeśli liczba równa zero:
+        zwróć prawdę
+    zwróć sprawdź_nieparzystość (liczba minus jeden)
+
+aby sprawdzić_nieparzystość liczby:
+    jeśli liczba równa zero:
+        zwróć fałsz
+    zwróć sprawdź_parzystość (liczba minus jeden)
+
+aby działać:
+    wypisz sprawdź_parzystość dziesięciu
+    wypisz sprawdź_nieparzystość dziesięciu

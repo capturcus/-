@@ -551,6 +551,15 @@ dopóki prawda:
             reszta to ogon        # przesuwa kursor — zapis na zewnątrz
 ```
 
+Uwaga: gałąź, która **przepisuje podmiot** (jak wyżej `reszta to ogon`),
+nie widzi go już wąsko — po zapisie nazwa może wskazywać dowolny wariant,
+a pętla wykonuje nawet wcześniejsze odczyty PO zapisie, więc o utracie
+zawężenia decyduje samo istnienie zapisu w gałęzi, nie jego miejsce.
+Wiązania `z głową z ogonem` i alias `jako` to **migawki wartości**
+z wejścia do gałęzi — zapis ich nie psuje (dlatego kursor czyta przez
+nie). Kto potrzebuje wąskiego odczytu po zapisie, zawęża ponownie
+dopasowaniem `jest:`.
+
 Semantyka typowa dopasowania (wnioskowanie unii podmiotu, zawężanie,
 niejednoznaczność) — w [systemie typów](#zawężanie-przez-dopasowanie).
 
