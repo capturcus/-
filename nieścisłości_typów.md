@@ -202,6 +202,21 @@ oryginalne programy w Ć. Runner jak w `test/` + rozszerzenie: pary
 `NAZWA.ć`+`NAZWA.błąd` to testy NEGATYWNE (program ma odpaść, stderr
 musi zawierać wzorce). Stan: **13/13 przechodzi**.
 
+Runda 4 (po naprawie #14): +15 scenariuszy → **28/28** (occur check,
+monomorfizm parametru vs generalizacja po SCC, przecięcie strzałek
+w martwym kodzie, currying, funkcja częściowa, havoc po wywołaniu —
+w Ć zawężenie przeżywa, poszerzanie argumentów tej samej głowy, gałąź
+spoza unii, hierarchia unii, generyk dwuparametrowy, migawka
+domknięcia zwiąż, wariancja strzałek w OBU kierunkach, opcjonalność
+przez Nic). **Zero nowych dziur** — wszystko albo przechodzi zgodnie
+z semantyką, albo odpada z czystym, pouczającym komunikatem. Warte
+odnotowania zachowania na granicy: samoaplikacja typuje się w ciele
+jako μ-strzałka (jak OCaml z -rectypes), konflikt ujawnia wywołanie;
+niewywoływana funkcja o parametrze użytym na dwóch niezgodnych typach
+typuje się (przecięcie po stronie ujemnej, MLsub-zgodne) i jest
+niewywoływalna; kontrawariancja parametru strzałki działa w kierunku
+zdrowym, a niezdrowy odpada z receptą zawężenia.
+
 ### 14. DZIURA: zawężenie nieunieważniane przez przypisanie do podmiotu ✔
 Scenariusz wprost z suity refinements Flow („refinement invalidation"):
 

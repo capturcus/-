@@ -1,0 +1,27 @@
+# Inspiracja: Crystal is_a_spec — hierarchia unii (unia w unii):
+# zewnętrzne dopasowanie zawęża do pod-unii, wewnętrzne do liścia.
+uwzględnij przygrywka.ć
+
+definicja Kota:
+    imię (Znak)
+
+definicja Psa:
+    kość (Znak)
+
+definicja Wróbla:
+    pióro (Znak)
+
+Ssak to Kot albo Pies
+Stworzenie to Ssak albo Wróbel
+
+aby działać:
+    gość (Stworzenie) to Pies o kości 'k'
+    gość jest:
+        Ssakiem:
+            gość jest:
+                Kotem:
+                    wypisz imię gościa
+                Psem:
+                    wypisz kość gościa
+        Wróblem:
+            wypisz pióro gościa

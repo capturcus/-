@@ -1,0 +1,15 @@
+# Inspiracja: OCaml typing-poly — parametr funkcji jest MONOMORFICZNY
+# (lambda-bound, nie let-bound): użycie na Liczbie i Znaku odpada
+# w miejscu wywołania.
+uwzględnij przygrywka.ć
+
+aby używać z narzędziem:
+    pierwszy to zastosuj narzędzie z jednym
+    drugi to zastosuj narzędzie ze 'z'
+    zwróć drugi
+
+aby podwoić liczbę (Liczba) -> Liczba:
+    zwróć liczba razy dwa
+
+aby działać:
+    wypisz używaj z podwojeniem

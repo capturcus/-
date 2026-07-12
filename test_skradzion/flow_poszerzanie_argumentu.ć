@@ -1,0 +1,8 @@
+# Inspiracja: Flow object_widening — dwa przypisania tej samej głowy
+# o niezgodnych argumentach typu unifikują argumenty natychmiast.
+uwzględnij przygrywka.ć
+
+aby działać:
+    skrzynka to Ogniwo o głowie jeden o ogonie Nic
+    skrzynka to Ogniwo o głowie 'a' o ogonie Nic
+    wypisz zmierz skrzynkę

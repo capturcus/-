@@ -1,0 +1,21 @@
+# Inspiracja: TS strictFunctionTypes — kierunek NIEPOPRAWNY:
+# obsługa oczekująca dokładnie Kota dostaje całą unię Zwierzę
+# (w runtime może być Pies) — odrzucone z receptą zawężenia.
+uwzględnij przygrywka.ć
+
+definicja Kota:
+    imię (Znak)
+
+definicja Psa:
+    kość (Znak)
+
+Zwierzę to Kot albo Pies
+
+aby obsłużyć zwierzaka (Zwierzę) obsługą:
+    zastosuj obsługa ze zwierzakiem
+
+aby pogłaskać kota (Kot):
+    wypisz imię kota
+
+aby działać:
+    obsłuż (Pies o kości 'k') pogłaskaniem

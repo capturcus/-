@@ -1,0 +1,14 @@
+# Inspiracja: OCaml typing-poly (currying) — funkcja zwraca wartość
+# funkcyjną (rzeczownik odczasownikowy), która przyjmuje aplikację
+# dwuargumentową.
+uwzględnij przygrywka.ć
+
+aby dodać pierwszą (Liczba) do drugiej (Liczba) -> Liczba:
+    zwróć pierwsza plus druga
+
+aby wydać_narzędzie:
+    zwróć dodanie
+
+aby działać:
+    narzędzie to wydaj_narzędzie
+    wypisz zastosuj narzędzie z dwoma z trzema

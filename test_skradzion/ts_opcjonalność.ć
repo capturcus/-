@@ -1,0 +1,27 @@
+# Inspiracja: TS strictNullChecks — wartość opcjonalna jako unia
+# z Nic; pole dostępne dopiero po zawężeniu.
+uwzględnij przygrywka.ć
+
+definicja Monety:
+    nominał (Liczba)
+
+Znalezisko to Moneta albo Nic
+
+aby szukać w piasku (Liczba) -> Znalezisko:
+    jeśli piasek większy od pięciu:
+        zwróć Moneta o nominale piasek
+    zwróć Nic
+
+aby działać:
+    łup to szukaj w dziesięciu
+    łup jest:
+        Monetą:
+            wypisz nominał łupu
+        Niczym:
+            wypisz zero
+    pudło to szukaj w dwóch
+    pudło jest:
+        Monetą:
+            wypisz nominał pudła
+        Niczym:
+            wypisz zero

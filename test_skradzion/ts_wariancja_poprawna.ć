@@ -1,0 +1,21 @@
+# Inspiracja: TS strictFunctionTypes — kontrawariancja parametru:
+# obsługa (Zwierzę) -> Nic tam, gdzie wnioskowano (Kot) -> Nic,
+# jest bezpieczna i przechodzi.
+uwzględnij przygrywka.ć
+
+definicja Kota:
+    imię (Znak)
+
+definicja Psa:
+    kość (Znak)
+
+Zwierzę to Kot albo Pies
+
+aby potraktować kota (Kot) narzędziem:
+    zastosuj narzędzie z kotem
+
+aby zagłaskać zwierzaka (Zwierzę):
+    wypisz 'z'
+
+aby działać:
+    potraktuj (Kot o imieniu 'm') zagłaskaniem

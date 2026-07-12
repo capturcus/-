@@ -1,0 +1,13 @@
+# Inspiracja: OCaml typing-poly — funkcja rekurencyjna jest
+# monomorficzna WEWNĄTRZ swojego SCC, a generalizowana po nim:
+# po definicji działa na Liczbie i na Znaku.
+uwzględnij przygrywka.ć
+
+aby powielić rzecz przez krotność:
+    jeśli krotność równa zero:
+        zwróć Nic
+    zwróć Ogniwo o głowie rzecz o ogonie (powiel rzecz przez (krotność minus jeden))
+
+aby działać:
+    wypisz zmierz (powiel pięć przez trzy)
+    wypisz zmierz (powiel 'a' przez dwa)

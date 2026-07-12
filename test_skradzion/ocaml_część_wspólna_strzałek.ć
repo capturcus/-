@@ -1,0 +1,13 @@
+# Inspiracja: OCaml typing-misc/conjunctive_types — NIEWYWOŁYWANA
+# funkcja o parametrze użytym na dwóch niezgodnych typach typuje się
+# (przecięcie strzałek po stronie ujemnej); konflikt ujawnia dopiero
+# wywołanie (patrz ocaml_monomorfizm_parametru).
+uwzględnij przygrywka.ć
+
+aby używać z narzędziem:
+    pierwszy to zastosuj narzędzie z jednym
+    drugi to zastosuj narzędzie ze 'z'
+    zwróć drugi
+
+aby działać:
+    wypisz 'x'

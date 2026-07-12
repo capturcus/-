@@ -1,0 +1,21 @@
+# Inspiracja: Flow refinements — gałąź dopasowania spoza unii
+# podmiotu to błąd (martwa gałąź = sprzeczna narracja).
+uwzględnij przygrywka.ć
+
+definicja Kota:
+    imię (Znak)
+
+definicja Psa:
+    kość (Znak)
+
+Zwierzę to Kot albo Pies
+
+aby działać:
+    okaz (Zwierzę) to Kot o imieniu 'm'
+    okaz jest:
+        Kotem:
+            wypisz 'k'
+        Ogniwem:
+            wypisz 'o'
+        Psem:
+            wypisz 'p'

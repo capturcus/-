@@ -1,0 +1,24 @@
+# Inspiracja: Flow refinements/havoc — Flow unieważnia zawężenie po
+# wywołaniu funkcji (aliasowanie); w Ć wywołanie nie może przepisać
+# cudzej zmiennej lokalnej, więc zawężenie przeżywa.
+uwzględnij przygrywka.ć
+
+definicja Kota:
+    imię (Znak)
+
+definicja Psa:
+    kość (Znak)
+
+Zwierzę to Kot albo Pies
+
+aby hałasować:
+    wypisz 'h'
+
+aby działać:
+    okaz (Zwierzę) to Kot o imieniu 'm'
+    okaz jest:
+        Kotem:
+            hałasuj
+            wypisz imię okazu
+        Psem:
+            wypisz 'p'

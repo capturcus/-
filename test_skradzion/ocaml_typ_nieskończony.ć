@@ -1,0 +1,10 @@
+# Inspiracja: OCaml typing-misc/occur_check — samoaplikacja.
+# W Ć μ-strzałka w ciele typuje się (jak -rectypes), ale wywołanie
+# z wartością niefunkcyjną odpada czysto.
+uwzględnij przygrywka.ć
+
+aby psocić z figlem:
+    zwróć zastosuj figiel z figlem
+
+aby działać:
+    wypisz psoć z pięcioma

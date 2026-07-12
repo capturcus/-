@@ -1,0 +1,19 @@
+# Inspiracja: Crystal generic_class_spec — struktura o dwóch
+# parametrach typu; zamiana miejscami instancjonuje odwrotnie,
+# podwójna zamiana wraca do wyjścia.
+uwzględnij przygrywka.ć
+
+definicja Spinki z klucza na wartość:
+    klucz (klucz)
+    wartość (wartość)
+
+aby przewrócić spinkę:
+    zwróć Spinka o kluczu (wartość spinki) o wartości (klucz spinki)
+
+aby działać:
+    komplet to Spinka o kluczu pięć o wartości 'x'
+    odwrotka to przewróć komplet
+    wypisz klucz odwrotki
+    wypisz wartość odwrotki
+    dubel to przewróć odwrotkę
+    wypisz klucz dubla
