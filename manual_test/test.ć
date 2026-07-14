@@ -1,3 +1,5 @@
+uwzględnij przygrywka.ć
+
 definicja Tulipana:
     płatek (Tekst)
 
@@ -8,16 +10,6 @@ definicja Bratka:
     płatek (Tekst)
 
 Kwiatki to Róża albo Tulipan albo Bratek
-
-definicja Sukcesu z elementem:
-    wartość (element)
-
-definicja Błędu:
-    opis (Tekst)
-
-Rezultat to Sukces albo Błąd
-
-można wypisać coś (Cokolwiek) -> Nic
 
 aby dodać rzecz do drugiej_rzeczy:
     zwróć rzecz plus druga_rzecz
@@ -43,7 +35,7 @@ aby przetwarzać:
     zwróć Sukces o wartości ((wybrałbyś?) plus jeden)
 
 aby ryzykować:
-    zwróć Sukces o wartości ((zawiódłbyś?) plus jeden)
+    zwróć Sukces o wartości zawiódłbyś? plus jeden
 
 aby działać:
     wypisz "siemka"
@@ -59,3 +51,11 @@ aby działać:
     wypisz (ryzykuj)
     wypisz (pakuj siedem)
     wypisz (licz)
+    sesja to Sesja o identyfikatorze pięć o aktywnej fałsz
+    wypisz sesję
+    jeśli nie aktywna sesji:
+        wypisz "nieaktywna"
+
+definicja Sesji:
+    identyfikator (Liczba)
+    aktywna (Przełącznik)

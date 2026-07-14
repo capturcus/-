@@ -124,7 +124,9 @@ aby ogłosić rozgrywkę:
             zwróć Nic
 
 aby działać:
-    otwórz_okno o sześciuset o czterysta pięćdziesiąt z "Wąż"
+    wysokość to sześćset
+    szerokość to czterysta pięćdziesiąt
+    otwórz_okno o wysokości o szerokości z "Wąż"
     malowanie to zwiąż namalowanie z dobierz_barwę "zieleń"
     początek to Ogniwo o głowie Pole o kolumnie dziesięć o wierszu siedem o ogonie Nic
     stan to Pełzanie o segmentach początek o kierunku Pole o kolumnie jeden o wierszu zero o owocu wylosuj_owoc poza początkiem

@@ -481,7 +481,7 @@ aby rozebrać_przeczenie przez parser od pozycji:
     połów to wyłów_operatora z (żetony parsera) na pozycji
     połów jest:
         Sukcesem z wartością:
-            jeśli ranga wartości równe "przeczenie":
+            jeśli ranga wartości równa "przeczenie":
                 wnętrze to rozebrałbyś_przeczenie przez parser od (pozycja plus jeden)?
                 zwróć Sukces o wartości (Stan o drzewie (Przeczenie o symbolu (symbol wartości) o argumencie (drzewo wnętrza)) o pozycji (pozycja wnętrza))
             ignoruj połów

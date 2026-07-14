@@ -1,6 +1,6 @@
 # Przygrywka: wspólne typy i operacje listowo-tekstowe. W module z
 # przygrywką `Tekst` przestaje być typem wbudowanym — alias przesłania
-# builtin i tekst staje się listą znaków. Literały tekstowe desugarują
+# wbudowańca i tekst staje się listą znaków. Literały tekstowe desugarują
 # się w wykonaniu do łańcucha ogniw; pusty tekst ≡ Nic (świadoma decyzja).
 #
 # Funkcje listowe są generyczne po elemencie (niejawny parametr unii
@@ -72,7 +72,7 @@ aby skleić listę (Lista) z resztą (Lista) -> Lista:
 aby przełożyć listę (Lista) na stos (Lista) -> Lista:
     lista jest:
         Ogniwem z głową z ogonem:
-            zwróć przełóż ogon na (Ogniwo o głowie głowa o ogonie stos)
+            zwróć przełóż ogon na Ogniwo z głową o ogonie stos
         Niczym:
             zwróć stos
 

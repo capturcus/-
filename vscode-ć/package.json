@@ -38,6 +38,11 @@
         "label": "Ć — biało-czerwony",
         "uiTheme": "vs",
         "path": "./themes/bialo-czerwony-color-theme.json"
+      },
+      {
+        "label": "Ć — czerwono-biały",
+        "uiTheme": "vs-dark",
+        "path": "./themes/czerwono-bialy-color-theme.json"
       }
     ]
   }

@@ -1,4 +1,4 @@
-# Gra: builtiny graficzne (pygame) w trybie natychmiastowym. Program
+# Gra: wbudowańce graficzne (pygame) w trybie natychmiastowym. Program
 # otwiera okno, rysuje w pętli i odpytuje wejście; `pokaż_klatkę` wyświetla
 # narysowaną klatkę, ogranicza tempo do 30 klatek na sekundę, zbiera
 # wydarzenia (dla `pobierz_wydarzenia`) i czyści ekran pod następną
