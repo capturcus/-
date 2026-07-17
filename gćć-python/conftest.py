@@ -10,6 +10,12 @@ import os
 import pytest
 
 import morph_anal
+import typechecker
+
+# Tryb deweloperski typecheckera: poszlaka zapisana pod notą ogólną
+# (ścieżka bez własnego _set_note) = głośny AssertionError. Testy wymuszają
+# kompletność not; zwykłe uruchomienia gćć.py degradują się do ogólnika.
+typechecker._wymuś_noty = True
 
 SGJP_PATH = os.path.join(os.path.dirname(__file__), "..", "sgjp.tab")
 

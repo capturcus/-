@@ -87,6 +87,23 @@ def test_unify_error_lists_clues_about_both_sides(parse):
     assert "zadeklaruj unię" in msg          # sugestia naprawy
 
 
+@pytest.mark.integration
+def test_poszlaka_użycia_nazywa_operator(parse):
+    """Wymaganie z użycia w wyrażeniu ma konkretną notę (operand, słowo
+    z programu — nie symbol), zamiast dawnego ogólnika 'wnioskowanie'."""
+    src = (
+        "aby działać:\n"
+        "    rzecz to jeden\n"
+        "    wynik to rzecz plus jeden\n"
+        "    rzecz to 'z'\n"
+    )
+    with pytest.raises(typechecker.TypeCheckError) as ei:
+        typechecker.resolve_module(parse(src))
+    msg = str(ei.value)
+    assert "operand 'plus' — wymaga Liczby" in msg
+    assert "wnioskowanie" not in msg
+
+
 # =====================================================================
 # Pkt 2 + 20 — Ć-owy stos wywołań; przekroczenie głębokości rekursji
 # =====================================================================

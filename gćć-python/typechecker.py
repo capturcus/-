@@ -26,6 +26,8 @@ o wielu kandydatach — zbiór możliwych głów zawężany kolejnymi
 granicami; nierozstrzygnięty w punkcie wejścia → błąd ujednoznacznienia.
 """
 
+import os
+
 import ast_nodes as ast
 from dataclasses import dataclass, field
 from type_parser import match_args_to_slots
@@ -42,12 +44,29 @@ class TypeCheckError(Exception):
 _ctx_line = None
 _ctx_fun = None
 _current_note = None
+_nota_ogólna = False
+
+# Tryb deweloperski (conftest ustawia wprost; poza testami GĆĆ_WYMUŚ_NOTY=1):
+# zapis poszlaki pod notą OGÓLNĄ (fallback z początku instrukcji) oznacza
+# ścieżkę bez własnego _set_note — głośny AssertionError zamiast ogólnika
+# w komunikacie. Zwykłe uruchomienia degradują się do noty ogólnej.
+_wymuś_noty = bool(os.environ.get("GĆĆ_WYMUŚ_NOTY"))
 
 
-def _set_note(text):
-    global _current_note
+def _set_note(text, *, ogólna=False):
+    global _current_note, _nota_ogólna
     _current_note = (f"linia {_ctx_line}: {text}"
                      if _ctx_line is not None else text)
+    _nota_ogólna = ogólna
+
+
+def _sprawdź_notę(typ):
+    """Strażnik trybu deweloperskiego: poszlaka zapisywana pod notą ogólną
+    = ścieżka typecheckera, która nie zawołała własnego _set_note."""
+    if _wymuś_noty and _nota_ogólna:
+        raise AssertionError(
+            f"ścieżka typecheckera bez własnego _set_note dodaje granicę "
+            f"{_render_typu(typ)} ({_current_note})")
 
 
 # ---------- typy ----------
@@ -552,6 +571,7 @@ def _dodaj_dolną(var, typ):
     join TEJ SAMEJ głowy unifikuje argumenty NATYCHMIAST (inwariancja pól
     — konflikt wybucha w linii przypisania-sprawcy, nie przy późniejszym
     odczycie); strzałka i konkret nie łączą się nigdy."""
+    _sprawdź_notę(typ)
     if any(t is typ or t == typ for t, _ in var.dolne):
         return False
     if isinstance(typ, Konkret):
@@ -591,6 +611,7 @@ def _dodaj_dolną(var, typ):
 
 
 def _dodaj_górną(var, typ):
+    _sprawdź_notę(typ)
     if any(t is typ or t == typ for t, _ in var.górne):
         return False
     if isinstance(typ, Konkret) and typ.głowa != ARROW:
@@ -1503,7 +1524,7 @@ def resolve_statement(node, scope):
     line = _node_line(node)
     if line is not None:
         _ctx_line = line
-        _set_note("wnioskowanie")
+        _set_note("użycie w tej linii", ogólna=True)
     try:
         if isinstance(node, ast.Assignment):
             return resolve_assignment(node, scope)
@@ -1568,6 +1589,7 @@ def resolve_return(node, scope):
 
 def resolve_if(node, scope):
     cond = resolve_expression(node.cond, scope)
+    _set_note("warunek 'jeśli' — musi być Przełącznikiem")
     ogranicz(cond, Konkret("Przełącznik"))
     for stmt in node.then_body:
         resolve_statement(stmt, scope.child_for(node, "then"))
@@ -1577,6 +1599,7 @@ def resolve_if(node, scope):
 
 def resolve_while(node, scope):
     cond = resolve_expression(node.cond, scope)
+    _set_note("warunek 'dopóki' — musi być Przełącznikiem")
     ogranicz(cond, Konkret("Przełącznik"))
     for stmt in node.body:
         resolve_statement(stmt, scope.child_for(node, "body"))
@@ -1850,6 +1873,7 @@ def _cień_i_ciało(br, br_scope, subject, inst):
 
 
 def resolve_match(node, scope):
+    global _ctx_line
     subject_t = resolve_expression(node.subject, scope)
     _set_note("podmiot dopasowania 'jest:'")
     branch_heads = []
@@ -1899,6 +1923,10 @@ def resolve_match(node, scope):
             for stmt in br.body:
                 resolve_statement(stmt, br_scope)
             continue
+        # Ciała wcześniejszych gałęzi przestawiły kontekst — wiązanie
+        # argumentów tej gałęzi z unią podmiotu dostaje własną notę.
+        _ctx_line = node.line
+        _set_note("wiązanie wariantu dopasowania 'jest:'")
         sd = find_struct_def(br.type_name)
         if sd is None:
             # Gałąź bez struktury: wbudowane Nic albo POD-UNIA
@@ -1977,6 +2005,19 @@ def _find_field_for_ident(struct_def, ident):
 _COMPARISON_OPS = {"<", ">", "<=", ">="}
 _EQUALITY_OPS = {"=", "!=", "≡"}
 
+# Operatory w notach poszlak po polsku — w źródle Ć nie ma symboli,
+# więc i komunikat pokazuje słowo z programu.
+_OP_PO_POLSKU = {
+    "+": "plus", "-": "minus", "*": "razy",
+    "<": "mniejsze od", ">": "większe od",
+    "<=": "mniejsze lub równe", ">=": "większe lub równe",
+    "=": "równe", "!=": "nierówne", "≡": "tożsame",
+}
+
+
+def _op_po_polsku(op):
+    return _OP_PO_POLSKU.get(op, op)
+
 
 def resolve_expression(node, scope):
     if isinstance(node, ast.Phrase):
@@ -1985,6 +2026,7 @@ def resolve_expression(node, scope):
         node = node.value
     if isinstance(node, ast.Typed):
         expr_t = resolve_expression(node.expr, scope)
+        _set_note("adnotacja typu")
         explicit_t = elaborate(node.type, {}, fresh_unknown=True)
         ogranicz(expr_t, explicit_t)
         return explicit_t
@@ -1992,15 +2034,19 @@ def resolve_expression(node, scope):
         return resolve_bin_op(node, scope)
     if isinstance(node, ast.UnaryOp):
         t = resolve_expression(node.operand, scope)
+        _set_note(f"operand '{_op_po_polsku(node.op)}' — wymaga Liczby")
         ogranicz(t, Konkret("Liczba"))
         return Konkret("Liczba")
     if isinstance(node, ast.Not):
         t = resolve_expression(node.operand, scope)
+        _set_note("operand 'nie' — musi być Przełącznikiem")
         ogranicz(t, Konkret("Przełącznik"))
         return Konkret("Przełącznik")
     if isinstance(node, (ast.And, ast.Or)):
+        spójnik = "i" if isinstance(node, ast.And) else "lub"
         for strona in (node.left, node.right):
             t = resolve_expression(strona, scope)
+            _set_note(f"operand '{spójnik}' — musi być Przełącznikiem")
             ogranicz(t, Konkret("Przełącznik"))
         return Konkret("Przełącznik")
     if isinstance(node, ast.FunctionCall):
@@ -2069,8 +2115,10 @@ def resolve_bin_op(node, scope):
     t0 = resolve_expression(node.left, scope)
     t1 = resolve_expression(node.right, scope)
     if node.op in _EQUALITY_OPS:
+        _set_note(f"porównanie '{_op_po_polsku(node.op)}'")
         _porównywalne(t0, t1, node.op)
         return Konkret("Przełącznik")
+    _set_note(f"operand '{_op_po_polsku(node.op)}' — wymaga Liczby")
     ogranicz(t0, Konkret("Liczba"))
     ogranicz(t1, Konkret("Liczba"))
     if node.op in _COMPARISON_OPS:
@@ -2141,6 +2189,7 @@ def resolve_apply(node, scope):
     args = [new_type() for _ in node.args]
     ret = new_type()
     strzałka = Konkret(ARROW, tuple(args) + (ret,))
+    _set_note(f"cel zastosowania (linia {node.line}) — musi być funkcją")
     try:
         ogranicz(t_f, strzałka)
     except TypeCheckError as e:
@@ -2207,6 +2256,8 @@ def resolve_try_call(node, scope):
     else:
         t = resolve_function_call(node.call, scope)
     r_inst = _unia_applied("Rezultat")
+    _set_note(f"wynik wywołania z '?' (linia {node.line}) — "
+              f"musi być Rezultatem")
     ogranicz(t, r_inst)
     _set_note(f"propagacja Błędu przez '?' (linia {node.line})")
     ogranicz(Konkret("Błąd"), scope.root_fdt.ret_type)
@@ -2236,11 +2287,13 @@ def resolve_struct_creation(node, scope):
     inst, env = _instancja_struktury(sd)
     for a in node.args:
         f = _find_field(sd, a.field_name)
+        nota_pola = (f"pole '{'_'.join(a.field_name[0])}' konstrukcji "
+                     f"'{'_'.join(node.type_name)}'")
+        _set_note(nota_pola)  # elaborate wiąże argumenty typu pola
         field_t = elaborate(f.type, env)
         if a.value is not None:
             value_t = resolve_expression(a.value, scope)
-            _set_note(f"pole '{'_'.join(a.field_name[0])}' konstrukcji "
-                      f"'{'_'.join(node.type_name)}'")
+            _set_note(nota_pola)
         else:
             value_t = scope.get_type(f.name)
             _set_note(f"skrót 'z {'_'.join(a.field_name[0])}' konstrukcji "
@@ -2472,6 +2525,8 @@ def _resolve_chain(words, base_t, line, opis_bazy):
     ogniwo wewnętrzne rozwiązuje się osobno, a reszta na jego wyniku —
     fakty bazy przepływają wtedy przez sprzężone instancje."""
     penultimate_word = words[-1]
+    _set_note(f"łańcuch '{'_'.join(penultimate_word.surface)} {opis_bazy}' "
+              f"(linia {line})")
     structs = _struktury_z_polem(penultimate_word)
     # Kandydaci łańcucha: struktury z polem + KAŻDA unia (pole wspólne
     # wszystkim liściom, o identycznym typie, czyta się i pisze przez
