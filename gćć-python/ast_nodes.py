@@ -127,8 +127,13 @@ class InterpreterError(SyntaxError):
     w pliku źródłowym) oraz `extra_context` (opcjonalny block tekstu z
     structural-context, np. 'w deklaracji struktury Foo (linia N)').
 
+    `nazwa` to polska etykieta klasy w wypisie dla użytkownika (gćć.py
+    drukuje `plik:linia: NazwaBłędu: komunikat`) — podklasy nadpisują.
+
     `SyntaxError` jako baza zapewnia że `pytest.raises(SyntaxError, ...)`
     nadal łapie błędy migrowane z plain SyntaxError."""
+    nazwa = "BłądSkładni"
+
     def __init__(self, message, *, line=None, extra_context=None):
         super().__init__(message)
         self.line = line
@@ -136,7 +141,7 @@ class InterpreterError(SyntaxError):
 
 
 class IdentifierError(InterpreterError):
-    pass
+    nazwa = "BłądIdentyfikatora"
 
 
 class FunctionIdentifierError(IdentifierError):
@@ -433,7 +438,7 @@ LOGICAL_OPS = {("nie",), ("i",), ("lub",)}
 
 
 class ResolveError(InterpreterError):
-    pass
+    nazwa = "BłądRezolucji"
 
 
 @dataclass

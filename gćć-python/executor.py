@@ -1,3 +1,4 @@
+import errno
 import sys
 
 import ast_nodes as ast
@@ -16,7 +17,10 @@ class CRuntimeError(Exception):
     """Błąd wykonania z Ć-owym stosem wywołań: `stack` to lista ramek
     (nazwa funkcji, linia bieżącej instrukcji) od zewnętrznej do
     najgłębszej. Budowany na szczycie (`execute`) z `call_stack`,
-    zamiast surowego tracebacku Pythona."""
+    zamiast surowego tracebacku Pythona.
+    `nazwa` — polska etykieta w wypisie błędu (gćć.py)."""
+    nazwa = "BłądWykonania"
+
     def __init__(self, message, stack):
         super().__init__(message)
         self.stack = stack
@@ -349,6 +353,25 @@ def _zapisz_liczbą(args):
     return RuntimeValue(value=ord(args[0].value), type="Liczba")
 
 
+# Polskie opisy typowych błędów systemowych — `strerror` przychodzi
+# z systemu po angielsku. Nietypowe errno przechodzą z numerem
+# i oryginalnym opisem w nawiasie.
+_ERRNO_OPISY = {
+    errno.ENOENT: "plik nie istnieje",
+    errno.EACCES: "brak uprawnień",
+    errno.EISDIR: "to katalog, nie plik",
+    errno.ENOTDIR: "składnik ścieżki nie jest katalogiem",
+    errno.ENOSPC: "brak miejsca na urządzeniu",
+}
+
+
+def _opis_oserror(e):
+    opis = _ERRNO_OPISY.get(e.errno)
+    if opis is not None:
+        return opis
+    return f"błąd systemowy nr {e.errno} ({e.strerror or e})"
+
+
 def _czytaj_plik(args):
     ścieżka = _tekst_do_pythona(args[0])
     if ścieżka is None:
@@ -358,7 +381,7 @@ def _czytaj_plik(args):
             return _sukces(_lista_znaków(f.read()))
     except OSError as e:
         return _błąd(f"nie można odczytać pliku '{ścieżka}': "
-                     f"{e.strerror or e}")
+                     f"{_opis_oserror(e)}")
 
 
 def _zapisz_plik(args):
@@ -373,7 +396,7 @@ def _zapisz_plik(args):
             value=len(zawartość.encode("utf-8")), type="Liczba"))
     except OSError as e:
         return _błąd(f"nie można zapisać pliku '{ścieżka}': "
-                     f"{e.strerror or e}")
+                     f"{_opis_oserror(e)}")
 
 
 def _wczytaj_wejście(args):
@@ -479,7 +502,8 @@ class RuntimeScope:
                 return value
         if self.parent is not None:
             return self.parent.variable_value(keys)
-        raise RuntimeError(f"var not found {keys}")
+        nazwa = min(("_".join(k[0]) for k in keys), default="?")
+        raise RuntimeError(f"zmienna '{nazwa}' nieznana w tym zakresie")
 
     def assign(self, keys, value):
         # Reasignacja tam, gdzie zmienna jest widoczna (także u przodka);
@@ -588,7 +612,8 @@ def execute_function(function_lemmas, args):
             if function_lemma in f.name.lemmas_set:
                 function_node = f
     if function_node is None:
-        raise RuntimeError(f"error: funkcja {function_lemmas} nie istnieje")
+        nazwy = ", ".join("_".join(l) for l in function_lemmas)
+        raise RuntimeError(f"funkcja '{nazwy}' nie istnieje")
     scope = RuntimeScope()
     scope.vars = [(p.name.scope_keys, value) for p, value in zip(function_node.params, args)]
     # Ramka Ć-owego stosu: zdejmowana na ścieżkach sukcesu; przy wyjątku

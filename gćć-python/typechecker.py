@@ -32,7 +32,9 @@ from type_parser import match_args_to_slots
 
 
 class TypeCheckError(Exception):
-    """Konflikt typów: niełączliwe granice, głowa poza kratą, itp."""
+    """Konflikt typów: niełączliwe granice, głowa poza kratą, itp.
+    `nazwa` — polska etykieta w wypisie błędu (gćć.py)."""
+    nazwa = "BłądTypów"
 
 
 # ---------- kontekst diagnostyczny ----------

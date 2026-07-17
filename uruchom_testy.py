@@ -31,6 +31,11 @@ KATALOG = Path(__file__).resolve().parent
 GCC = KATALOG / "gćć-python" / "gćć.py"
 DOMYŚLNE = ("test", "test_skradzion")
 
+sys.path.insert(0, str(KATALOG / "gćć-python"))
+import argparse_po_polsku  # noqa: E402 — ścieżka znana dopiero po KATALOG
+
+argparse_po_polsku.spolszcz()
+
 # Pliki biblioteczne (dołączane przez `uwzględnij`) — nie są testami,
 # nie mają `aby działać` ani pliku .wynik. Standardowe biblioteki
 # (przygrywka.ć, operacje_tekstowe.ć) mieszkają w biblioteki/ i tak

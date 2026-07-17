@@ -2,6 +2,7 @@
 import argparse
 import sys
 
+import argparse_po_polsku
 import includes
 import lexer
 import morph_anal
@@ -12,6 +13,8 @@ import pretty
 import typechecker
 import executor
 from ast_nodes import InterpreterError
+
+argparse_po_polsku.spolszcz()
 
 
 def main():
@@ -27,11 +30,15 @@ def main():
     argp = argparse.ArgumentParser()
     argp.add_argument("input", nargs="?", default=None,
                       help="plik .ć (domyślnie stdin)")
-    argp.add_argument("--sgjp", default="../sgjp.tab")
+    argp.add_argument("--sgjp", default="../sgjp.tab",
+                      help="ścieżka słownika SGJP w formacie tab "
+                           "(domyślnie ../sgjp.tab)")
     argp.add_argument("--redis", action="store_true",
                       help="lematyzuj przez lokalny Redis (zero ładowania; "
                            "wymaga migracji: sgjp_do_redisa.py)")
-    argp.add_argument("--redis-url", default="redis://localhost:6379/0")
+    argp.add_argument("--redis-url", default="redis://localhost:6379/0",
+                      help="adres Redisa (domyślnie "
+                           "redis://localhost:6379/0)")
     args = argp.parse_args(argv)
 
     # Pass 0: scalenie plików (dyrektywa `uwzględnij`) — na czystym
@@ -78,7 +85,7 @@ def main():
         msg = str(e)
         if scalony is not None:
             msg = scalony.translate(msg, filename)
-        print(f"{filename}: TypeCheckError: {msg}", file=sys.stderr)
+        print(f"{filename}: {e.nazwa}: {msg}", file=sys.stderr)
         sys.exit(1)
 
     # po prostu to odpal, to python. jak się otypowało w poprzednim kroku to będzie git.
@@ -97,7 +104,7 @@ def _print_runtime_error(filename, err, scalony):
     msg = str(err)
     if scalony is not None:
         msg = scalony.translate(msg, filename)
-    print(f"{filename}: BłądWykonania: {msg}", file=sys.stderr)
+    print(f"{filename}: {err.nazwa}: {msg}", file=sys.stderr)
     if not err.stack:
         return
     print("Ć-owy stos wywołań (najgłębsza ramka na dole):", file=sys.stderr)
@@ -118,13 +125,14 @@ def _print_runtime_error(filename, err, scalony):
 
 
 def _print_error(filename, source, err, scalony=None):
-    """Formatuje błąd jako `plik:linia: ErrorClass: message` + opcjonalny
-    structural context + snippet linii źródła. Z mapą `scalony` numery
-    linii (nagłówek, ramka snippetu oraz odwołania „linia N" w treści)
+    """Formatuje błąd jako `plik:linia: NazwaBłędu: komunikat` (polska
+    etykieta z atrybutu `nazwa` klasy wyjątku) + opcjonalny structural
+    context + snippet linii źródła. Z mapą `scalony` numery linii
+    (nagłówek, ramka snippetu oraz odwołania „linia N" w treści)
     są tłumaczone na oryginalne pliki źródłowe; snippet bierze treść ze
     scalonego tekstu — linie są verbatim, więc to ta sama treść."""
     lines = source.split("\n")
-    cls = type(err).__name__
+    cls = err.nazwa
     msg = err.args[0] if err.args else str(err)
     extra = err.extra_context
     err_file, err_line = filename, err.line

@@ -18,8 +18,11 @@ import json
 import sys
 import time
 
+import argparse_po_polsku
 import morph_anal
 from morph_anal import REDIS_PREFIX, analysis_to_jsonable, source_fingerprint
+
+argparse_po_polsku.spolszcz()
 
 BATCH = 10_000
 PROGRESS_EVERY = 500_000
