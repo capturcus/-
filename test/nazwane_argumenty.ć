@@ -1,0 +1,24 @@
+# Argumenty nazwane: wywołanie może powtórzyć nagłówkową parę
+# `przyimek nazwa` z deklaracji, po której stoi wartość w apozycji —
+# nazwa wiąże slot, więc kolejność argumentów jest dowolna. Zwykłe
+# wywołania (wartości pozycyjne, łańcuchy dopełniaczowe) działają
+# jak dotąd.
+
+uwzględnij przygrywka.ć
+
+definicja Ramki:
+    szerokość (Liczba)
+    wysokość (Liczba)
+
+aby policzyć_różnicę o szerokości (Liczba) o wysokości (Liczba) -> Liczba:
+    zwróć szerokość minus wysokość
+
+aby ogłosić_wynik z tytułem (Tekst) o punktach (Liczba):
+    wypisz tytuł
+    wypisz punkty
+
+aby działać:
+    wypisz (policz_różnicę o wysokości pięć o szerokości sześć)
+    ramka to Ramka o szerokości sześć o wysokości pięć
+    wypisz (policz_różnicę o szerokości ramki o pięć)
+    ogłoś_wynik z tytułem "Wąż" o dziesięć

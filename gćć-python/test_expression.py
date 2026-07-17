@@ -676,6 +676,134 @@ def test_dla_at_stmt_start_is_not_a_loop(parse):
         parse(src)
 
 
+# ---------- argumenty nazwane w wywołaniach ----------
+
+_RÓŻNICA = (
+    "aby policzyć_różnicę o szerokości (Liczba) o wysokości (Liczba):\n"
+    "    zwróć szerokość\n"
+)
+
+
+def test_named_args_bind_slots_in_any_order(parse):
+    """Wywołanie powtarza nagłówkową parę `przyimek nazwa` z deklaracji —
+    nazwa wiąże slot, więc kolejność argumentów jest dowolna."""
+    src = _RÓŻNICA + (
+        "aby działać:\n"
+        "    wynik to policz_różnicę o wysokości pięć o szerokości sześć\n"
+    )
+    m = parse(src)
+    call = m.body[1].body[0].value.resolved
+    assert isinstance(call, ast.FunctionCall)
+    # params w kolejności slotów deklaracji: szerokość, wysokość
+    assert call.params[0].value.value == 6
+    assert call.params[1].value.value == 5
+
+
+def test_named_arg_with_z_and_literal(parse):
+    """Nazwa po `z` stoi w narzędniku jak w deklaracji (`z tytułem`),
+    wartość-literał jest bezprzypadkowa."""
+    src = (
+        "aby ogłosić_wynik z tytułem (Tekst) o punktach (Liczba):\n"
+        "    zwróć punkty\n"
+        "aby działać:\n"
+        "    wynik to ogłoś_wynik z tytułem \"Wąż\" o dziesięć\n"
+    )
+    m = parse(src)
+    call = m.body[1].body[0].value.resolved
+    assert isinstance(call.params[0].value, ast.StrLit)
+    assert call.params[1].value.value == 10
+
+
+def test_named_arg_value_in_parens(parse):
+    """Nawias po nazwie parametru wymusza argument nazwany."""
+    src = _RÓŻNICA + (
+        "aby działać ramki:\n"
+        "    wynik to policz_różnicę o szerokości (ramki) o pięć\n"
+    )
+    m = parse(src)
+    call = m.body[1].body[0].value.resolved
+    assert isinstance(call.params[0].value, ast.Identifier)
+    assert ("ramka",) in call.params[0].value.lemmas_set
+
+
+def test_chain_value_after_param_name_stays_positional(parse):
+    """`o szerokości ramki` z samą zmienną 'ramka' (lp) w scope to
+    dzisiejszy łańcuch dopełniaczowy — odczyt nazwany nie jest żywy
+    (mianownikowa 'ramki' nie jest zmienną), więc bez remisu."""
+    src = (
+        "definicja Ramki:\n    szerokość (Liczba)\n"
+        + _RÓŻNICA +
+        "aby badać ramka:\n"
+        "    wynik to policz_różnicę o szerokości ramki o pięć\n"
+    )
+    m = parse(src)
+    call = m.body[2].body[0].value.resolved
+    assert isinstance(call.params[0].value, ast.GetterChain)
+
+
+def test_param_name_without_value_stays_value(parse):
+    """Słowo pasuje do nazwy parametru, ale nic po nim nie następuje —
+    to zwykła wartość pozycyjna (dzisiejszy idiom zmiennej nazwanej
+    jak parametr)."""
+    src = (
+        "aby czytać_dane ze ścieżki:\n"
+        "    zwróć ścieżka\n"
+        "aby działać ścieżka:\n"
+        "    wynik to czytaj_dane ze ścieżki\n"
+    )
+    m = parse(src)
+    call = m.body[1].body[0].value.resolved
+    assert isinstance(call.params[0].value, ast.Identifier)
+    assert ("ścieżka",) in call.params[0].value.lemmas_set
+
+
+def test_named_remis_chain_raises(parse):
+    """Remis odmian: 'ramki' to dopełniacz zmiennej 'ramka' (łańcuch)
+    ORAZ mianownik zmiennej 'ramki' (argument nazwany) — głośny błąd
+    z receptami."""
+    src = (
+        "definicja Ramki:\n    szerokość (Liczba)\n"
+        + _RÓŻNICA +
+        "aby działać:\n"
+        "    ramki to osiem\n"
+        "    ramka to Ramka o szerokości sześć\n"
+        "    wynik to policz_różnicę o szerokości ramki o pięć\n"
+    )
+    with pytest.raises(ast.ResolveError) as ei:
+        parse(src)
+    msg = str(ei.value)
+    assert "niejednoznaczny argument" in msg
+    assert "argument nazwany" in msg
+    assert "łańcuch" in msg
+    assert "wartość w nawiasie wymusza argument nazwany" in msg
+    assert "kolizja odmian" in msg
+
+
+def test_named_remis_variable_raises(parse):
+    """Remis ze zmienną o nazwie parametru: `o szerokości pięć` przy
+    zadeklarowanej zmiennej 'szerokość' — nazwany kontra wartość."""
+    src = _RÓŻNICA + (
+        "aby działać:\n"
+        "    szerokość to trzy\n"
+        "    wynik to policz_różnicę o szerokości pięć o sześć\n"
+    )
+    with pytest.raises(ast.ResolveError) as ei:
+        parse(src)
+    msg = str(ei.value)
+    assert "niejednoznaczny argument" in msg
+    assert "zmienna 'szerokości'" in msg
+    assert "nawias wymusza zmienną" in msg
+
+
+def test_named_arg_duplicate_raises(parse):
+    src = _RÓŻNICA + (
+        "aby działać:\n"
+        "    wynik to policz_różnicę o szerokości pięć o szerokości sześć\n"
+    )
+    with pytest.raises(ast.ResolveError, match="podany dwukrotnie"):
+        parse(src)
+
+
 def test_struct_arg_field_name_disambiguated_by_case(parse):
     """Identyfikator pola identyczny w obu kontekstach — sprawdzamy że
     `o części_mowy` (loc sg) i `o trybie` (loc) trafiają w różne pola,

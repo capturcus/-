@@ -341,9 +341,28 @@ wyślij "raport" przez pocztę do szefa    # inna kolejność niż w sygnaturze
 Argumentem jest pojedynczy „człon": literał, zmienna, łańcuch pól,
 zagnieżdżone wywołanie. Większe wyrażenie ujmij w nawiasy:
 `policz z (dwa plus trzy)`. Operatory wiążą na zewnątrz wywołania:
-`zmierz listę plus jeden` znaczy `(zmierz listę) plus jeden`. **Nazwy
-parametru nie powtarza się** przy wywołaniu — rolę niesie przyimek:
-`powiadom odbiorcę o "nowość"`.
+`zmierz listę plus jeden` znaczy `(zmierz listę) plus jeden`.
+
+**Argument nazwany** — wywołanie może powtórzyć nagłówkową parę
+`przyimek nazwa` z deklaracji, po której stoi wartość w apozycji
+(jak „o imieniu Jan"). Nazwa wiąże parametr wprost, więc kolejność jest
+dowolna nawet przy kilku slotach z tym samym przyimkiem:
+
+```
+można otworzyć_okno o szerokości (Liczba) o wysokości (Liczba) z tytułem (Tekst) -> Nic
+
+otwórz_okno o szerokości sześciuset o wysokości czterystu pięćdziesięciu z tytułem "Wąż"
+```
+
+Nazwa jest opcjonalna — `otwórz_okno o sześciuset o czterystu
+pięćdziesięciu z "Wąż"` dalej działa (pozycyjnie), a słowo po przyimku
+czyta się jako nazwę tylko, gdy zgadza się z deklaracją (przyimek
++ odmiana) i stoi po nim żywa wartość. Gdy fraza czyta się i jako
+argument nazwany, i jako dzisiejsza wartość pozycyjna — kolizja odmian
+(dopełniacz lp = mianownik lm): `o szerokości ramki` przy zmiennych
+`ramka` **i** `ramki` — Ć odmawia głośno, wypisując oba odczyty
+i recepty (nawias wokół wartości wymusza argument nazwany, zmiana nazwy
+zmiennej usuwa kolizję).
 
 Konwencja form: **definiuj bezokolicznikiem, wołaj rozkaźnikiem** —
 `aby dodać...`, potem `dodaj x do y`. Obie formy muszą mieć wspólny

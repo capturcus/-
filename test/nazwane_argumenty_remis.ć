@@ -1,0 +1,18 @@
+# Remis odmian przy argumencie nazwanym: 'ramki' czyta się jako
+# dopełniacz zmiennej 'ramka' (łańcuch 'szerokości ramki') ORAZ jako
+# mianownik zmiennej 'ramki' (wartość argumentu nazwanego 'o szerokości').
+# Kolizja dopełniacz lp = mianownik lm jest nieusuwalna z polszczyzny —
+# język odmawia głośno, z receptami.
+
+uwzględnij przygrywka.ć
+
+definicja Ramki:
+    szerokość (Liczba)
+
+aby policzyć_różnicę o szerokości (Liczba) o wysokości (Liczba) -> Liczba:
+    zwróć szerokość minus wysokość
+
+aby działać:
+    ramki to osiem
+    ramka to Ramka o szerokości sześć
+    wypisz (policz_różnicę o szerokości ramki o pięć)

@@ -780,6 +780,7 @@ class ExpressionParser:
         sig = tuple(fdef.params)
         n_slots = len(sig)
         arg_meta = []
+        fixed = {}
         for _ in range(n_slots):
             if self.peek() is None:
                 raise ResolveError(
@@ -787,9 +788,21 @@ class ExpressionParser:
                     f"{n_slots} argumentów, otrzymała {len(arg_meta)}",
                     line=name.line if hasattr(name, "line") else self._last_line(),
                 )
-            prep, value, case = self._parse_arg()
+            prep, value, case, slot_i = self._parse_arg(sig, name)
+            if slot_i is not None:
+                if slot_i in fixed.values():
+                    p = sig[slot_i]
+                    raise ResolveError(
+                        f"parametr '{'_'.join(p.name.surface)}' wywołania "
+                        f"'{'_'.join(name.surface)}' podany dwukrotnie po "
+                        f"nazwie; jeśli to zmienna jako wartość pozycyjna, "
+                        f"weź ją w nawias: "
+                        f"'{'_'.join(p.prep)} ({'_'.join(p.name.surface)})'",
+                        line=name.line,
+                    )
+                fixed[len(arg_meta)] = slot_i
             arg_meta.append((prep, case, value))
-        slot_to_arg = self._match_args_to_slots(arg_meta, sig, name)
+        slot_to_arg = self._match_args_to_slots(arg_meta, sig, name, fixed)
         params = []
         for slot_i in range(n_slots):
             arg_i = slot_to_arg[slot_i]
@@ -806,19 +819,164 @@ class ExpressionParser:
         }
         return FunctionCall(name=name, params=params)
 
-    def _parse_arg(self):
-        """Pojedynczy argument fcall: opcjonalny prep + primary value.
+    def _parse_arg(self, sig, name):
+        """Pojedynczy argument fcall: opcjonalny prep + primary value,
+        albo argument NAZWANY — patrz `_try_named_arg`.
 
         Wartością jest TYLKO primary, nie pełne wyrażenie — żeby operatory
         (`plus`, `mniejsze od`, …) wiązały się na zewnątrz fcall.
+
+        Zwraca (prep, value, case, slot_index) — slot_index wypełniony
+        wyłącznie dla argumentu nazwanego (wiąże slot z góry, poza
+        dopasowaniem prep/case).
         """
         prep = None
         p = self.peek()
         if p is not None and p[0] is lexer.Token.WORD and is_prep(p, self.preps):
             prep = canonical(self.advance())
+            named = self._try_named_arg(prep, sig, name)
+            if named is not None:
+                return named
         value = self.parse_primary()
         case = self._infer_case(value)
-        return prep, value, case
+        return prep, value, case, None
+
+    _VALUE_START_KINDS = frozenset({
+        lexer.Token.INT_LIT, lexer.Token.TEXT, lexer.Token.CHAR,
+        lexer.Token.BOOL_LIT, lexer.Token.LPAREN,
+    })
+
+    def _starts_value(self, tok):
+        """Czy token może otwierać wartość argumentu: literał/nawias albo
+        WORD niebędący przyimkiem (operatory mają własne rodzaje tokenów
+        i granice frazy też tu odpadają)."""
+        if tok is None:
+            return False
+        if tok[0] in self._VALUE_START_KINDS:
+            return True
+        return tok[0] is lexer.Token.WORD and not is_prep(tok, self.preps)
+
+    def _try_named_arg(self, prep, sig, name):
+        """Argument NAZWANY: `przyimek nazwa wartość` — wywołanie powtarza
+        verbatim nagłówkową parę (przyimek, nazwa parametru) z deklaracji,
+        a po nazwie stoi wartość w apozycji (jak `o imieniu Jan`):
+        `otwórz_okno o szerokości sześciuset z tytułem "Wąż"`.
+
+        Zwraca (prep, value, case, slot_index) albo None — wtedy argument
+        parsuje się po staremu (`prep wartość`, w tym łańcuchy).
+
+        Kolizja odmian jest NIEUSUWALNA z polszczyzny (dopełniacz lp
+        pokrywa się z mianownikiem lm: `ramki`, `okna`), więc gdy fraza
+        czyta się i jako argument nazwany, i jako dzisiejsza wartość
+        pozycyjna (łańcuch dopełniaczowy albo zmienna o nazwie parametru),
+        odmawiamy GŁOŚNO z receptami — nigdy nie zgadujemy."""
+        w = self.peek()
+        if w is None or w[0] is not lexer.Token.WORD \
+                or is_prep(w, self.preps):
+            return None
+        v = self.peek(1)
+        if not self._starts_value(v):
+            return None  # po nazwie brak wartości — W samo jest wartością
+        try:
+            w_ident = make_identifier(w)
+        except InterpreterError:
+            return None
+        slot_i = self._named_slot(w_ident, prep, sig)
+        if slot_i is None:
+            return None
+        # Czy wartość w ogóle czyta się apozycyjnie (argument nazwany)?
+        # Literały/nawiasy są bezprzypadkowe; WORD musi mieć wariant
+        # MIANOWNIKOWY wskazujący zadeklarowaną zmienną — inaczej to
+        # dzisiejsza wartość pozycyjna (łańcuch dopełniaczowy itp.).
+        if v[0] is lexer.Token.WORD and not self._nom_var_in_scope(v):
+            return None
+        # Konkurencyjne dzisiejsze odczyty → głośny remis.
+        chain_reading = _starts_chain(
+            w_ident, v, self.ctx.field_lemmas, self.preps)
+        var_reading = self._ident_in_scope(w_ident)
+        if chain_reading or var_reading:
+            self._raise_named_remis(
+                prep, w, v, sig[slot_i], name, chain_reading, var_reading)
+        self.advance()  # nazwa parametru
+        value = self.parse_primary()
+        return prep, value, self._infer_case(value), slot_i
+
+    def _nom_var_in_scope(self, tok):
+        """Czy WORD czyta się jako apozycyjna wartość argumentu nazwanego:
+        któryś wariant mianownikowy wskazuje zadeklarowaną zmienną."""
+        try:
+            ident = make_identifier(tok)
+        except InterpreterError:
+            return False
+        return any(
+            "nom" in v.case
+            and self.scope.has_var((v.lemmas, v.number, v.gender))
+            for v in ident.variants
+        )
+
+    @staticmethod
+    def _named_slot(w_ident, prep, sig):
+        """Indeks parametru, którego nagłówkowa para (przyimek, nazwa)
+        zgadza się z `prep` + `w_ident` — pełny klucz zakresu i przypadek
+        rządzony przyimkiem, jak w deklaracji."""
+        for i, p in enumerate(sig):
+            if p.prep != prep:
+                continue
+            for v in w_ident.variants:
+                if p.case is not None and v.case and not (v.case & p.case):
+                    continue
+                if any(scope_key_matches((v.lemmas, v.number, v.gender), k)
+                       for k in p.name.scope_keys):
+                    return i
+        return None
+
+    def _raise_named_remis(self, prep, w_tok, v_tok, param, name,
+                           chain_reading, var_reading):
+        prep_s = "_".join(prep)
+        w_s = "_".join(w_tok[1])
+        if v_tok[0] is lexer.Token.WORD:
+            v_s = "_".join(v_tok[1])
+        elif v_tok[0] is lexer.Token.INT_LIT:
+            v_s = str(v_tok[1])
+        elif v_tok[0] is lexer.Token.TEXT:
+            v_s = f'"{v_tok[1]}"'
+        else:
+            v_s = "…"
+        odczyty = [
+            f"argument nazwany: parametr "
+            f"'{'_'.join(param.name.surface)}' z wartością '{v_s}'"
+        ]
+        recepty = [
+            f"'{prep_s} {w_s} ({v_s})' — wartość w nawiasie wymusza "
+            f"argument nazwany"
+        ]
+        if chain_reading:
+            odczyty.append(
+                f"wartość pozycyjna: łańcuch '{w_s} {v_s}' "
+                f"(pole '{w_s}' obiektu '{v_s}')")
+            recepty.append(
+                f"dla odczytu łańcuchowego zmień nazwę zmiennej "
+                f"o mianowniku '{v_s}' — kolizja odmian (dopełniacz lp = "
+                f"mianownik lm: '{v_s}' czyta się na oba sposoby) "
+                f"zatruwa też samą podstawę łańcucha")
+        if var_reading:
+            odczyty.append(
+                f"wartość pozycyjna: zmienna '{w_s}', a '{v_s}' jako "
+                f"osobny argument")
+            recepty.append(
+                f"'{prep_s} ({w_s})' — nawias wymusza zmienną '{w_s}' "
+                f"jako wartość pozycyjną")
+            recepty.append(
+                f"zmiana nazwy zmiennej '{w_s}' usuwa kolizję z nazwą "
+                f"parametru")
+        raise ResolveError(
+            f"niejednoznaczny argument '{prep_s} {w_s} {v_s}' w wywołaniu "
+            f"'{'_'.join(name.surface)}' — możliwe odczyty:\n"
+            + "\n".join(f"  • {o}" for o in odczyty)
+            + "\nrozstrzygnij:\n"
+            + "\n".join(f"  • {r}" for r in recepty),
+            line=getattr(w_tok, "line", None),
+        )
 
     @staticmethod
     def _infer_case(value):
@@ -894,7 +1052,7 @@ class ExpressionParser:
         }
         return Bind(fn=fn, args=args, line=head_ident.line)
 
-    def _match_args_to_slots(self, arg_meta, sig, name):
+    def _match_args_to_slots(self, arg_meta, sig, name, fixed=None):
         def _on_error(arg_index=None):
             # Tabelka slotów: przyimek + powierzchnia parametru z deklaracji
             # + wymagany przypadek; do tego przypadek otrzymanego argumentu.
@@ -919,7 +1077,7 @@ class ExpressionParser:
                 line=getattr(name, "line", None),
             )
         return type_parser.match_args_to_slots(
-            arg_meta, sig, on_error=_on_error)
+            arg_meta, sig, on_error=_on_error, fixed=fixed)
 
     @staticmethod
     def _slot_matches(tok_prep, tok_case, param):
