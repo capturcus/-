@@ -212,7 +212,7 @@ aby odwrócić listę:
     dopóki prawda:
         reszta jest:
             PustąListą:
-                stop
+                dość
             Węzłem z głową z ogonem:
                 odwrócona to doczep głowę do odwróconej
                 reszta to ogon
@@ -352,7 +352,7 @@ aby dopasować argumenty do parametrów:
                         postęp to prawda
             numer to numer plus jeden
         jeśli nie postęp:
-            stop
+            dość
     # krok 2: reszta pozycyjnie do wolnych miejsc, z kontrolą zgodności
     wolne_miejsca to przesiej (wylicz_ciąg od zero do krotności) przez obsadę
     numer to zero
@@ -461,10 +461,10 @@ aby rozebrać_poziom przez parser od pozycji ze szczeblem o szukanej_randze:
         połów to wyłów_operatora z (żetony parsera) na (pozycja stanu)
         połów jest:
             Błędem:
-                stop
+                dość
             Sukcesem z wartością:
                 jeśli ranga wartości nierówne szukana_ranga:
-                    stop
+                    dość
                 kontynuacja to zastosowałbyś szczebel z parserem z (pozycja stanu plus jeden)?
                 stan to Stan o drzewie (Działanie o symbolu (symbol wartości) o lewym_ramieniu (drzewo stanu) o prawym_ramieniu (drzewo kontynuacji)) o pozycji (pozycja kontynuacji)
     zwróć Sukces o wartości stan
@@ -668,10 +668,10 @@ aby rozebrać_aplikację przez parser od pozycji:
         zdobycz to wyłów_słowo z (żetony parsera) na wskaźniku
         zdobycz jest:
             Błędem:
-                stop
+                dość
             Sukcesem z wartością:
                 jeśli lemat wartości nierówne "z":
-                    stop
+                    dość
                 stan to rozebrałbyś_człon przez parser od (wskaźnik plus jeden)?
                 spis_przypadków to wydedukuj_przypadki z (drzewo stanu)
                 jeśli policz spis_przypadków większe od zero i nie należy "narzędnik" do spisu_przypadków:
@@ -688,16 +688,16 @@ aby rozebrać_łańcuch przez parser od pozycji z czołem:
     wskaźnik to pozycja
     dopóki prawda:
         jeśli nie stwierdź_pole końcówkę w (otoczenie parsera):
-            stop
+            dość
         zdobycz to wyłów_słowo z (żetony parsera) na wskaźniku
         zdobycz jest:
             Błędem:
-                stop
+                dość
             Sukcesem z wartością:
                 jeśli należy (lemat wartości) do (przyimki otoczenia parsera):
-                    stop
+                    dość
                 jeśli nie należy "dopełniacz" do (przypadki wartości):
-                    stop
+                    dość
                 zbiór to doczep (lemat wartości) do zbioru
                 końcówka to lemat wartości
                 wskaźnik to wskaźnik plus jeden
@@ -749,7 +749,7 @@ aby rozebrać_konstrukcję przez parser od pozycji o typie:
         krok to rozebrałbyś_przypis przez parser od wskaźnika wobec typu przy obsadzie?
         krok jest:
             Niczym:
-                stop
+                dość
             Postępem z polem z wartością z przesunięciem:
                 zbiór to doczep (Wpis o polu pole o wartości wartość) do zbioru
                 obsada to doczep pole do obsady

@@ -670,7 +670,7 @@ def test_for_var_multiseg_adj_subst(parse):
     src = (
         "aby działać lista:\n"
         "    dla wielkiego_użytkownika w liście:\n"
-        "        stop\n"
+        "        dość\n"
     )
     m = parse(src)
     for_node = m.body[0].body[0]
@@ -679,11 +679,11 @@ def test_for_var_multiseg_adj_subst(parse):
 
 
 def test_for_body_with_stop(parse):
-    """Body może zawierać `stop` (break)."""
+    """Body może zawierać `dość` (break)."""
     src = (
         "aby działać lista:\n"
         "    dla x w liście:\n"
-        "        stop\n"
+        "        dość\n"
     )
     m = parse(src)
     for_node = m.body[0].body[0]
@@ -718,7 +718,7 @@ def test_for_collection_is_function_call(parse):
         "aby weź_listę dla nazwy:\n    zwrócić\n"
         "aby działać nazwa:\n"
         "    dla element w weź_listę dla nazwy:\n"
-        "        stop\n"
+        "        dość\n"
     )
     m = parse(src)
     for_node = m.body[1].body[0]
@@ -735,7 +735,7 @@ def test_for_collection_is_getter_chain(parse):
         "definicja Autora:\n    lista_postów (Tekst)\n"
         "aby działać autor:\n"
         "    dla post w liście_postów autora:\n"
-        "        stop\n"
+        "        dość\n"
     )
     m = parse(src)
     for_node = m.body[1].body[0]
@@ -751,7 +751,7 @@ def test_for_collection_with_arith(parse):
         "aby weź_listę dla nazwy:\n    zwrócić\n"
         "aby działać nazwa:\n"
         "    dla x w weź_listę dla nazwy plus jeden:\n"
-        "        stop\n"
+        "        dość\n"
     )
     m = parse(src)
     for_node = m.body[1].body[0]
@@ -784,7 +784,7 @@ def test_for_dla_as_prep_in_collection(parse):
         "aby weź_listę dla nazwy:\n    zwrócić\n"
         "aby działać nazwa:\n"
         "    dla x w weź_listę dla nazwy:\n"
-        "        stop\n"
+        "        dość\n"
     )
     m = parse(src)
     for_node = m.body[1].body[0]
@@ -798,7 +798,7 @@ def test_for_missing_w_raises(parse):
     src = (
         "aby działać:\n"
         "    dla x z lista:\n"
-        "        stop\n"
+        "        dość\n"
     )
     with pytest.raises(SyntaxError):
         parse(src)
@@ -809,7 +809,7 @@ def test_for_missing_colon_raises(parse):
     src = (
         "aby działać:\n"
         "    dla x w lista\n"
-        "        stop\n"
+        "        dość\n"
     )
     with pytest.raises(SyntaxError):
         parse(src)
@@ -838,7 +838,7 @@ def test_for_collection_with_logical_op(parse):
     src = (
         "aby działać lista_a lista_b:\n"
         "    dla x w lista_a lub lista_b:\n"
-        "        stop\n"
+        "        dość\n"
     )
     m = parse(src)
     for_node = m.body[0].body[0]
@@ -875,7 +875,7 @@ def test_narrow_to_module_scope_var(parse):
         "lista to zero\n"
         "aby działać:\n"
         "    dla użytkownika w liście:\n"
-        "        stop\n"
+        "        dość\n"
     )
     m = parse(src)
     for_node = m.body[1].body[0]
@@ -891,7 +891,7 @@ def test_narrow_to_function_local_var(parse):
         "aby działać:\n"
         "    lista to zero\n"
         "    dla użytkownika w liście:\n"
-        "        stop\n"
+        "        dość\n"
     )
     m = parse(src)
     for_node = m.body[0].body[1]
@@ -908,7 +908,7 @@ def test_narrow_to_function_param(parse):
     src = (
         "aby działać_dla listy:\n"
         "    dla użytkownika w liście:\n"
-        "        stop\n"
+        "        dość\n"
     )
     m = parse(src)
     for_node = m.body[0].body[0]
@@ -953,7 +953,7 @@ def test_undeclared_collection_raises(parse):
     src = (
         "aby działać:\n"
         "    dla x w liście:\n"
-        "        stop\n"
+        "        dość\n"
     )
     with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
         parse(src)
@@ -966,7 +966,7 @@ def test_for_var_visible_in_nested_collection(parse):
         "aby działać listy:\n"
         "    dla x w listy:\n"
         "        dla y w x:\n"
-        "            stop\n"
+        "            dość\n"
     )
     m = parse(src)
     outer = m.body[0].body[0]
@@ -1613,7 +1613,7 @@ def test_for_var_not_visible_after_loop(parse):
     src = (
         "aby działać lista:\n"
         "    dla element w liście:\n"
-        "        stop\n"
+        "        dość\n"
         "    wynik to element\n"
     )
     with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):

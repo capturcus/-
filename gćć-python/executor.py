@@ -80,7 +80,7 @@ class ReturnUnwind(Exception):
         self.value = value
 
 class BreakUnwind(Exception):
-    """`stop` — przerywa najbliższą pętlę `dopóki`."""
+    """`dość` — przerywa najbliższą pętlę `dopóki`."""
 
 class ContinueUnwind(Exception):
     """`dalej` — przeskakuje do następnej iteracji `dopóki`."""
@@ -606,7 +606,7 @@ def execute_function(function_lemmas, args):
         call_stack.pop()
         return e.value
     except BreakUnwind:
-        raise RuntimeError("'stop' poza pętlą 'dopóki'")
+        raise RuntimeError("'dość' poza pętlą 'dopóki'")
     except ContinueUnwind:
         raise RuntimeError("'dalej' poza pętlą 'dopóki'")
     call_stack.pop()

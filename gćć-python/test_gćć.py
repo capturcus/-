@@ -559,7 +559,7 @@ def test_parse_break_inside_while(parse):
     src = (
         "aby działać bok:\n"
         "    dopóki bok mniejsze od dziesięć:\n"
-        "        jeśli bok równe pięć:\n            stop\n"
+        "        jeśli bok równe pięć:\n            dość\n"
         "        bok to bok plus jeden\n"
     )
     m = parse(src)
@@ -569,7 +569,7 @@ def test_parse_break_inside_while(parse):
 
 
 def test_parse_break_standalone(parse):
-    src = "aby działać:\n    stop\n"
+    src = "aby działać:\n    dość\n"
     m = parse(src)
     assert isinstance(m.body[0].body[0], ast.Break)
 

@@ -12,7 +12,7 @@ Gramatyka Pass 1:
   module     := stmt*
   stmt       := func_def | extern_def | struct_def | union_def | match_stmt
               | if_stmt | while_stmt | for_stmt
-              | "stop" | "dalej" | "zwrócić" [phrase]
+              | "dość" | "dalej" | "zwrócić" [phrase]
               | assignment | expr_stmt
   func_def   := "aby" function_name param* ["->" type] ":" INDENT stmt+ DEDENT
   extern_def := "można" function_name typed_param* "->" type NEWLINE
@@ -188,7 +188,7 @@ class Parser:
                 return self.parse_while()
             if canon == ("dla",):
                 return self.parse_for()
-            if canon == ("stop",):
+            if canon == ("dość",):
                 self.advance()
                 return Break()
             if canon == ("dalej",):

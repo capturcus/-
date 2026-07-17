@@ -299,7 +299,7 @@ dopóki licznik mniejsze od dziesięć:
     jeśli licznik równe trzy:
         dalej          # następna iteracja
     jeśli licznik większe od pięć:
-        stop           # przerwij pętlę
+        dość           # przerwij pętlę
 
 zwróć wyrażenie
 zwróć                  # bez wartości — Nic
@@ -549,7 +549,7 @@ to podstawa idiomu kursora przy chodzeniu po listach:
 dopóki prawda:
     reszta jest:
         Niczym:
-            stop
+            dość
         Węzłem z głową z ogonem:
             wypisz głowa
             reszta to ogon        # przesuwa kursor — zapis na zewnątrz

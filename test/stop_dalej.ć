@@ -1,6 +1,6 @@
 uwzględnij przygrywka.ć
 
-# `stop` przerywa najbliższą pętlę `dopóki`, `dalej` przeskakuje do
+# `dość` przerywa najbliższą pętlę `dopóki`, `dalej` przeskakuje do
 # następnej iteracji — oba działają przez zagnieżdżone bloki (`jeśli`).
 
 aby działać:
@@ -10,6 +10,6 @@ aby działać:
         jeśli licznik równe trzy:
             dalej
         jeśli licznik większe od pięć:
-            stop
+            dość
         wypisz licznik
     wypisz "koniec"
