@@ -2,7 +2,7 @@ uwzględnij przygrywka.ć
 
 aby sprawdzić napis (Tekst):
     rezultat to odczytaj_liczbę z napisu
-    rezultat jest:
+    gdy rezultat jest:
         Sukcesem z wartością:
             wypisz wartość
         Błędem z opisem:

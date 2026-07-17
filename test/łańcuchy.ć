@@ -38,7 +38,7 @@ aby działać:
     wypisz (płatek tulipana)
     koniec to Węzeł o wartości trzy o następniku Nic
     początek to Węzeł o wartości jeden o następniku końca
-    następnik początku jest:
+    gdy następnik początku jest:
         Węzłem jako ogniwo z wartością:
             wypisz wartość
             wartość ogniwa to pięć
@@ -46,9 +46,9 @@ aby działać:
             wypisz "puste"
     wypisz (wartość końca)
     następnik końca to Węzeł o wartości siedem o następniku Nic
-    następnik początku jest:
+    gdy następnik początku jest:
         Węzłem jako środek:
-            następnik środka jest:
+            gdy następnik środka jest:
                 Węzłem z wartością:
                     wypisz wartość
                 Niczym:

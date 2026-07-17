@@ -5,7 +5,7 @@
 uwzględnij przygrywka.ć
 
 aby policzyć tekst (Tekst) -> Liczba:
-    tekst jest:
+    gdy tekst jest:
         Ogniwem z ogonem:
             zwróć jeden plus policz ogon
         Niczym:
@@ -18,7 +18,7 @@ aby działać:
     wypisz (powitanie równe "Witaj świecie")
     wypisz (powitanie równe "witaj świecie")
     wypisz ("" równe Nic)
-    powitanie jest:
+    gdy powitanie jest:
         Ogniwem z głową:
             wypisz głowę
         Niczym:

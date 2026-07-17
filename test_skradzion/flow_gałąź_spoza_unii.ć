@@ -12,7 +12,7 @@ Zwierzę to Kot albo Pies
 
 aby działać:
     okaz (Zwierzę) to Kot o imieniu 'm'
-    okaz jest:
+    gdy okaz jest:
         Kotem:
             wypisz 'k'
         Ogniwem:

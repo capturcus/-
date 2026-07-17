@@ -158,7 +158,7 @@ class _Scope:
     """Symbol table dla zmiennych. Chain w górę przez `parent`.
 
     Block scoping: scope odpowiada blokowi (moduł → funkcja → ciało
-    `jeśli`/`dopóki`/`dla`/gałęzi dopasowania `jest:`). Zmienna trafia do scope'u
+    `jeśli`/`dopóki`/gałęzi dopasowania `jest:`). Zmienna trafia do scope'u
     w momencie przypisania i jest widoczna do końca bloku; deklaracje
     z bloku-dziecka NIE są widoczne po bloku. Przypisanie do zmiennej
     widocznej z przodka to reasignacja (bez przesłaniania).
@@ -610,8 +610,8 @@ class ExpressionParser:
     def _finish_as_ident_ref(self, head_ident):
         """Fallback dispatcher — head nie jest struct creation, chain ani fcall.
         Block scoping: referencja MUSI wskazywać zadeklarowaną zmienną
-        (przypisanie wcześniej w tym lub nadrzędnym bloku, parametr, zmienna
-        `dla`, pole związane w gałęzi dopasowania `jest:`). Gdy zmiennej nie ma,
+        (przypisanie wcześniej w tym lub nadrzędnym bloku, parametr, pole
+        związane w gałęzi dopasowania `jest:`). Gdy zmiennej nie ma,
         gerundium może być referencją do funkcji (scope-first: zmienna
         przesłania referencję) — inaczej ResolveError."""
         if not self._ident_in_scope(head_ident):

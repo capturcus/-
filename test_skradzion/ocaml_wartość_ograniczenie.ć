@@ -13,12 +13,12 @@ aby działać:
     mieszek to Ogniwo o głowie pięć o ogonie mieszek
     sakwa to daj_pustkę
     sakwa to Ogniwo o głowie 'z' o ogonie sakwa
-    mieszek jest:
+    gdy mieszek jest:
         Ogniwem z głową:
             wypisz (głowa plus jeden)
         Niczym:
             wypisz zero
-    sakwa jest:
+    gdy sakwa jest:
         Ogniwem z głową:
             wypisz zapisz_liczbą (głowa)
         Niczym:

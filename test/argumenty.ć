@@ -6,7 +6,7 @@
 uwzględnij przygrywka.ć
 
 aby ogłosić listę (Lista):
-    lista jest:
+    gdy lista jest:
         Ogniwem z głową z ogonem:
             wypisz głowa
             ogłoś ogon
@@ -16,7 +16,7 @@ aby ogłosić listę (Lista):
 aby działać dla argumentów:
     wypisz (zmierz argumenty)
     ogłoś argumenty
-    argumenty są:
+    gdy argumenty są:
         Ogniwem z głową:
             wypisz (sklej "pierwszy: " z głową)
         Niczym:

@@ -18,7 +18,7 @@ Gałąź to Węzeł albo Nic
 można wypisać coś (Cokolwiek) -> Nic
 
 aby zmierzyć gałąź -> Liczba:
-    gałąź jest:
+    gdy gałąź jest:
         Węzłem z wysokością:
             zwróć wysokość
         Niczym:

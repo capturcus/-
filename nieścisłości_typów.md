@@ -221,7 +221,7 @@ zdrowym, a niezdrowy odpada z receptą zawężenia.
 Scenariusz wprost z suity refinements Flow („refinement invalidation"):
 
     okaz (Zwierzę) to Kot o imieniu 'm'
-    okaz jest:
+    gdy okaz jest:
         Kotem:
             okaz to Pies o kości 'k'     # zapis idzie na ZEWNĄTRZ…
             wypisz imię okazu            # …ale cień gałęzi dalej mówił Kot

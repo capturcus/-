@@ -6,17 +6,17 @@ aby szukać po identyfikatorze:
     zwróć Błąd o opisie "nie znaleziono"
 
 aby działać:
-    szukaj po pięciu jest:
+    gdy szukaj po pięciu jest:
         Sukcesem z wartością:
             wypisz wartość
         Błędem z opisem:
             wypisz opis
-    szukaj po (minus trzy) jest:
+    gdy szukaj po (minus trzy) jest:
         Sukcesem z wartością:
             wypisz wartość
         Błędem z opisem:
             wypisz opis
-    zastosuj szukanie z siedmioma jest:
+    gdy zastosuj szukanie z siedmioma jest:
         Sukcesem jako paczka:
             wypisz paczka
         Błędem z opisem:

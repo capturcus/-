@@ -6,7 +6,7 @@ uwzględnij słownik.ć
 
 aby odczytać klucz (Tekst) ze słownika (Słownik):
     wynik to znajdź klucz w słowniku
-    wynik jest:
+    gdy wynik jest:
         Sukcesem z wartością:
             wypisz wartość
         Błędem z opisem:

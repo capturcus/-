@@ -14,7 +14,7 @@ Kwiatki to Róża albo Tulipan albo Bratek
 Poszukiwanie to Tulipan albo Nic
 
 aby opisać kwiatek:
-    kwiatek jest:
+    gdy kwiatek jest:
         Tulipanem z płatkiem:
             wypisz płatek
         Różą z wysokością:
@@ -31,13 +31,13 @@ aby działać:
     opisz Róża o wysokości pięć
     opisz Bratek o płatku "fioletowy"
     wynik to szukaj prawda
-    wynik jest:
+    gdy wynik jest:
         Tulipanem z płatkiem:
             wypisz płatek
         Niczym:
             wypisz "brak"
     wynik to szukaj fałsz
-    wynik jest:
+    gdy wynik jest:
         Tulipanem z płatkiem:
             wypisz płatek
         Niczym:

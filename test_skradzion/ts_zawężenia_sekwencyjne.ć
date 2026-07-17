@@ -13,12 +13,12 @@ Zwierzę to Kot albo Pies
 można wypisać coś (Cokolwiek) -> Nic
 
 aby opisać okaz (Zwierzę):
-    okaz jest:
+    gdy okaz jest:
         Kotem z imieniem:
             wypisz imię
         Psem z kością:
             wypisz kość
-    okaz jest:
+    gdy okaz jest:
         Kotem:
             wypisz 'K'
         Psem:

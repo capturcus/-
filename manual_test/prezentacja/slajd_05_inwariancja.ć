@@ -20,12 +20,12 @@ Zwierzę to Kot albo Pies
 aby działać:
     stado to Ogniwo o głowie (Kot o imieniu 'm') o ogonie Nic
     zwierzęta (Lista o elemencie Zwierzę) to stado
-    zwierzęta są:
+    gdy zwierzęta są:
         Ogniwem jako cel:
             głowa celu to Pies o kości 'p'
         Niczym:
             wypisz 'n'
     pierwszy to głowa stada
-    pierwszy jest:
+    gdy pierwszy jest:
         Kotem z imieniem:
             wypisz imię

@@ -29,7 +29,7 @@ aby zapisać do bazy tekst -> Rezultat:
 # z gałęzi trafia do sygnatury funkcji. Gałąź nie musi wiązać wszystkich
 # pól wariantu (`Wynikiem:` bez `z wynikiem`).
 aby opisywać rezultat -> Tekst:
-    rezultat jest:
+    gdy rezultat jest:
         Wynikiem:
             zwróć "powodzenie"
         Błędem z opisem:
@@ -38,7 +38,7 @@ aby opisywać rezultat -> Tekst:
 aby działać:
     baza to siedem
     wynik to zapisz do bazy "test"
-    wynik jest:
+    gdy wynik jest:
         Błędem z opisem:
             wypisz "błąd"
             wypisz opis

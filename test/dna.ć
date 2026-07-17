@@ -34,14 +34,14 @@ aby sparować zasadę (Znak) -> Znak:
 # --- cała nić ---
 
 aby transkrybować nić (Tekst) -> Tekst:
-    nić jest:
+    gdy nić jest:
         Ogniwem z głową z ogonem:
             zwróć Ogniwo o głowie (przepisz głowę) o ogonie (transkrybuj ogon)
         Niczym:
             zwróć Nic
 
 aby dopełnić nić (Tekst) -> Tekst:
-    nić jest:
+    gdy nić jest:
         Ogniwem z głową z ogonem:
             zwróć Ogniwo o głowie (sparuj głowę) o ogonie (dopełnij ogon)
         Niczym:
@@ -53,7 +53,7 @@ aby odwrócić_dopełnienie nici (Tekst) -> Tekst:
     zwróć odwróć (dopełnij nić)
 
 aby zliczyć zasadę (Znak) w nici (Tekst) -> Liczba:
-    nić jest:
+    gdy nić jest:
         Ogniwem z głową z ogonem:
             jeśli głowa równa zasadzie:
                 zwróć jeden plus zlicz zasadę w ogonie

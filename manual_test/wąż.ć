@@ -32,7 +32,7 @@ Rozgrywka to Pełzanie albo Porażka
 
 # Łeb węża to pierwszy segment; pusta lista łba nie ma — kąt planszy.
 aby wskazać_łeb segmentów:
-    segmenty są:
+    gdy segmenty są:
         Ogniwem z głową:
             zwróć głowa
         Niczym:
@@ -40,7 +40,7 @@ aby wskazać_łeb segmentów:
 
 # Lista bez ostatniego elementu — wąż przesuwa się gubiąc koniec ogona.
 aby skrócić listę:
-    lista jest:
+    gdy lista jest:
         Ogniwem z głową z ogonem:
             jeśli ogon równy Nic:
                 zwróć Nic
@@ -49,7 +49,7 @@ aby skrócić listę:
             zwróć Nic
 
 aby sprawdzić_obecność pola na segmentach:
-    segmenty są:
+    gdy segmenty są:
         Ogniwem z głową z ogonem:
             jeśli głowa równa polu:
                 zwróć prawdę
@@ -61,7 +61,7 @@ aby sprawdzić_obecność pola na segmentach:
 # (skręty tylko prostopadłe — zakaz zawracania), reszta wydarzeń
 # przechodzi bez echa.
 aby obrócić według wydarzenia kierunek:
-    wydarzenie jest:
+    gdy wydarzenie jest:
         Naciśnięciem z klawiszem:
             jeśli klawisz równy "lewo" i kolumna kierunku równa zero:
                 zwróć Pole o kolumnie zero minus jeden o wierszu zero
@@ -101,7 +101,7 @@ aby pełznąć segmentami z kierunkiem do owocu:
 # Takt gry: fold wydarzeń obraca kierunek w każdej klatce, wąż pełznie
 # co czwartą; po Porażce nic się już nie rusza.
 aby przestawić rozgrywkę po takcie:
-    rozgrywka jest:
+    gdy rozgrywka jest:
         Pełzaniem z segmentami z kierunkiem z owocem:
             kierunek to złóż pobierz_wydarzenia z obróceniem z kierunkiem
             jeśli (weź_resztę_z_dzielenia taktu przez cztery) równa zero:
@@ -117,7 +117,7 @@ aby namalować w barwie pole:
 
 # Ekran końcowy — powód zna tylko Porażka, więc tu zawężamy.
 aby ogłosić rozgrywkę:
-    rozgrywka jest:
+    gdy rozgrywka jest:
         Porażką z powodem:
             narysuj_napis sklej "Koniec gry: " z powodem od stu od dwustu o czterdziestu w dobierz_barwę "biel"
         inaczej:

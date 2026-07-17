@@ -21,7 +21,7 @@ można zakodować liczbę (Liczba) -> Tekst
 
 # fold prawostronny: złóż [a, b, c] z op z akc = op(a, op(b, op(c, akc)))
 aby złożyć listę z operacją z akumulatorem:
-    lista jest:
+    gdy lista jest:
         Węzłem z głową z ogonem:
             reszta to złóż ogon z operacją z akumulatorem
             zwróć zastosuj operację z głową z resztą
@@ -30,7 +30,7 @@ aby złożyć listę z operacją z akumulatorem:
 
 # map: nowa lista z wynikami operacji na każdym elemencie
 aby przekształcać listę z operacją:
-    lista jest:
+    gdy lista jest:
         Węzłem z głową z ogonem:
             zwróć Węzeł o głowie (zastosuj operację z głową) o ogonie (przekształcaj ogon z operacją)
         PustąListą:
@@ -38,7 +38,7 @@ aby przekształcać listę z operacją:
 
 # filter: zostają elementy, dla których warunek daje prawdę
 aby przesiewać listę przez warunek:
-    lista jest:
+    gdy lista jest:
         Węzłem z głową z ogonem:
             reszta to przesiewaj ogon przez warunek
             jeśli zastosuj warunek z głową:
@@ -64,7 +64,7 @@ aby przekraczać_próg liczbę:
 # ---------- raportowanie ----------
 
 aby opisywać listę:
-    lista jest:
+    gdy lista jest:
         Węzłem z głową z ogonem:
             zwróć sklej (zakoduj głowę) z (sklej " " z (opisuj ogon))
         PustąListą:

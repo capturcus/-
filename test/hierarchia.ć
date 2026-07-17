@@ -19,14 +19,14 @@ Zwierzę to Kot albo Pies
 można wypisać coś (Cokolwiek) -> Nic
 
 aby opisać zwierzę (Zwierzę) -> Znak:
-    zwierzę jest:
+    gdy zwierzę jest:
         Kotem z imieniem:
             zwróć imię
         Psem:
             zwróć 'p'
 
 aby rozpoznać psa (Pies) -> Znak:
-    pies jest:
+    gdy pies jest:
         Jamnikiem z kością:
             zwróć kość
         Pudlem z fryzurą:
@@ -39,7 +39,7 @@ aby działać:
     wypisz (rozpoznaj Jamnik o kości 'x')
     pupil to Jamnik o kości 'a'
     pupil to Pudel o fryzurze 'b'
-    pupil jest:
+    gdy pupil jest:
         Jamnikiem:
             wypisz 'J'
         Pudlem:

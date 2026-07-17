@@ -22,13 +22,13 @@ aby działać:
     wypisz (zmierz selekcję)
     wypisz (złóż selekcję z dodawaniem z zero)
     trafienie to wskaż trzy na liczbach
-    trafienie jest:
+    gdy trafienie jest:
         Sukcesem z wartością:
             wypisz wartość
         Błędem z opisem:
             wypisz opis
     zguba to wskaż dziesięć na liczbach
-    zguba jest:
+    gdy zguba jest:
         Sukcesem z wartością:
             wypisz wartość
         Błędem z opisem:

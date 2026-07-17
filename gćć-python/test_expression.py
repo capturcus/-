@@ -1231,7 +1231,7 @@ def test_match_binds_branch_fields(parse):
         _MATCH_BASE
         + "aby działać:\n"
         "    rezultat to Wynik o wyniku zero\n"
-        "    rezultat jest:\n"
+        "    gdy rezultat jest:\n"
         "        Błędem z opisem:\n"
         "            x to opis\n"
         "        Wynikiem z wynikiem:\n"
@@ -1254,7 +1254,7 @@ def test_match_branch_unknown_struct_raises(parse):
     src = (
         _MATCH_BASE
         + "aby działać rezultat:\n"
-        "    rezultat jest:\n"
+        "    gdy rezultat jest:\n"
         "        Zgubą z opisem:\n"
         "            x to jeden\n"
     )
@@ -1266,7 +1266,7 @@ def test_match_field_not_in_struct_raises(parse):
     src = (
         _MATCH_BASE
         + "aby działać rezultat:\n"
-        "    rezultat jest:\n"
+        "    gdy rezultat jest:\n"
         "        Błędem z wynikiem:\n"
         "            x to jeden\n"
     )
@@ -1279,7 +1279,7 @@ def test_match_field_requires_inst_raises(parse):
     src = (
         _MATCH_BASE
         + "aby działać rezultat:\n"
-        "    rezultat jest:\n"
+        "    gdy rezultat jest:\n"
         "        Błędem z opis:\n"
         "            x to jeden\n"
     )
@@ -1291,7 +1291,7 @@ def test_match_field_bound_twice_raises(parse):
     src = (
         _MATCH_BASE
         + "aby działać rezultat:\n"
-        "    rezultat jest:\n"
+        "    gdy rezultat jest:\n"
         "        Błędem z opisem z opisem:\n"
         "            x to jeden\n"
     )
@@ -1305,7 +1305,7 @@ def test_match_branch_assignment_not_visible_after(parse):
     src = (
         _MATCH_BASE
         + "aby działać rezultat:\n"
-        "    rezultat jest:\n"
+        "    gdy rezultat jest:\n"
         "        Błędem z opisem:\n"
         "            x to jeden\n"
         "        Wynikiem z wynikiem:\n"
@@ -1560,7 +1560,7 @@ def test_match_nic_branch_cannot_bind_fields(parse):
         + "Rezultat to Coś albo Nic\n"
         "\n"
         "aby działać rezultat:\n"
-        "    rezultat jest:\n"
+        "    gdy rezultat jest:\n"
         "        Czymś z wartością:\n"
         "            x to wartość\n"
         "        Niczym z wartością:\n"
@@ -1953,7 +1953,7 @@ _KWIATKI_BRANCHES = (
 def test_match_plural_subject_with_są(parse):
     src = _KWIATKI_BASE + (
         "aby opisywać kwiatki:\n"
-        "    kwiatki są:\n"
+        "    gdy kwiatki są:\n"
     ) + _KWIATKI_BRANCHES
     m = parse(src)
     match = m.body[3].body[0]
@@ -1967,7 +1967,7 @@ def test_match_plural_subject_with_są(parse):
 def test_match_plural_subject_with_jest_raises(parse):
     src = _KWIATKI_BASE + (
         "aby opisywać kwiatki:\n"
-        "    kwiatki jest:\n"
+        "    gdy kwiatki jest:\n"
     ) + _KWIATKI_BRANCHES
     with pytest.raises(ast.ResolveError, match="napisz 'kwiatki są:'"):
         parse(src)
@@ -1976,7 +1976,7 @@ def test_match_plural_subject_with_jest_raises(parse):
 def test_match_singular_subject_with_są_raises(parse):
     src = _KWIATKI_BASE + (
         "aby opisywać kwiatek:\n"
-        "    kwiatek są:\n"
+        "    gdy kwiatek są:\n"
     ) + _KWIATKI_BRANCHES
     with pytest.raises(ast.ResolveError, match="napisz 'kwiatek jest:'"):
         parse(src)
@@ -1985,7 +1985,7 @@ def test_match_singular_subject_with_są_raises(parse):
 def test_match_singular_subject_with_jest_ok(parse):
     src = _KWIATKI_BASE + (
         "aby opisywać kwiatek:\n"
-        "    kwiatek jest:\n"
+        "    gdy kwiatek jest:\n"
     ) + _KWIATKI_BRANCHES
     m = parse(src)
     match = m.body[3].body[0]
@@ -1999,7 +1999,7 @@ def test_match_subject_not_nominative_raises(parse):
     być w mianowniku."""
     src = _KWIATKI_BASE + (
         "aby badać kotem:\n"
-        "    kotem jest:\n"
+        "    gdy kotem jest:\n"
     ) + _KWIATKI_BRANCHES
     with pytest.raises(ast.ResolveError, match="mianowniku"):
         parse(src)
@@ -2010,7 +2010,7 @@ def test_match_atom_subject_accepts_both(parse):
     for verb in ("jest", "są"):
         src = _KWIATKI_BASE + (
             "aby badać x:\n"
-            f"    x {verb}:\n"
+            f"    gdy x {verb}:\n"
         ) + _KWIATKI_BRANCHES
         parse(src)  # nie rzuca
 
@@ -2023,7 +2023,7 @@ def test_match_atom_subject_accepts_both(parse):
 def test_match_inaczej_as_last_branch(parse):
     src = _KWIATKI_BASE + (
         "aby opisywać kwiatek:\n"
-        "    kwiatek jest:\n"
+        "    gdy kwiatek jest:\n"
         "        Tulipanem z płatkiem:\n"
         "            zwróć płatek\n"
         "        inaczej:\n"
@@ -2040,7 +2040,7 @@ def test_match_inaczej_as_last_branch(parse):
 def test_match_inaczej_not_last_raises(parse):
     src = _KWIATKI_BASE + (
         "aby opisywać kwiatek:\n"
-        "    kwiatek jest:\n"
+        "    gdy kwiatek jest:\n"
         "        inaczej:\n"
         "            zwróć \"inny\"\n"
         "        Tulipanem z płatkiem:\n"
@@ -2053,7 +2053,7 @@ def test_match_inaczej_not_last_raises(parse):
 def test_match_only_inaczej_raises(parse):
     src = _KWIATKI_BASE + (
         "aby opisywać kwiatek:\n"
-        "    kwiatek jest:\n"
+        "    gdy kwiatek jest:\n"
         "        inaczej:\n"
         "            zwróć \"cokolwiek\"\n"
     )
@@ -2065,7 +2065,7 @@ def test_match_inaczej_does_not_see_other_branch_fields(parse):
     """Pole związane w gałęzi wariantu jest lokalne — `inaczej` go nie widzi."""
     src = _KWIATKI_BASE + (
         "aby opisywać kwiatek:\n"
-        "    kwiatek jest:\n"
+        "    gdy kwiatek jest:\n"
         "        Tulipanem z płatkiem:\n"
         "            zwróć płatek\n"
         "        inaczej:\n"

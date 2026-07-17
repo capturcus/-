@@ -1,7 +1,7 @@
 uwzględnij przygrywka.ć
 
 aby usunąć_podzielne przez dzielnik z listy:
-    lista jest:
+    gdy lista jest:
         Niczym:
             zwróć Nic
         Ogniwem z głową z ogonem:
@@ -28,7 +28,7 @@ aby działać:
     wypisz "Podaj limit:"
     wejście to wczytaj_wejście
     rezultat to odczytaj_liczbę z wejścia
-    rezultat jest:
+    gdy rezultat jest:
         Sukcesem z wartością:
             wysiej do wartości
         Błędem z opisem:

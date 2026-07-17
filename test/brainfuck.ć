@@ -29,7 +29,7 @@ definicja Rozbioru:
     reszta (Tekst)
 
 aby rozebrać tekst:
-    tekst jest:
+    gdy tekst jest:
         Niczym:
             zwróć Rozbiór o programie Nic o reszcie Nic
         Ogniwem z głową z ogonem:
@@ -56,14 +56,14 @@ aby obniżyć taśmę:
     zwróć Taśma o przeszłości (przeszłość taśmy) o komórce (komórka taśmy minus jeden) o przyszłości (przyszłość taśmy)
 
 aby przesunąć_w_prawo taśmę:
-    przyszłość taśmy jest:
+    gdy przyszłość taśmy jest:
         Ogniwem z głową z ogonem:
             zwróć Taśma o przeszłości (Ogniwo o głowie (komórka taśmy) o ogonie (przeszłość taśmy)) o komórce głowa o przyszłości ogon
         Niczym:
             zwróć Taśma o przeszłości (Ogniwo o głowie (komórka taśmy) o ogonie (przeszłość taśmy)) o komórce zero o przyszłości Nic
 
 aby przesunąć_w_lewo taśmę:
-    przeszłość taśmy jest:
+    gdy przeszłość taśmy jest:
         Ogniwem z głową z ogonem:
             zwróć Taśma o przeszłości ogon o komórce głowa o przyszłości (Ogniwo o głowie (komórka taśmy) o ogonie (przyszłość taśmy))
         Niczym:
@@ -76,7 +76,7 @@ definicja Stanu:
     wyjście (Lista o elemencie Liczba)
 
 aby wykonać program na stanie:
-    program jest:
+    gdy program jest:
         Niczym:
             zwróć stan
         Ogniwem z głową z ogonem:
@@ -88,7 +88,7 @@ aby zapętlić ciało na stanie:
     zwróć zapętl ciało na (wykonaj ciało na stanie)
 
 aby obsłużyć rozkaz na stanie:
-    rozkaz jest:
+    gdy rozkaz jest:
         Cyklem z ciałem:
             zwróć zapętl ciało na stanie
         Krokiem ze znakiem:
@@ -107,7 +107,7 @@ aby obsłużyć rozkaz na stanie:
 # --- wypis zebranego wyjścia, liczba po liczbie ---
 
 aby ogłosić listę:
-    lista jest:
+    gdy lista jest:
         Ogniwem z głową z ogonem:
             wypisz głowę
             ogłoś ogon

@@ -22,7 +22,7 @@ aby działać:
     kot to Kot o imieniu "Mruczek"
     pies to Pies o kości "szynka"
     pupil to wybierz prawda kota psa
-    pupil jest:
+    gdy pupil jest:
         Kotem z imieniem:
             wypisz imię
         Psem z kością:

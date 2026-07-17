@@ -191,14 +191,14 @@ aby doczepić element do listy:
     zwróć Węzeł o głowie element o ogonie lista
 
 aby policzyć listę:
-    lista jest:
+    gdy lista jest:
         PustąListą:
             zwróć zero
         Węzłem z ogonem:
             zwróć jeden plus policz ogon
 
 aby wybrać pozycję z listy:
-    lista jest:
+    gdy lista jest:
         PustąListą:
             zwróć Błąd o opisie "pozycja poza listą"
         Węzłem z głową z ogonem:
@@ -210,7 +210,7 @@ aby odwrócić listę:
     odwrócona to utwórz_pustą
     reszta to lista
     dopóki prawda:
-        reszta jest:
+        gdy reszta jest:
             PustąListą:
                 dość
             Węzłem z głową z ogonem:
@@ -219,7 +219,7 @@ aby odwrócić listę:
     zwróć odwróconą
 
 aby należeć element do zbioru:
-    zbiór jest:
+    gdy zbiór jest:
         PustąListą:
             zwróć fałsz
         Węzłem z głową z ogonem:
@@ -229,7 +229,7 @@ aby należeć element do zbioru:
 
 # elementy listy NIEOBECNE w sicie (filtr odwrotny)
 aby przesiać listę przez sito:
-    lista jest:
+    gdy lista jest:
         PustąListą:
             zwróć listę
         Węzłem z głową z ogonem:
@@ -240,7 +240,7 @@ aby przesiać listę przez sito:
 
 # czy przecięcie dwóch list jest niepuste
 aby krzyżować pierwszy_zbiór z drugim_zbiorem:
-    pierwszy_zbiór jest:
+    gdy pierwszy_zbiór jest:
         PustąListą:
             zwróć fałsz
         Węzłem z głową z ogonem:
@@ -257,7 +257,7 @@ aby ignorować rzecz:
     zwróć
 
 aby wydobyć rezultat z zapasem:
-    rezultat jest:
+    gdy rezultat jest:
         Sukcesem z wartością:
             zwróć wartość
         Błędem:
@@ -266,7 +266,7 @@ aby wydobyć rezultat z zapasem:
 # ---------- słownik (assoc-lista Haseł) ----------
 
 aby szukać klucza w słowniku:
-    słownik jest:
+    gdy słownik jest:
         PustąListą:
             zwróć Błąd o opisie "nie znaleziono klucza"
         Węzłem z głową z ogonem:
@@ -291,7 +291,7 @@ aby sprawdzić argument wobec parametru:
 
 # numery miejsc pasujących do jednego argumentu
 aby wyliczyć_kandydatów dla argumentu wśród parametrów od numeru:
-    parametry są:
+    gdy parametry są:
         PustąListą:
             zwróć utwórz_pustą
         Węzłem z głową z ogonem:
@@ -302,7 +302,7 @@ aby wyliczyć_kandydatów dla argumentu wśród parametrów od numeru:
 
 # lista list kandydatów — po jednej na argument
 aby zgromadzić_kandydatów dla argumentów wśród parametrów:
-    argumenty są:
+    gdy argumenty są:
         PustąListą:
             zwróć utwórz_pustą
         Węzłem z głową z ogonem:
@@ -310,7 +310,7 @@ aby zgromadzić_kandydatów dla argumentów wśród parametrów:
 
 # odwrotne wyszukanie: numer argumentu przydzielonego danemu miejscu
 aby odszukać miejsce w przydziałach:
-    przydziały są:
+    gdy przydziały są:
         PustąListą:
             zwróć Błąd o opisie "miejsce bez przydzielonego argumentu"
         Węzłem z głową z ogonem:
@@ -339,7 +339,7 @@ aby dopasować argumenty do parametrów:
         numer to zero
         dopóki numer mniejsze od krotności:
             los to szukaj numeru w przydziałach
-            los jest:
+            gdy los jest:
                 Sukcesem:
                     ignoruj los
                 Błędem:
@@ -358,11 +358,11 @@ aby dopasować argumenty do parametrów:
     numer to zero
     dopóki numer mniejsze od krotności:
         los to szukaj numeru w przydziałach
-        los jest:
+        gdy los jest:
             Sukcesem:
                 ignoruj los
             Błędem:
-                wolne_miejsca są:
+                gdy wolne_miejsca są:
                     PustąListą:
                         zwróć Błąd o opisie "argument nie pasuje do żadnego wolnego parametru"
                     Węzłem z głową z ogonem:
@@ -380,14 +380,14 @@ aby odnaleźć nazwę w zakresie:
     jeśli należy nazwa do (zmienne zakresu):
         zwróć prawda
     opiekun to rodzic zakresu
-    opiekun jest:
+    gdy opiekun jest:
         Zakresem:
             zwróć odnajdź nazwę w opiekunie
         Niczym:
             zwróć fałsz
 
 aby przeszukać_hasła lemat w spisie:
-    spis jest:
+    gdy spis jest:
         PustąListą:
             zwróć fałsz
         Węzłem z głową z ogonem:
@@ -400,7 +400,7 @@ aby stwierdzić_pole lemat w otoczeniu:
     zwróć przeszukaj_hasła lemat w (pola otoczenia)
 
 aby wyszukać_sygnaturę dla nazwy wśród sygnatur:
-    sygnatury są:
+    gdy sygnatury są:
         PustąListą:
             zwróć Błąd o opisie "brak takiej funkcji"
         Węzłem z głową z ogonem:
@@ -411,7 +411,7 @@ aby wyszukać_sygnaturę dla nazwy wśród sygnatur:
 # czy żeton to słowo w dopełniaczu niebędące przyimkiem
 aby sprawdzić_dopełniacz w żetonach na pozycji wobec otoczenia:
     zdobycz to wyłów_słowo z żetonów na pozycji
-    zdobycz jest:
+    gdy zdobycz jest:
         Błędem:
             zwróć fałsz
         Sukcesem z wartością:
@@ -423,7 +423,7 @@ aby sprawdzić_dopełniacz w żetonach na pozycji wobec otoczenia:
 
 aby wyłowić_słowo z żetonów na pozycji:
     żeton to wybrałbyś pozycję z żetonów?
-    żeton jest:
+    gdy żeton jest:
         Słowem:
             zwróć Sukces o wartości żeton
         inaczej:
@@ -431,7 +431,7 @@ aby wyłowić_słowo z żetonów na pozycji:
 
 aby wyłowić_operatora z żetonów na pozycji:
     żeton to wybrałbyś pozycję z żetonów?
-    żeton jest:
+    gdy żeton jest:
         Operatorem:
             zwróć Sukces o wartości żeton
         inaczej:
@@ -439,7 +439,7 @@ aby wyłowić_operatora z żetonów na pozycji:
 
 aby oczekiwać wzoru w żetonach na pozycji:
     połów to wyłów_operatora z żetonów na pozycji
-    połów jest:
+    gdy połów jest:
         Błędem:
             zwróć Błąd o opisie (sklej "oczekiwano symbolu " ze wzorem)
         Sukcesem z wartością:
@@ -459,7 +459,7 @@ aby rozebrać_poziom przez parser od pozycji ze szczeblem o szukanej_randze:
     stan to zastosowałbyś szczebel z parserem z pozycją?
     dopóki prawda:
         połów to wyłów_operatora z (żetony parsera) na (pozycja stanu)
-        połów jest:
+        gdy połów jest:
             Błędem:
                 dość
             Sukcesem z wartością:
@@ -479,7 +479,7 @@ aby rozebrać_koniunkcję przez parser od pozycji:
 
 aby rozebrać_przeczenie przez parser od pozycji:
     połów to wyłów_operatora z (żetony parsera) na pozycji
-    połów jest:
+    gdy połów jest:
         Sukcesem z wartością:
             jeśli ranga wartości równa "przeczenie":
                 wnętrze to rozebrałbyś_przeczenie przez parser od (pozycja plus jeden)?
@@ -493,7 +493,7 @@ aby rozebrać_przeczenie przez parser od pozycji:
 aby rozebrać_porównanie przez parser od pozycji:
     stan to rozebrałbyś_sumę przez parser od pozycji?
     połów to wyłów_operatora z (żetony parsera) na (pozycja stanu)
-    połów jest:
+    gdy połów jest:
         Sukcesem z wartością:
             jeśli ranga wartości równe "porównanie":
                 kontynuacja to rozebrałbyś_sumę przez parser od (pozycja stanu plus jeden)?
@@ -514,7 +514,7 @@ aby rozebrać_iloczyn przez parser od pozycji:
 # unarny plus/minus przed członem
 aby rozebrać_czynnik przez parser od pozycji:
     połów to wyłów_operatora z (żetony parsera) na pozycji
-    połów jest:
+    gdy połów jest:
         Sukcesem z wartością:
             jeśli ranga wartości równe "suma":
                 wnętrze to rozebrałbyś_czynnik przez parser od (pozycja plus jeden)?
@@ -534,7 +534,7 @@ aby rozebrać_człon przez parser od pozycji:
 aby dokleić_adnotację do stanu przez parser:
     nawias to fałsz
     połów to wyłów_operatora z (żetony parsera) na (pozycja stanu)
-    połów jest:
+    gdy połów jest:
         Błędem:
             ignoruj połów
         Sukcesem z wartością:
@@ -543,7 +543,7 @@ aby dokleić_adnotację do stanu przez parser:
     jeśli nie nawias:
         zwróć Sukces o wartości stan
     zdobycz to wyłów_słowo z (żetony parsera) na (pozycja stanu plus jeden)
-    zdobycz jest:
+    gdy zdobycz jest:
         Błędem:
             zwróć Sukces o wartości stan
         Sukcesem z wartością:
@@ -561,7 +561,7 @@ aby rozebrać_atom przez parser od pozycji:
     zwróć rozważ żeton przez parser od pozycji
 
 aby rozważyć żeton przez parser od pozycji:
-    żeton jest:
+    gdy żeton jest:
         Liczebnikiem z wartością:
             zwróć Sukces o wartości (Stan o drzewie (Ilość o wartości wartość) o pozycji (pozycja plus jeden))
         Napisem z treścią:
@@ -590,7 +590,7 @@ aby rozpoznać słowo przez parser od pozycji:
         zwróć obsłuż stan według słowa przez parser
     # 4. wywołanie zdefiniowanej funkcji
     poszukiwanie to wyszukaj_sygnaturę dla (lemat słowa) wśród (sygnatury otoczenia parsera)
-    poszukiwanie jest:
+    gdy poszukiwanie jest:
         Sukcesem z wartością:
             stan to rozebrałbyś_wywołanie przez parser od (pozycja plus jeden) według wartości?
             zwróć obsłuż stan według słowa przez parser
@@ -602,7 +602,7 @@ aby rozpoznać słowo przez parser od pozycji:
     # 6. referencja gerundialna do funkcji
     jeśli podstawa słowa nierówne "":
         ślad to wyszukaj_sygnaturę dla (podstawa słowa) wśród (sygnatury otoczenia parsera)
-        ślad jest:
+        gdy ślad jest:
             Sukcesem z wartością:
                 zwróć Sukces o wartości (Stan o drzewie (Odsyłacz o celu (nazwa wartości) o przypadkach (przypadki słowa)) o pozycji (pozycja plus jeden))
             Błędem:
@@ -621,7 +621,7 @@ aby obsłużyć stan według słowa przez parser:
 # przypadki argumentu czyta się z odwołania albo odsyłacza;
 # literały, nawiasy i łańcuchy są bezprzypadkowe
 aby wydedukować_przypadki z wyrażenia:
-    wyrażenie jest:
+    gdy wyrażenie jest:
         Odwołaniem z przypadkami:
             zwróć przypadki
         Odsyłaczem z przypadkami:
@@ -634,7 +634,7 @@ aby rozebrać_argument przez parser od pozycji:
     przyimek to ""
     wskaźnik to pozycja
     zdobycz to wyłów_słowo z (żetony parsera) na pozycji
-    zdobycz jest:
+    gdy zdobycz jest:
         Błędem:
             ignoruj zdobycz
         Sukcesem z wartością:
@@ -666,7 +666,7 @@ aby rozebrać_aplikację przez parser od pozycji:
     wskaźnik to pozycja czoła
     dopóki prawda:
         zdobycz to wyłów_słowo z (żetony parsera) na wskaźniku
-        zdobycz jest:
+        gdy zdobycz jest:
             Błędem:
                 dość
             Sukcesem z wartością:
@@ -690,7 +690,7 @@ aby rozebrać_łańcuch przez parser od pozycji z czołem:
         jeśli nie stwierdź_pole końcówkę w (otoczenie parsera):
             dość
         zdobycz to wyłów_słowo z (żetony parsera) na wskaźniku
-        zdobycz jest:
+        gdy zdobycz jest:
             Błędem:
                 dość
             Sukcesem z wartością:
@@ -712,7 +712,7 @@ aby rozebrać_łańcuch przez parser od pozycji z czołem:
 aby rozebrać_przypis przez parser od pozycji wobec typu przy obsadzie:
     przyimek to ""
     zdobycz to wyłów_słowo z (żetony parsera) na pozycji
-    zdobycz jest:
+    gdy zdobycz jest:
         Błędem:
             ignoruj zdobycz
         Sukcesem z wartością:
@@ -723,7 +723,7 @@ aby rozebrać_przypis przez parser od pozycji wobec typu przy obsadzie:
     jeśli przyimek równe "z":
         wymóg to "narzędnik"
     traf to wyłów_słowo z (żetony parsera) na (pozycja plus jeden)
-    traf jest:
+    gdy traf jest:
         Błędem:
             zwróć Sukces o wartości Nic
         Sukcesem z wartością:
@@ -747,7 +747,7 @@ aby rozebrać_konstrukcję przez parser od pozycji o typie:
     wskaźnik to pozycja
     dopóki prawda:
         krok to rozebrałbyś_przypis przez parser od wskaźnika wobec typu przy obsadzie?
-        krok jest:
+        gdy krok jest:
             Niczym:
                 dość
             Postępem z polem z wartością z przesunięciem:
@@ -765,7 +765,7 @@ aby rozebrać_całość przez parser:
     zwróć Sukces o wartości stan
 
 aby opisać rezultat:
-    rezultat jest:
+    gdy rezultat jest:
         Sukcesem:
             zwróć "sukces"
         Błędem z opisem:

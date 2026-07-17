@@ -43,14 +43,14 @@ definicja DrzewaZbalansowanego z elementem:
 Gałąź to DrzewoZbalansowane albo Nic
 
 aby zmierzyć gałąź:
-    gałąź jest:
+    gdy gałąź jest:
         DrzewemZbalansowanym z wysokością:
             zwróć wysokość
         Niczym:
             zwróć zero
 
 aby wychylić gałąź:
-    gałąź jest:
+    gdy gałąź jest:
         DrzewemZbalansowanym z lewym_synem z prawym_synem:
             zwróć zmierz lewy_syn minus zmierz prawy_syn
         Niczym:
@@ -69,7 +69,7 @@ aby odświeżyć drzewo:
 
 aby obrócić_prawo drzewo:
     filar to lewy_syn drzewa
-    filar jest:
+    gdy filar jest:
         DrzewemZbalansowanym z prawym_synem:
             lewy_syn drzewa to prawy_syn
             prawy_syn filara to drzewo
@@ -81,7 +81,7 @@ aby obrócić_prawo drzewo:
 
 aby obrócić_lewo drzewo:
     filar to prawy_syn drzewa
-    filar jest:
+    gdy filar jest:
         DrzewemZbalansowanym z lewym_synem:
             prawy_syn drzewa to lewy_syn
             lewy_syn filara to drzewo
@@ -95,7 +95,7 @@ aby zbalansować drzewo:
     wychylenie to wychyl drzewo
     jeśli wychylenie większe od jeden:
         filar to lewy_syn drzewa
-        filar jest:
+        gdy filar jest:
             DrzewemZbalansowanym:
                 jeśli (wychyl filar) mniejsze od zero:
                     lewy_syn drzewa to obróć_lewo filar
@@ -104,7 +104,7 @@ aby zbalansować drzewo:
         zwróć obróć_prawo drzewo
     jeśli wychylenie mniejsze od minus jeden:
         filar to prawy_syn drzewa
-        filar jest:
+        gdy filar jest:
             DrzewemZbalansowanym:
                 jeśli (wychyl filar) większe od zero:
                     prawy_syn drzewa to obróć_prawo filar
@@ -114,7 +114,7 @@ aby zbalansować drzewo:
     zwróć drzewo
 
 aby wstawić element do gałęzi:
-    gałąź jest:
+    gdy gałąź jest:
         DrzewemZbalansowanym z wartością:
             jeśli element mniejsze od wartości:
                 lewy_syn gałęzi to wstaw element do lewego_syna gałęzi

@@ -7,15 +7,15 @@ uwzględnij przygrywka.ć
 # Porządek leksykograficzny po punktach kodowych: minus jeden gdy
 # pierwszy tekst wcześniejszy, zero gdy równe, jeden gdy późniejszy.
 aby porównać tekst (Tekst) z drugim (Tekst) -> Liczba:
-    tekst jest:
+    gdy tekst jest:
         Niczym:
-            drugi jest:
+            gdy drugi jest:
                 Niczym:
                     zwróć zero
                 Ogniwem:
                     zwróć minus jeden
         Ogniwem jako czoło:
-            drugi jest:
+            gdy drugi jest:
                 Niczym:
                     zwróć jeden
                 Ogniwem jako zaplecze:
@@ -29,7 +29,7 @@ aby porównać tekst (Tekst) z drugim (Tekst) -> Liczba:
 
 # Czy znak występuje w tekście.
 aby sprawdzić_obecność rozdzielnika (Znak) w tekście (Tekst) -> Przełącznik:
-    tekst jest:
+    gdy tekst jest:
         Ogniwem z głową z ogonem:
             jeśli głowa równa rozdzielnik:
                 zwróć prawda
@@ -39,7 +39,7 @@ aby sprawdzić_obecność rozdzielnika (Znak) w tekście (Tekst) -> Przełączni
 
 # Prefiks do pierwszego rozdzielnika (bez niego); brak → cały tekst.
 aby uciąć tekst (Tekst) przed rozdzielnikiem (Znak) -> Tekst:
-    tekst jest:
+    gdy tekst jest:
         Ogniwem z głową z ogonem:
             jeśli głowa równa rozdzielnik:
                 zwróć Nic
@@ -49,7 +49,7 @@ aby uciąć tekst (Tekst) przed rozdzielnikiem (Znak) -> Tekst:
 
 # Sufiks za pierwszym rozdzielnikiem; brak → pusty tekst.
 aby odciąć tekst (Tekst) za rozdzielnikiem (Znak) -> Tekst:
-    tekst jest:
+    gdy tekst jest:
         Ogniwem z głową z ogonem:
             jeśli głowa równa rozdzielnik:
                 zwróć ogon
@@ -65,9 +65,9 @@ aby podzielić_tekst całość (Tekst) po rozdzielniku (Znak) -> Lista:
 
 # Złączenie kawałków rozdzielnikiem (odwrotność podziału).
 aby złączyć kawałki (Lista) rozdzielnikiem (Znak) -> Tekst:
-    kawałki są:
+    gdy kawałki są:
         Ogniwem z głową z ogonem:
-            ogon jest:
+            gdy ogon jest:
                 Niczym:
                     zwróć głowa
                 inaczej:

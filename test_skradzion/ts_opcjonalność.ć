@@ -14,13 +14,13 @@ aby szukać w piasku (Liczba) -> Znalezisko:
 
 aby działać:
     łup to szukaj w dziesięciu
-    łup jest:
+    gdy łup jest:
         Monetą:
             wypisz nominał łupu
         Niczym:
             wypisz zero
     pudło to szukaj w dwóch
-    pudło jest:
+    gdy pudło jest:
         Monetą:
             wypisz nominał pudła
         Niczym:

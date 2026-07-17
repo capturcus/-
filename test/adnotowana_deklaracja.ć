@@ -11,13 +11,13 @@ Zwierzę to Kot albo Nic
 
 aby działać:
     zwierzę (Zwierzę) to Nic
-    zwierzę jest:
+    gdy zwierzę jest:
         Kotem z imieniem:
             wypisz imię
         Niczym:
             wypisz "pusto"
     zwierzę to Kot o imieniu "Mruczek"
-    zwierzę jest:
+    gdy zwierzę jest:
         Kotem z imieniem:
             wypisz imię
         Niczym:

@@ -14,7 +14,7 @@ definicja Paczki:
 Przesyłka to Paczka albo Nic
 
 aby przywitać zwierzę:
-    zwierzę jest:
+    gdy zwierzę jest:
         Kotem:
             imię zwierzęcia to "Mruczek"
             wypisz (imię zwierzęcia)
@@ -22,9 +22,9 @@ aby przywitać zwierzę:
             wypisz kość
 
 aby rozpakować przesyłkę:
-    przesyłka jest:
+    gdy przesyłka jest:
         Paczką z wnętrzem:
-            wnętrze jest:
+            gdy wnętrze jest:
                 Kotem:
                     wypisz (imię wnętrza)
                 inaczej:

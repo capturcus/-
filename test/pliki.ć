@@ -7,19 +7,19 @@ uwzględnij przygrywka.ć
 aby działać:
     ścieżka to "/tmp/ć_test_pliki.txt"
     zapis to zapisz_plik dla "raz dwa trzy" do ścieżki
-    zapis jest:
+    gdy zapis jest:
         Sukcesem z wartością:
             wypisz wartość
         Błędem z opisem:
             wypisz opis
     odczyt to czytaj_plik ze ścieżki
-    odczyt jest:
+    gdy odczyt jest:
         Sukcesem z wartością:
             wypisz wartość
         Błędem z opisem:
             wypisz opis
     zguba to czytaj_plik ze "/tmp/ć_test_pliki_nie_ma_takiego.txt"
-    zguba jest:
+    gdy zguba jest:
         Sukcesem z wartością:
             wypisz wartość
         Błędem:

@@ -61,7 +61,7 @@
     },
     {
       "name": "keyword.control.cc",
-      "match": "\\b(aby|można|definicja|jeśli|inaczej|dopóki|zwróć|zwrócić|dość|dalej|albo|jest|są|to)\\b"
+      "match": "\\b(aby|można|definicja|jeśli|inaczej|dopóki|gdy|zwróć|zwrócić|dość|dalej|albo|jest|są|to)\\b"
     },
     {
       "name": "keyword.control.apply.cc",

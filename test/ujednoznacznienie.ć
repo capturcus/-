@@ -19,7 +19,7 @@ aby działać:
     kwiat to Kwiat o barwie "biała"
     wazon to Wazon o ozdobie Nic
     ustaw kwiat w wazonie
-    ozdoba wazonu jest:
+    gdy ozdoba wazonu jest:
         Kwiatem z barwą:
             wypisz barwa
         Niczym:

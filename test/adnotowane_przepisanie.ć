@@ -15,12 +15,12 @@ Zwierzę to Kot albo Pies
 
 aby działać:
     zwierzę to Kot o imieniu "Mruczek"
-    zwierzę jest:
+    gdy zwierzę jest:
         Kotem:
             zwierzę (Zwierzę) to Pies o kości "szynka"
         Psem:
             wypisz "pies"
-    zwierzę jest:
+    gdy zwierzę jest:
         Kotem z imieniem:
             wypisz imię
         Psem z kością:

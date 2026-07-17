@@ -71,14 +71,14 @@ aby dodać element do listy:
     zwróć Węzeł o głowie element o ogonie lista
 
 aby liczyć listę:
-    lista jest:
+    gdy lista jest:
         PustąListą:
             zwróć zero
         Węzłem z ogonem:
             zwróć jeden plus licz ogon
 
 aby należeć element do zbioru:
-    zbiór jest:
+    gdy zbiór jest:
         PustąListą:
             zwróć fałsz
         Węzłem z głową z ogonem:
@@ -90,7 +90,7 @@ aby należeć element do zbioru:
 # unii ta sama funkcja obsługuje listę użytkowników i listę postów —
 # wystarczy, że element ma pole `identyfikator`.
 aby wyszukiwać numer w rekordach:
-    rekordy są:
+    gdy rekordy są:
         PustąListą:
             zwróć Błąd o opisie "nie znaleziono rekordu"
         Węzłem z głową z ogonem:
@@ -139,7 +139,7 @@ aby obserwować cel przez fana w stanie:
 # ---------- oś czasu ----------
 
 aby zbierać posty dla obserwowanych:
-    posty są:
+    gdy posty są:
         PustąListą:
             zwróć posty
         Węzłem z głową z ogonem:
@@ -149,7 +149,7 @@ aby zbierać posty dla obserwowanych:
             zwróć resztę
 
 aby opisywać posty:
-    posty są:
+    gdy posty są:
         PustąListą:
             zwróć ""
         Węzłem z głową z ogonem:
@@ -158,7 +158,7 @@ aby opisywać posty:
 # ---------- obsługa odpowiedzi ----------
 
 aby zgłaszać rezultat do klienta:
-    rezultat jest:
+    gdy rezultat jest:
         Sukcesem z wartością:
             wyślij_odpowiedź wartość do klienta
         Błędem z opisem:
@@ -176,7 +176,7 @@ aby działać:
     zgłaszaj (skomentuj trzy przez dwa "ładne zdjęcie" w stanie) do dwa
     zgłaszaj (obserwuj jeden przez dwa w stanie) do dwa
     obserwator to wyszukuj dwa w użytkownikach stanu
-    obserwator jest:
+    gdy obserwator jest:
         Sukcesem z wartością:
             oś to zbieraj wpisy stanu dla obserwowanych wartości
             wyślij_odpowiedź (opisuj oś) do dwa

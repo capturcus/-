@@ -75,21 +75,21 @@ aby dodać element do listy:
     zwróć Węzeł o głowie element o ogonie lista
 
 aby liczyć listę:
-    lista jest:
+    gdy lista jest:
         PustąListą:
             zwróć zero
         Węzłem z ogonem:
             zwróć jeden plus licz ogon
 
 aby brać_pierwszą z listy:
-    lista jest:
+    gdy lista jest:
         PustąListą:
             zwróć Błąd o opisie "lista jest pusta"
         Węzłem z głową:
             zwróć Sukces o wartości głowa
 
 aby wybrać pozycję z listy:
-    lista jest:
+    gdy lista jest:
         PustąListą:
             zwróć Błąd o opisie "pozycja poza listą"
         Węzłem z głową z ogonem:
@@ -98,7 +98,7 @@ aby wybrać pozycję z listy:
             zwróć wybierz (pozycja minus jeden) z ogona
 
 aby należeć element do zbioru:
-    zbiór jest:
+    gdy zbiór jest:
         PustąListą:
             zwróć fałsz
         Węzłem z głową z ogonem:
@@ -108,7 +108,7 @@ aby należeć element do zbioru:
 
 # Przecięcie listy ze zbiorem (Python: frozenset(p for p in atoms if p in CASES)).
 aby filtrować atomy według zbioru:
-    atomy są:
+    gdy atomy są:
         PustąListą:
             zwróć atomy
         Węzłem z głową z ogonem:
@@ -124,7 +124,7 @@ aby ignorować rzecz:
 # ---------- opcja ----------
 
 aby wydobyć opcję z awaryjną:
-    opcja jest:
+    gdy opcja jest:
         Sukcesem z wartością:
             zwróć wartość
         Błędem:
@@ -134,7 +134,7 @@ aby wydobyć opcję z awaryjną:
 # ---------- słownik (assoc-lista Haseł) ----------
 
 aby szukać klucza w słowniku:
-    słownik jest:
+    gdy słownik jest:
         PustąListą:
             zwróć Błąd o opisie "nie znaleziono klucza"
         Węzłem z głową z ogonem:
@@ -147,13 +147,13 @@ aby wstawić klucz z zawartością do słownika:
 
 # Mapowanie atomów rodzaju przez GENDER_MAP — zbiera tylko trafienia.
 aby tłumaczyć atomy przez mapę:
-    atomy są:
+    gdy atomy są:
         PustąListą:
             zwróć atomy
         Węzłem z głową z ogonem:
             reszta to tłumacz ogon przez mapę
             znalezisko to szukaj głowy w mapie
-            znalezisko jest:
+            gdy znalezisko jest:
                 Sukcesem z wartością:
                     zwróć dodaj wartość do reszty
                 Błędem:
@@ -224,25 +224,25 @@ aby wymienić_klasy_czasownikowe:
 # Rekursja od końca + nadpisanie wartością z głowy = "pierwsze trafienie
 # wygrywa" jak w pythonowej pętli z continue.
 aby badać części:
-    części są:
+    gdy części są:
         PustąListą:
             zwróć Morfologia o przypadkach utwórz_pustą o liczbie (Błąd o opisie "brak liczby w tagu") o rodzajach utwórz_pustą
         Węzłem z głową z ogonem:
             morfologia to badaj ogon
             atomy to podziel głowę po "."
             trafione to filtruj atomy według wymień_przypadki
-            trafione jest:
+            gdy trafione jest:
                 Węzłem:
                     przypadki morfologii to trafione
                 PustąListą:
                     liczby to filtruj atomy według wymień_liczby
                     możliwa_liczba to bierz_pierwszą z liczb
-                    możliwa_liczba jest:
+                    gdy możliwa_liczba jest:
                         Sukcesem:
                             liczba morfologii to możliwa_liczba
                         Błędem:
                             przetłumaczone to tłumacz atomy przez wymień_mapę_rodzajów
-                            przetłumaczone jest:
+                            gdy przetłumaczone jest:
                                 Węzłem:
                                     rodzaje morfologii to przetłumaczone
                                 PustąListą:
@@ -269,20 +269,20 @@ aby przetwarzać wiersz:
 # db.setdefault(form, []).append(analiza) na assoc-liście.
 aby dopisać analizę w słowniku:
     dotychczasowe to szukaj napisu analizy w słowniku
-    dotychczasowe jest:
+    gdy dotychczasowe jest:
         Sukcesem z wartością:
             zwróć wstaw napis analizy z (dodaj analizę do wartości) do słownika
         Błędem:
             zwróć wstaw napis analizy z (dodaj analizę do utwórz_pustą) do słownika
 
 aby wczytywać wiersze:
-    wiersze są:
+    gdy wiersze są:
         PustąListą:
             zwróć Baza o formach utwórz_pustą o przyimkach utwórz_pustą
         Węzłem z głową z ogonem:
             baza to wczytuj ogon
             możliwa_analiza to przetwarzaj głowę
-            możliwa_analiza jest:
+            gdy możliwa_analiza jest:
                 Błędem:
                     ignoruj możliwą_analizę
                 Sukcesem z wartością:
@@ -295,7 +295,7 @@ aby wczytywać wiersze:
 # ---------- analyze() ----------
 
 aby analizować słowa w słowniku:
-    słowa są:
+    gdy słowa są:
         PustąListą:
             zwróć słowa
         Węzłem z głową z ogonem:
@@ -309,7 +309,7 @@ aby analizować słowa w słowniku:
 
 # Analizy o klasie przymiotnikowej (adj/pact/ppas).
 aby przesiewać analizy według klas:
-    analizy są:
+    gdy analizy są:
         PustąListą:
             zwróć analizy
         Węzłem z głową z ogonem:
@@ -321,7 +321,7 @@ aby przesiewać analizy według klas:
 # Pula kanonizacji: analizy przymiotnikowe, a gdy ich brak — wszystkie.
 aby wybrać_pulę z analiz:
     przymiotnikowe to przesiewaj analizy według wymień_klasy_przymiotnikowe
-    przymiotnikowe jest:
+    gdy przymiotnikowe jest:
         PustąListą:
             zwróć analizy
         Węzłem:
@@ -329,7 +329,7 @@ aby wybrać_pulę z analiz:
 
 # Pierwsza analiza, której lemat równa się słowu (citation match).
 aby wyszukiwać słowo w analizach:
-    analizy są:
+    gdy analizy są:
         PustąListą:
             zwróć Błąd o opisie "żaden lemat nie pasuje"
         Węzłem z głową z ogonem:
@@ -339,18 +339,18 @@ aby wyszukiwać słowo w analizach:
 
 aby kanonizować słowo w słowniku:
     znalezisko to szukaj słowa w słowniku
-    znalezisko jest:
+    gdy znalezisko jest:
         Błędem:
             zwróć słowo
         Sukcesem z wartością:
             pula to wybierz_pulę z wartości
             dopasowanie to wyszukuj słowo w puli
-            dopasowanie jest:
+            gdy dopasowanie jest:
                 Sukcesem z wartością:
                     zwróć lemat wartości
                 Błędem:
                     awaryjne to bierz_pierwszą z puli
-                    awaryjne jest:
+                    gdy awaryjne jest:
                         Sukcesem z wartością:
                             zwróć lemat wartości
                         Błędem:
@@ -374,14 +374,14 @@ aby działać:
     kanon to kanonizuj "kota" w formach bazy
     morfologia to badaj (podziel "subst:sg:gen.acc:m2" po ":")
     liczba_przypadków to licz przypadki morfologii
-    liczba morfologii jest:
+    gdy liczba morfologii jest:
         Sukcesem z wartością:
             kanon to wartość
         Błędem z opisem:
             kanon to opis
     znalezisko to szukaj "kota" w formach bazy
     liczba_analiz to zero
-    znalezisko jest:
+    gdy znalezisko jest:
         Sukcesem z wartością:
             liczba_analiz to licz wartość
         Błędem:

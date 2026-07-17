@@ -14,7 +14,7 @@ Spis to Węzeł albo Nic
 aby działać:
     reszta to Węzeł o głowie jeden o ogonie (Węzeł o głowie dwa o ogonie Nic)
     dopóki prawda:
-        reszta jest:
+        gdy reszta jest:
             Niczym:
                 dość
             Węzłem z głową z ogonem:

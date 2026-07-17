@@ -20,7 +20,7 @@ definicja Rozbioru:
     reszta (Tekst)
 
 aby rozebrać tekst:
-    tekst jest:
+    gdy tekst jest:
         Niczym:
             zwróć Rozbiór o programie Nic o reszcie Nic
         Ogniwem z głową z ogonem:
@@ -44,7 +44,7 @@ definicja Stanu:
 
 aby przesunąć_w_prawo taśmę:
     przeszłość taśmy to Ogniwo o głowie (komórka taśmy) o ogonie (przeszłość taśmy)
-    przyszłość taśmy jest:
+    gdy przyszłość taśmy jest:
         Ogniwem z głową z ogonem:
             komórka taśmy to głowa
             przyszłość taśmy to ogon
@@ -53,7 +53,7 @@ aby przesunąć_w_prawo taśmę:
 
 aby przesunąć_w_lewo taśmę:
     przyszłość taśmy to Ogniwo o głowie (komórka taśmy) o ogonie (przyszłość taśmy)
-    przeszłość taśmy jest:
+    gdy przeszłość taśmy jest:
         Ogniwem z głową z ogonem:
             komórka taśmy to głowa
             przeszłość taśmy to ogon
@@ -61,7 +61,7 @@ aby przesunąć_w_lewo taśmę:
             komórka taśmy to zero
 
 aby wykonać program na stanie:
-    program jest:
+    gdy program jest:
         Niczym:
             zwróć Nic
         Ogniwem z głową z ogonem:
@@ -69,7 +69,7 @@ aby wykonać program na stanie:
             wykonaj ogon na stanie
 
 aby obsłużyć rozkaz na stanie:
-    rozkaz jest:
+    gdy rozkaz jest:
         Cyklem z ciałem:
             dopóki (komórka taśmy stanu) nierówna zero:
                 wykonaj ciało na stanie
@@ -86,7 +86,7 @@ aby obsłużyć rozkaz na stanie:
                 wyjście stanu to Ogniwo o głowie (komórka taśmy stanu) o ogonie (wyjście stanu)
 
 aby ogłosić listę:
-    lista jest:
+    gdy lista jest:
         Ogniwem z głową z ogonem:
             wypisz głowę
             ogłoś ogon

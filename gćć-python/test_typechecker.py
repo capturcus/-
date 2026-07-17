@@ -531,7 +531,7 @@ def test_pełne_dopasowanie_wiąże_pola(parse):
     src = _ZWIERZĘTA + (
         "aby działać:\n"
         "    pupil (Zwierzę) to Kot o imieniu 'M'\n"
-        "    pupil jest:\n"
+        "    gdy pupil jest:\n"
         "        Kotem z imieniem:\n"
         "            litera to imię\n"
         "        Psem z kością:\n"
@@ -548,7 +548,7 @@ def test_dopasowanie_brakująca_gałąź_rzuca(parse):
     src = _ZWIERZĘTA + (
         "aby działać:\n"
         "    pupil (Zwierzę) to Kot o imieniu 'M'\n"
-        "    pupil jest:\n"
+        "    gdy pupil jest:\n"
         "        Kotem:\n"
         "            x to jeden\n"
     )
@@ -563,7 +563,7 @@ def test_dopasowanie_gałąź_spoza_unii_rzuca(parse):
         "\n"
         "aby działać:\n"
         "    pupil (Zwierzę) to Kot o imieniu 'M'\n"
-        "    pupil jest:\n"
+        "    gdy pupil jest:\n"
         "        Kotem:\n"
         "            x to jeden\n"
         "        Psem:\n"
@@ -580,7 +580,7 @@ def test_dopasowanie_powtórzona_gałąź_rzuca(parse):
     src = _ZWIERZĘTA + (
         "aby działać:\n"
         "    pupil (Zwierzę) to Kot o imieniu 'M'\n"
-        "    pupil jest:\n"
+        "    gdy pupil jest:\n"
         "        Kotem:\n"
         "            x to jeden\n"
         "        Kotem:\n"
@@ -596,7 +596,7 @@ def test_dopasowanie_powtórzona_gałąź_rzuca(parse):
 def test_dopasowanie_wnioskuje_unię_wolnego_parametru(parse):
     src = _ZWIERZĘTA + (
         "aby badać pupila:\n"
-        "    pupil jest:\n"
+        "    gdy pupil jest:\n"
         "        Kotem z imieniem:\n"
         "            zwróć imię\n"
         "        Psem z kością:\n"
@@ -616,7 +616,7 @@ def test_dopasowanie_zachowuje_wąski_typ_podmiotu(parse):
     src = _ZWIERZĘTA + (
         "aby działać:\n"
         "    kot to Kot o imieniu 'M'\n"
-        "    kot jest:\n"
+        "    gdy kot jest:\n"
         "        Kotem:\n"
         "            x to jeden\n"
         "        Psem:\n"
@@ -631,7 +631,7 @@ def test_częściowe_dopasowanie_z_inaczej(parse):
     src = _ZWIERZĘTA + (
         "aby działać:\n"
         "    pupil (Zwierzę) to Kot o imieniu 'M'\n"
-        "    pupil jest:\n"
+        "    gdy pupil jest:\n"
         "        Kotem:\n"
         "            x to jeden\n"
         "        inaczej:\n"
@@ -647,7 +647,7 @@ def test_zapis_do_podmiotu_idzie_na_zewnątrz(parse):
     src = _ZWIERZĘTA + (
         "aby działać:\n"
         "    pupil to Kot o imieniu 'M'\n"
-        "    pupil jest:\n"
+        "    gdy pupil jest:\n"
         "        Kotem:\n"
         "            pupil to Pies o kości 's'\n"
         "        Psem:\n"
@@ -673,7 +673,7 @@ def test_zapis_do_podmiotu_gasi_cień(parse):
     src = _ZWIERZĘTA + (
         "aby działać:\n"
         "    okaz (Zwierzę) to Kot o imieniu 'm'\n"
-        "    okaz jest:\n"
+        "    gdy okaz jest:\n"
         "        Kotem:\n"
         "            okaz to Pies o kości 'k'\n"
         "            litera to imię okazu\n"
@@ -692,7 +692,7 @@ def test_zapis_w_pętli_gasi_cień_mimo_odczytu_przed_nim(parse):
     src = _ZWIERZĘTA + (
         "aby działać:\n"
         "    okaz (Zwierzę) to Kot o imieniu 'm'\n"
-        "    okaz jest:\n"
+        "    gdy okaz jest:\n"
         "        Kotem:\n"
         "            dopóki prawda:\n"
         "                litera to imię okazu\n"
@@ -711,7 +711,7 @@ def test_zapis_w_zagnieżdżonym_bloku_gasi_cień(parse):
     src = _ZWIERZĘTA + (
         "aby działać:\n"
         "    okaz (Zwierzę) to Kot o imieniu 'm'\n"
-        "    okaz jest:\n"
+        "    gdy okaz jest:\n"
         "        Kotem:\n"
         "            jeśli prawda:\n"
         "                okaz to Pies o kości 'k'\n"
@@ -730,7 +730,7 @@ def test_gałąź_bez_zapisu_zachowuje_cień(parse):
     src = _ZWIERZĘTA + (
         "aby działać:\n"
         "    okaz (Zwierzę) to Kot o imieniu 'm'\n"
-        "    okaz jest:\n"
+        "    gdy okaz jest:\n"
         "        Kotem:\n"
         "            litera to imię okazu\n"
         "        Psem:\n"
@@ -747,7 +747,7 @@ def test_wiązanie_pola_przeżywa_zapis_do_podmiotu(parse):
     src = _ZWIERZĘTA + (
         "aby działać:\n"
         "    okaz (Zwierzę) to Kot o imieniu 'm'\n"
-        "    okaz jest:\n"
+        "    gdy okaz jest:\n"
         "        Kotem z imieniem:\n"
         "            litera to imię\n"
         "            okaz to Pies o kości 'k'\n"
@@ -765,7 +765,7 @@ def test_alias_przeżywa_zapis_do_podmiotu(parse):
     src = _ZWIERZĘTA + (
         "aby działać:\n"
         "    okaz (Zwierzę) to Kot o imieniu 'm'\n"
-        "    okaz jest:\n"
+        "    gdy okaz jest:\n"
         "        Kotem jako kiciuś:\n"
         "            okaz to Pies o kości 'k'\n"
         "            litera to imię kiciusia\n"
@@ -783,10 +783,10 @@ def test_ponowne_zawężenie_po_zapisie(parse):
     src = _ZWIERZĘTA + (
         "aby działać:\n"
         "    okaz (Zwierzę) to Kot o imieniu 'm'\n"
-        "    okaz jest:\n"
+        "    gdy okaz jest:\n"
         "        Kotem:\n"
         "            okaz to Pies o kości 'k'\n"
-        "            okaz jest:\n"
+        "            gdy okaz jest:\n"
         "                Psem:\n"
         "                    litera to kość okazu\n"
         "                Kotem:\n"
@@ -965,7 +965,7 @@ def test_aplikacja_nazwana_w_adnotacji_unii(parse):
     src = _PRZYGRYWKA + (
         "aby działać:\n"
         "    wynik to czytaj_plik ze \"dane\"\n"
-        "    wynik jest:\n"
+        "    gdy wynik jest:\n"
         "        Sukcesem z wartością:\n"
         "            treść to wartość\n"
         "        Błędem z opisem:\n"
@@ -1015,7 +1015,7 @@ def test_wspólny_parametr_w_aplikacji_nazwanej(parse):
         "\n"
         "aby działać:\n"
         "    wynik to wybieraj z (Ogniwo o głowie pięć o ogonie Nic)\n"
-        "    wynik jest:\n"
+        "    gdy wynik jest:\n"
         "        Sukcesem z wartością:\n"
         "            liczba to wartość plus jeden\n"
         "        Błędem:\n"
@@ -1169,7 +1169,7 @@ def test_ekstrakcja_elementu_generycznej_listy_bez_adnotacji(parse):
         "aby działać:\n"
         "    liczby to Ogniwo o głowie jeden o ogonie Nic\n"
         "    trafienie to wskaż jeden na liczbach\n"
-        "    trafienie jest:\n"
+        "    gdy trafienie jest:\n"
         "        Sukcesem z wartością:\n"
         "            wypisz wartość\n"
         "        Błędem z opisem:\n"
@@ -1207,7 +1207,7 @@ def test_try_call_odpakowuje_i_rozszerza_zwrot(parse):
         "\n"
         "aby działać:\n"
         "    wynik to przetwarzaj zero\n"
-        "    wynik jest:\n"
+        "    gdy wynik jest:\n"
         "        Sukcesem z wartością:\n"
         "            n to wartość\n"
         "        Błędem:\n"
@@ -1977,14 +1977,14 @@ _MAGAZYNY = (
     "    zwróć zapas rzeczy\n"
     "\n"
     "aby zmierzyć listę (Lista) -> Liczba:\n"
-    "    lista jest:\n"
+    "    gdy lista jest:\n"
     "        Ogniwem z ogonem:\n"
     "            zwróć jeden plus zmierz ogon\n"
     "        Niczym:\n"
     "            zwróć zero\n"
     "\n"
     "aby złożyć listę (Lista) z operacją z akumulatorem:\n"
-    "    lista jest:\n"
+    "    gdy lista jest:\n"
     "        Ogniwem z głową z ogonem:\n"
     "            reszta to złóż ogon z operacją z akumulatorem\n"
     "            zwróć zastosuj operację z głową z resztą\n"
@@ -2078,7 +2078,7 @@ def test_zapis_warunkowy_poszerza_element_czysty_błąd(parse):
         "    jeśli prawda:\n"
         "        głowa stada to Pies o kości 'p'\n"
         "    pierwszy to głowa stada\n"
-        "    pierwszy jest:\n"
+        "    gdy pierwszy jest:\n"
         "        Kotem z imieniem:\n"
         "            wypisz imię\n"
     )
@@ -2181,9 +2181,9 @@ def test_zagnieżdżony_match_na_zawężonym_podmiocie(parse):
         "\n"
         "aby działać:\n"
         "    okaz (Zwierzę) to Kot o imieniu 'm'\n"
-        "    okaz jest:\n"
+        "    gdy okaz jest:\n"
         "        Kotem:\n"
-        "            okaz jest:\n"
+        "            gdy okaz jest:\n"
         "                Psem:\n"
         "                    wypisz 'p'\n"
         "        Psem:\n"
@@ -2397,7 +2397,7 @@ def test_dopasowanie_gałęzią_unią(parse):
     {Kot, Pies} na Zwierzęciu jest wyczerpujące."""
     src = _HIERARCHIA + (
         "aby opisać zwierzę (Zwierzę) -> Znak:\n"
-        "    zwierzę jest:\n"
+        "    gdy zwierzę jest:\n"
         "        Kotem z imieniem:\n"
         "            zwróć imię\n"
         "        Psem:\n"
@@ -2415,7 +2415,7 @@ def test_dopasowanie_liśćmi_przez_poziomy(parse):
     """Wyczerpująco także mieszanką poziomów: {Kot, Jamnik, Pudel}."""
     src = _HIERARCHIA + (
         "aby opisać zwierzę (Zwierzę) -> Znak:\n"
-        "    zwierzę jest:\n"
+        "    gdy zwierzę jest:\n"
         "        Kotem z imieniem:\n"
         "            zwróć imię\n"
         "        Jamnikiem z kością:\n"
@@ -2430,7 +2430,7 @@ def test_dopasowanie_liśćmi_przez_poziomy(parse):
 def test_nakładające_się_gałęzie_rzucają(parse):
     src = _HIERARCHIA + (
         "aby opisać zwierzę (Zwierzę) -> Znak:\n"
-        "    zwierzę jest:\n"
+        "    gdy zwierzę jest:\n"
         "        Kotem z imieniem:\n"
         "            zwróć imię\n"
         "        Psem:\n"
@@ -2510,7 +2510,7 @@ def test_działać_z_parametrem_odrzuca_złe_użycie(parse):
     """Argument programu to Tekst — dodanie go do Liczby pęka."""
     src = _PRZYGRYWKA + (
         "aby działać dla argumentów:\n"
-        "    argumenty są:\n"
+        "    gdy argumenty są:\n"
         "        Ogniwem z głową:\n"
         "            suma to głowa plus jeden\n"
         "        Niczym:\n"

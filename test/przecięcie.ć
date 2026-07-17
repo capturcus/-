@@ -19,14 +19,14 @@ Domownik to Kot albo Pies
 Futrzak to Kot albo Chomik
 
 aby przygarnąć domownika:
-    domownik jest:
+    gdy domownik jest:
         Kotem z imieniem:
             wypisz imię
         Psem z kością:
             wypisz kość
 
 aby wyczesać futrzaka:
-    futrzak jest:
+    gdy futrzak jest:
         Kotem:
             wypisz "wyczesany kot"
         Chomikiem z futrem:

@@ -4,7 +4,7 @@
 uwzględnij przygrywka.ć
 
 aby ogłosić listę (Lista):
-    lista jest:
+    gdy lista jest:
         Ogniwem z głową z ogonem:
             wypisz głowa
             ogłoś ogon

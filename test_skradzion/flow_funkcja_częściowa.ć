@@ -11,7 +11,7 @@ definicja Psa:
 Zwierzę to Kot albo Pies
 
 aby nazwać okaz (Zwierzę) -> Znak:
-    okaz jest:
+    gdy okaz jest:
         Kotem z imieniem:
             zwróć imię
         Psem:

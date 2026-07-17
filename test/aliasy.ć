@@ -16,7 +16,7 @@ Ciąg to Łańcuszek o wartości Tekst o elemencie Liczba
 Numer to Liczba
 
 aby zsumować łańcuszek (Ciąg) -> Numer:
-    łańcuszek jest:
+    gdy łańcuszek jest:
         Węzłem z głową z ogonem:
             zwróć głowa plus zsumuj ogon
         Niczym:

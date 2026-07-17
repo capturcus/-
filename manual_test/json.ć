@@ -73,7 +73,7 @@ aby przetłumaczyć_ucieczkę znak:
 # ---------- białe znaki ----------
 
 aby pominąć_odstępy tekst:
-    tekst jest:
+    gdy tekst jest:
         Ogniwem z głową z ogonem:
             jeśli głowa równa ' ' lub głowa równa '\n' lub głowa równa '\t' lub głowa równa '\r':
                 zwróć pomiń_odstępy ogon
@@ -84,13 +84,13 @@ aby pominąć_odstępy tekst:
 # ---------- słowa kluczowe: dopasuj literał na przodzie ----------
 
 aby dopasować_przedrostek wzór do tekstu:
-    wzór jest:
+    gdy wzór jest:
         Niczym:
             zwróć Sukces o wartości tekst
         Ogniwem z głową z ogonem:
             czoło to głowa
             reszta to ogon
-            tekst jest:
+            gdy tekst jest:
                 Niczym:
                     zwróć Błąd o opisie "słowo kluczowe urwane na końcu wejścia"
                 Ogniwem z głową z ogonem:
@@ -105,7 +105,7 @@ aby rozłożyć_słowo z tekstu według wzoru na drzewie:
 # ---------- liczby całkowite ----------
 
 aby zebrać_cyfry z tekstu przy liczbie:
-    tekst jest:
+    gdy tekst jest:
         Ogniwem z głową z ogonem:
             jeśli rozpoznaj_cyfrę głowę:
                 suma to liczba razy dziesięć plus odczytaj_cyfrę głowę
@@ -115,7 +115,7 @@ aby zebrać_cyfry z tekstu przy liczbie:
             zwróć Rozbiór o wyniku liczba o reszcie Nic
 
 aby rozłożyć_liczbę z tekstu:
-    tekst jest:
+    gdy tekst jest:
         Niczym:
             zwróć Błąd o opisie "oczekiwano liczby, napotkano koniec wejścia"
         Ogniwem z głową z ogonem:
@@ -130,14 +130,14 @@ aby rozłożyć_liczbę z tekstu:
 # ---------- napisy ----------
 
 aby zebrać_znaki z tekstu:
-    tekst jest:
+    gdy tekst jest:
         Niczym:
             zwróć Błąd o opisie "niezakończony napis (brak zamykającego cudzysłowu)"
         Ogniwem z głową z ogonem:
             jeśli głowa równa '"':
                 zwróć Sukces o wartości (Rozbiór o wyniku Nic o reszcie ogon)
             jeśli głowa równa '\\':
-                ogon jest:
+                gdy ogon jest:
                     Niczym:
                         zwróć Błąd o opisie "backslash na końcu wejścia"
                     Ogniwem z głową z ogonem:
@@ -156,7 +156,7 @@ aby rozłożyć_napis z tekstu:
 aby zebrać_pozycje z tekstu:
     rozbiór to rozłożyłbyś_wartość z tekstu?
     ciąg to pomiń_odstępy (reszta rozbioru)
-    ciąg jest:
+    gdy ciąg jest:
         Ogniwem z głową z ogonem:
             jeśli głowa równa ']':
                 zwróć Sukces o wartości (Rozbiór o wyniku (Ogniwo o głowie (wynik rozbioru) o ogonie Nic) o reszcie ogon)
@@ -170,7 +170,7 @@ aby zebrać_pozycje z tekstu:
 
 aby rozłożyć_tablicę z tekstu:
     ciąg to pomiń_odstępy tekst
-    ciąg jest:
+    gdy ciąg jest:
         Ogniwem z głową z ogonem:
             jeśli głowa równa ']':
                 zwróć Sukces o wartości (Rozbiór o wyniku (Tablica o pozycjach Nic) o reszcie ogon)
@@ -183,7 +183,7 @@ aby rozłożyć_tablicę z tekstu:
 
 aby odczytać_parę z tekstu:
     ciąg to pomiń_odstępy tekst
-    ciąg jest:
+    gdy ciąg jest:
         Niczym:
             zwróć Błąd o opisie "oczekiwano klucza w obiekcie"
         Ogniwem z głową z ogonem:
@@ -191,7 +191,7 @@ aby odczytać_parę z tekstu:
                 zwróć Błąd o opisie "klucz obiektu musi być napisem"
             klucz to zebrałbyś_znaki z ogona?
             środek to pomiń_odstępy (reszta klucza)
-            środek jest:
+            gdy środek jest:
                 Niczym:
                     zwróć Błąd o opisie "oczekiwano ':' po kluczu"
                 Ogniwem z głową z ogonem:
@@ -203,7 +203,7 @@ aby odczytać_parę z tekstu:
 aby zebrać_pary z tekstu:
     łup to odczytałbyś_parę z tekstu?
     ciąg to pomiń_odstępy (reszta łupu)
-    ciąg jest:
+    gdy ciąg jest:
         Ogniwem z głową z ogonem:
             jeśli głowa równa '}':
                 zwróć Sukces o wartości (Rozbiór o wyniku (Ogniwo o głowie (wynik łupu) o ogonie Nic) o reszcie ogon)
@@ -217,7 +217,7 @@ aby zebrać_pary z tekstu:
 
 aby rozłożyć_obiekt z tekstu:
     ciąg to pomiń_odstępy tekst
-    ciąg jest:
+    gdy ciąg jest:
         Ogniwem z głową z ogonem:
             jeśli głowa równa '}':
                 zwróć Sukces o wartości (Rozbiór o wyniku (Obiekt o wpisach Nic) o reszcie ogon)
@@ -230,7 +230,7 @@ aby rozłożyć_obiekt z tekstu:
 
 aby rozłożyć_wartość z tekstu:
     ciąg to pomiń_odstępy tekst
-    ciąg jest:
+    gdy ciąg jest:
         Niczym:
             zwróć Błąd o opisie "oczekiwano wartości JSON, napotkano koniec wejścia"
         Ogniwem z głową z ogonem:
@@ -259,9 +259,9 @@ aby pokazać_parę para przy głębi:
     zwróć sklej "\"" z (sklej (klucz pary) z (sklej "\": " z (pokaż_wartość (wartość pary) przy głębi)))
 
 aby pokazać_wpisy wpisy przy głębi:
-    wpisy są:
+    gdy wpisy są:
         Ogniwem z głową z ogonem:
-            ogon jest:
+            gdy ogon jest:
                 Niczym:
                     zwróć sklej (zbuduj_wcięcie z głębi) z (pokaż_parę głowę przy głębi)
                 Ogniwem:
@@ -270,9 +270,9 @@ aby pokazać_wpisy wpisy przy głębi:
             zwróć ""
 
 aby pokazać_pozycje pozycje przy głębi:
-    pozycje są:
+    gdy pozycje są:
         Ogniwem z głową z ogonem:
-            ogon jest:
+            gdy ogon jest:
                 Niczym:
                     zwróć sklej (zbuduj_wcięcie z głębi) z (pokaż_wartość głowę przy głębi)
                 Ogniwem:
@@ -281,7 +281,7 @@ aby pokazać_pozycje pozycje przy głębi:
             zwróć ""
 
 aby pokazać_obiekt wpisy przy głębi:
-    wpisy są:
+    gdy wpisy są:
         Niczym:
             zwróć "{}"
         Ogniwem:
@@ -289,7 +289,7 @@ aby pokazać_obiekt wpisy przy głębi:
             zwróć sklej "{\n" z (sklej wnętrze z (sklej "\n" z (sklej (zbuduj_wcięcie z głębi) z "}")))
 
 aby pokazać_tablicę pozycje przy głębi:
-    pozycje są:
+    gdy pozycje są:
         Niczym:
             zwróć "[]"
         Ogniwem:
@@ -297,7 +297,7 @@ aby pokazać_tablicę pozycje przy głębi:
             zwróć sklej "[\n" z (sklej wnętrze z (sklej "\n" z (sklej (zbuduj_wcięcie z głębi) z "]")))
 
 aby pokazać_wartość drzewo przy głębi:
-    drzewo jest:
+    gdy drzewo jest:
         Niczym:
             zwróć "null"
         Napisem z treścią:
@@ -316,7 +316,7 @@ aby pokazać_wartość drzewo przy głębi:
 # ---------- punkt wejścia ----------
 
 aby wypisać_rozbiór rozbiór:
-    rozbiór jest:
+    gdy rozbiór jest:
         Błędem z opisem:
             wypisz (sklej "błąd parsowania JSON: " z opisem)
         Sukcesem z wartością:
@@ -325,7 +325,7 @@ aby wypisać_rozbiór rozbiór:
 aby działać:
     ścieżka to "manual_test/dane.json"
     zawartość to czytaj_plik ze ścieżki
-    zawartość jest:
+    gdy zawartość jest:
         Błędem z opisem:
             wypisz (sklej "nie udało się wczytać pliku: " z opisem)
         Sukcesem z wartością:

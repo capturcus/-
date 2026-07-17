@@ -56,7 +56,7 @@ można zapisać_liczbą znak (Znak) -> Liczba
 
 # Długość listy — liczba ogniw.
 aby zmierzyć listę (Lista) -> Liczba:
-    lista jest:
+    gdy lista jest:
         Ogniwem z ogonem:
             zwróć jeden plus zmierz ogon
         Niczym:
@@ -70,7 +70,7 @@ aby skleić listę (Lista) z resztą (Lista) -> Lista:
 
 # Odwrócenie listy przez akumulator (element po elemencie na przód).
 aby przełożyć listę (Lista) na stos (Lista) -> Lista:
-    lista jest:
+    gdy lista jest:
         Ogniwem z głową z ogonem:
             zwróć przełóż ogon na Ogniwo z głową o ogonie stos
         Niczym:
@@ -83,7 +83,7 @@ aby odwrócić listę (Lista) -> Lista:
 # neutralnej — dla pustego zwracamy znak zapytania (`wyłuskać "?"` kończy
 # się natychmiast, bo "?" ma dokładnie jedno ogniwo).
 aby wyłuskać tekst (Tekst) -> Znak:
-    tekst jest:
+    gdy tekst jest:
         Ogniwem z głową:
             zwróć głowa
         inaczej:
@@ -108,7 +108,7 @@ można wylosować_liczbę od minimum (Liczba) do maksimum (Liczba) -> Liczba
 # Fold prawostronny: złóż [a, b, c] z op z akc = op(a, op(b, op(c, akc))).
 # Operacja to wartość funkcyjna (referencja gerundialna, np. `z dodawaniem`).
 aby złożyć listę (Lista) z operacją z akumulatorem:
-    lista jest:
+    gdy lista jest:
         Ogniwem z głową z ogonem:
             reszta to złóż ogon z operacją z akumulatorem
             zwróć zastosuj operację z głową z resztą
@@ -117,7 +117,7 @@ aby złożyć listę (Lista) z operacją z akumulatorem:
 
 # Mapa: nowa lista z wynikami operacji na każdym elemencie.
 aby przekształcać listę (Lista) z operacją:
-    lista jest:
+    gdy lista jest:
         Ogniwem z głową z ogonem:
             zwróć Ogniwo o głowie (zastosuj operację z głową) o ogonie (przekształcaj ogon z operacją)
         Niczym:
@@ -125,7 +125,7 @@ aby przekształcać listę (Lista) z operacją:
 
 # Filtr: zostają elementy, dla których warunek daje prawdę.
 aby przesiewać listę (Lista) przez warunek:
-    lista jest:
+    gdy lista jest:
         Ogniwem z głową z ogonem:
             reszta to przesiewaj ogon przez warunek
             jeśli zastosuj warunek z głową:
@@ -136,7 +136,7 @@ aby przesiewać listę (Lista) przez warunek:
 
 # Indeksowanie listy (pozycje liczone od jednego): Sukces z elementem
 aby wskazać pozycję na liście (Lista):
-    lista jest:
+    gdy lista jest:
         Ogniwem z głową z ogonem:
             jeśli pozycja równa jeden:
                 zwróć Sukces o wartości głowa
@@ -188,7 +188,7 @@ aby odcyfrować znak (Znak) -> Rezultat o elemencie Liczba:
     zwróć Sukces z wartością
 
 aby zbierać_cyfry z napisu (Tekst) z sumą (Liczba) -> Rezultat o elemencie Liczba:
-    napis jest:
+    gdy napis jest:
         Ogniwem z głową z ogonem:
             cyfra to odcyfrowałbyś głowę?
             zwróć zbieraj_cyfry z ogona z (suma razy dziesięć plus cyfra)
@@ -199,10 +199,10 @@ aby zbierać_cyfry z napisu (Tekst) z sumą (Liczba) -> Rezultat o elemencie Lic
 # liczbową napisu albo Błąd z opisem (pusty napis, sam minus, znak
 # niebędący cyfrą). Wiodący '-' daje liczbę ujemną.
 aby odczytać_liczbę z napisu (Tekst) -> Rezultat o elemencie Liczba:
-    napis jest:
+    gdy napis jest:
         Ogniwem z głową z ogonem:
             jeśli głowa równa '-':
-                ogon jest:
+                gdy ogon jest:
                     Ogniwem:
                         liczba to zbierałbyś_cyfry z ogona z zerem?
                         zwróć Sukces o wartości minus liczba
@@ -215,7 +215,7 @@ aby odczytać_liczbę z napisu (Tekst) -> Rezultat o elemencie Liczba:
 # Quicksort (rosnąco, po `mniejsze od` — elementy to Liczby): oś to
 # głowa; mniejsze przed nią, reszta (równe i większe) za nią.
 aby wybrać_mniejsze od osi (Liczba) z listy (Lista) -> Lista:
-    lista jest:
+    gdy lista jest:
         Ogniwem z głową z ogonem:
             reszta to wybierz_mniejsze od osi z ogona
             jeśli głowa mniejsze od oś:
@@ -225,7 +225,7 @@ aby wybrać_mniejsze od osi (Liczba) z listy (Lista) -> Lista:
             zwróć Nic
 
 aby wybrać_resztę od osi (Liczba) z listy (Lista) -> Lista:
-    lista jest:
+    gdy lista jest:
         Ogniwem z głową z ogonem:
             reszta to wybierz_resztę od osi z ogona
             jeśli głowa mniejsze od oś:
@@ -235,7 +235,7 @@ aby wybrać_resztę od osi (Liczba) z listy (Lista) -> Lista:
             zwróć Nic
 
 aby sortować_szybko listę (Lista) -> Lista:
-    lista jest:
+    gdy lista jest:
         Ogniwem z głową z ogonem:
             zwróć sklej (sortuj_szybko (wybierz_mniejsze od głowy z ogona)) z (Ogniwo o głowie głowa o ogonie (sortuj_szybko (wybierz_resztę od głowy z ogona)))
         Niczym:

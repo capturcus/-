@@ -9,7 +9,7 @@ uwzględnij parametryzowane.ć
 można wypisać coś (Cokolwiek) -> Nic
 
 aby wypisać_rosnąco gałąź:
-    gałąź jest:
+    gdy gałąź jest:
         DrzewemZbalansowanym z wartością z lewym_synem z prawym_synem:
             wypisz_rosnąco lewy_syn
             wypisz wartość

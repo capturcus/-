@@ -22,7 +22,7 @@ definicja Żądania z elementem:
 # Prefiks tekstu przed pierwszym wystąpieniem rozdzielnika (całość, gdy
 # rozdzielnika brak).
 aby uciąć tekst (Tekst) przed rozdzielnikiem (Znak) -> Tekst:
-    tekst jest:
+    gdy tekst jest:
         Ogniwem z głową z ogonem:
             jeśli głowa równa rozdzielnikowi:
                 zwróć Nic
@@ -33,7 +33,7 @@ aby uciąć tekst (Tekst) przed rozdzielnikiem (Znak) -> Tekst:
 
 # Sufiks tekstu za pierwszym wystąpieniem rozdzielnika (Nic, gdy brak).
 aby odciąć tekst (Tekst) za rozdzielnikiem (Znak) -> Tekst:
-    tekst jest:
+    gdy tekst jest:
         Ogniwem z głową z ogonem:
             jeśli głowa równa rozdzielnikowi:
                 zwróć ogon
@@ -51,7 +51,7 @@ aby odczytać_nagłówek wiersz (Tekst) -> Nagłówek:
 aby zebrać_nagłówki tekst (Tekst) -> Lista:
     wiersz to utnij tekst przed (wyłuskać "\n")
     reszta to odetnij tekst za (wyłuskać "\n")
-    wiersz jest:
+    gdy wiersz jest:
         Niczym:
             zwróć Nic
         inaczej:
@@ -67,7 +67,7 @@ aby rozłożyć żądanie (Tekst) -> Żądanie:
     zwróć Żądanie o metodzie metoda o ścieżce ścieżka o wersji wersja o nagłówkach (zebrać_nagłówki reszta)
 
 aby wypisać_nagłówki lista (Lista) -> Nic:
-    lista jest:
+    gdy lista jest:
         Ogniwem z głową z ogonem:
             wypisz (sklej (nazwa głowy) z (sklej ":" z (treść głowy)))
             wypisz_nagłówki ogon

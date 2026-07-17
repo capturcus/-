@@ -6,7 +6,7 @@ aby spróbować liczbę:
     zwróć Błąd o opisie "ujemna"
 
 aby ocenić rezultat:
-    rezultat jest:
+    gdy rezultat jest:
         Sukcesem jako paczka z wartością:
             wypisz wartość
             wypisz paczka

@@ -18,7 +18,7 @@ aby działać:
     wypisz (imię kota)
     zapakuj kota do pudełka
     wypisz (imię kota)
-    zawartość pudełka jest:
+    gdy zawartość pudełka jest:
         Kotem z imieniem:
             wypisz imię
         Niczym:

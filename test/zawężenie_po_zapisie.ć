@@ -14,11 +14,11 @@ można wypisać coś (Cokolwiek) -> Nic
 
 aby działać:
     okaz (Zwierzę) to Kot o imieniu 'm'
-    okaz jest:
+    gdy okaz jest:
         Kotem z imieniem:
             wypisz imię
             okaz to Pies o kości 'k'
-            okaz jest:
+            gdy okaz jest:
                 Psem:
                     wypisz kość okazu
                 Kotem:

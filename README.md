@@ -48,7 +48,7 @@ Spis treści:
 - [Funkcje — `aby`](#funkcje--aby)
 - [Funkcje wbudowane i zewnętrzne — `można`](#funkcje-wbudowane-i-zewnętrzne--można)
 - [Struktury — `definicja`](#struktury--definicja)
-- [Unie — `albo` i dopasowanie `jest:`](#unie--albo-i-dopasowanie-jest)
+- [Unie — `albo` i dopasowanie `gdy … jest:`](#unie--albo-i-dopasowanie-gdy--jest)
 - [Typy parametryzowane i aliasy](#typy-parametryzowane-i-aliasy)
 - [Funkcje wyższego rzędu](#funkcje-wyższego-rzędu)
 - [Bejcowanie — częściowa aplikacja `zwiąż`](#bejcowanie--częściowa-aplikacja-zwiąż)
@@ -470,7 +470,7 @@ właśnie dlatego.
 
 ---
 
-## Unie — `albo` i dopasowanie `jest:`
+## Unie — `albo` i dopasowanie `gdy … jest:`
 
 Unię (typ wariantowy) deklaruje się przypisaniem na typach, na poziomie
 modułu:
@@ -498,11 +498,12 @@ Cykl w hierarchii (`A to B …`, `B to A …`) to błąd. Unie nie przyjmują
 własnych parametrów typu (dziedziczą [parametry swoich
 członków](#typy-parametryzowane-i-aliasy) — przez wszystkie poziomy).
 
-**Dopasowanie** to polski orzecznik — „X *jest* (czym?) *Kotem*".
-Gałęzie w **narzędniku**, dekonstrukcja pól przez `z polem`:
+**Dopasowanie** otwiera `gdy` i polski orzecznik — „*gdy* X *jest*
+(czym?) *Kotem*". Gałęzie w **narzędniku**, dekonstrukcja pól przez
+`z polem`:
 
 ```
-zwierzę jest:
+gdy zwierzę jest:
     Kotem z imieniem:
         wypisz imię
     Psem z kością:
@@ -511,12 +512,12 @@ zwierzę jest:
 
 Zasady:
 
-- **Orzecznik zgadza się liczbą z podmiotem**: `lista jest:`, ale
-  `wyniki są:` — pomyłka daje błąd z podpowiedzią właściwej formy.
+- **Orzecznik zgadza się liczbą z podmiotem**: `gdy lista jest:`, ale
+  `gdy wyniki są:` — pomyłka daje błąd z podpowiedzią właściwej formy.
   Podmiot stoi w mianowniku.
 - Podmiotem może być **dowolne wyrażenie**, nie tylko zmienna:
-  `szukaj po pięciu jest:` dopasowuje wynik wywołania,
-  `zawartość pudełka jest:` — wartość pola.
+  `gdy szukaj po pięciu jest:` dopasowuje wynik wywołania,
+  `gdy zawartość pudełka jest:` — wartość pola.
 - Gałęzie muszą **rozłącznie pokryć wszystkie** warianty unii; `Nic`
   obsługuje gałąź `Niczym:`. Alternatywnie ostatnią gałęzią może być
   `inaczej:` — pokrywa pozostałe warianty (bez wiązania pól).
@@ -532,7 +533,7 @@ Zasady:
   (w mianowniku), już z zawężonym typem — można łączyć z wiązaniem pól:
 
 ```
-rezultat jest:
+gdy rezultat jest:
     Sukcesem jako paczka z wartością:
         wypisz wartość
         wypisz paczka
@@ -547,7 +548,7 @@ to podstawa idiomu kursora przy chodzeniu po listach:
 
 ```
 dopóki prawda:
-    reszta jest:
+    gdy reszta jest:
         Niczym:
             dość
         Węzłem z głową z ogonem:
@@ -640,7 +641,7 @@ pozycyjnie, każdy przez `z` + narzędnik:
 
 ```
 aby złożyć listę (Lista) z operacją z akumulatorem:      # fold
-    lista jest:
+    gdy lista jest:
         Ogniwem z głową z ogonem:
             reszta to złóż ogon z operacją z akumulatorem
             zwróć zastosuj operację z głową z resztą
@@ -737,7 +738,7 @@ znaczy dokładnie:
 
 ```
 tymczasowy to wybierz zero z części
-tymczasowy jest:
+gdy tymczasowy jest:
     Sukcesem z wartością:
         napis to wartość
     Błędem z opisem:
@@ -1007,7 +1008,7 @@ Trzy narzędzia o różnej semantyce:
 
 ### Zawężanie przez dopasowanie
 
-`X jest:` to jednocześnie kontrola wariantów i zawężanie typów:
+`gdy X jest:` to jednocześnie kontrola wariantów i zawężanie typów:
 
 - Gałęzie muszą **rozłącznie pokrywać liście jednej zadeklarowanej
   unii** — wprost, pod-uniami albo mieszanką poziomów (brak gałęzi,

@@ -16,9 +16,9 @@ Stworzenie to Ssak albo Wróbel
 
 aby działać:
     gość (Stworzenie) to Pies o kości 'k'
-    gość jest:
+    gdy gość jest:
         Ssakiem:
-            gość jest:
+            gdy gość jest:
                 Kotem:
                     wypisz imię gościa
                 Psem:

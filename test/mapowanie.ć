@@ -19,7 +19,7 @@ aby opakować wartość:
     zwróć Kot o imieniu "kot"
 
 aby mapować gałąź z przekształceniem -> Ogon:
-    gałąź jest:
+    gdy gałąź jest:
         Węzłem z wartością z ogonem:
             zwróć Węzeł o wartości (zastosuj przekształcenie z wartością) o ogonie (mapuj ogon z przekształceniem)
         Niczym:
@@ -28,7 +28,7 @@ aby mapować gałąź z przekształceniem -> Ogon:
 aby działać:
     liczby to Węzeł o wartości pięć o ogonie (Węzeł o wartości trzy o ogonie Nic)
     wyniki to mapuj liczby z opakowaniem
-    wyniki są:
+    gdy wyniki są:
         Węzłem z wartością:
             wypisz (imię wartości)
         Niczym:

@@ -1021,7 +1021,7 @@ _MATCH_SRC = (
     + "Rezultat to Wynik albo Błąd\n"
     "\n"
     "aby działać:\n"
-    "    rezultat jest:\n"
+    "    gdy rezultat jest:\n"
     "        Błędem z opisem:\n"
     "            x to jeden\n"
     "        Wynikiem z wynikiem:\n"
@@ -1049,7 +1049,7 @@ def test_parse_match_branch_without_fields(parse_struct_only):
     src = (
         _UNION_STRUCTS
         + "aby działać:\n"
-        "    rezultat jest:\n"
+        "    gdy rezultat jest:\n"
         "        Błędem:\n"
         "            x to jeden\n"
     )
@@ -1061,7 +1061,7 @@ def test_parse_match_branch_requires_instrumental(parse_struct_only):
     # nazwa wariantu w mianowniku zamiast narzędnika ("jest Błąd") — błąd
     src = (
         "aby działać:\n"
-        "    rezultat jest:\n"
+        "    gdy rezultat jest:\n"
         "        Błąd z opisem:\n"
         "            x to jeden\n"
     )
@@ -1070,10 +1070,10 @@ def test_parse_match_branch_requires_instrumental(parse_struct_only):
 
 
 def test_parse_match_requires_subject(parse_struct_only):
-    # samo `jest:` bez wyrażenia przed — błąd
+    # samo `gdy jest:` bez wyrażenia przed orzecznikiem — błąd
     src = (
         "aby działać:\n"
-        "    jest:\n"
+        "    gdy jest:\n"
         "        Błędem z opisem:\n"
         "            x to jeden\n"
     )
@@ -1081,10 +1081,35 @@ def test_parse_match_requires_subject(parse_struct_only):
         parse_struct_only(src)
 
 
-def test_parse_match_fields_require_z(parse_struct_only):
+def test_parse_match_without_gdy_raises_hint(parse_struct_only):
+    # dawna forma `X jest:` bez 'gdy' — celowana podpowiedź zamiast
+    # zagadkowego błędu o wiszącym ':'
     src = (
         "aby działać:\n"
         "    rezultat jest:\n"
+        "        Błędem z opisem:\n"
+        "            x to jeden\n"
+    )
+    with pytest.raises(ast.InterpreterError, match="zaczyna się od 'gdy'"):
+        parse_struct_only(src)
+
+
+def test_parse_gdy_without_predicate_raises(parse_struct_only):
+    # `gdy` z frazą bez orzecznika `jest`/`są` na końcu — błąd
+    src = (
+        "aby działać:\n"
+        "    gdy rezultat:\n"
+        "        Błędem z opisem:\n"
+        "            x to jeden\n"
+    )
+    with pytest.raises(ast.InterpreterError, match="oczekiwano dopasowania"):
+        parse_struct_only(src)
+
+
+def test_parse_match_fields_require_z(parse_struct_only):
+    src = (
+        "aby działać:\n"
+        "    gdy rezultat jest:\n"
         "        Błędem o opisie:\n"
         "            x to jeden\n"
     )

@@ -10,7 +10,7 @@ można wypisać coś (Cokolwiek) -> Nic
 
 aby działać:
     okaz (Zwierzę) to Kot o imieniu 'm'
-    okaz jest:
+    gdy okaz jest:
         Kotem:
             dopóki prawda:
                 wypisz imię okazu

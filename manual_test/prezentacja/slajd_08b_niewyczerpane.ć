@@ -20,6 +20,6 @@ można wypisać coś (Cokolwiek) -> Nic
 
 aby działać:
     okaz (Zwierzę) to Jamnik o znaku 'j'
-    okaz jest:
+    gdy okaz jest:
         Kotem:
             wypisz 'k'
