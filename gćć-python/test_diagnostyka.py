@@ -80,10 +80,10 @@ def test_unify_error_lists_clues_about_both_sides(parse):
     msg = str(ei.value)
     assert "nie można zunifikować" in msg
     assert "zmienna 'rzecz'" in msg          # etykieta zamiast tN
-    assert "wpływa do niej" in msg           # poszlakownik: pełne granice
+    assert "dostaje wartości" in msg         # poszlakownik: pełne granice
     assert "linia 2" in msg                  # pierwsze przypisanie (Liczba)
     assert "przypisanie do 'rzecz'" in msg
-    assert "← sprzeczna" in msg              # nadchodząca granica oznaczona
+    assert "← sprzeczność" in msg            # świeża poszlaka oznaczona
     assert "zadeklaruj unię" in msg          # sugestia naprawy
 
 

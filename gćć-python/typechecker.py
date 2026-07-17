@@ -432,8 +432,8 @@ def _poszlakownik_właściwy(var):
             linie.append(f"    … i {len(pary) - LIMIT_POSZLAK} dalszych "
                          f"(najstarsze pominięte)")
 
-    blok("wpływa do niej", var.dolne)
-    blok("wymaga się od niej", var.górne)
+    blok("dostaje wartości", var.dolne)
+    blok("jest używana jako", var.górne)
     if var.alternatywy is not None:
         opcje = ", ".join(sorted(var.alternatywy))
         skąd = f" — {var.alternatywy_nota}" if var.alternatywy_nota else ""
@@ -574,14 +574,14 @@ def _dodaj_dolną(var, typ):
         if len(nowe) > 1 and najmniejsza_unia(nowe) is None:
             stare = next(t for t, _ in var.dolne
                          if isinstance(t, Konkret) and t.głowa != ARROW)
-            nadchodzi = f"\n  nadchodzi:\n    • {_render_typu(typ)}"
+            świeża = f"\n  a właśnie dostała:\n    • {_render_typu(typ)}"
             if _current_note:
-                nadchodzi += f" — {_current_note}"
-            nadchodzi += "   ← sprzeczna z powyższymi"
+                świeża += f" — {_current_note}"
+            świeża += "   ← sprzeczność"
             raise TypeCheckError(
                 f"nie można zunifikować {_render_typu(stare)} "
                 f"z {_render_typu(typ)} — zdecyduj, która poszlaka "
-                f"jest błędna:\n{_poszlakownik(var)}{nadchodzi}"
+                f"jest błędna:\n{_poszlakownik(var)}{świeża}"
                 + _sugestia_unii(nowe))
         _zawęź_alternatywy(var, typ.głowa)
     var.dolne.append((typ, _current_note))
