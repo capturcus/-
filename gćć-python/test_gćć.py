@@ -580,16 +580,16 @@ def test_parse_continue_standalone(parse):
     assert isinstance(m.body[0].body[0], ast.Continue)
 
 
-def test_parse_continue_inside_for(parse):
+def test_parse_continue_inside_while(parse):
     src = (
-        "aby działać lista:\n"
-        "    dla użytkownika w liście:\n"
+        "aby działać użytkownik:\n"
+        "    dopóki użytkownik równe pięć:\n"
         "        jeśli użytkownik równe pięć:\n            dalej\n"
         "        wynik to użytkownik\n"
     )
     m = parse(src)
-    for_node = m.body[0].body[0]
-    if_node = for_node.body[0]
+    w = m.body[0].body[0]
+    if_node = w.body[0]
     assert isinstance(if_node.then_body[0], ast.Continue)
 
 

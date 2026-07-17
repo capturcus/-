@@ -2328,24 +2328,6 @@ def test_grounding_wewnątrz_funkcji_pomocniczych_nie_obowiązuje(parse):
 
 
 # =====================================================================
-# Integracja: pętla `dla` — głośna odmowa
-# =====================================================================
-
-@pytest.mark.integration
-def test_pętla_dla_odmawia_głośno(parse):
-    src = (
-        "definicja Kosza:\n    rzecz (Liczba)\n"
-        "\n"
-        "aby działać:\n"
-        "    kosz to Kosz o rzeczy pięć\n"
-        "    dla sztuki w koszu:\n"
-        "        x to jeden\n"
-    )
-    with pytest.raises(TypeCheckError, match="protokół iteracji"):
-        typechecker.resolve_module(parse(src))
-
-
-# =====================================================================
 # Hierarchia unii (unie jako warianty unii)
 # =====================================================================
 

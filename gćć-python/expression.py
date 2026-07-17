@@ -41,7 +41,7 @@ from ast_nodes import (
     FunctionCall, FunctionRef, Apply, Bind, GetterChain, StructCreation,
     StructArg, StructCtx, TryCall, TypeAlias,
     Typed, ResolveError, InterpreterError, Word, LOGICAL_OPS,
-    Assignment, If, While, For, Return, Phrase,
+    Assignment, If, While, Return, Phrase,
     scope_key_matches,
 )
 from identifier import (
@@ -1391,19 +1391,13 @@ def _resolve_stmt(stmt, ctx, preps, scope):
     """Block scoping, sekwencyjnie: zmienna jest widoczna od swojego
     przypisania do końca bloku. RHS rezolwowany PRZED deklaracją LHS
     (`x to x` bez wcześniejszego `x` to błąd), ciała `jeśli`/`dopóki`/
-    `dla`/gałęzi dopasowania `jest:` dostają scope-dziecko — deklaracje z gałęzi
+    gałęzi dopasowania `jest:` dostają scope-dziecko — deklaracje z gałęzi
     nie są widoczne po bloku. Przypisanie do zmiennej już widocznej
     (także z przodka) to reasignacja, nie nowa deklaracja."""
     if isinstance(stmt, Assignment):
         _resolve(stmt.value, ctx, preps, scope)
         _declare_target_var(stmt.target, scope, ctx.field_lemmas, preps)
         _resolve(stmt.target, ctx, preps, scope)
-    elif isinstance(stmt, For):
-        _resolve(stmt.collection, ctx, preps, scope)
-        for_scope = _Scope(parent=scope)
-        for_scope.add(stmt.var)
-        for sub in stmt.body:
-            _resolve_stmt(sub, ctx, preps, for_scope)
     elif isinstance(stmt, While):
         _resolve(stmt.cond, ctx, preps, scope)
         body_scope = _Scope(parent=scope)

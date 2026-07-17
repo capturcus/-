@@ -645,125 +645,12 @@ def test_diag_leftover_after_literal(parse):
     assert "operatora" in msg
 
 
-# ---------- For (foreach) ----------
+# ---------- `dla` jako przyimek ----------
 
-def test_for_basic(parse):
-    """`dla użytkownika w liście:` — podstawowa pętla."""
-    src = (
-        "aby działać lista:\n"
-        "    dla użytkownika w liście:\n"
-        "        wynik to użytkownik\n"
-    )
-    m = parse(src)
-    for_node = m.body[0].body[0]
-    assert isinstance(for_node, ast.For)
-    assert isinstance(for_node.var, ast.Identifier)
-    assert ("użytkownik",) in for_node.var.lemmas_set
-    # collection: Phrase z resolved=Identifier(lista)
-    assert ("lista",) in for_node.collection.resolved.lemmas_set
-    assert len(for_node.body) == 1
-
-
-def test_for_var_multiseg_adj_subst(parse):
-    """Var w foreach traktowany jak każdy identyfikator: adj+subst.
-    `wielkiego_użytkownika` (gen sg masc) → segments ('wielki', 'użytkownik')."""
-    src = (
-        "aby działać lista:\n"
-        "    dla wielkiego_użytkownika w liście:\n"
-        "        dość\n"
-    )
-    m = parse(src)
-    for_node = m.body[0].body[0]
-    assert isinstance(for_node, ast.For)
-    assert ("wielki", "użytkownik") in for_node.var.lemmas_set
-
-
-def test_for_body_with_stop(parse):
-    """Body może zawierać `dość` (break)."""
-    src = (
-        "aby działać lista:\n"
-        "    dla x w liście:\n"
-        "        dość\n"
-    )
-    m = parse(src)
-    for_node = m.body[0].body[0]
-    assert isinstance(for_node, ast.For)
-    assert len(for_node.body) == 1
-    assert isinstance(for_node.body[0], ast.Break)
-
-
-def test_for_nested(parse):
-    """Zagnieżdżone foreach."""
-    src = (
-        "aby wypisać x:\n    zwrócić\n"
-        "aby działać listy:\n"
-        "    dla x w listy:\n"
-        "        dla y w x:\n"
-        "            wypisz y\n"
-    )
-    m = parse(src)
-    outer = m.body[1].body[0]
-    assert isinstance(outer, ast.For)
-    assert ("x",) in outer.var.lemmas_set
-    inner = outer.body[0]
-    assert isinstance(inner, ast.For)
-    assert ("y",) in inner.var.lemmas_set
-    # Inner collection refers to outer var
-    assert ("x",) in inner.collection.resolved.lemmas_set
-
-
-def test_for_collection_is_function_call(parse):
-    """Złożona kolekcja: function call."""
-    src = (
-        "aby weź_listę dla nazwy:\n    zwrócić\n"
-        "aby działać nazwa:\n"
-        "    dla element w weź_listę dla nazwy:\n"
-        "        dość\n"
-    )
-    m = parse(src)
-    for_node = m.body[1].body[0]
-    assert isinstance(for_node, ast.For)
-    coll = for_node.collection.resolved
-    assert isinstance(coll, ast.FunctionCall)
-    assert ("wziąć", "lista") in coll.name.lemmas_set
-    assert len(coll.params) == 1
-
-
-def test_for_collection_is_getter_chain(parse):
-    """Złożona kolekcja: getter chain `lista_postów autora`."""
-    src = (
-        "definicja Autora:\n    lista_postów (Tekst)\n"
-        "aby działać autor:\n"
-        "    dla post w liście_postów autora:\n"
-        "        dość\n"
-    )
-    m = parse(src)
-    for_node = m.body[1].body[0]
-    assert isinstance(for_node, ast.For)
-    coll = for_node.collection.resolved
-    assert isinstance(coll, ast.GetterChain)
-    assert len(coll.chain) == 2
-
-
-def test_for_collection_with_arith(parse):
-    """Kolekcja z arytmetyką: `weź_listę dla nazwy plus jeden` — pełna phrase."""
-    src = (
-        "aby weź_listę dla nazwy:\n    zwrócić\n"
-        "aby działać nazwa:\n"
-        "    dla x w weź_listę dla nazwy plus jeden:\n"
-        "        dość\n"
-    )
-    m = parse(src)
-    for_node = m.body[1].body[0]
-    coll = for_node.collection.resolved
-    assert isinstance(coll, ast.BinOp) and coll.op == "+"
-    assert isinstance(coll.left, ast.FunctionCall)
-
-
-def test_for_dla_as_prep_in_fcall_unchanged(parse):
-    """`dla` jako prep w argumencie fcall (NIE jako start statementu) pozostaje
-    przyimkiem. RHS przypisania `wynik to weź_wiek dla użytkownika` parsuje się
-    jako FunctionCall(weź_wiek, [Word(dla, użytkownik)]) — bez foreach."""
+def test_dla_as_prep_in_fcall(parse):
+    """`dla` to zwykły przyimek — w nagłówku funkcji i w argumencie fcall.
+    RHS przypisania `wynik to weź_wiek dla użytkownika` parsuje się jako
+    FunctionCall(weź_wiek, [Word(dla, użytkownik)])."""
     src = (
         "aby weź_wiek dla użytkownika:\n    zwrócić\n"
         "aby działać użytkownik:\n"
@@ -777,73 +664,16 @@ def test_for_dla_as_prep_in_fcall_unchanged(parse):
     assert rhs.params[0].prep == ("dla",)
 
 
-def test_for_dla_as_prep_in_collection(parse):
-    """`dla` jako prep wewnątrz wyrażenia kolekcji (po `w`) — działa
-    normalnie jako prep, bo to wewnątrz phrase."""
-    src = (
-        "aby weź_listę dla nazwy:\n    zwrócić\n"
-        "aby działać nazwa:\n"
-        "    dla x w weź_listę dla nazwy:\n"
-        "        dość\n"
-    )
-    m = parse(src)
-    for_node = m.body[1].body[0]
-    coll = for_node.collection.resolved
-    assert isinstance(coll, ast.FunctionCall)
-    assert coll.params[0].prep == ("dla",)
-
-
-def test_for_missing_w_raises(parse):
-    """`dla X` bez `w` → SyntaxError."""
-    src = (
-        "aby działać:\n"
-        "    dla x z lista:\n"
-        "        dość\n"
-    )
-    with pytest.raises(SyntaxError):
-        parse(src)
-
-
-def test_for_missing_colon_raises(parse):
-    """`dla X w Y` bez `:` → SyntaxError."""
-    src = (
-        "aby działać:\n"
-        "    dla x w lista\n"
-        "        dość\n"
-    )
-    with pytest.raises(SyntaxError):
-        parse(src)
-
-
-def test_for_var_referenced_in_body_by_segments(parse):
-    """Zmienna zadeklarowana w gen (`użytkownika` po `dla`) jest tym samym
-    identyfikatorem co `użytkownik` (nom) w body — match po segments."""
+def test_dla_at_stmt_start_is_not_a_loop(parse):
+    """Pętli `dla … w …:` nie ma w języku — `dla` na początku statementu
+    nie jest keyword'em, więc fraza zakończona `:` to błąd składni."""
     src = (
         "aby działać lista:\n"
-        "    dla użytkownika w lista:\n"
-        "        nazwa to użytkownik\n"
-    )
-    m = parse(src)
-    for_node = m.body[0].body[0]
-    # Var: declared as 'użytkownika' (gen sg) → segments=("użytkownik",)
-    assert ("użytkownik",) in for_node.var.lemmas_set
-    # Body reference: 'użytkownik' (nom sg) → segments=("użytkownik",)
-    body_ref = for_node.body[0].value.resolved
-    assert isinstance(body_ref, ast.Identifier)
-    assert body_ref.lemmas_set & for_node.var.lemmas_set  # wspólna lemma
-
-
-def test_for_collection_with_logical_op(parse):
-    """Kolekcja z logical op (jak każda phrase) — `lista_a lub lista_b`."""
-    src = (
-        "aby działać lista_a lista_b:\n"
-        "    dla x w lista_a lub lista_b:\n"
+        "    dla x w liście:\n"
         "        dość\n"
     )
-    m = parse(src)
-    for_node = m.body[0].body[0]
-    coll = for_node.collection.resolved
-    assert isinstance(coll, ast.Or)
+    with pytest.raises(SyntaxError):
+        parse(src)
 
 
 def test_struct_arg_field_name_disambiguated_by_case(parse):
@@ -868,21 +698,19 @@ def test_struct_arg_field_name_disambiguated_by_case(parse):
 # ---------- Scope-aware narrowing wariantów ----------
 
 def test_narrow_to_module_scope_var(parse):
-    """`lista` zadeklarowana na module-level; `liście` w foreach narrowed
+    """`lista` zadeklarowana na module-level; referencja `liście` narrowed
     do wariantu `("lista",)` (loc sg). Inne lemmy wariantów `liście` (liść,
     liście-neutrum) NIE są w scope, więc są odfiltrowane."""
     src = (
         "lista to zero\n"
         "aby działać:\n"
-        "    dla użytkownika w liście:\n"
-        "        dość\n"
+        "    wynik to liście\n"
     )
     m = parse(src)
-    for_node = m.body[1].body[0]
-    coll = for_node.collection.resolved
-    assert isinstance(coll, ast.Identifier)
+    ref = m.body[1].body[0].value.resolved
+    assert isinstance(ref, ast.Identifier)
     # Po narrowingu: tylko `("lista",)` w lemmas_set (jedyny wariant w scope).
-    assert coll.lemmas_set == frozenset({("lista",)})
+    assert ref.lemmas_set == frozenset({("lista",)})
 
 
 def test_narrow_to_function_local_var(parse):
@@ -890,13 +718,11 @@ def test_narrow_to_function_local_var(parse):
     src = (
         "aby działać:\n"
         "    lista to zero\n"
-        "    dla użytkownika w liście:\n"
-        "        dość\n"
+        "    wynik to liście\n"
     )
     m = parse(src)
-    for_node = m.body[0].body[1]
-    coll = for_node.collection.resolved
-    assert coll.lemmas_set == frozenset({("lista",)})
+    ref = m.body[0].body[1].value.resolved
+    assert ref.lemmas_set == frozenset({("lista",)})
 
 
 def test_narrow_to_function_param(parse):
@@ -907,16 +733,14 @@ def test_narrow_to_function_param(parse):
     pełnym kluczem (list pl m ≠ list sg m itp.)."""
     src = (
         "aby działać_dla listy:\n"
-        "    dla użytkownika w liście:\n"
-        "        dość\n"
+        "    wynik to liście\n"
     )
     m = parse(src)
-    for_node = m.body[0].body[0]
-    coll = for_node.collection.resolved
-    assert ("lista",) in coll.lemmas_set
-    assert ("list",) not in coll.lemmas_set  # (list, sg, m) ≠ (list, pl, m) w scope
-    assert ("liść",) not in coll.lemmas_set
-    assert ("liście",) not in coll.lemmas_set
+    ref = m.body[0].body[0].value.resolved
+    assert ("lista",) in ref.lemmas_set
+    assert ("list",) not in ref.lemmas_set  # (list, sg, m) ≠ (list, pl, m) w scope
+    assert ("liść",) not in ref.lemmas_set
+    assert ("liście",) not in ref.lemmas_set
 
 
 def test_narrow_keeps_multiple_when_multiple_in_scope():
@@ -945,57 +769,6 @@ def test_narrow_keeps_multiple_when_multiple_in_scope():
     assert ("a",) in seg_options
     assert ("b",) in seg_options
     assert ("c",) not in seg_options  # odfiltrowane bo nie w scope
-
-
-def test_undeclared_collection_raises(parse):
-    """Block scoping: kolekcja pętli odwołująca się do niezadeklarowanej
-    zmiennej to błąd rezolucji (dawniej: tolerowana, wszystkie warianty)."""
-    src = (
-        "aby działać:\n"
-        "    dla x w liście:\n"
-        "        dość\n"
-    )
-    with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
-        parse(src)
-
-
-def test_for_var_visible_in_nested_collection(parse):
-    """For-var widoczna w body inner-for (jako enclosing scope dla inner's
-    collection). `dla y w x:` w outer-for body — `x` widoczne."""
-    src = (
-        "aby działać listy:\n"
-        "    dla x w listy:\n"
-        "        dla y w x:\n"
-        "            dość\n"
-    )
-    m = parse(src)
-    outer = m.body[0].body[0]
-    inner = outer.body[0]
-    # Inner collection: `x` (atom) resolved jako reference do outer for-var.
-    coll = inner.collection.resolved
-    assert isinstance(coll, ast.Identifier)
-    assert ("x",) in coll.lemmas_set
-
-
-def test_for_body_reassigns_outer_var(parse):
-    """Przypisanie w body pętli do zmiennej zadeklarowanej PRZED pętlą to
-    reasignacja zewnętrznej zmiennej (nie nowa, pętlowo-lokalna) — więc
-    `znaleziony` jest widoczny po pętli."""
-    src = (
-        "aby działać lista:\n"
-        "    znaleziony to zero\n"
-        "    dla x w lista:\n"
-        "        znaleziony to x\n"
-        "    wynik to znaleziony\n"
-    )
-    m = parse(src)
-    fn_body = m.body[0].body
-    # body[0] = znaleziony to zero
-    # body[1] = for x in lista
-    # body[2] = wynik to znaleziony
-    znaleziony_ref = fn_body[2].value.resolved
-    assert isinstance(znaleziony_ref, ast.Identifier)
-    assert ("znaleziony",) in znaleziony_ref.lemmas_set
 
 
 def test_field_write_does_not_register_as_var(parse):
@@ -1604,17 +1377,6 @@ def test_while_body_assignment_not_visible_after(parse):
         "    dopóki flaga równe jeden:\n"
         "        licznik to pięć\n"
         "    wynik to licznik\n"
-    )
-    with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
-        parse(src)
-
-
-def test_for_var_not_visible_after_loop(parse):
-    src = (
-        "aby działać lista:\n"
-        "    dla element w liście:\n"
-        "        dość\n"
-        "    wynik to element\n"
     )
     with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
         parse(src)

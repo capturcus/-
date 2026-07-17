@@ -1509,10 +1509,6 @@ def resolve_statement(node, scope):
             return resolve_if(node, scope)
         if isinstance(node, ast.While):
             return resolve_while(node, scope)
-        if isinstance(node, ast.For):
-            raise TypeCheckError(
-                "pętla 'dla' czeka na protokół iteracji (kolekcje są "
-                "biblioteczne) — użyj 'dopóki' albo rekurencji")
         if isinstance(node, ast.Match):
             return resolve_match(node, scope)
         if isinstance(node, ast.Return):

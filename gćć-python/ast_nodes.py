@@ -398,13 +398,6 @@ class While:
 
 
 @dataclass
-class For:
-    var: Identifier
-    collection: object
-    body: list
-
-
-@dataclass
 class Break:
     pass
 

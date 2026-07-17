@@ -11,7 +11,7 @@ Gramatyka Pass 1:
 
   module     := stmt*
   stmt       := func_def | extern_def | struct_def | union_def | match_stmt
-              | if_stmt | while_stmt | for_stmt
+              | if_stmt | while_stmt
               | "dość" | "dalej" | "zwrócić" [phrase]
               | assignment | expr_stmt
   func_def   := "aby" function_name param* ["->" type] ":" INDENT stmt+ DEDENT
@@ -25,19 +25,14 @@ Gramatyka Pass 1:
   if_stmt    := "jeśli" phrase ":" INDENT stmt+ DEDENT
                 [ "inaczej" ( if_stmt | ":" INDENT stmt+ DEDENT ) ]
   while_stmt := "dopóki" phrase ":" INDENT stmt+ DEDENT
-  for_stmt   := "dla" identifier "w" phrase ":" INDENT stmt+ DEDENT
   assignment := phrase "to" phrase
   expr_stmt  := phrase
 
-`identifier` w param/field/for_stmt to WORD przepuszczony przez
+`identifier` w param/field to WORD przepuszczony przez
 `make_identifier` — wymaga formy `[adj]+ [subst] [reszta]` (multi-seg bez
 valid noun-prefiksu rzuca `IdentifierError`). Single-seg verb-only nazwy są
 tolerowane (variants=()), ale referowanie ich w body nie ma sensu — to ta
 sama semantyka co istniejące params/fields.
-
-`dla` jest STRUKTURALNYM keyword'em TYLKO na pierwszej pozycji statementu;
-wewnątrz `phrase` (np. argumenty fcall: `weź dla użytkownika`) `dla`
-pozostaje zwykłym przyimkiem rozpoznawanym przez `expression.py`.
 
 `extern_def` deklaruje sygnaturę funkcji zewnętrznej (analog `extern` z C);
 nagłówek jak w `aby`, ale brak `:` i brak ciała — cała deklaracja mieści
@@ -51,7 +46,7 @@ from morph_anal import canonical
 from ast_nodes import (
     TypeAlias,
     Module, FunctionIdentifier, FunctionDef, ExternFunctionDef, Param,
-    StructDef, Field, Phrase, Assignment, If, While, For, Break, Continue,
+    StructDef, Field, Phrase, Assignment, If, While, Break, Continue,
     Return, InterpreterError, UnionDef, Match, MatchBranch,
 )
 from identifier import make_identifier, is_prep, canonical_type
@@ -186,8 +181,6 @@ class Parser:
                 return self.parse_if()
             if canon == ("dopóki",):
                 return self.parse_while()
-            if canon == ("dla",):
-                return self.parse_for()
             if canon == ("dość",):
                 self.advance()
                 return Break()
@@ -444,29 +437,6 @@ class Parser:
             self._skip_newlines()
         self.expect(lexer.Token.DEDENT)
         return While(cond=cond, body=body)
-
-    def parse_for(self):
-        self.expect(lexer.Token.WORD)  # dla
-        var_tok = self.expect(lexer.Token.WORD)
-        var = make_identifier(var_tok)
-        w_tok = self.expect(lexer.Token.WORD)
-        if canonical(w_tok) != ("w",):
-            raise InterpreterError(
-                f"w pętli 'dla X w Y:' oczekiwano 'w' po zmiennej, "
-                f"otrzymano {_describe_tok(w_tok)}",
-                line=getattr(w_tok, "line", None),
-            )
-        collection = self.collect_phrase()
-        self.expect(lexer.Token.COLON)
-        self._skip_newlines()
-        self.expect(lexer.Token.INDENT)
-        body = []
-        self._skip_newlines()
-        while self.peek()[0] is not lexer.Token.DEDENT:
-            body.append(self.parse_stmt())
-            self._skip_newlines()
-        self.expect(lexer.Token.DEDENT)
-        return For(var=var, collection=collection, body=body)
 
     def _reject_reserved(self, name):
         """`zastosować`/`związać` to wbudowane czasowniki operacji na

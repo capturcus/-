@@ -305,10 +305,10 @@ zwróć wyrażenie
 zwróć                  # bez wartości — Nic
 ```
 
-Warunek `jeśli`/`dopóki` musi być `Przełącznikiem`. Pętla `dla … w …`
-jest rozpoznawana składniowo, ale **jeszcze nie działa** (czeka na
-protokół iteracji — kolekcje są biblioteczne); po kolekcjach chodzi się
-rekurencją albo `dopóki` z [idiomem kursora](#zawężanie-przez-dopasowanie).
+Warunek `jeśli`/`dopóki` musi być `Przełącznikiem`. Pętli `dla … w …`
+nie ma — `dla` to zwykły przyimek (nagłówki funkcji, argumenty wywołań);
+po kolekcjach chodzi się rekurencją albo `dopóki` z
+[idiomem kursora](#zawężanie-przez-dopasowanie).
 
 ---
 

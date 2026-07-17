@@ -1,0 +1,12 @@
+# `dla` to zwykły przyimek: parametr w nagłówku funkcji (`aby podwoić
+# dla liczby`) i argument w wywołaniu (`podwój dla liczby`). Pętli
+# `dla … w …` nie ma w języku.
+
+można wypisać coś (Cokolwiek) -> Nic
+
+aby podwoić dla liczby:
+    zwróć liczba razy dwa
+
+aby działać:
+    liczba to pięć
+    wypisz (podwój dla liczby)
