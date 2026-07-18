@@ -33,10 +33,10 @@ aby rozpoznać psa (Pies) -> Znak:
             zwróć fryzura
 
 aby działać:
-    wypisz (opisz Kot o imieniu 'k')
-    wypisz (opisz Jamnik o kości 'j')
-    wypisz (opisz Pudel o fryzurze 'f')
-    wypisz (rozpoznaj Jamnik o kości 'x')
+    wypisz wynik opisania Kota o imieniu 'k'
+    wypisz wynik opisania Jamnika o kości 'j'
+    wypisz wynik opisania Pudla o fryzurze 'f'
+    wypisz wynik rozpoznania Jamnika o kości 'x'
     pupil to Jamnik o kości 'a'
     pupil to Pudel o fryzurze 'b'
     gdy pupil jest:

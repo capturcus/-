@@ -13,7 +13,7 @@ definicja Komentarza:
     autor (Człowiek)
 
 aby badać_warianty obiekt:
-    wynik to imię obiektu
+    efekt to imię obiektu
 
 aby badać_jednoznaczność obiekt:
     wiek to wiek obiektu

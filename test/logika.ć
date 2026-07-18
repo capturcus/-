@@ -3,8 +3,13 @@ można wypisać coś (Cokolwiek) -> Nic
 aby działać:
     wypisz prawda
     wypisz fałsz
-    wypisz (nie prawda)
-    wypisz (prawda i fałsz)
-    wypisz (fałsz lub prawda)
-    wypisz (prawda i nie fałsz)
-    wypisz (dwa większe od trzy lub prawda)
+    sąd to nie prawda
+    wypisz sąd
+    sąd to prawda i fałsz
+    wypisz sąd
+    sąd to fałsz lub prawda
+    wypisz sąd
+    sąd to prawda i nie fałsz
+    wypisz sąd
+    sąd to dwa większe od trzy lub prawda
+    wypisz sąd

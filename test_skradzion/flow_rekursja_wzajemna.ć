@@ -6,13 +6,15 @@ uwzględnij przygrywka.ć
 aby sprawdzić_parzystość liczby:
     jeśli liczba równa zero:
         zwróć prawdę
-    zwróć sprawdź_nieparzystość (liczba minus jeden)
+    poprzednia to liczba minus jeden
+    zwróć sprawdź_nieparzystość poprzedniej
 
 aby sprawdzić_nieparzystość liczby:
     jeśli liczba równa zero:
         zwróć fałsz
-    zwróć sprawdź_parzystość (liczba minus jeden)
+    poprzednia to liczba minus jeden
+    zwróć sprawdź_parzystość poprzedniej
 
 aby działać:
-    wypisz sprawdź_parzystość dziesięciu
-    wypisz sprawdź_nieparzystość dziesięciu
+    wypisz wynik sprawdzenia_parzystości dziesięciu
+    wypisz wynik sprawdzenia_nieparzystości dziesięciu

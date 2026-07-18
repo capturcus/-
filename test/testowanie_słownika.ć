@@ -5,8 +5,8 @@
 uwzględnij słownik.ć
 
 aby odczytać klucz (Tekst) ze słownika (Słownik):
-    wynik to znajdź klucz w słowniku
-    gdy wynik jest:
+    efekt to znajdź klucz w słowniku
+    gdy efekt jest:
         Sukcesem z wartością:
             wypisz wartość
         Błędem z opisem:
@@ -21,12 +21,12 @@ aby działać:
     baza to włóż pięć pod "echo" do bazy
     baza to włóż sześć pod "fala" do bazy
     baza to włóż siedem pod "gong" do bazy
-    wypisz (zliczyć_wpisy bazy)
-    wypisz (zmierzyć_wzrost bazy)
+    wypisz wynik zliczenia_wpisów bazy
+    wypisz wynik zmierzenia_wzrostu bazy
     odczytaj "ala" z bazy
     odczytaj "dom" z bazy
     odczytaj "gong" z bazy
     odczytaj "zzz" z bazy
     baza to włóż dziewięć pod "dom" do bazy
     odczytaj "dom" z bazy
-    wypisz (zliczyć_wpisy bazy)
+    wypisz wynik zliczenia_wpisów bazy

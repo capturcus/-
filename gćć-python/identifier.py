@@ -299,6 +299,27 @@ def _format_scope_key(key):
     return f"{name} ({', '.join(parts)})" if parts else name
 
 
+# Lematy zarezerwowane dla słów języka — `wynik` (wywołanie przez
+# gerundium z przypadkiem) i `literał` (nośnik przypadka dla literałów).
+# Deklaracja zmiennej/parametru/pola o takim lemacie przesłaniałaby słowo
+# języka, więc jest zabroniona niezależnie od liczby i rodzaju.
+ZAREZERWOWANE_LEMATY = frozenset({("wynik",), ("literał",)})
+
+
+def sprawdź_rezerwację(lemma_keys, co, line, error_cls=ResolveError):
+    """Głośny błąd, gdy któryś z lematów deklaracji jest zarezerwowany.
+    `lemma_keys` to iterable lemma-tupli (np. z scope_keys albo pojedynczy
+    klucz kanoniczny); `co` opisuje rodzaj deklaracji w komunikacie."""
+    for lemmas in lemma_keys:
+        if lemmas in ZAREZERWOWANE_LEMATY:
+            słowo = "_".join(lemmas)
+            raise error_cls(
+                f"'{słowo}' jest słowem języka i nie może być {co} — "
+                f"wybierz inną nazwę",
+                line=line,
+            )
+
+
 def canonical_identity(ident, *, required_case, label,
                        error_cls=ResolveError, missing_hint=""):
     """Jeden kanoniczny klucz (lemmas, number, gender) z wariantów identyfikatora.

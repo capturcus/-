@@ -1,0 +1,16 @@
+# Słowo `literał` — nośnik przypadka dla literałów: literał jest
+# nieodmienny (jak cytat), więc gdy o slocie nie rozstrzyga eliminacja,
+# przypadek nadaje mu odmienione słowo `literał` w apozycji.
+
+uwzględnij przygrywka.ć
+
+aby zawieźć pasażera transportem do celu:
+    wypisz pasażera
+    wypisz transport
+    wypisz cel
+
+aby działać:
+    pies to "pies"
+    dom to "dom"
+    zawieź literałem "samochód" psa do domu
+    zawieź "rower" psa do domu

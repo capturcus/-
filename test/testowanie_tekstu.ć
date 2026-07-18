@@ -4,17 +4,18 @@
 uwzględnij operacje_tekstowe.ć
 
 aby działać:
-    wypisz (porównaj "abc" z "abd")
-    wypisz (porównaj "b" z "abc")
-    wypisz (porównaj "raz" z "raz")
-    wypisz (porównaj "" z "a")
-    wypisz (porównaj "ab" z "a")
-    wypisz (utnij "klucz=wartość" przed '=')
-    wypisz (odetnij "klucz=wartość" za '=')
-    wypisz (utnij "bez_separatora" przed '=')
-    wypisz (sprawdź_obecność ',' w "a,b")
-    wypisz (sprawdź_obecność ';' w "a,b")
+    wypisz wynik porównania "abc" z "abd"
+    wypisz wynik porównania "b" z "abc"
+    wypisz wynik porównania "raz" z "raz"
+    wypisz wynik porównania "" z "a"
+    wypisz wynik porównania "ab" z "a"
+    wypisz wynik ucięcia "klucz=wartość" przed '='
+    wypisz wynik odcięcia "klucz=wartość" za '='
+    wypisz wynik ucięcia "bez_separatora" przed '='
+    wypisz wynik sprawdzenia_obecności ',' w "a,b"
+    wypisz wynik sprawdzenia_obecności ';' w "a,b"
     kawałki to podziel_tekst "a,bb,c" po ','
-    wypisz (zmierz kawałki)
-    wypisz (złącz kawałki ';')
-    wypisz (złącz (podziel_tekst "solo" po ',') ',')
+    wypisz wynik zmierzenia kawałków
+    wypisz wynik złączenia kawałków ';'
+    lista_solo to podziel_tekst "solo" po ','
+    wypisz wynik złączenia listy_solo ','

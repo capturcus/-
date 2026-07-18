@@ -66,14 +66,20 @@ aby przekraczać_próg liczbę:
 aby opisywać listę:
     gdy lista jest:
         Węzłem z głową z ogonem:
-            zwróć sklej (zakoduj głowę) z (sklej " " z (opisuj ogon))
+            przód to zakoduj głowę
+            dalszy_opis to sklej " " z wynikiem opisywania ogona
+            zwróć sklej przód z dalszym_opisem
         PustąListą:
             zwróć ""
 
 # ---------- demonstracja ----------
 
 aby działać:
-    liczby to doczepiaj jeden do (doczepiaj dwa do (doczepiaj trzy do (doczepiaj cztery do utwórz_pustą)))
+    pusta to utwórz_pustą
+    liczby to doczepiaj cztery do pustej
+    liczby to doczepiaj trzy do liczb
+    liczby to doczepiaj dwa do liczb
+    liczby to doczepiaj jeden do liczb
 
     suma to złóż liczby z dodawaniem z zero
     iloczyn to złóż liczby z mnożeniem z jeden

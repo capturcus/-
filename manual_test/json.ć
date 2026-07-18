@@ -43,7 +43,7 @@ Wartość to Obiekt albo Tablica albo Napis albo Numer albo Flaga albo Nic
 # wartości solver złącza dolne poszlaki gałęzi do wspólnej unii Wartość.
 
 definicja Rozbioru z elementem:
-    wynik (element)
+    plon (element)
     reszta (Tekst)
 
 # ---------- znaki: cyfry i ucieczki ----------
@@ -100,7 +100,7 @@ aby dopasować_przedrostek wzór do tekstu:
 
 aby rozłożyć_słowo z tekstu według wzoru na drzewie:
     ogon to dopasowałbyś_przedrostek wzór do tekstu?
-    zwróć Sukces o wartości (Rozbiór o wyniku drzewo o reszcie ogon)
+    zwróć Sukces o wartości (Rozbiór o plonie drzewo o reszcie ogon)
 
 # ---------- liczby całkowite ----------
 
@@ -110,9 +110,9 @@ aby zebrać_cyfry z tekstu przy liczbie:
             jeśli rozpoznaj_cyfrę głowę:
                 suma to liczba razy dziesięć plus odczytaj_cyfrę głowę
                 zwróć zbierz_cyfry z ogona przy sumie
-            zwróć Rozbiór o wyniku liczba o reszcie tekst
+            zwróć Rozbiór o plonie liczba o reszcie tekst
         Niczym:
-            zwróć Rozbiór o wyniku liczba o reszcie Nic
+            zwróć Rozbiór o plonie liczba o reszcie Nic
 
 aby rozłożyć_liczbę z tekstu:
     gdy tekst jest:
@@ -121,10 +121,10 @@ aby rozłożyć_liczbę z tekstu:
         Ogniwem z głową z ogonem:
             jeśli głowa równa '-':
                 rozbiór to zbierz_cyfry z ogona przy zero
-                zwróć Sukces o wartości (Rozbiór o wyniku (Numer o liczbie (zero minus (wynik rozbioru))) o reszcie (reszta rozbioru))
+                zwróć Sukces o wartości (Rozbiór o plonie (Numer o liczbie (zero minus (plon rozbioru))) o reszcie (reszta rozbioru))
             jeśli rozpoznaj_cyfrę głowę:
                 rozbiór to zbierz_cyfry z tekstu przy zero
-                zwróć Sukces o wartości (Rozbiór o wyniku (Numer o liczbie (wynik rozbioru)) o reszcie (reszta rozbioru))
+                zwróć Sukces o wartości (Rozbiór o plonie (Numer o liczbie (plon rozbioru)) o reszcie (reszta rozbioru))
             zwróć Błąd o opisie "oczekiwano wartości JSON"
 
 # ---------- napisy ----------
@@ -135,7 +135,7 @@ aby zebrać_znaki z tekstu:
             zwróć Błąd o opisie "niezakończony napis (brak zamykającego cudzysłowu)"
         Ogniwem z głową z ogonem:
             jeśli głowa równa '"':
-                zwróć Sukces o wartości (Rozbiór o wyniku Nic o reszcie ogon)
+                zwróć Sukces o wartości (Rozbiór o plonie Nic o reszcie ogon)
             jeśli głowa równa '\\':
                 gdy ogon jest:
                     Niczym:
@@ -143,13 +143,13 @@ aby zebrać_znaki z tekstu:
                     Ogniwem z głową z ogonem:
                         znak to przetłumaczyłbyś_ucieczkę głowę?
                         zbiór to zebrałbyś_znaki z ogona?
-                        zwróć Sukces o wartości (Rozbiór o wyniku (Ogniwo o głowie znak o ogonie (wynik zbioru)) o reszcie (reszta zbioru))
+                        zwróć Sukces o wartości (Rozbiór o plonie (Ogniwo o głowie znak o ogonie (plon zbioru)) o reszcie (reszta zbioru))
             zbiór to zebrałbyś_znaki z ogona?
-            zwróć Sukces o wartości (Rozbiór o wyniku (Ogniwo o głowie głowa o ogonie (wynik zbioru)) o reszcie (reszta zbioru))
+            zwróć Sukces o wartości (Rozbiór o plonie (Ogniwo o głowie głowa o ogonie (plon zbioru)) o reszcie (reszta zbioru))
 
 aby rozłożyć_napis z tekstu:
     zbiór to zebrałbyś_znaki z tekstu?
-    zwróć Sukces o wartości (Rozbiór o wyniku (Napis o treści (wynik zbioru)) o reszcie (reszta zbioru))
+    zwróć Sukces o wartości (Rozbiór o plonie (Napis o treści (plon zbioru)) o reszcie (reszta zbioru))
 
 # ---------- tablice ----------
 
@@ -159,11 +159,11 @@ aby zebrać_pozycje z tekstu:
     gdy ciąg jest:
         Ogniwem z głową z ogonem:
             jeśli głowa równa ']':
-                zwróć Sukces o wartości (Rozbiór o wyniku (Ogniwo o głowie (wynik rozbioru) o ogonie Nic) o reszcie ogon)
+                zwróć Sukces o wartości (Rozbiór o plonie (Ogniwo o głowie (plon rozbioru) o ogonie Nic) o reszcie ogon)
             jeśli głowa równa ',':
                 zbiór to zebrałbyś_pozycje z ogona?
-                lista to Ogniwo o głowie (wynik rozbioru) o ogonie (wynik zbioru)
-                zwróć Sukces o wartości (Rozbiór o wyniku lista o reszcie (reszta zbioru))
+                lista to Ogniwo o głowie (plon rozbioru) o ogonie (plon zbioru)
+                zwróć Sukces o wartości (Rozbiór o plonie lista o reszcie (reszta zbioru))
             zwróć Błąd o opisie "oczekiwano ',' albo ']' w tablicy"
         Niczym:
             zwróć Błąd o opisie "niezakończona tablica (brak ']')"
@@ -173,9 +173,9 @@ aby rozłożyć_tablicę z tekstu:
     gdy ciąg jest:
         Ogniwem z głową z ogonem:
             jeśli głowa równa ']':
-                zwróć Sukces o wartości (Rozbiór o wyniku (Tablica o pozycjach Nic) o reszcie ogon)
+                zwróć Sukces o wartości (Rozbiór o plonie (Tablica o pozycjach Nic) o reszcie ogon)
             zbiór to zebrałbyś_pozycje z ciągu?
-            zwróć Sukces o wartości (Rozbiór o wyniku (Tablica o pozycjach (wynik zbioru)) o reszcie (reszta zbioru))
+            zwróć Sukces o wartości (Rozbiór o plonie (Tablica o pozycjach (plon zbioru)) o reszcie (reszta zbioru))
         Niczym:
             zwróć Błąd o opisie "niezakończona tablica (brak ']')"
 
@@ -198,7 +198,7 @@ aby odczytać_parę z tekstu:
                     jeśli głowa nierówna ':':
                         zwróć Błąd o opisie "oczekiwano ':' po kluczu"
                     rozbiór to rozłożyłbyś_wartość z ogona?
-                    zwróć Sukces o wartości (Rozbiór o wyniku (Para o kluczu (wynik klucza) o wartości (wynik rozbioru)) o reszcie (reszta rozbioru))
+                    zwróć Sukces o wartości (Rozbiór o plonie (Para o kluczu (plon klucza) o wartości (plon rozbioru)) o reszcie (reszta rozbioru))
 
 aby zebrać_pary z tekstu:
     łup to odczytałbyś_parę z tekstu?
@@ -206,11 +206,11 @@ aby zebrać_pary z tekstu:
     gdy ciąg jest:
         Ogniwem z głową z ogonem:
             jeśli głowa równa '}':
-                zwróć Sukces o wartości (Rozbiór o wyniku (Ogniwo o głowie (wynik łupu) o ogonie Nic) o reszcie ogon)
+                zwróć Sukces o wartości (Rozbiór o plonie (Ogniwo o głowie (plon łupu) o ogonie Nic) o reszcie ogon)
             jeśli głowa równa ',':
                 zbiór to zebrałbyś_pary z ogona?
-                lista to Ogniwo o głowie (wynik łupu) o ogonie (wynik zbioru)
-                zwróć Sukces o wartości (Rozbiór o wyniku lista o reszcie (reszta zbioru))
+                lista to Ogniwo o głowie (plon łupu) o ogonie (plon zbioru)
+                zwróć Sukces o wartości (Rozbiór o plonie lista o reszcie (reszta zbioru))
             zwróć Błąd o opisie "oczekiwano ',' albo '}' w obiekcie"
         Niczym:
             zwróć Błąd o opisie "niezakończony obiekt (brak '}')"
@@ -220,9 +220,9 @@ aby rozłożyć_obiekt z tekstu:
     gdy ciąg jest:
         Ogniwem z głową z ogonem:
             jeśli głowa równa '}':
-                zwróć Sukces o wartości (Rozbiór o wyniku (Obiekt o wpisach Nic) o reszcie ogon)
+                zwróć Sukces o wartości (Rozbiór o plonie (Obiekt o wpisach Nic) o reszcie ogon)
             zbiór to zebrałbyś_pary z ciągu?
-            zwróć Sukces o wartości (Rozbiór o wyniku (Obiekt o wpisach (wynik zbioru)) o reszcie (reszta zbioru))
+            zwróć Sukces o wartości (Rozbiór o plonie (Obiekt o wpisach (plon zbioru)) o reszcie (reszta zbioru))
         Niczym:
             zwróć Błąd o opisie "niezakończony obiekt (brak '}')"
 
@@ -253,19 +253,27 @@ aby rozłożyć_wartość z tekstu:
 aby zbudować_wcięcie z głębi:
     jeśli głębia równe zero:
         zwróć ""
-    zwróć sklej "  " z (zbuduj_wcięcie z (głębia minus jeden))
+    płytsza to głębia minus jeden
+    zwróć sklej "  " z wynikiem zbudowania_wcięcia z płytszej
 
 aby pokazać_parę para przy głębi:
-    zwróć sklej "\"" z (sklej (klucz pary) z (sklej "\": " z (pokaż_wartość (wartość pary) przy głębi)))
+    treść_pary to pokaż_wartość wartość pary przy głębi
+    środek to sklej "\": " z treścią_pary
+    środek to sklej klucz pary ze środkiem
+    zwróć sklej "\"" ze środkiem
 
 aby pokazać_wpisy wpisy przy głębi:
     gdy wpisy są:
         Ogniwem z głową z ogonem:
             gdy ogon jest:
                 Niczym:
-                    zwróć sklej (zbuduj_wcięcie z głębi) z (pokaż_parę głowę przy głębi)
+                    wcięcie to zbuduj_wcięcie z głębi
+                    zwróć sklej wcięcie z wynikiem pokazania_pary głowy przy głębi
                 Ogniwem:
-                    zwróć sklej (zbuduj_wcięcie z głębi) z (sklej (pokaż_parę głowę przy głębi) z (sklej ",\n" z (pokaż_wpisy ogon przy głębi)))
+                    wcięcie to zbuduj_wcięcie z głębi
+                    przód to sklej wcięcie z wynikiem pokazania_pary głowy przy głębi
+                    dalszy_tekst to sklej ",\n" z wynikiem pokazania_wpisów ogona przy głębi
+                    zwróć sklej przód z dalszym_tekstem
         Niczym:
             zwróć ""
 
@@ -274,9 +282,13 @@ aby pokazać_pozycje pozycje przy głębi:
         Ogniwem z głową z ogonem:
             gdy ogon jest:
                 Niczym:
-                    zwróć sklej (zbuduj_wcięcie z głębi) z (pokaż_wartość głowę przy głębi)
+                    wcięcie to zbuduj_wcięcie z głębi
+                    zwróć sklej wcięcie z wynikiem pokazania_wartości głowy przy głębi
                 Ogniwem:
-                    zwróć sklej (zbuduj_wcięcie z głębi) z (sklej (pokaż_wartość głowę przy głębi) z (sklej ",\n" z (pokaż_pozycje ogon przy głębi)))
+                    wcięcie to zbuduj_wcięcie z głębi
+                    przód to sklej wcięcie z wynikiem pokazania_wartości głowy przy głębi
+                    dalszy_tekst to sklej ",\n" z wynikiem pokazania_pozycji ogona przy głębi
+                    zwróć sklej przód z dalszym_tekstem
         Niczym:
             zwróć ""
 
@@ -285,23 +297,34 @@ aby pokazać_obiekt wpisy przy głębi:
         Niczym:
             zwróć "{}"
         Ogniwem:
-            wnętrze to pokaż_wpisy wpisy przy (głębia plus jeden)
-            zwróć sklej "{\n" z (sklej wnętrze z (sklej "\n" z (sklej (zbuduj_wcięcie z głębi) z "}")))
+            głębiej to głębia plus jeden
+            wnętrze to pokaż_wpisy wpisy przy głębiej
+            wcięcie to zbuduj_wcięcie z głębi
+            zamknięcie to sklej wcięcie z "}"
+            koniec to sklej "\n" z zamknięciem
+            środek to sklej wnętrze z końcem
+            zwróć sklej "{\n" ze środkiem
 
 aby pokazać_tablicę pozycje przy głębi:
     gdy pozycje są:
         Niczym:
             zwróć "[]"
         Ogniwem:
-            wnętrze to pokaż_pozycje pozycje przy (głębia plus jeden)
-            zwróć sklej "[\n" z (sklej wnętrze z (sklej "\n" z (sklej (zbuduj_wcięcie z głębi) z "]")))
+            głębiej to głębia plus jeden
+            wnętrze to pokaż_pozycje pozycje przy głębiej
+            wcięcie to zbuduj_wcięcie z głębi
+            zamknięcie to sklej wcięcie z "]"
+            koniec to sklej "\n" z zamknięciem
+            środek to sklej wnętrze z końcem
+            zwróć sklej "[\n" ze środkiem
 
 aby pokazać_wartość drzewo przy głębi:
     gdy drzewo jest:
         Niczym:
             zwróć "null"
         Napisem z treścią:
-            zwróć sklej "\"" z (sklej treść z "\"")
+            ogon_napisu to sklej treść z "\""
+            zwróć sklej "\"" z ogonem_napisu
         Numerem z liczbą:
             zwróć pokaż liczbę
         Flagą ze stanem:
@@ -318,15 +341,15 @@ aby pokazać_wartość drzewo przy głębi:
 aby wypisać_rozbiór rozbiór:
     gdy rozbiór jest:
         Błędem z opisem:
-            wypisz (sklej "błąd parsowania JSON: " z opisem)
+            wypisz wynik sklejenia "błąd parsowania JSON: " z opisem
         Sukcesem z wartością:
-            wypisz (pokaż_wartość (wynik wartości) przy zero)
+            wypisz wynik pokazania_wartości plonu wartości przy zero
 
 aby działać:
     ścieżka to "manual_test/dane.json"
     zawartość to czytaj_plik ze ścieżki
     gdy zawartość jest:
         Błędem z opisem:
-            wypisz (sklej "nie udało się wczytać pliku: " z opisem)
+            wypisz wynik sklejenia "nie udało się wczytać pliku: " z opisem
         Sukcesem z wartością:
-            wypisz_rozbiór (rozłóż_wartość z wartości)
+            wypisz_rozbiór wynik rozłożenia_wartości z wartości

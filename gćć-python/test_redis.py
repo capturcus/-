@@ -90,6 +90,16 @@ def test_redis_db_caches_lookups(redis_subset):
 
 
 @pytest.mark.redis
+def test_redis_wstrzykuje_własne_hasła(redis_subset):
+    """Własne hasła języka (literał) są obecne także w trybie Redis —
+    wstrzyknięte do memo-cache, z pierwszeństwem przed siecią."""
+    red_db, _ = morph_anal.load_redis(redis_subset)
+    anas = red_db.get("literałem")
+    assert anas and any(a.lemma == "literał" and "inst" in a.case
+                        for a in anas)
+
+
+@pytest.mark.redis
 def test_redis_full_pipeline_matches_memory(redis_subset):
     """Pełny pipeline (parse+resolve+typecheck) na słownictwie subsetu —
     ten sam wynik na obu backendach."""

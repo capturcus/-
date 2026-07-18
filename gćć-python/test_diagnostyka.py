@@ -94,7 +94,7 @@ def test_poszlaka_użycia_nazywa_operator(parse):
     src = (
         "aby działać:\n"
         "    rzecz to jeden\n"
-        "    wynik to rzecz plus jeden\n"
+        "    efekt to rzecz plus jeden\n"
         "    rzecz to 'z'\n"
     )
     with pytest.raises(typechecker.TypeCheckError) as ei:
@@ -117,7 +117,7 @@ _REKURSJA_BEZ_DNA = (
     "    zwróć jeden plus licz x\n"
     "\n"
     "aby działać:\n"
-    "    wynik to licz jeden\n"
+    "    efekt to licz jeden\n"
 )
 
 
@@ -324,12 +324,12 @@ def test_grounding_error_names_extern_origin(parse):
         "można zapisać dane (Liczba) -> Zapis\n"
         "\n"
         "aby działać:\n"
-        "    wynik to zapisz pięć\n"
+        "    efekt to zapisz pięć\n"
     )
     with pytest.raises(
         typechecker.TypeCheckError,
         match=r"(?s)nie można wywnioskować konkretnego typu zmiennej "
-              r"'wynik'.*pochodzi z externa 'zapisz' \(czysta świeżość\).*"
+              r"'efekt'.*pochodzi z externa 'zapisz' \(czysta świeżość\).*"
               r"użyj wartości strukturalnie albo dodaj adnotację",
     ):
         typechecker.resolve_module(parse(src))
@@ -347,7 +347,7 @@ def test_arg_slot_mismatch_shows_slot_table(parse):
         "\n"
         "aby działać:\n"
         "    kwota to pięć\n"
-        "    wynik to dodaj pięć kwota\n"
+        "    efekt to dodaj pięć kwota\n"
     )
     with pytest.raises(ast.ResolveError) as ei:
         parse(src)
@@ -357,7 +357,7 @@ def test_arg_slot_mismatch_shows_slot_table(parse):
     assert "`liczbę` (biernik)" in msg
     assert "`do sumy` (" in msg
     assert "otrzymano: 'kwota' (mianownik" in msg
-    assert "argument w nawiasie jest bezprzypadkowy" in msg
+    assert "literałom przypadek nadaje odmienione słowo 'literał'" in msg
 
 
 # =====================================================================
@@ -371,7 +371,7 @@ def test_undeclared_imperative_suggests_aspect_pair(parse):
         "    zwróć liczba\n"
         "\n"
         "aby działać:\n"
-        "    wynik to oceń pięć\n"
+        "    efekt to oceń pięć\n"
     )
     with pytest.raises(ast.ResolveError) as ei:
         parse(src)
@@ -567,10 +567,11 @@ def test_tco_pętla_ogonowa_nie_rośnie_stosem(run, capsys):
         "aby liczyć x (Liczba) -> Liczba:\n"
         "    jeśli x równe zero:\n"
         "        zwróć zero\n"
-        "    zwróć licz (x minus jeden)\n"
+        "    poprzednia to x minus jeden\n"
+            "    zwróć licz poprzednią\n"
         "\n"
         "aby działać:\n"
-        "    wypisz (licz pięćdziesiąt tysięcy)\n"
+        "    wypisz wynik liczenia pięćdziesięciu tysięcy\n"
     )
     run(src)
     assert capsys.readouterr().out == "0\n"
@@ -585,15 +586,16 @@ def test_leniwy_tekst_duży_plik_w_obie_strony(run, capsys, tmp_path):
         _PRZYGRYWKA_DIAG
         + "aby powielić tekst (Tekst) -> Tekst:\n"
         "    krok to zero\n"
-        "    wynik to tekst\n"
+        "    efekt to tekst\n"
         "    dopóki krok mniejsze od trzynaście:\n"
-        "        wynik to sklej wynik z wynikiem\n"
+        "        efekt to sklej efekt z efektem\n"
         "        krok to krok plus jeden\n"
-        "    zwróć wynik\n"
+        "    zwróć efekt\n"
         "\n"
         "aby działać:\n"
         f"    ścieżka to \"{ścieżka}\"\n"
-        "    zapis to zapisz_plik dla (powiel \"abc\") do ścieżki\n"
+        "    treść to powiel \"abc\"\n"
+        "    zapis to zapisz_plik dla treści do ścieżki\n"
         "    gdy zapis jest:\n"
         "        Sukcesem z wartością:\n"
         "            wypisz wartość\n"
@@ -602,7 +604,8 @@ def test_leniwy_tekst_duży_plik_w_obie_strony(run, capsys, tmp_path):
         "    odczyt to czytaj_plik ze ścieżki\n"
         "    gdy odczyt jest:\n"
         "        Sukcesem z wartością:\n"
-        "            wypisz (wartość równa (powiel \"abc\"))\n"
+        "            sąd to wartość równa (powiel \"abc\")\n"
+        "            wypisz sąd\n"
         "        Błędem z opisem:\n"
         "            wypisz opis\n"
     )

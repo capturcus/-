@@ -11,7 +11,8 @@ aby działać:
             wypisz wartość
         Błędem z opisem:
             wypisz opis
-    gdy szukaj po (minus trzy) jest:
+    cel to minus trzy
+    gdy szukaj po celu jest:
         Sukcesem z wartością:
             wypisz wartość
         Błędem z opisem:

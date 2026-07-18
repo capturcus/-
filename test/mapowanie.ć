@@ -27,8 +27,8 @@ aby mapować gałąź z przekształceniem -> Ogon:
 
 aby działać:
     liczby to Węzeł o wartości pięć o ogonie (Węzeł o wartości trzy o ogonie Nic)
-    wyniki to mapuj liczby z opakowaniem
-    gdy wyniki są:
+    efekty to mapuj liczby z opakowaniem
+    gdy efekty są:
         Węzłem z wartością:
             wypisz (imię wartości)
         Niczym:

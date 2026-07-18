@@ -18,7 +18,7 @@ aby ogłosić_wynik z tytułem (Tekst) o punktach (Liczba):
     wypisz punkty
 
 aby działać:
-    wypisz (policz_różnicę o wysokości pięć o szerokości sześć)
+    wypisz wynik policzenia_różnicy o wysokości pięć o szerokości sześć
     ramka to Ramka o szerokości sześć o wysokości pięć
-    wypisz (policz_różnicę o szerokości ramki o pięć)
+    wypisz wynik policzenia_różnicy o szerokości ramki o pięć
     ogłoś_wynik z tytułem "Wąż" o dziesięć

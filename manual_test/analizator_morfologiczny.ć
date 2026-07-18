@@ -95,7 +95,8 @@ aby wybrać pozycję z listy:
         Węzłem z głową z ogonem:
             jeśli pozycja równe zero:
                 zwróć Sukces o wartości głowa
-            zwróć wybierz (pozycja minus jeden) z ogona
+            poprzednia to pozycja minus jeden
+            zwróć wybierz poprzednią z ogona
 
 aby należeć element do zbioru:
     gdy zbiór jest:
@@ -230,12 +231,12 @@ aby badać części:
         Węzłem z głową z ogonem:
             morfologia to badaj ogon
             atomy to podziel głowę po "."
-            trafione to filtruj atomy według wymień_przypadki
+            trafione to filtruj atomy według wyniku wymienienia_przypadków
             gdy trafione jest:
                 Węzłem:
                     przypadki morfologii to trafione
                 PustąListą:
-                    liczby to filtruj atomy według wymień_liczby
+                    liczby to filtruj atomy według wyniku wymienienia_liczb
                     możliwa_liczba to bierz_pierwszą z liczb
                     gdy możliwa_liczba jest:
                         Sukcesem:
@@ -320,7 +321,7 @@ aby przesiewać analizy według klas:
 
 # Pula kanonizacji: analizy przymiotnikowe, a gdy ich brak — wszystkie.
 aby wybrać_pulę z analiz:
-    przymiotnikowe to przesiewaj analizy według wymień_klasy_przymiotnikowe
+    przymiotnikowe to przesiewaj analizy według wyniku wymienienia_klas_przymiotnikowych
     gdy przymiotnikowe jest:
         PustąListą:
             zwróć analizy

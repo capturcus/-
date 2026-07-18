@@ -5,8 +5,8 @@ aby usunąć_podzielne przez dzielnik z listy:
         Niczym:
             zwróć Nic
         Ogniwem z głową z ogonem:
-            wynik to weź_resztę_z_dzielenia głowy przez dzielnik
-            jeśli wynik równy zero i głowa nierówna dzielnikowi:
+            efekt to weź_resztę_z_dzielenia głowy przez dzielnik
+            jeśli efekt równy zero i głowa nierówna dzielnikowi:
                 zwróć usuń_podzielne przez dzielnik z ogona
             inaczej:
                 zwróć Ogniwo z głową o ogonie usuń_podzielne przez dzielnik z ogona

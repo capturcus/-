@@ -14,10 +14,10 @@ aby ogłosić listę (Lista):
             zwróć Nic
 
 aby działać dla argumentów:
-    wypisz (zmierz argumenty)
+    wypisz wynik zmierzenia argumentów
     ogłoś argumenty
     gdy argumenty są:
         Ogniwem z głową:
-            wypisz (sklej "pierwszy: " z głową)
+            wypisz wynik sklejenia "pierwszy: " z głową
         Niczym:
             wypisz "brak argumentów"

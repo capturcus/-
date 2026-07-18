@@ -44,6 +44,42 @@ class MorphAnalysis(NamedTuple):
 
 _SENTINEL = object()
 
+# ---------- własne hasła języka Ć ----------
+#
+# Słowa kluczowe języka, których nie ma w SGJP — wstrzykiwane po załadowaniu
+# słownika, identycznie dla `load()` (sgjp.tab) i `load_redis()`. Dzięki temu
+# działają niezależnie od wydania SGJP i trybu pracy; wpis wstrzyknięty
+# PRZYKRYWA ewentualne przyszłe hasło słownikowe (determinizm).
+# „literał" to nośnik przypadka dla literałów w wywołaniach funkcji
+# (`zawieź literałem "samochód" psa do domu`) — regularna odmiana
+# męskorzeczowa (m3), tagi w stylu SGJP.
+WŁASNE_HASŁA = [
+    ("literał", "literał", "subst:sg:nom.acc:m3"),
+    ("literału", "literał", "subst:sg:gen:m3"),
+    ("literałowi", "literał", "subst:sg:dat:m3"),
+    ("literałem", "literał", "subst:sg:inst:m3"),
+    ("literale", "literał", "subst:sg:loc.voc:m3"),
+    ("literały", "literał", "subst:pl:nom.acc.voc:m3"),
+    ("literałów", "literał", "subst:pl:gen:m3"),
+    ("literałom", "literał", "subst:pl:dat:m3"),
+    ("literałami", "literał", "subst:pl:inst:m3"),
+    ("literałach", "literał", "subst:pl:loc:m3"),
+]
+
+
+def _własne_analizy():
+    """dict[forma → [MorphAnalysis]] zbudowany z WŁASNE_HASŁA tą samą
+    ścieżką co wpisy słownikowe (`_morpho_for_tag`)."""
+    out = {}
+    for form, lemma, tag in WŁASNE_HASŁA:
+        pos = tag.partition(":")[0]
+        case, number, gender = _morpho_for_tag(tag.split(":"))
+        out.setdefault(form, []).append(MorphAnalysis(
+            pos=pos, case=case, number=number, gender=gender,
+            lemma=lemma, tag=tag, qualifier="", base=None,
+        ))
+    return out
+
 
 def _morpho_for_tag(tag_parts):
     """Wyciąga (case, number, gender) z parts tagu SGJP.
@@ -142,6 +178,7 @@ def load(path):
                     lemma=citation.get((ana.pos, ana.lemma), ana.lemma),
                     base=ana.lemma if ana.pos == "ger" else None,
                 )
+    db.update(_własne_analizy())
     print(f"Loaded {len(db)} forms in {time.time() - t0:.1f}s", file=sys.stderr)
     return db, preps
 
@@ -304,4 +341,8 @@ def load_redis(url):
     preps_raw = client.get(f"{REDIS_PREFIX}preps")
     preps = {lemma: set(cases)
              for lemma, cases in json.loads(preps_raw).items()}
-    return RedisDb(client), preps
+    db = RedisDb(client)
+    # Własne hasła siedzą w memo-cache — mają pierwszeństwo przed Redisem
+    # (get sprawdza cache przed siecią), więc semantyka = `load()`.
+    db.cache.update(_własne_analizy())
+    return db, preps

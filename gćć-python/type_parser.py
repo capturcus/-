@@ -26,25 +26,39 @@ def read_prep(cursor, preps):
 # Współdzielony silnik: wywołania funkcji (expression.py) ORAZ argumenty typów
 # parametryzowanych (typechecker.py) dopasowują argumenty do parametrów tak samo.
 
-def slot_matches(tok_prep, tok_case, param):
+def slot_matches(tok_prep, tok_case, param, nominalized=False):
     if param.prep != tok_prep:
         return False
     if param.case is None or tok_case is None:
         return True
-    return bool(param.case & tok_case)
+    if param.case & tok_case:
+        return True
+    # Przesunięcie dopełnienia pod nominalizacją (`zmierz segmenty` →
+    # `wynik zmierzenia segmentów`): goły slot biernikowy przyjmuje też
+    # dopełniacz — tylko w wywołaniach przez `wynik`.
+    return (nominalized and param.prep is None
+            and "acc" in param.case and "gen" in tok_case)
 
 
-def match_args_to_slots(arg_meta, sig, on_error, fixed=None):
+def match_args_to_slots(arg_meta, sig, on_error, fixed=None,
+                        nominalized=False, on_remis=None):
     """arg_meta: list[(prep, case, payload)]; sig: list[Param];
     on_error: (arg_index=int) -> Exception — dostaje indeks argumentu,
     który nie pasuje (do tabelki slotów w komunikacie).
     fixed: {arg_index: slot_index} — argumenty NAZWANE, związane ze slotem
     z góry (nazwa parametru w wywołaniu); pomijają dopasowanie prep/case.
+    nominalized: wywołanie przez `wynik` — goły slot biernikowy przyjmuje
+    też dopełniacz (przesunięcie dopełnienia pod nominalizacją).
+    on_remis: (arg_index, slot_indices) -> Exception | None — wywoływane,
+    gdy fallback pozycyjny miałby zgadywać między RÓŻNYMI slotami (inna
+    para przyimek/przypadki); zwrócony wyjątek jest rzucany, None →
+    ciche przydzielenie (stare zachowanie dla tej kategorii argumentu).
     Greedy: najpierw argumenty z dokładnie jednym wolnym slotem, potem pozycyjnie.
     Zwraca {slot_index: arg_index}."""
     n_slots = len(sig)
     candidates = [
-        {si for si, p in enumerate(sig) if slot_matches(prep, case, p)}
+        {si for si, p in enumerate(sig)
+         if slot_matches(prep, case, p, nominalized)}
         for prep, case, _ in arg_meta
     ]
     assigned = dict(fixed) if fixed else {}
@@ -67,6 +81,17 @@ def match_args_to_slots(arg_meta, sig, on_error, fixed=None):
     for ai, si in zip(remaining_args, free_slots):
         if si not in candidates[ai]:
             raise on_error(arg_index=ai)
+        if on_remis is not None:
+            # Pozycyjnie wolno rozstrzygać tylko między slotami-bliźniakami
+            # (ta sama para przyimek/przypadki) — inaczej to zgadywanie.
+            inne = {
+                s for s in candidates[ai] - used - {si}
+                if (sig[s].prep, sig[s].case) != (sig[si].prep, sig[si].case)
+            }
+            if inne:
+                exc = on_remis(ai, sorted({si} | inne))
+                if exc is not None:
+                    raise exc
         assigned[ai] = si
         used.add(si)
     return {assigned[ai]: ai for ai in range(n_slots)}

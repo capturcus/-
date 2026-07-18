@@ -36,14 +36,17 @@ aby wybrać_większe z pierwszej (Liczba) z drugiej (Liczba) -> Liczba:
     zwróć pierwsza
 
 aby zbudować_konar z klucza (Tekst) z zapasu z lewicy (Słownik) z prawicy (Słownik) -> Słownik:
-    zwróć Konar o kluczu klucz o zapasie zapas o lewicy lewica o prawicy prawica o wzroście (jeden plus (wybierz_większe z (zmierz_wzrost lewicy) z (zmierz_wzrost prawicy)))
+    wzrost_lewicy to zmierz_wzrost lewicy
+    wzrost_prawicy to zmierz_wzrost prawicy
+    zwróć Konar o kluczu klucz o zapasie zapas o lewicy lewica o prawicy prawica o wzroście (jeden plus (wybierz_większe z wzrostu_lewicy z wzrostu_prawicy))
 
 aby obrócić_w_prawo słownik (Słownik) -> Słownik:
     gdy słownik jest:
         Konarem jako korzeń:
             gdy lewica korzenia jest:
                 Konarem jako oś:
-                    zwróć zbuduj_konar z (klucz osi) z (zapas osi) z (lewica osi) z (zbuduj_konar z (klucz korzenia) z (zapas korzenia) z (prawica osi) z (prawica korzenia))
+                    prawy_konar to zbuduj_konar z klucza korzenia z zapasu korzenia z prawicy osi z prawicy korzenia
+                    zwróć zbuduj_konar z klucza osi z zapasu osi z lewicy osi z prawego_konaru
                 Niczym:
                     zwróć słownik
         Niczym:
@@ -54,7 +57,8 @@ aby obrócić_w_lewo słownik (Słownik) -> Słownik:
         Konarem jako korzeń:
             gdy prawica korzenia jest:
                 Konarem jako oś:
-                    zwróć zbuduj_konar z (klucz osi) z (zapas osi) z (zbuduj_konar z (klucz korzenia) z (zapas korzenia) z (lewica korzenia) z (lewica osi)) z (prawica osi)
+                    lewy_konar to zbuduj_konar z klucza korzenia z zapasu korzenia z lewicy korzenia z lewicy osi
+                    zwróć zbuduj_konar z klucza osi z zapasu osi z lewego_konaru z prawicy osi
                 Niczym:
                     zwróć słownik
         Niczym:
@@ -65,16 +69,18 @@ aby wyrównać słownik (Słownik) -> Słownik:
     jeśli przewaga większe od jeden:
         gdy słownik jest:
             Konarem jako korzeń:
-                jeśli (wyznacz_przewagę (lewica korzenia)) mniejsze od zero:
-                    zwróć obróć_w_prawo (zbuduj_konar z (klucz korzenia) z (zapas korzenia) z (obróć_w_lewo (lewica korzenia)) z (prawica korzenia))
+                jeśli (wyznacz_przewagę lewicy korzenia) mniejsze od zero:
+                    obrócona_lewica to obróć_w_lewo lewicę korzenia
+                    zwróć obróć_w_prawo wynik zbudowania_konaru z klucza korzenia z zapasu korzenia z obróconej_lewicy z prawicy korzenia
                 zwróć obróć_w_prawo słownik
             Niczym:
                 zwróć słownik
     jeśli przewaga mniejsze od (minus jeden):
         gdy słownik jest:
             Konarem jako korzeń:
-                jeśli (wyznacz_przewagę (prawica korzenia)) większe od zero:
-                    zwróć obróć_w_lewo (zbuduj_konar z (klucz korzenia) z (zapas korzenia) z (lewica korzenia) z (obróć_w_prawo (prawica korzenia)))
+                jeśli (wyznacz_przewagę prawicy korzenia) większe od zero:
+                    obrócona_prawica to obróć_w_prawo prawicę korzenia
+                    zwróć obróć_w_lewo wynik zbudowania_konaru z klucza korzenia z zapasu korzenia z lewicy korzenia z obróconej_prawicy
                 zwróć obróć_w_lewo słownik
             Niczym:
                 zwróć słownik
@@ -87,12 +93,14 @@ aby włożyć zapas pod kluczem (Tekst) do słownika (Słownik) -> Słownik:
         Niczym:
             zwróć zbuduj_konar z klucza z zapasu z Nic z Nic
         Konarem jako korzeń:
-            porządek to porównaj klucz z (klucz korzenia)
+            porządek to porównaj klucz z kluczem korzenia
             jeśli porządek równe zero:
-                zwróć zbuduj_konar z klucza z zapasu z (lewica korzenia) z (prawica korzenia)
+                zwróć zbuduj_konar z klucza z zapasu z lewicy korzenia z prawicy korzenia
             jeśli porządek mniejsze od zero:
-                zwróć wyrównaj (zbuduj_konar z (klucz korzenia) z (zapas korzenia) z (włóż zapas pod kluczem do (lewica korzenia)) z (prawica korzenia))
-            zwróć wyrównaj (zbuduj_konar z (klucz korzenia) z (zapas korzenia) z (lewica korzenia) z (włóż zapas pod kluczem do (prawica korzenia)))
+                nowa_lewica to włóż zapas pod kluczem do lewicy korzenia
+                zwróć wyrównaj wynik zbudowania_konaru z klucza korzenia z zapasu korzenia z nowej_lewicy z prawicy korzenia
+            nowa_prawica to włóż zapas pod kluczem do prawicy korzenia
+            zwróć wyrównaj wynik zbudowania_konaru z klucza korzenia z zapasu korzenia z lewicy korzenia z nowej_prawicy
 
 # Odczyt: Sukces z wartością albo Błąd, gdy klucza nie ma.
 aby znaleźć klucz (Tekst) w słowniku (Słownik):
@@ -100,12 +108,12 @@ aby znaleźć klucz (Tekst) w słowniku (Słownik):
         Niczym:
             zwróć Błąd o opisie "nie znaleziono"
         Konarem jako korzeń:
-            porządek to porównaj klucz z (klucz korzenia)
+            porządek to porównaj klucz z kluczem korzenia
             jeśli porządek równe zero:
                 zwróć Sukces o wartości (zapas korzenia)
             jeśli porządek mniejsze od zero:
-                zwróć znajdź (klucz) w (lewica korzenia)
-            zwróć znajdź (klucz) w (prawica korzenia)
+                zwróć znajdź (klucz) w lewicy korzenia
+            zwróć znajdź (klucz) w prawicy korzenia
 
 # Liczba wpisów.
 aby zliczyć_wpisy słownika (Słownik) -> Liczba:

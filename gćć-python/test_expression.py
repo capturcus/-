@@ -37,12 +37,12 @@ def _value_of_first_assignment(module):
 
 
 def _wrap(rhs_expr, params=""):
-    """Wzorzec: aby działać [PARAMS]:\n    wynik to <expr>.
+    """Wzorzec: aby działać [PARAMS]:\n    efekt to <expr>.
 
     `params` deklaruje zmienne używane w wyrażeniu (block scoping wymaga
     deklaracji przed użyciem; parametry nie przesuwają indeksów w body)."""
     sig = f" {params}" if params else ""
-    return f"aby działać{sig}:\n    wynik to {rhs_expr}\n"
+    return f"aby działać{sig}:\n    efekt to {rhs_expr}\n"
 
 
 # ---------- Liczby słowne (literały) ----------
@@ -211,7 +211,7 @@ def test_function_call_followed_by_binop_left_binding(parse):
     BinOp(+, FCall(weź_wiek_z_bazy, [identyfikator]), IntLit(7))."""
     src = (
         "aby weź_wiek_z_bazy dla identyfikatora:\n    zwrócić\n"
-        "aby działać identyfikator:\n    wynik to weź_wiek_z_bazy dla identyfikatora plus siedem\n"
+        "aby działać identyfikator:\n    efekt to weź_wiek_z_bazy dla identyfikatora plus siedem\n"
     )
     m = parse(src)
     expr = m.body[1].body[0].value.resolved
@@ -236,16 +236,29 @@ def test_top_level_fcall_with_arith_arg_is_binop(parse):
     assert expr.right == ast.IntLit(3)
 
 
-def test_function_call_with_paren_arith_arg(parse):
-    """`wywołaj_funkcję z (dwa plus trzy)` → fcall arg = BinOp(+, 2, 3)."""
+def test_function_call_with_paren_arith_arg_raises(parse):
+    """Wyrażenie w nawiasach jako argument nie ma przypadka — zakaz;
+    receptą jest zmienna."""
     src = (
         "aby wywołać_funkcję z liczbą:\n    zwrócić\n"
         "wywołaj_funkcję z (dwa plus trzy)\n"
     )
-    m = parse(src)
-    expr = m.body[1].resolved
-    assert isinstance(expr, ast.FunctionCall)
-    assert isinstance(expr.params[0].value, ast.BinOp)
+    with pytest.raises(ast.ResolveError,
+                       match="wyrażenie w nawiasach.*nie ma przypadka"):
+        parse(src)
+
+
+def test_function_call_arith_via_variable(parse):
+    """Recepta zakazu: wyrażenie wyabstrahowane do zmiennej przechodzi."""
+    src = (
+        "aby wywołać_funkcję z liczbą:\n    zwrócić\n"
+        "aby działać:\n"
+        "    suma to dwa plus trzy\n"
+        "    wywołaj_funkcję z sumą\n"
+    )
+    fc = parse(src).body[1].body[1].resolved
+    assert isinstance(fc, ast.FunctionCall)
+    assert isinstance(fc.params[0].value, ast.Identifier)
 
 
 # ---------- Dopasowanie argumentów do slotów (przypadek + przyimek) ----------
@@ -263,6 +276,7 @@ _ARGMATCH_DECLS = (
     " z trzecim_argumentem:\n    zwróć\n"
     "aby stworzyć_wartość:\n    zwróć jeden\n"
     "aby też_stworzyć_wartość:\n    zwróć dwa\n"
+    "aby zbudować_wartość:\n    zwróć trzy\n"
 )
 
 
@@ -307,37 +321,51 @@ def test_args_reordered_by_case_and_prep(parse):
     assert fc.params[2].prep == ("z",)
 
 
-def test_nested_fcall_fills_remaining_slot_positionally(parse):
-    """Wywołanie zagnieżdżone (`stwórz_wartość`) nie ma przypadku z fleksji.
-    `samochodowi`→slot 1 (cel.), `z psem`→slot 3, więc `stwórz_wartość`
-    trafia do jedynego wolnego slotu 2 ⇒
-    `testuj_funkcję(samochód, stwórz_wartość(), pies)`."""
-    fc = _argmatch_call(parse, "testuj_funkcję stwórz_wartość z psem samochodowi")
-    assert _is_ident(fc.params[0], ("samochód",))
-    assert _is_call(fc.params[1], ("stworzyć", "wartość"))
+def test_nested_bare_fcall_arg_raises(parse):
+    """Zagnieżdżone wywołanie rozkaźnikowe nie ma przypadka — zakaz;
+    recepta wskazuje `wynik` i zmienną."""
+    with pytest.raises(ast.ResolveError) as ei:
+        _argmatch_call(
+            parse, "testuj_funkcję stwórz_wartość z psem samochodowi")
+    msg = str(ei.value)
+    assert "zagnieżdżone wywołanie rozkaźnikowe" in msg
+    assert "wynik" in msg
+
+
+def test_nested_fcall_via_wynik_binds_slot_by_case(parse):
+    """`wynikowi stworzenia_wartości` — celownik formy `wynik` wiąże
+    zagnieżdżone wywołanie ze slotem 1 przez przypadek."""
+    fc = _argmatch_call(
+        parse,
+        "testuj_funkcję wynikowi stworzenia_wartości z psem samochodu")
+    assert _is_call(fc.params[0], ("stworzyć", "wartość"))
+    assert _is_ident(fc.params[1], ("samochód",))
     assert _is_ident(fc.params[2], ("pies",))
 
 
-def test_nested_fcall_with_prep_picks_slot_by_prep(parse):
-    """Zagnieżdżone wywołanie poprzedzone przyimkiem dezambiguuje się PO
-    PRZYIMKU mimo braku przypadku: `z stwórz_wartość`→slot 3 (`z`),
-    `domku`→slot 2, `samochodowi`→slot 1 ⇒
-    `testuj_funkcję(samochód, domek, stwórz_wartość())`."""
-    fc = _argmatch_call(parse, "testuj_funkcję z stwórz_wartość domku samochodowi")
+def test_nested_fcall_with_prep_via_wynik(parse):
+    """Zagnieżdżone wywołanie po przyimku idzie przez `wynik` w przypadku
+    rządzonym przez przyimek: `z wynikiem stworzenia_wartości` → slot 3."""
+    fc = _argmatch_call(
+        parse,
+        "testuj_funkcję z wynikiem stworzenia_wartości domku samochodowi")
     assert _is_ident(fc.params[0], ("samochód",))
     assert _is_ident(fc.params[1], ("domek",))
     assert _is_call(fc.params[2], ("stworzyć", "wartość"))
     assert fc.params[2].prep == ("z",)
 
 
-def test_indistinguishable_args_fall_back_to_positional(parse):
-    """Poza jednoznacznie dopasowanym po przyimku (`z psem`→slot 3), dwa
-    nierozróżnialne wywołania zagnieżdżone wpadają POZYCYJNIE w kolejności
-    zapisu do wolnych slotów 1 i 2 ⇒
-    `testuj_funkcję(stwórz_wartość(), też_stwórz_wartość(), pies)`."""
-    fc = _argmatch_call(parse, "testuj_funkcję z psem stwórz_wartość też_stwórz_wartość")
-    assert _is_call(fc.params[0], ("stworzyć", "wartość"))
-    assert _is_call(fc.params[1], ("tenże", "stworzyć", "wartość"))
+def test_two_nested_calls_disambiguated_by_wynik_forms(parse):
+    """Dwa zagnieżdżone wywołania, dawniej pozycyjnie nierozróżnialne,
+    formy `wynik` rozróżniają przez przypadek — kolejność zapisu odwrotna
+    do slotów: `wyniku` (dopełniacz) → slot 2, `wynikowi` (celownik) →
+    slot 1."""
+    fc = _argmatch_call(
+        parse,
+        "testuj_funkcję z psem wyniku stworzenia_wartości "
+        "wynikowi zbudowania_wartości")
+    assert _is_call(fc.params[0], ("zbudować", "wartość"))
+    assert _is_call(fc.params[1], ("stworzyć", "wartość"))
     assert _is_ident(fc.params[2], ("pies",))
     assert fc.params[2].prep == ("z",)
 
@@ -354,7 +382,7 @@ def test_missing_argument_fails(parse):
 def test_simple_chain(parse):
     src = (
         "definicja Postu:\n    autor (Tekst)\n    treść (Tekst)\n"
-        "aby działać post:\n    wynik to autor postu\n"
+        "aby działać post:\n    efekt to autor postu\n"
     )
     m = parse(src)
     chain = m.body[1].body[0].value.resolved
@@ -369,7 +397,7 @@ def test_chain_with_arith_left_binding(parse):
     BinOp(+, GetterChain([liczba_polubień, post]), IntLit(28))."""
     src = (
         "definicja Postu:\n    liczba_polubień (Liczba)\n"
-        "aby działać post:\n    wynik to liczba_polubień posta plus dwadzieścia osiem\n"
+        "aby działać post:\n    efekt to liczba_polubień posta plus dwadzieścia osiem\n"
     )
     m = parse(src)
     expr = m.body[1].body[0].value.resolved
@@ -378,12 +406,105 @@ def test_chain_with_arith_left_binding(parse):
     assert expr.right == ast.IntLit(28)
 
 
+# ---------- Przypadek łańcucha dopełniaczowego ----------
+
+_POST_ZESTAW = (
+    "definicja Postu:\n"
+    "    autor (Tekst)\n"
+    "    treść (Tekst)\n"
+    "aby zestawić tekst (Tekst) z drugim (Tekst) -> Tekst:\n"
+    "    zwróć tekst\n"
+)
+
+
+def test_chain_carries_head_case(parse):
+    """Łańcuch niesie przypadek głowy: `autor postu` — głowa w mianowniku,
+    reszta to przydawka dopełniaczowa."""
+    src = _POST_ZESTAW + "aby działać post:\n    efekt to autor postu\n"
+    chain = parse(src).body[2].body[0].value.resolved
+    assert isinstance(chain, ast.GetterChain)
+    assert chain.case is not None and "nom" in chain.case
+
+
+def test_chain_arg_binds_slot_by_case(parse):
+    """Łańcuchy w argumentach dopasowują się przez przypadek, nie pozycję:
+    argument z przyimkiem stoi PIERWSZY, a i tak trafia do drugiego slotu."""
+    src = (
+        _POST_ZESTAW
+        + "aby działać post:\n"
+        + "    efekt to zestaw z autorem posta treść posta\n"
+    )
+    fc = parse(src).body[2].body[0].value.resolved
+    assert isinstance(fc, ast.FunctionCall)
+    # slot 0 = `tekst` (biernik) ← łańcuch `treść posta`
+    assert isinstance(fc.params[0].value, ast.GetterChain)
+    assert ("treść",) in fc.params[0].value.chain[0].lemmas_set
+    # slot 1 = `z drugim` (narzędnik) ← łańcuch `autorem posta`
+    assert isinstance(fc.params[1].value, ast.GetterChain)
+    assert ("autor",) in fc.params[1].value.chain[0].lemmas_set
+    assert "inst" in fc.params[1].value.case
+
+
+def test_chain_arg_wrong_case_raises(parse):
+    """Łańcuch w złym przypadku nie pasuje do slotu — głośny błąd zamiast
+    cichego fallbacku pozycyjnego (`z autora` to dopełniacz, slot żąda
+    narzędnika)."""
+    src = (
+        _POST_ZESTAW
+        + "aby działać post:\n"
+        + "    efekt to zestaw treść posta z autora posta\n"
+    )
+    with pytest.raises(ast.ResolveError,
+                       match="nie pasuje do żadnego wolnego parametru"):
+        parse(src)
+
+
 # ---------- Struct creation ----------
+
+_PIES_ZAWIEŹ = (
+    "definicja Psa:\n"
+    "    imię (Tekst)\n"
+    "aby zawieźć pasażera transportem do celu:\n"
+    "    zwróć pasażer\n"
+)
+
+
+def test_struct_creation_carries_head_case(parse):
+    """Odmieniona głowa typu nadaje konstrukcji przypadek: `Psa o imieniu
+    \"burek\"` stoi w bierniku/dopełniaczu i wiąże slot `pasażera` przez
+    przypadek, nie pozycję."""
+    src = (
+        _PIES_ZAWIEŹ
+        + "aby działać dom samochodem:\n"
+        + '    x to zawieź samochodem Psa o imieniu "burek" do domu\n'
+    )
+    fc = parse(src).body[2].body[0].value.resolved
+    assert isinstance(fc, ast.FunctionCall)
+    # slot 0 = `pasażera` ← konstrukcja, mimo że stoi jako drugi argument
+    assert isinstance(fc.params[0].value, ast.StructCreation)
+    assert fc.params[0].value.case is not None
+    assert "acc" in fc.params[0].value.case
+    assert isinstance(fc.params[1].value, ast.Identifier)
+
+
+def test_struct_creation_nominative_head_in_acc_slot_raises(parse):
+    """Mianownikowa głowa (`Pies o imieniu ...`) nie mieści się w slocie
+    biernikowym — głośny błąd zamiast fallbacku pozycyjnego."""
+    src = (
+        _PIES_ZAWIEŹ
+        + "aby dopieścić pupila:\n    zwróć pupil\n"
+        + "aby działać:\n"
+        + '    x to dopieść Pies o imieniu "burek"\n'
+    )
+    with pytest.raises(ast.ResolveError,
+                       match="nie pasuje do żadnego wolnego parametru"):
+        parse(src)
+
 
 def test_struct_creation_basic(parse):
     src = (
         "definicja Użytkownika:\n    nazwa (Tekst)\n"
-        "aby działać:\n    wynik to Użytkownik o nazwie \"Anna\"\n"
+        "aby działać:\n    efekt to Użytkownik o nazwie \"Anna\"\n"
     )
     m = parse(src)
     sc = m.body[1].body[0].value.resolved
@@ -400,7 +521,7 @@ def test_struct_creation_field_value_is_full_expr(parse):
         "aby weź_wiek_z_bazy dla identyfikatora:\n    zwrócić\n"
         "definicja Użytkownika:\n    wiek (Liczba)\n    nazwa (Tekst)\n"
         "aby działać identyfikator:\n"
-        "    wynik to Użytkownik o wieku weź_wiek_z_bazy dla identyfikatora plus siedem o nazwie \"Anna\"\n"
+        "    efekt to Użytkownik o wieku weź_wiek_z_bazy dla identyfikatora plus siedem o nazwie \"Anna\"\n"
     )
     m = parse(src)
     sc = m.body[2].body[0].value.resolved
@@ -512,7 +633,7 @@ def test_chain_head_subst_variant_when_adj_variant_exists(parse):
     field-em, dispatcher znajduje subst-variant i startuje chain."""
     src = (
         "definicja Słowa:\n    część_mowy (Tekst)\n"
-        "aby działać słowo:\n    wynik to części_mowy słowa\n"
+        "aby działać słowo:\n    efekt to części_mowy słowa\n"
     )
     m = parse(src)
     expr = m.body[1].body[0].value.resolved
@@ -566,7 +687,7 @@ def test_diag_leftover_after_chain_unfollowable(parse):
     że `komentarza` wygląda jak rozszerzenie ale `postu` nie jest polem."""
     src = (
         "definicja Posta:\n    autor (Tekst)\n"
-        "aby działać post:\n    wynik to autor postu komentarza\n"
+        "aby działać post:\n    efekt to autor postu komentarza\n"
     )
     with pytest.raises(ast.ResolveError, match="chain.*autor postu") as ei:
         parse(src)
@@ -624,7 +745,7 @@ def test_diag_leftover_after_fcall_extra_tokens(parse):
     mówi że funkcja wzięła N argument(ów) i nic więcej nie spodziewała."""
     src = (
         "aby weź x (Tekst):\n    zwróć x\n"
-        "aby działać:\n    wynik to weź \"hello\" leftover\n"
+        "aby działać:\n    efekt to weź \"hello\" leftover\n"
     )
     with pytest.raises(ast.ResolveError) as ei:
         parse(src)
@@ -649,12 +770,12 @@ def test_diag_leftover_after_literal(parse):
 
 def test_dla_as_prep_in_fcall(parse):
     """`dla` to zwykły przyimek — w nagłówku funkcji i w argumencie fcall.
-    RHS przypisania `wynik to weź_wiek dla użytkownika` parsuje się jako
+    RHS przypisania `efekt to weź_wiek dla użytkownika` parsuje się jako
     FunctionCall(weź_wiek, [Word(dla, użytkownik)])."""
     src = (
         "aby weź_wiek dla użytkownika:\n    zwrócić\n"
         "aby działać użytkownik:\n"
-        "    wynik to weź_wiek dla użytkownika\n"
+        "    efekt to weź_wiek dla użytkownika\n"
     )
     m = parse(src)
     asn = m.body[1].body[0]
@@ -689,7 +810,7 @@ def test_named_args_bind_slots_in_any_order(parse):
     nazwa wiąże slot, więc kolejność argumentów jest dowolna."""
     src = _RÓŻNICA + (
         "aby działać:\n"
-        "    wynik to policz_różnicę o wysokości pięć o szerokości sześć\n"
+        "    efekt to policz_różnicę o wysokości pięć o szerokości sześć\n"
     )
     m = parse(src)
     call = m.body[1].body[0].value.resolved
@@ -706,7 +827,7 @@ def test_named_arg_with_z_and_literal(parse):
         "aby ogłosić_wynik z tytułem (Tekst) o punktach (Liczba):\n"
         "    zwróć punkty\n"
         "aby działać:\n"
-        "    wynik to ogłoś_wynik z tytułem \"Wąż\" o dziesięć\n"
+        "    efekt to ogłoś_wynik z tytułem \"Wąż\" o dziesięć\n"
     )
     m = parse(src)
     call = m.body[1].body[0].value.resolved
@@ -718,7 +839,7 @@ def test_named_arg_value_in_parens(parse):
     """Nawias po nazwie parametru wymusza argument nazwany."""
     src = _RÓŻNICA + (
         "aby działać ramki:\n"
-        "    wynik to policz_różnicę o szerokości (ramki) o pięć\n"
+        "    efekt to policz_różnicę o szerokości (ramki) o pięć\n"
     )
     m = parse(src)
     call = m.body[1].body[0].value.resolved
@@ -734,7 +855,7 @@ def test_chain_value_after_param_name_stays_positional(parse):
         "definicja Ramki:\n    szerokość (Liczba)\n"
         + _RÓŻNICA +
         "aby badać ramka:\n"
-        "    wynik to policz_różnicę o szerokości ramki o pięć\n"
+        "    efekt to policz_różnicę o szerokości ramki o pięć\n"
     )
     m = parse(src)
     call = m.body[2].body[0].value.resolved
@@ -749,7 +870,7 @@ def test_param_name_without_value_stays_value(parse):
         "aby czytać_dane ze ścieżki:\n"
         "    zwróć ścieżka\n"
         "aby działać ścieżka:\n"
-        "    wynik to czytaj_dane ze ścieżki\n"
+        "    efekt to czytaj_dane ze ścieżki\n"
     )
     m = parse(src)
     call = m.body[1].body[0].value.resolved
@@ -767,7 +888,7 @@ def test_named_remis_chain_raises(parse):
         "aby działać:\n"
         "    ramki to osiem\n"
         "    ramka to Ramka o szerokości sześć\n"
-        "    wynik to policz_różnicę o szerokości ramki o pięć\n"
+        "    efekt to policz_różnicę o szerokości ramki o pięć\n"
     )
     with pytest.raises(ast.ResolveError) as ei:
         parse(src)
@@ -785,7 +906,7 @@ def test_named_remis_variable_raises(parse):
     src = _RÓŻNICA + (
         "aby działać:\n"
         "    szerokość to trzy\n"
-        "    wynik to policz_różnicę o szerokości pięć o sześć\n"
+        "    efekt to policz_różnicę o szerokości pięć o sześć\n"
     )
     with pytest.raises(ast.ResolveError) as ei:
         parse(src)
@@ -798,7 +919,7 @@ def test_named_remis_variable_raises(parse):
 def test_named_arg_duplicate_raises(parse):
     src = _RÓŻNICA + (
         "aby działać:\n"
-        "    wynik to policz_różnicę o szerokości pięć o szerokości sześć\n"
+        "    efekt to policz_różnicę o szerokości pięć o szerokości sześć\n"
     )
     with pytest.raises(ast.ResolveError, match="podany dwukrotnie"):
         parse(src)
@@ -832,7 +953,7 @@ def test_narrow_to_module_scope_var(parse):
     src = (
         "lista to zero\n"
         "aby działać:\n"
-        "    wynik to liście\n"
+        "    efekt to liście\n"
     )
     m = parse(src)
     ref = m.body[1].body[0].value.resolved
@@ -846,7 +967,7 @@ def test_narrow_to_function_local_var(parse):
     src = (
         "aby działać:\n"
         "    lista to zero\n"
-        "    wynik to liście\n"
+        "    efekt to liście\n"
     )
     m = parse(src)
     ref = m.body[0].body[1].value.resolved
@@ -861,7 +982,7 @@ def test_narrow_to_function_param(parse):
     pełnym kluczem (list pl m ≠ list sg m itp.)."""
     src = (
         "aby działać_dla listy:\n"
-        "    wynik to liście\n"
+        "    efekt to liście\n"
     )
     m = parse(src)
     ref = m.body[0].body[0].value.resolved
@@ -907,7 +1028,7 @@ def test_field_write_does_not_register_as_var(parse):
         "definicja Postu:\n    autor (Tekst)\n"
         "aby działać post:\n"
         "    autor postu to \"X\"\n"
-        "    wynik to autor postu\n"
+        "    efekt to autor postu\n"
     )
     m = parse(src)
     fn_body = m.body[1].body
@@ -1024,7 +1145,7 @@ _TYPE_PREAMBLE = (
 
 
 def test_type_suffix_on_str_lit(parse):
-    src = _TYPE_PREAMBLE + 'aby działać:\n    wynik to "abc" (Tekst)\n'
+    src = _TYPE_PREAMBLE + 'aby działać:\n    efekt to "abc" (Tekst)\n'
     m = parse(src)
     val = m.body[2].body[0].value.resolved
     assert isinstance(val, ast.Typed)
@@ -1034,7 +1155,7 @@ def test_type_suffix_on_str_lit(parse):
 
 
 def test_type_suffix_on_int_lit(parse):
-    src = _TYPE_PREAMBLE + "aby działać:\n    wynik to pięć (Liczba)\n"
+    src = _TYPE_PREAMBLE + "aby działać:\n    efekt to pięć (Liczba)\n"
     m = parse(src)
     val = m.body[2].body[0].value.resolved
     assert isinstance(val, ast.Typed)
@@ -1045,7 +1166,7 @@ def test_type_suffix_on_int_lit(parse):
 def test_type_suffix_on_identifier(parse):
     src = (
         _TYPE_PREAMBLE
-        + 'aby działać:\n    zmienna to "abc"\n    wynik to zmienna (Tekst)\n'
+        + 'aby działać:\n    zmienna to "abc"\n    efekt to zmienna (Tekst)\n'
     )
     m = parse(src)
     val = m.body[2].body[1].value.resolved
@@ -1056,14 +1177,14 @@ def test_type_suffix_on_identifier(parse):
 
 
 def test_type_suffix_on_lhs_assignment(parse):
-    src = _TYPE_PREAMBLE + 'aby działać:\n    wynik (Tekst) to "abc"\n'
+    src = _TYPE_PREAMBLE + 'aby działać:\n    efekt (Tekst) to "abc"\n'
     m = parse(src)
     asn = m.body[2].body[0]
     target = asn.target.resolved
     assert isinstance(target, ast.Typed)
     assert target.type.head == ("Tekst",)
     assert isinstance(target.expr, ast.Identifier)
-    assert ("wynik",) in target.expr.lemmas_set
+    assert ("efekt",) in target.expr.lemmas_set
     assert asn.value.resolved == ast.StrLit("abc")
 
 
@@ -1071,7 +1192,7 @@ def test_type_suffix_on_both_sides(parse):
     src = (
         _TYPE_PREAMBLE
         + 'aby działać:\n    zmienna to "abc"\n'
-        + "    wynik (Tekst) to zmienna (Tekst)\n"
+        + "    efekt (Tekst) to zmienna (Tekst)\n"
     )
     m = parse(src)
     asn = m.body[2].body[1]
@@ -1086,7 +1207,7 @@ def test_type_suffix_binds_to_atom_not_call(parse):
     src = (
         _TYPE_PREAMBLE
         + "można wziąć od x (Tekst) -> Tekst\n"
-        + 'aby działać:\n    x to "abc"\n    wynik to weź od x (Tekst)\n'
+        + 'aby działać:\n    x to "abc"\n    efekt to weź od x (Tekst)\n'
     )
     m = parse(src)
     val = m.body[3].body[1].value.resolved
@@ -1102,7 +1223,7 @@ def test_type_suffix_on_parens_expr_wraps_whole(parse):
     src = (
         _TYPE_PREAMBLE
         + "można wziąć od x (Tekst) -> Tekst\n"
-        + 'aby działać:\n    x to "abc"\n    wynik to (weź od x) (Tekst)\n'
+        + 'aby działać:\n    x to "abc"\n    efekt to (weź od x) (Tekst)\n'
     )
     m = parse(src)
     val = m.body[3].body[1].value.resolved
@@ -1116,7 +1237,7 @@ def test_type_suffix_on_getter_chain(parse):
     src = (
         _TYPE_PREAMBLE
         + "definicja Postu:\n    autor (Tekst)\n"
-        + "aby działać post:\n    wynik to autor postu (Tekst)\n"
+        + "aby działać post:\n    efekt to autor postu (Tekst)\n"
     )
     m = parse(src)
     val = m.body[3].body[0].value.resolved
@@ -1126,7 +1247,7 @@ def test_type_suffix_on_getter_chain(parse):
 
 
 def test_type_suffix_unknown_type_errors(parse):
-    src = _TYPE_PREAMBLE + 'aby działać:\n    wynik to "abc" (Bzdura)\n'
+    src = _TYPE_PREAMBLE + 'aby działać:\n    efekt to "abc" (Bzdura)\n'
     with pytest.raises(ast.ResolveError) as exc:
         parse(src)
     assert "nieznanego typu" in str(exc.value)
@@ -1137,7 +1258,7 @@ def test_type_suffix_unknown_type_errors(parse):
 def test_lowercase_paren_word_not_type_suffix(parse):
     """`"abc" (jakiś)` — lowercase WORD w nawiasach nie konsumowany jako
     sufiks-typ. Następnie outer parser rzuca leftover error."""
-    src = _TYPE_PREAMBLE + 'aby działać:\n    wynik to "abc" (jakiś)\n'
+    src = _TYPE_PREAMBLE + 'aby działać:\n    efekt to "abc" (jakiś)\n'
     with pytest.raises(ast.ResolveError) as exc:
         parse(src)
     # leftover-diagnostic dla literału, nie type_suffix
@@ -1149,7 +1270,7 @@ def test_type_suffix_multi_segment_type(parse):
     src = (
         _TYPE_PREAMBLE
         + "definicja Numeru_Telefonu:\n    cyfra (Liczba)\n"
-        + 'aby działać:\n    wynik to "x" (Numer_Telefon)\n'
+        + 'aby działać:\n    efekt to "x" (Numer_Telefon)\n'
     )
     m = parse(src)
     val = m.body[3].body[0].value.resolved
@@ -1160,7 +1281,7 @@ def test_type_suffix_multi_segment_type(parse):
 def test_type_suffix_pretty_print(parse, capsys):
     """Golden snapshot: Typed renderuje się jako `Typed : <typ>` z child."""
     import pretty
-    src = _TYPE_PREAMBLE + 'aby działać:\n    wynik to "abc" (Tekst)\n'
+    src = _TYPE_PREAMBLE + 'aby działać:\n    efekt to "abc" (Tekst)\n'
     m = parse(src)
     pretty.pretty(m.body[2].body[0].value.resolved)
     out = capsys.readouterr().out
@@ -1246,8 +1367,8 @@ _UNION_BASE = (
     "definicja Błędu:\n"
     "    opis (Tekst)\n"
     "\n"
-    "definicja Wyniku z elementem:\n"
-    "    wynik (element)\n"
+    "definicja Plonu z elementem:\n"
+    "    plon (element)\n"
     "\n"
 )
 
@@ -1256,10 +1377,10 @@ def test_union_registers_as_type(parse):
     # nazwa unii działa jako adnotacja typu (sufiks `(Rezultat)`)
     src = (
         _UNION_BASE
-        + "Rezultat to Wynik albo Błąd\n"
+        + "Rezultat to Plon albo Błąd\n"
         "\n"
         "aby działać:\n"
-        "    rzecz (Rezultat) to Wynik o wyniku zero\n"
+        "    rzecz (Rezultat) to Plon o plonie zero\n"
     )
     m = parse(src)
     typed = m.body[3].body[0].target.resolved
@@ -1268,13 +1389,13 @@ def test_union_registers_as_type(parse):
 
 
 def test_union_unknown_member_raises(parse):
-    src = _UNION_BASE + "Rezultat to Wynik albo Zguba\n"
+    src = _UNION_BASE + "Rezultat to Plon albo Zguba\n"
     with pytest.raises(ast.ResolveError, match="nie jest zdefiniowaną strukturą"):
         parse(src)
 
 
 def test_union_builtin_member_raises(parse):
-    src = _UNION_BASE + "Rezultat to Wynik albo Liczba\n"
+    src = _UNION_BASE + "Rezultat to Plon albo Liczba\n"
     with pytest.raises(ast.ResolveError, match="nie jest zdefiniowaną strukturą"):
         parse(src)
 
@@ -1284,7 +1405,7 @@ def test_union_member_may_be_union(parse):
     src = (
         _UNION_BASE
         + "definicja Pustki:\n    nic (Liczba)\n\n"
-        "Rezultat to Wynik albo Błąd\n"
+        "Rezultat to Plon albo Błąd\n"
         "Wszystko to Rezultat albo Pustka\n"
     )
     parse(src)  # nie rzuca
@@ -1302,7 +1423,7 @@ def test_union_cycle_raises(parse):
 
 
 def test_union_duplicate_member_raises(parse):
-    src = _UNION_BASE + "Rezultat to Wynik albo Wynik\n"
+    src = _UNION_BASE + "Rezultat to Plon albo Plon\n"
     with pytest.raises(ast.ResolveError, match="powtórzony"):
         parse(src)
 
@@ -1310,15 +1431,15 @@ def test_union_duplicate_member_raises(parse):
 def test_union_declared_twice_raises(parse):
     src = (
         _UNION_BASE
-        + "Rezultat to Wynik albo Błąd\n"
-        "Rezultat to Błąd albo Wynik\n"
+        + "Rezultat to Plon albo Błąd\n"
+        "Rezultat to Błąd albo Plon\n"
     )
     with pytest.raises(ast.ResolveError, match="dwukrotnie"):
         parse(src)
 
 
 def test_union_name_colliding_with_struct_raises(parse):
-    src = _UNION_BASE + "Błąd to Wynik albo Błąd\n"
+    src = _UNION_BASE + "Błąd to Plon albo Błąd\n"
     with pytest.raises(ast.ResolveError, match="koliduje"):
         parse(src)
 
@@ -1326,7 +1447,7 @@ def test_union_name_colliding_with_struct_raises(parse):
 def test_union_order_independent(parse):
     # unia może być zadeklarowana PRZED strukturami, które wymienia
     src = (
-        "Rezultat to Wynik albo Błąd\n"
+        "Rezultat to Plon albo Błąd\n"
         "\n" + _UNION_BASE
     )
     m = parse(src)
@@ -1337,7 +1458,7 @@ def test_union_inside_function_body_raises(parse):
     src = (
         _UNION_BASE
         + "aby działać:\n"
-        "    Rezultat to Wynik albo Błąd\n"
+        "    Rezultat to Plon albo Błąd\n"
     )
     with pytest.raises(ast.ResolveError, match="poziomie modułu"):
         parse(src)
@@ -1349,7 +1470,7 @@ def test_union_inside_function_body_raises(parse):
 
 _MATCH_BASE = (
     _UNION_BASE
-    + "Rezultat to Wynik albo Błąd\n"
+    + "Rezultat to Plon albo Błąd\n"
     "\n"
 )
 
@@ -1358,12 +1479,12 @@ def test_match_binds_branch_fields(parse):
     src = (
         _MATCH_BASE
         + "aby działać:\n"
-        "    rezultat to Wynik o wyniku zero\n"
+        "    rezultat to Plon o plonie zero\n"
         "    gdy rezultat jest:\n"
         "        Błędem z opisem:\n"
         "            x to opis\n"
-        "        Wynikiem z wynikiem:\n"
-        "            y to wynik\n"
+        "        Plonem z plonem:\n"
+        "            y to plon\n"
     )
     m = parse(src)
     match = m.body[3].body[1]
@@ -1395,7 +1516,7 @@ def test_match_field_not_in_struct_raises(parse):
         _MATCH_BASE
         + "aby działać rezultat:\n"
         "    gdy rezultat jest:\n"
-        "        Błędem z wynikiem:\n"
+        "        Błędem z plonem:\n"
         "            x to jeden\n"
     )
     with pytest.raises(ast.ResolveError, match="nie pasuje do żadnego wolnego pola"):
@@ -1436,7 +1557,7 @@ def test_match_branch_assignment_not_visible_after(parse):
         "    gdy rezultat jest:\n"
         "        Błędem z opisem:\n"
         "            x to jeden\n"
-        "        Wynikiem z wynikiem:\n"
+        "        Plonem z plonem:\n"
         "            x to dwa\n"
         "    y to x\n"
     )
@@ -1452,7 +1573,7 @@ def test_match_branch_assignment_not_visible_after(parse):
 def test_use_before_assignment_raises(parse):
     src = (
         "aby działać:\n"
-        "    wynik to licznik\n"
+        "    efekt to licznik\n"
         "    licznik to pięć\n"
     )
     with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
@@ -1469,7 +1590,7 @@ def test_self_referential_first_assignment_raises(parse):
 
 def test_module_level_use_before_assignment_raises(parse):
     src = (
-        "wynik to rzecz\n"
+        "efekt to rzecz\n"
         "rzecz to pięć\n"
     )
     with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
@@ -1481,7 +1602,7 @@ def test_if_branch_assignment_not_visible_after(parse):
         "aby działać flaga:\n"
         "    jeśli flaga równe jeden:\n"
         "        licznik to pięć\n"
-        "    wynik to licznik\n"
+        "    efekt to licznik\n"
     )
     with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
         parse(src)
@@ -1493,7 +1614,7 @@ def test_then_assignment_not_visible_in_else(parse):
         "    jeśli flaga równe jeden:\n"
         "        licznik to pięć\n"
         "    inaczej:\n"
-        "        wynik to licznik\n"
+        "        efekt to licznik\n"
     )
     with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
         parse(src)
@@ -1504,7 +1625,7 @@ def test_while_body_assignment_not_visible_after(parse):
         "aby działać flaga:\n"
         "    dopóki flaga równe jeden:\n"
         "        licznik to pięć\n"
-        "    wynik to licznik\n"
+        "    efekt to licznik\n"
     )
     with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną zmienną"):
         parse(src)
@@ -1520,7 +1641,7 @@ def test_branch_reassigns_outer_var(parse):
         "        licznik to pięć\n"
         "    inaczej:\n"
         "        licznik to dziesięć\n"
-        "    wynik to licznik\n"
+        "    efekt to licznik\n"
     )
     m = parse(src)
     ref = m.body[0].body[2].value.resolved
@@ -1535,7 +1656,7 @@ def test_same_name_independent_in_sibling_branches(parse):
         "aby działać flaga:\n"
         "    jeśli flaga równe jeden:\n"
         "        rzecz to pięć\n"
-        "        wynik to rzecz\n"
+        "        efekt to rzecz\n"
         "    inaczej:\n"
         "        rzecz to \"tekst\"\n"
         "        słowo to rzecz\n"
@@ -1546,7 +1667,7 @@ def test_same_name_independent_in_sibling_branches(parse):
 def test_chain_base_must_be_declared(parse):
     src = (
         "definicja Postu:\n    autor (Tekst)\n"
-        "aby działać:\n    wynik to autor postu\n"
+        "aby działać:\n    efekt to autor postu\n"
     )
     with pytest.raises(ast.ResolveError, match="podstawa łańcucha"):
         parse(src)
@@ -1584,7 +1705,7 @@ def test_nowy_is_ordinary_word(parse):
     src = (
         "aby działać:\n"
         "    nowy to pięć\n"
-        "    wynik to nowy plus jeden\n"
+        "    efekt to nowy plus jeden\n"
     )
     m = parse(src)
     expr = m.body[0].body[1].value.resolved
@@ -1611,7 +1732,7 @@ def test_capitalization_separates_type_from_variable(parse):
         "aby działać:\n"
         "    lista to pięć\n"
         "    pojemnik to Lista o wartości lista\n"
-        "    wynik to lista plus jeden\n"
+        "    efekt to lista plus jeden\n"
     )
     m = parse(src)
     sc = m.body[1].body[1].value.resolved
@@ -1749,9 +1870,9 @@ def test_question_without_conditional_raises_with_hint(parse):
     assert "trybie przypuszczającym" in str(ei.value)
 
 
-def test_try_call_nested_without_parens(parse):
-    """Tryb przypuszczający otwiera wywołanie, '?' je domyka — zagnieżdżone
-    wywołanie z obsługą błędu nie potrzebuje nawiasów."""
+def test_try_call_as_arg_raises_with_variable_recipe(parse):
+    """Wywołanie z '?' jako argument nie ma przypadka (gerundium nie
+    niesie trybu przypuszczającego) — zakaz z receptą zmiennej."""
     src = _TRY_BASE + (
         "aby wydobyć wartość z listy:\n"
         "    zwróć Sukces o wartości wartość\n"
@@ -1762,13 +1883,30 @@ def test_try_call_nested_without_parens(parse):
         "aby przenosić wartość z listy do bazy:\n"
         "    zwróć zapisz wydobyłbyś wartość z listy? do bazy\n"
     )
+    with pytest.raises(ast.ResolveError) as ei:
+        parse(src)
+    msg = str(ei.value)
+    assert "wywołanie z obsługą błędu '?'" in msg
+    assert "wyabstrahuj" in msg
+
+
+def test_try_call_via_variable(parse):
+    """Recepta zakazu: wywołanie z '?' wyabstrahowane do zmiennej."""
+    src = _TRY_BASE + (
+        "aby wydobyć wartość z listy:\n"
+        "    zwróć Sukces o wartości wartość\n"
+        "\n"
+        "aby zapisać coś do bazy:\n"
+        "    zwróć Sukces o wartości \"zapisano\"\n"
+        "\n"
+        "aby przenosić wartość z listy do bazy:\n"
+        "    zdobycz to wydobyłbyś wartość z listy?\n"
+        "    zwróć zapisz zdobycz do bazy\n"
+    )
     m = parse(src)
-    outer = m.body[6].body[0].value.resolved
+    outer = m.body[6].body[1].value.resolved
     assert isinstance(outer, ast.FunctionCall)
-    assert ("zapisać",) in outer.name.lemmas_set
-    inner = outer.params[0].value
-    assert isinstance(inner, ast.TryCall)
-    assert ("wydobyć",) in inner.call.name.lemmas_set
+    assert isinstance(outer.params[0].value, ast.Identifier)
     assert outer.params[1].prep == ("do",)
 
 
@@ -1852,7 +1990,7 @@ def test_gerund_ref_shadowed_by_variable(parse):
     src = _HOF_BASE + (
         "aby działać:\n"
         "    polubienie to jeden\n"
-        "    wynik to polubienie\n"
+        "    efekt to polubienie\n"
     )
     m = parse(src)
     val = m.body[1].body[1].value.resolved
@@ -1863,7 +2001,7 @@ def test_gerund_ref_unknown_function_hint(parse):
     """Gerundium bez pasującej funkcji → undeclared z hintem o referencji."""
     src = (
         "aby działać:\n"
-        "    wynik to rozbieranie\n"
+        "    efekt to rozbieranie\n"
     )
     with pytest.raises(ast.ResolveError) as ei:
         parse(src)
@@ -1879,7 +2017,7 @@ def test_gerund_ref_in_arg_position_carries_case(parse):
         "    zwróć operacja\n"
         "\n"
         "aby działać:\n"
-        "    wynik to bierz jeden z polubieniem\n"
+        "    efekt to bierz jeden z polubieniem\n"
     )
     m = parse(src)
     call = m.body[2].body[0].value.resolved
@@ -1894,7 +2032,7 @@ def test_apply_builds_apply_node(parse):
     src = _HOF_BASE + (
         "aby działać:\n"
         "    operacja to polubienie\n"
-        "    wynik to zastosuj operację z jeden z dwa\n"
+        "    efekt to zastosuj operację z jeden z dwa\n"
     )
     m = parse(src)
     val = m.body[1].body[1].value.resolved
@@ -1908,7 +2046,7 @@ def test_apply_zero_args(parse):
     src = _HOF_BASE + (
         "aby działać:\n"
         "    operacja to polubienie\n"
-        "    wynik to zastosuj operację\n"
+        "    efekt to zastosuj operację\n"
     )
     m = parse(src)
     val = m.body[1].body[1].value.resolved
@@ -1919,8 +2057,8 @@ def test_apply_zero_args(parse):
 def test_try_apply_builds_trycall_with_apply(parse):
     src = _HOF_BASE + (
         "aby przepuszczać operację przez wartość:\n"
-        "    wynik to zastosowałbyś operację z wartością?\n"
-        "    zwróć wynik\n"
+        "    efekt to zastosowałbyś operację z wartością?\n"
+        "    zwróć efekt\n"
     )
     m = parse(src)
     val = m.body[1].body[0].value.resolved
@@ -1931,7 +2069,7 @@ def test_try_apply_builds_trycall_with_apply(parse):
 def test_try_apply_without_question_raises(parse):
     src = _HOF_BASE + (
         "aby przepuszczać operację przez wartość:\n"
-        "    wynik to zastosowałbyś operację z wartością\n"
+        "    efekt to zastosowałbyś operację z wartością\n"
     )
     with pytest.raises(ast.ResolveError, match="wymaga '\\?'"):
         parse(src)
@@ -1941,7 +2079,7 @@ def test_apply_arg_not_instrumental_raises(parse):
     src = _HOF_BASE + (
         "aby działać wpis:\n"
         "    operacja to polubienie\n"
-        "    wynik to zastosuj operację z wpis\n"
+        "    efekt to zastosuj operację z wpis\n"
     )
     with pytest.raises(ast.ResolveError, match="narzędniku"):
         parse(src)
@@ -1970,20 +2108,39 @@ def test_apply_in_struct_value_yields_z_shorthand_to_struct(parse):
     assert sc.args[1].value is None  # shorthand
 
 
-def test_parenthesized_apply_as_fcall_arg(parse):
+def test_parenthesized_apply_as_fcall_arg_raises(parse):
+    """Aplikacja w nawiasach jako argument nie ma przypadka — zakaz
+    z receptą `wynik zastosowania`."""
     src = _HOF_BASE + (
         "aby brać rzecz z operacją:\n"
         "    zwróć operacja\n"
         "\n"
         "aby działać:\n"
         "    operacja to polubienie\n"
-        "    wynik to bierz jeden z (zastosuj operację z dwa)\n"
+        "    efekt to bierz jeden z (zastosuj operację z dwa)\n"
+    )
+    with pytest.raises(ast.ResolveError,
+                       match="aplikacja wartości funkcyjnej"):
+        parse(src)
+
+
+def test_apply_as_fcall_arg_via_wynik(parse):
+    """`z wynikiem zastosowania F z X` — aplikacja z przypadkiem
+    z formy `wynik` przechodzi jako argument."""
+    src = _HOF_BASE + (
+        "aby brać rzecz z operacją:\n"
+        "    zwróć operacja\n"
+        "\n"
+        "aby działać:\n"
+        "    operacja to polubienie\n"
+        "    efekt to bierz jeden z wynikiem zastosowania operacji z dwa\n"
     )
     m = parse(src)
     call = m.body[2].body[1].value.resolved
     assert isinstance(call, ast.FunctionCall)
     inner = call.params[1].value
     assert isinstance(inner, ast.Apply)
+    assert "inst" in inner.case
     assert len(inner.args) == 1
 
 
@@ -2201,3 +2358,277 @@ def test_match_inaczej_does_not_see_other_branch_fields(parse):
     )
     with pytest.raises(ast.ResolveError, match="nie jest zadeklarowaną"):
         parse(src)
+
+
+# ---------- Wstrzyknięte hasła + rezerwacja słów języka ----------
+
+def test_wstrzyknięty_literał_ma_pełną_odmianę(db):
+    """„literał" nie występuje w SGJP — paradygmat wstrzykuje
+    `morph_anal._własne_analizy()` niezależnie od wydania słownika."""
+    for forma, przypadek in [("literał", "acc"), ("literału", "gen"),
+                             ("literałowi", "dat"), ("literałem", "inst"),
+                             ("literale", "loc")]:
+        anas = db.get(forma)
+        assert anas, f"brak analiz dla {forma}"
+        assert any(a.lemma == "literał" and przypadek in a.case
+                   for a in anas), forma
+
+
+@pytest.mark.parametrize("src,co", [
+    ("aby działać:\n    wynik to pięć\n", "nazwą zmiennej"),
+    ("aby działać:\n    literał to pięć\n", "nazwą zmiennej"),
+    ("aby liczyć wynik:\n    zwróć wynik\n", "nazwą parametru"),
+    ("definicja Gry:\n    wynik (Liczba)\n", "nazwą pola"),
+    ("definicja Gry:\n    literał (Liczba)\n", "nazwą pola"),
+])
+def test_zarezerwowane_lematy_w_deklaracjach(parse, src, co):
+    """`wynik` i `literał` to słowa języka — deklaracja zmiennej, parametru
+    albo pola o tym lemacie jest głośnym błędem."""
+    with pytest.raises(ast.ResolveError, match="jest słowem języka"):
+        parse(src)
+
+
+def test_zarezerwowany_lemat_po_jako(parse):
+    src = (
+        "definicja Kota:\n    imię (Tekst)\n"
+        "aby działać zwierzę:\n"
+        "    gdy zwierzę jest:\n"
+        "        Kotem jako wynik:\n"
+        "            zwróć wynik\n"
+    )
+    with pytest.raises(ast.ResolveError, match="jest słowem języka"):
+        parse(src)
+
+
+# ---------- `wynik` — wywołanie przez gerundium z przypadkiem ----------
+
+_WYNIK_BASE = (
+    "aby zawieźć pasażera transportem do celu:\n"
+    "    zwróć pasażer\n"
+    "aby zorganizować_transport:\n"
+    '    zwróć "wóz"\n'
+)
+
+
+def test_wynik_binds_outer_slot_by_case(parse):
+    """`wynikiem zorganizowania_transportu` — narzędnik formy `wynik`
+    jednoznacznie wskazuje slot `transportem`, mimo że argument stoi
+    w innej kolejności."""
+    src = _WYNIK_BASE + (
+        "aby działać:\n"
+        '    pies to "pies"\n'
+        '    dom to "dom"\n'
+        "    x to zawieź psa wynikiem zorganizowania_transportu do domu\n"
+    )
+    fc = parse(src).body[2].body[2].value.resolved
+    assert isinstance(fc, ast.FunctionCall)
+    assert isinstance(fc.params[0].value, ast.Identifier)   # pasażer ← pies
+    inner = fc.params[1].value                              # transport
+    assert isinstance(inner, ast.FunctionCall)
+    assert inner.case is not None and "inst" in inner.case
+    assert ("zorganizować", "transport") in inner.name.lemmas_set
+
+
+def test_wynik_nominalization_shift_accepts_genitive(parse):
+    """Pod `wynik` goły slot biernikowy przyjmuje dopełniacz —
+    `wynik podwojenia liczby` (rozkaźnikowo: `podwój liczbę`)."""
+    src = (
+        "aby podwoić liczbę:\n"
+        "    zwróć liczba\n"
+        "aby działać:\n"
+        "    liczba to pięć\n"
+        "    x to wynik podwojenia liczby\n"
+    )
+    fc = parse(src).body[1].body[1].value.resolved
+    assert isinstance(fc, ast.FunctionCall)
+    assert "nom" in fc.case and "acc" in fc.case
+    assert isinstance(fc.params[0].value, ast.Identifier)
+
+
+def test_shift_not_available_in_imperative_call(parse):
+    """Przesunięcie biernik→dopełniacz działa TYLKO pod `wynik` —
+    rozkaźnikowe `podwój liczby` (dopełniacz) to błąd dopasowania."""
+    src = (
+        "aby podwoić liczbę:\n"
+        "    zwróć liczba\n"
+        "aby działać:\n"
+        "    liczba to pięć\n"
+        "    x to podwój liczby\n"
+    )
+    with pytest.raises(ast.ResolveError,
+                       match="nie pasuje do żadnego wolnego parametru"):
+        parse(src)
+
+
+def test_wynik_shift_remis_raises_with_recipes(parse):
+    """Sygnatura z dwoma gołymi slotami: pod nominalizacją dopełniacz
+    pasuje do obu — głośny remis z receptami zamiast zgadywania."""
+    src = (
+        "aby uczyć dziecko muzyki:\n"
+        "    zwróć dziecko\n"
+        "aby działać:\n"
+        '    dziecko to "Jaś"\n'
+        '    muzyka to "gama"\n'
+        "    x to wynik uczenia dziecka muzyki\n"
+    )
+    with pytest.raises(ast.ResolveError) as ei:
+        parse(src)
+    msg = str(ei.value)
+    assert "niejednoznaczny argument" in msg
+    assert "wywołaniu przez 'wynik'" in msg
+    assert "rozstrzygnij" in msg
+    assert "rozkaźnikiem" in msg
+
+
+def test_wynik_zastosowania_builds_apply_with_case(parse):
+    """`wynik zastosowania F z X` — aplikacja wartości funkcyjnej
+    z przypadkiem z formy `wynik`."""
+    src = (
+        "aby podwoić liczbę:\n"
+        "    zwróć liczba\n"
+        "aby działać:\n"
+        "    x to wynik zastosowania podwojenia z pięcioma\n"
+    )
+    node = parse(src).body[1].body[0].value.resolved
+    assert isinstance(node, ast.Apply)
+    assert node.case is not None and "acc" in node.case
+    assert isinstance(node.fn, ast.FunctionRef)
+
+
+def test_wynik_nested_in_wynik(parse):
+    src = (
+        "aby podwoić liczbę:\n"
+        "    zwróć liczba\n"
+        "aby działać:\n"
+        "    x to wynik podwojenia wyniku podwojenia dwóch\n"
+    )
+    outer = parse(src).body[1].body[0].value.resolved
+    assert isinstance(outer, ast.FunctionCall)
+    inner = outer.params[0].value
+    assert isinstance(inner, ast.FunctionCall)
+    assert "gen" in inner.case
+
+
+def test_wynik_gerund_must_be_genitive(parse):
+    src = (
+        "aby podwoić liczbę:\n"
+        "    zwróć liczba\n"
+        "aby działać:\n"
+        "    x to wynik podwojenie dwóch\n"
+    )
+    with pytest.raises(ast.ResolveError, match="musi stać w dopełniaczu"):
+        parse(src)
+
+
+def test_wynik_unknown_gerund_raises(parse):
+    src = (
+        "aby działać:\n"
+        "    x to wynik nieistnienia dwóch\n"
+    )
+    with pytest.raises(ast.ResolveError,
+                       match="nie jest zdefiniowana w module"):
+        parse(src)
+
+
+def test_wynik_without_gerund_raises(parse):
+    src = "aby działać:\n    x to wynik\n"
+    with pytest.raises(ast.ResolveError,
+                       match="oczekiwano rzeczownika odczasownikowego"):
+        parse(src)
+
+
+# ---------- `literał` — nośnik przypadka dla literałów ----------
+
+_UCZYĆ = (
+    "aby uczyć dziecko muzyki:\n"
+    "    zwróć dziecko\n"
+)
+
+
+def test_literał_gives_literal_slot_case(parse):
+    """`literałem "samochód"` — narzędnik formy `literał` wiąże literał
+    ze slotem `transportem` przez przypadek."""
+    src = (
+        "aby zawieźć pasażera transportem do celu:\n"
+        "    zwróć pasażer\n"
+        "aby działać:\n"
+        '    pies to "pies"\n'
+        '    dom to "dom"\n'
+        '    x to zawieź literałem "samochód" psa do domu\n'
+    )
+    fc = parse(src).body[1].body[2].value.resolved
+    assert isinstance(fc, ast.FunctionCall)
+    lit = fc.params[1].value                      # slot `transportem`
+    assert isinstance(lit, ast.StrLit) and lit.value == "samochód"
+    assert lit.case is not None and "inst" in lit.case
+    assert isinstance(fc.params[0].value, ast.Identifier)   # pies
+
+
+def test_bare_literal_eliminated_to_unique_slot_is_fine(parse):
+    """Goły literał zostaje legalny, gdy eliminacja (inne argumenty
+    zajmują sloty przez przypadek) zostawia mu dokładnie jeden slot."""
+    src = (
+        "aby zawieźć pasażera transportem do celu:\n"
+        "    zwróć pasażer\n"
+        "aby działać:\n"
+        '    pies to "pies"\n'
+        '    dom to "dom"\n'
+        '    x to zawieź "samochód" psa do domu\n'
+    )
+    fc = parse(src).body[1].body[2].value.resolved
+    lit = fc.params[1].value
+    assert isinstance(lit, ast.StrLit) and lit.value == "samochód"
+
+
+_WYBRAĆ = (
+    "aby wybrać flagę kota psa:\n"
+    "    zwróć kot\n"
+)
+
+
+def test_bare_literal_ambiguous_between_different_slots_raises(parse):
+    """Goły literał z ≥2 RÓŻNYMI slotami-kandydatami, których eliminacja
+    nie rozstrzyga (sąsiednie argumenty też są wieloznaczne) — głośny
+    błąd z receptą odmienionego `literału`."""
+    src = _WYBRAĆ + (
+        "aby działać kotem psem:\n"
+        "    x to wybierz prawda kota psa\n"
+    )
+    with pytest.raises(ast.ResolveError) as ei:
+        parse(src)
+    msg = str(ei.value)
+    assert "goły literał" in msg
+    assert "nadaj mu przypadek odmienionym słowem 'literał'" in msg
+
+
+def test_literał_recipe_resolves_ambiguity(parse):
+    """Recepta z remisu działa: `literał prawda` nadaje przypadek
+    i wywołanie się rozstrzyga (dalej pozycyjnie, jak dla zmiennych)."""
+    src = _WYBRAĆ + (
+        "aby działać kotem psem:\n"
+        "    x to wybierz literał prawda kota psa\n"
+    )
+    fc = parse(src).body[1].body[0].value.resolved
+    lit = fc.params[0].value                      # slot `flagę`
+    assert isinstance(lit, ast.BoolLit) and lit.value is True
+    assert lit.case is not None and "acc" in lit.case
+
+
+def test_literał_requires_literal_after(parse):
+    src = "aby działać:\n    x to literałem pies\n"
+    with pytest.raises(ast.ResolveError, match="oczekiwano literału"):
+        parse(src)
+
+
+def test_bare_literals_between_effective_twin_slots_stay_positional(parse):
+    """Dwa sloty `od` mają różne surowe zbiory przypadków, ale przyimek
+    rządzi dopełniaczem w obu — efektywne bliźniaki, pozycyjnie legalne."""
+    src = (
+        "aby narysować od lewej od góry:\n"
+        "    zwróć lewa\n"
+        "aby działać:\n"
+        "    x to narysuj od pięciu od sześciu\n"
+    )
+    fc = parse(src).body[1].body[0].value.resolved
+    assert fc.params[0].value == ast.IntLit(5)
+    assert fc.params[1].value == ast.IntLit(6)

@@ -204,7 +204,8 @@ aby wybrać pozycję z listy:
         Węzłem z głową z ogonem:
             jeśli pozycja równe zero:
                 zwróć Sukces o wartości głowa
-            zwróć wybierz (pozycja minus jeden) z ogona
+            poprzednia to pozycja minus jeden
+            zwróć wybierz poprzednią z ogona
 
 aby odwrócić listę:
     odwrócona to utwórz_pustą
@@ -251,7 +252,9 @@ aby krzyżować pierwszy_zbiór z drugim_zbiorem:
 aby wyliczyć_ciąg od początku do końca:
     jeśli początek większe równe koniec:
         zwróć utwórz_pustą
-    zwróć doczep początek do (wylicz_ciąg od (początek plus jeden) do końca)
+    następny to początek plus jeden
+    ciąg to wylicz_ciąg od następnego do końca
+    zwróć doczep początek do ciągu
 
 aby ignorować rzecz:
     zwróć

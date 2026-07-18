@@ -50,7 +50,7 @@ aby dopełnić nić (Tekst) -> Tekst:
 # Odwrotne dopełnienie: nić komplementarna czytana od końca — tak zapisuje
 # się drugą nić helisy.
 aby odwrócić_dopełnienie nici (Tekst) -> Tekst:
-    zwróć odwróć (dopełnij nić)
+    zwróć odwróć wynik dopełnienia nici
 
 aby zliczyć zasadę (Znak) w nici (Tekst) -> Liczba:
     gdy nić jest:
@@ -65,10 +65,13 @@ aby zliczyć zasadę (Znak) w nici (Tekst) -> Liczba:
 aby działać:
     nić to "GATTACA"
     wypisz nić
-    wypisz (zmierz nić)
-    wypisz (transkrybuj nić)
-    wypisz (dopełnij nić)
-    wypisz (odwróć_dopełnienie nici)
-    wypisz (zlicz (wyłuskać "A") w nici)
-    wypisz (zlicz (wyłuskać "G") w nici)
-    wypisz (transkrybuj nić równe "GAUUACA")
+    wypisz wynik zmierzenia nici
+    wypisz wynik transkrybowania nici
+    wypisz wynik dopełnienia nici
+    wypisz wynik odwrócenia_dopełnienia nici
+    adenina to wyłuskaj "A"
+    wypisz wynik zliczenia adeniny w nici
+    guanina to wyłuskaj "G"
+    wypisz wynik zliczenia guaniny w nici
+    sąd to (transkrybuj nić) równe "GAUUACA"
+    wypisz sąd

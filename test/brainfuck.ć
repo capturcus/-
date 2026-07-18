@@ -80,12 +80,12 @@ aby wykonać program na stanie:
         Niczym:
             zwróć stan
         Ogniwem z głową z ogonem:
-            zwróć wykonaj ogon na (obsłuż głowę na stanie)
+            zwróć wykonaj ogon na wyniku obsłużenia głowy na stanie
 
 aby zapętlić ciało na stanie:
     jeśli (komórka taśmy stanu) równa zero:
         zwróć stan
-    zwróć zapętl ciało na (wykonaj ciało na stanie)
+    zwróć zapętl ciało na wyniku wykonania ciała na stanie
 
 aby obsłużyć rozkaz na stanie:
     gdy rozkaz jest:
@@ -124,4 +124,4 @@ aby działać:
     rozbiór to rozbierz źródło
     początek to Stan o taśmie (Taśma o przeszłości Nic o komórce zero o przyszłości Nic) o wyjściu Nic
     koniec to wykonaj (program rozbioru) na początku
-    ogłoś (odwróć (wyjście końca))
+    ogłoś wynik odwrócenia wyjścia końca

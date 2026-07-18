@@ -15,14 +15,15 @@ aby wywołać przepis z liczbą (Liczba) -> Liczba:
 
 aby działać:
     podwojenie to zwiąż pomnożenie z dwa
-    wypisz (zastosuj podwojenie z dwadzieścia jeden)
+    wypisz wynik zastosowania podwojenia z dwadzieścia jeden
     stała to zwiąż dodanie z dwadzieścia z dwadzieścia dwa
-    wypisz (zastosuj stałą)
+    wypisz wynik zastosowania stałej
     dodanie_dwóch to zwiąż dodanie z dwa
     odroczenie to zwiąż dodanie_dwóch z trzy
-    wypisz (zastosuj odroczenie)
+    wypisz wynik zastosowania odroczenia
     połowienie to zwiąż podzielenie z sto
-    wypisz (zastosuj połowienie z pięć)
-    wypisz (wywołaj (zwiąż dodanie z dziesięć) z pięć)
+    wypisz wynik zastosowania połowienia z pięć
+    dodanie_dziesięciu to zwiąż dodanie z dziesięć
+    wypisz wynik wywołania dodania_dziesięciu z pięć
     wypisz podwojenie
     wypisz dodanie

@@ -46,6 +46,7 @@ from ast_nodes import (
 )
 from identifier import (
     make_identifier, is_prep, canonical_type, canonical_identity,
+    sprawdź_rezerwację,
     _format_scope_key,
 )
 import type_parser
@@ -227,6 +228,42 @@ def _has_cond_reading(ident):
     )
 
 
+_WYNIK_LEMMA = ("wynik",)
+_LITERAŁ_LEMMA = ("literał",)
+
+
+def _is_reserved_word(ident, lemma):
+    """Czy identyfikator to forma słowa języka o danym lemacie (subst,
+    lemat jednosegmentowy — `wynik_gry` to inny lemat)."""
+    return any(
+        v.had_subst and v.lemmas == lemma for v in ident.variants
+    )
+
+
+def _is_wynik_word(ident):
+    return _is_reserved_word(ident, _WYNIK_LEMMA)
+
+
+def _reserved_case(ident, lemma):
+    """Przypadek formy słowa języka = unia przypadków wariantów subst."""
+    return frozenset().union(
+        *(v.case for v in ident.variants
+          if v.had_subst and v.lemmas == lemma)
+    ) or None
+
+
+def _wynik_case(ident):
+    return _reserved_case(ident, _WYNIK_LEMMA)
+
+
+# Formy `literału` per przypadek — do recept w błędach remisowych
+# (jaką formą nadać literałowi przypadek konkretnego slotu).
+_LITERAŁ_FORMY = {
+    "nom": "literał", "gen": "literału", "dat": "literałowi",
+    "acc": "literał", "inst": "literałem", "loc": "literale",
+}
+
+
 def find_in_set(ident, target_set, exclude=frozenset(),
                 required_case=None, key_fn=_lemma_key):
     """Wyszukuje wariant którego klucz (`key_fn(v)`) jest w `target_set`
@@ -311,11 +348,14 @@ def _field_canonical_lemma(field_name):
                 f"niejednoznaczna: {opts}",
                 line=field_name.line,
             )
+        sprawdź_rezerwację(ls, "nazwą pola", field_name.line)
         return (next(iter(ls)), None, None)
-    return canonical_identity(
+    key = canonical_identity(
         field_name, required_case="nom", label="nazwa pola",
         missing_hint="; pola deklaruj w mianowniku",
     )
+    sprawdź_rezerwację([key[0]], "nazwą pola", field_name.line)
+    return key
 
 
 def _declare_target_var(target_phrase, scope, field_lemmas, preps):
@@ -346,6 +386,7 @@ def _declare_target_var(target_phrase, scope, field_lemmas, preps):
         head_ident, required_case="nom", label="lewa strona przypisania",
         missing_hint="; zmienne deklaruj w mianowniku",
     )
+    sprawdź_rezerwację([key[0]], "nazwą zmiennej", head_ident.line)
     if not scope.has_var(key):
         scope.add_key(key)
 
@@ -550,10 +591,23 @@ class ExpressionParser:
     def _parse_word_primary(self):
         head_tok = self.advance()
         head_ident = make_identifier(head_tok)
-        # Struct creation: head sam jest znanym typem (capitalized lemma)
+        # `wynik` — słowo języka (zarezerwowane, więc nigdy zmienna/pole):
+        # wywołanie funkcji przez gerundium, z przypadkiem z formy `wynik`.
+        if _is_wynik_word(head_ident):
+            return self._parse_wynik(head_ident)
+        # `literał` — nośnik przypadka dla literału (`literałem "Wąż"`).
+        if _is_reserved_word(head_ident, _LITERAŁ_LEMMA):
+            return self._parse_literał(head_ident)
+        # Struct creation: head sam jest znanym typem (capitalized lemma).
+        # Głowa bywa odmieniona (`Psa o imieniu ...`) — jej przypadek nadaje
+        # przypadek całej konstrukcji.
         type_segs = self._starts_struct_creation(head_ident)
         if type_segs is not None:
-            return self._parse_struct_creation(type_segs)
+            case = frozenset().union(
+                *(v.case for v in head_ident.variants
+                  if _lemma_key(v) == type_segs)
+            ) or None
+            return self._parse_struct_creation(type_segs, case=case)
         # Getter chain: field + następne słowo w gen
         if self._can_start_chain(head_ident):
             return self._parse_getter_chain(head_ident)
@@ -700,6 +754,113 @@ class ExpressionParser:
             line=head_ident.line,
         )
 
+    # ---------- `literał` — nośnik przypadka dla literałów ----------
+
+    _LITERAL_KINDS = frozenset({
+        lexer.Token.INT_LIT, lexer.Token.TEXT, lexer.Token.CHAR,
+        lexer.Token.BOOL_LIT,
+    })
+
+    def _parse_literał(self, lit_ident):
+        """`literałem "samochód"` — literał w apozycji dostaje przypadek
+        z formy słowa `literał` (literału/literałowi/literałem/literale)
+        i dopasowuje się do slotu jak odmienione słowo. Goły literał jest
+        bezprzypadkowy — `literał` służy do rozstrzygania remisów, gdy
+        goły literał pasuje do RÓŻNYCH slotów."""
+        case = _reserved_case(lit_ident, _LITERAŁ_LEMMA)
+        surface = "_".join(lit_ident.surface)
+        t = self.peek()
+        if t is None or t[0] not in self._LITERAL_KINDS:
+            raise ResolveError(
+                f"po '{surface}' oczekiwano literału (liczby, tekstu, "
+                f"znaku albo prawdy/fałszu), np. 'literałem \"Wąż\"'",
+                line=lit_ident.line,
+            )
+        lit = self.parse_primary()
+        lit.case = case
+        self.last_production = {"kind": "literał", "case": case}
+        return lit
+
+    # ---------- `wynik` — wywołanie przez gerundium z przypadkiem ----------
+
+    def _parse_wynik(self, wynik_ident):
+        """`wynik zmierzenia listy` — wywołanie funkcji top-level przez
+        rzeczownik odczasownikowy w dopełniaczu; forma słowa `wynik`
+        (wyniku/wynikowi/wynikiem) nadaje wywołaniu przypadek składniowy,
+        którym dopasowuje się do slotu wywołania zewnętrznego.
+
+        Argumenty wewnętrzne parsują się jak w zwykłym wywołaniu (sygnatura
+        znana), z przesunięciem dopełnienia pod nominalizacją: goły slot
+        biernikowy przyjmuje też dopełniacz (`zmierz segmenty` →
+        `wynik zmierzenia segmentów`). `wynik zastosowania F z X` /
+        `wynik związania F z X` przechodzą na składnię wartości funkcyjnych
+        (argumenty `z` + narzędnik, wariadycznie)."""
+        case = _wynik_case(wynik_ident)
+        surface = "_".join(wynik_ident.surface)
+        g = self.peek()
+        if g is None or g[0] is not lexer.Token.WORD:
+            raise ResolveError(
+                f"po '{surface}' oczekiwano rzeczownika odczasownikowego "
+                f"funkcji w dopełniaczu (np. 'wynik zmierzenia listy')",
+                line=wynik_ident.line,
+            )
+        ger_ident = make_identifier(self.advance())
+        ger_surface = "_".join(ger_ident.surface)
+        keys = (
+            self._gerund_function_keys(ger_ident)
+            if ger_ident.variants else {}
+        )
+        matched = {
+            k: c for k, c in keys.items()
+            if k in self.ctx.function_defs
+            or k in ((("zastosować",)), (("związać",)))
+        }
+        if not matched:
+            if keys:
+                wanted = ", ".join(sorted("_".join(k) for k in keys))
+                msg = (f"'{ger_surface}' po '{surface}' wygląda jak "
+                       f"gerundium funkcji '{wanted}', która nie jest "
+                       f"zdefiniowana w module")
+            else:
+                msg = (f"po '{surface}' oczekiwano rzeczownika "
+                       f"odczasownikowego zdefiniowanej funkcji "
+                       f"w dopełniaczu (np. 'wynik zmierzenia listy'); "
+                       f"otrzymano '{ger_surface}'")
+            raise ResolveError(msg, line=ger_ident.line)
+        if len(matched) > 1:
+            options = ", ".join(sorted("_".join(k) for k in matched))
+            raise ResolveError(
+                f"'{ger_surface}' po '{surface}' jest niejednoznaczne — "
+                f"pasuje do funkcji: {options}",
+                line=ger_ident.line,
+            )
+        (key, ger_case), = matched.items()
+        if "gen" not in ger_case:
+            raise ResolveError(
+                f"rzeczownik odczasownikowy po '{surface}' musi stać "
+                f"w dopełniaczu (np. 'wynik zmierzenia', nie "
+                f"'wynik {ger_surface}')",
+                line=ger_ident.line,
+            )
+        if key in ((("zastosować",)), (("związać",))):
+            czasownik = "zastosuj" if key == ("zastosować",) else "zwiąż"
+            fn, args = self._parse_fn_value_args(ger_ident, czasownik)
+            cls = Apply if key == ("zastosować",) else Bind
+            node = cls(fn=fn, args=args, line=wynik_ident.line, case=case)
+        else:
+            name = FunctionIdentifier(
+                lemmas_set=frozenset({key}), surface=ger_ident.surface,
+                line=ger_ident.line,
+            )
+            node = self._parse_function_call(name, key, nominalized=True)
+            node.case = case
+        self.last_production = {
+            "kind": "wynik",
+            "key": key,
+            "case": case,
+        }
+        return node
+
     def _aspect_hint(self, head_ident):
         """Podpowiedź aspektowa: powierzchnia jest rozkaźnikiem czasownika,
         którego DRUGI aspekt jest zadeklarowaną funkcją (oceń→ocenić, a
@@ -775,7 +936,7 @@ class ExpressionParser:
 
     # ---------- function call ----------
 
-    def _parse_function_call(self, name, matched_lemma):
+    def _parse_function_call(self, name, matched_lemma, nominalized=False):
         fdef = self.ctx.function_defs[matched_lemma]
         sig = tuple(fdef.params)
         n_slots = len(sig)
@@ -802,7 +963,8 @@ class ExpressionParser:
                     )
                 fixed[len(arg_meta)] = slot_i
             arg_meta.append((prep, case, value))
-        slot_to_arg = self._match_args_to_slots(arg_meta, sig, name, fixed)
+        slot_to_arg = self._match_args_to_slots(
+            arg_meta, sig, name, fixed, nominalized=nominalized)
         params = []
         for slot_i in range(n_slots):
             arg_i = slot_to_arg[slot_i]
@@ -839,7 +1001,44 @@ class ExpressionParser:
                 return named
         value = self.parse_primary()
         case = self._infer_case(value)
+        if case is None and isinstance(value, self._ZAKAZ_BEZ_PRZYPADKA):
+            self._raise_bezprzypadkowy(value, name)
         return prep, value, case, None
+
+    # Wartości, które jako argument wywołania MUSZĄ nieść przypadek —
+    # wyrażenia i wywołania rozkaźnikowe są bezprzypadkowe, więc o ich
+    # slocie rozstrzygałaby wyłącznie pozycja (cicho i zawodnie). Literały
+    # (nieodmienne jak cytaty), identyfikatory-atomy i konstrukcje typów
+    # o nieodmiennej głowie zostają legalne.
+    _ZAKAZ_BEZ_PRZYPADKA = (FunctionCall, Apply, Bind, TryCall,
+                            BinOp, UnaryOp, And, Or, Not)
+
+    def _raise_bezprzypadkowy(self, value, name):
+        fname = "_".join(name.surface)
+        if isinstance(value, TryCall):
+            co = "wywołanie z obsługą błędu '?'"
+            rada = ("wyabstrahuj je do zmiennej i przekaż zmienną — "
+                    "rzeczownik odczasownikowy nie niesie trybu "
+                    "przypuszczającego, więc 'wynik' tu nie zadziała")
+        elif isinstance(value, FunctionCall):
+            co = "zagnieżdżone wywołanie rozkaźnikowe"
+            rada = ("zagnieżdżaj słowem 'wynik' z gerundium — forma "
+                    "'wynik/wyniku/wynikowi/wynikiem' niesie przypadek "
+                    "slotu (np. 'wynikiem zmierzenia listy') — albo "
+                    "wyabstrahuj wywołanie do zmiennej")
+        elif isinstance(value, (Apply, Bind)):
+            co = "aplikacja wartości funkcyjnej"
+            rada = ("użyj 'wynik zastosowania F z X' / 'wynik związania "
+                    "F z X' albo wyabstrahuj ją do zmiennej")
+        else:
+            co = "wyrażenie w nawiasach"
+            rada = ("wyabstrahuj je do zmiennej i przekaż zmienną "
+                    "w przypadku slotu")
+        raise ResolveError(
+            f"{co} jako argument '{fname}' nie ma przypadka, więc "
+            f"gramatyka nie może rozstrzygnąć slotu; {rada}",
+            line=getattr(value, "line", None) or getattr(name, "line", None),
+        )
 
     _VALUE_START_KINDS = frozenset({
         lexer.Token.INT_LIT, lexer.Token.TEXT, lexer.Token.CHAR,
@@ -980,8 +1179,16 @@ class ExpressionParser:
 
     @staticmethod
     def _infer_case(value):
-        if isinstance(value, (Identifier, FunctionRef)):
+        # FunctionCall/Apply/Bind mają przypadek tylko dla wywołań przez
+        # `wynik`, a literały tylko przez słowo `literał` (rozkaźnikowe
+        # wywołania i gołe literały są bezprzypadkowe — case=None).
+        if isinstance(value, (Identifier, FunctionRef, GetterChain,
+                              StructCreation, FunctionCall, Apply, Bind,
+                              IntLit, StrLit, CharLit, BoolLit)):
             return value.case
+        if isinstance(value, Typed):
+            # Sufiks typu nie zmienia przypadka wartości — propaguj.
+            return ExpressionParser._infer_case(value.expr)
         return None
 
     # ---------- aplikacja wartości funkcyjnej ----------
@@ -1052,7 +1259,84 @@ class ExpressionParser:
         }
         return Bind(fn=fn, args=args, line=head_ident.line)
 
-    def _match_args_to_slots(self, arg_meta, sig, name, fixed=None):
+    def _match_args_to_slots(self, arg_meta, sig, name, fixed=None,
+                             nominalized=False):
+        def _arg_surface(arg_index):
+            prep, case, value = arg_meta[arg_index]
+            surface = ("_".join(value.surface)
+                       if hasattr(value, "surface") else "(wyrażenie)")
+            pre = ("_".join(prep) + " ") if prep else ""
+            return f"{pre}{surface}"
+
+        def _slot_desc(p):
+            pre = ("_".join(p.prep) + " ") if p.prep else ""
+            return f"`{pre}{'_'.join(p.name.surface)}` ({_describe_cases(p.case)})"
+
+        def _eff_slot(si):
+            # Efektywny opis slotu: przypadek zawężony rządem przyimka
+            # (`od lewej` i `od góry` mają różne surowe zbiory, ale oba są
+            # efektywnie od+dopełniacz — bliźniaki, pozycyjnie legalne).
+            p = sig[si]
+            case = p.case
+            if p.prep is not None and case is not None:
+                gov = self.preps.get(p.prep[0])
+                if gov:
+                    case = (case & frozenset(gov)) or case
+            return (p.prep, case)
+
+        def _on_remis(arg_index, slot_indices):
+            if len({_eff_slot(si) for si in slot_indices}) == 1:
+                return None  # efektywne bliźniaki — pozycyjnie, po staremu
+            prep, case, value = arg_meta[arg_index]
+            sloty = ", ".join(_slot_desc(sig[si]) for si in slot_indices)
+            fname = "_".join(name.surface)
+            if case is None and isinstance(value, (IntLit, StrLit,
+                                                   CharLit, BoolLit)):
+                # Goły literał pasujący do RÓŻNYCH slotów — nie zgadujemy;
+                # przypadek nadaje mu odmienione słowo `literał`.
+                recepty = []
+                for si in slot_indices:
+                    p = sig[si]
+                    _, eff_case = _eff_slot(si)
+                    formy = sorted({
+                        _LITERAŁ_FORMY[c] for c in (eff_case or ())
+                        if c in _LITERAŁ_FORMY
+                    })
+                    if not formy:
+                        continue
+                    pre = ("_".join(p.prep) + " ") if p.prep else ""
+                    recepty.append(
+                        f"  • '{pre}{' / '.join(formy)} …' → slot "
+                        f"`{'_'.join(p.name.surface)}`")
+                return ResolveError(
+                    f"goły literał '{_arg_surface(arg_index)}' w wywołaniu "
+                    f"'{fname}' pasuje do RÓŻNYCH slotów: {sloty} — literał "
+                    f"jest nieodmienny, więc o slocie nie rozstrzyga "
+                    f"przypadek\n"
+                    f"nadaj mu przypadek odmienionym słowem 'literał':\n"
+                    + "\n".join(recepty),
+                    line=getattr(name, "line", None),
+                )
+            if nominalized and case is not None and "gen" in case:
+                # Kolizja przesunięcia dopełnienia pod nominalizacją:
+                # dopełniacz czyta się i jako przesunięte dopełnienie
+                # bliższe (goły slot biernikowy), i jako inny slot.
+                return ResolveError(
+                    f"niejednoznaczny argument '{_arg_surface(arg_index)}' "
+                    f"w wywołaniu przez 'wynik' — pod nominalizacją "
+                    f"dopełniacz czyta się też jako przesunięte dopełnienie "
+                    f"bliższe (goły slot biernikowy); pasujące sloty: "
+                    f"{sloty}\n"
+                    f"rozstrzygnij:\n"
+                    f"  • wyabstrahuj wywołanie do zmiennej rozkaźnikiem "
+                    f"(tam o nierozróżnialnych slotach rozstrzyga kolejność "
+                    f"argumentów) i przekaż zmienną\n"
+                    f"  • albo daj któremuś parametrowi '{fname}' przyimek "
+                    f"w sygnaturze — sloty przestaną być nierozróżnialne",
+                    line=getattr(name, "line", None),
+                )
+            return None  # inne bezprzypadkowe wartości: stare zachowanie
+
         def _on_error(arg_index=None):
             # Tabelka slotów: przyimek + powierzchnia parametru z deklaracji
             # + wymagany przypadek; do tego przypadek otrzymanego argumentu.
@@ -1072,12 +1356,13 @@ class ExpressionParser:
                 f"argument funkcji '{'_'.join(name.surface)}' nie pasuje do "
                 f"żadnego wolnego parametru w trybie pozycyjnym; "
                 f"sloty: {sloty}{otrzymano} — inflektuj argument do "
-                f"przypadka slotu albo weź go w nawias (argument w nawiasie "
-                f"jest bezprzypadkowy)",
+                f"przypadka slotu (literałom przypadek nadaje odmienione "
+                f"słowo 'literał', zagnieżdżonym wywołaniom — 'wynik')",
                 line=getattr(name, "line", None),
             )
         return type_parser.match_args_to_slots(
-            arg_meta, sig, on_error=_on_error, fixed=fixed)
+            arg_meta, sig, on_error=_on_error, fixed=fixed,
+            nominalized=nominalized, on_remis=_on_remis)
 
     @staticmethod
     def _slot_matches(tok_prep, tok_case, param):
@@ -1119,7 +1404,14 @@ class ExpressionParser:
             "chain_surfaces": [c.surface for c in chain],
             "last_is_field": self._ident_is_field(chain[-1]),
         }
-        return GetterChain(chain=chain)
+        # Przypadek łańcucha = przypadek głowy (reszta to przydawka
+        # dopełniaczowa); liczą się tylko warianty, których lemat jest polem.
+        head = chain[0]
+        case = frozenset().union(
+            *(v.case for v in head.variants
+              if v.lemmas in self.ctx.field_lemmas)
+        ) or None
+        return GetterChain(chain=chain, case=case)
 
     # ---------- struct creation ----------
 
@@ -1130,7 +1422,7 @@ class ExpressionParser:
         litera jednoznacznie odróżnia konstruktor od referencji i wywołania."""
         return find_in_set(head_ident, self.ctx.types)
 
-    def _parse_struct_creation(self, type_name):
+    def _parse_struct_creation(self, type_name, case=None):
         ctx = StructCtx(type_name=type_name)
         self.struct_stack.append(ctx)
         args = []
@@ -1195,7 +1487,7 @@ class ExpressionParser:
             "assigned_keys": tuple(ctx.assigned),
             "available_keys": tuple(self.ctx.fields_by_type.get(type_name, set())),
         }
-        return StructCreation(type_name=type_name, args=args)
+        return StructCreation(type_name=type_name, args=args, case=case)
 
     def _next_struct_arg_kind(self, ctx):
         """Zwraca (prep_canon, field_name, is_shorthand) jeśli kolejny token to
@@ -1703,6 +1995,8 @@ def _resolve_match(stmt, ctx, preps, scope):
                 br.alias, required_case="nom", label="nazwa po 'jako'",
                 missing_hint="; nazwę po 'jako' podaj w mianowniku",
             )
+            sprawdź_rezerwację([alias_key[0]], "nazwą po 'jako'",
+                               br.alias.line)
             br.alias = _narrow_to_key(br.alias, alias_key)
             br_scope.add_key(alias_key)
         for sub in br.body:
@@ -1721,6 +2015,9 @@ def resolve_module(module, preps=None):
         elif isinstance(node, FunctionDef):
             fn_scope = _Scope(parent=module_scope)
             for p in node.params:
+                sprawdź_rezerwację(
+                    {k[0] for k in p.name.scope_keys}, "nazwą parametru",
+                    getattr(p.name, "line", None))
                 fn_scope.add(p.name)
             for stmt in node.body:
                 _resolve_stmt(stmt, ctx, preps, fn_scope)

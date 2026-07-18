@@ -13,19 +13,21 @@ aby odczytać_cyfrę znak:
 # Przesunięcie znaku o zadaną liczbę pozycji w tablicy kodów (bez
 # zawijania) — pokaz arytmetyki na punktach kodowych.
 aby przesunąć znak o krok:
-    zwróć zapisz_znakiem ((zapisz_liczbą znak) plus krok)
+    kod to (zapisz_liczbą znak) plus krok
+    zwróć zapisz_znakiem kod
 
 aby działać:
     # ord, chr i ich złożenie (round-trip Znak → kod → Znak)
-    wypisz (zapisz_liczbą 'A')
-    wypisz (zapisz_znakiem sześćdziesiąt pięć)
-    wypisz (zapisz_znakiem (zapisz_liczbą 'ż'))
+    wypisz wynik zapisania_liczbą 'A'
+    wypisz wynik zapisania_znakiem sześćdziesięciu pięciu
+    wypisz wynik zapisania_znakiem wyniku zapisania_liczbą 'ż'
     # cyfry jako liczby — i arytmetyka na nich
-    wypisz (odczytaj_cyfrę '7')
-    wypisz ((odczytaj_cyfrę '4') razy (odczytaj_cyfrę '9'))
+    wypisz wynik odczytania_cyfry '7'
+    iloczyn to (odczytaj_cyfrę '4') razy (odczytaj_cyfrę '9')
+    wypisz iloczyn
     # arytmetyka na kodach: 'a' + 2 = 'c', 'A' + 25 = 'Z'
-    wypisz (przesuń 'a' o dwa)
-    wypisz (przesuń 'A' o dwadzieścia pięć)
+    wypisz wynik przesunięcia 'a' o dwa
+    wypisz wynik przesunięcia 'A' o dwadzieścia pięć
     # punkty kodowe znaków sterujących
-    wypisz (zapisz_liczbą ' ')
-    wypisz (zapisz_liczbą '\n')
+    wypisz wynik zapisania_liczbą ' '
+    wypisz wynik zapisania_liczbą '\n'

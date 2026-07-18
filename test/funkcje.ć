@@ -4,6 +4,7 @@ aby dodać rzecz do drugiej_rzeczy:
     zwróć rzecz plus druga_rzecz
 
 aby działać:
-    wypisz (dodaj dwa do trzy)
-    wypisz (dodaj dwa do (minus trzy))
-    wypisz (dodaj (dodaj jeden do dwa) do trzy)
+    wypisz wynik dodania dwóch do trzech
+    ujemna to minus trzy
+    wypisz wynik dodania dwóch do ujemnej
+    wypisz wynik dodania wyniku dodania jednego do dwóch do trzech

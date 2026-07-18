@@ -66,7 +66,8 @@ aby zmierzyć listę (Lista) -> Liczba:
 # Dwa OGONOWE przebiegi przez `przełożyć` (trampolina TCO) zamiast
 # rekursji budującej stos — skleja listy dowolnej długości.
 aby skleić listę (Lista) z resztą (Lista) -> Lista:
-    zwróć przełóż (przełóż listę na Nic) na resztę
+    odwrotność to przełóż listę na Nic
+    zwróć przełóż odwrotność na resztę
 
 # Odwrócenie listy przez akumulator (element po elemencie na przód).
 aby przełożyć listę (Lista) na stos (Lista) -> Lista:
@@ -140,7 +141,8 @@ aby wskazać pozycję na liście (Lista):
         Ogniwem z głową z ogonem:
             jeśli pozycja równa jeden:
                 zwróć Sukces o wartości głowa
-            zwróć wskaż (pozycja minus jeden) na ogonie
+            poprzednia to pozycja minus jeden
+            zwróć wskaż poprzednią na ogonie
         Niczym:
             zwróć Błąd o opisie "pozycja poza listą"
 
@@ -170,12 +172,15 @@ aby przedstawić cyfrę (Liczba) -> Znak:
 aby rozwijać liczbę (Liczba) -> Tekst:
     jeśli liczba mniejsze od dziesięciu:
         zwróć Ogniwo o głowie (przedstaw liczbę) o ogonie Nic
-    zwróć sklej (rozwijaj (podziel liczbę przez dziesięć)) z (Ogniwo o głowie (przedstaw (weź_resztę_z_dzielenia liczby przez dziesięć)) o ogonie Nic)
+    reszta to weź_resztę_z_dzielenia liczby przez dziesięć
+    przód to rozwijaj wynik podzielenia liczby przez dziesięć
+    zwróć sklej przód z (Ogniwem o głowie (przedstaw resztę) o ogonie Nic)
 
 # Liczba jako tekst dziesiętny (z minusem dla ujemnych).
 aby pokazać liczbę (Liczba) -> Tekst:
     jeśli liczba mniejsze od zero:
-        zwróć sklej "-" z (rozwijaj (zero minus liczba))
+        dodatnia to zero minus liczba
+        zwróć sklej "-" z wynikiem rozwijania dodatniej
     zwróć rozwijaj liczbę
 
 # Wartość cyfry dziesiętnej znaku (odwrotność `przedstawić`): Sukces
@@ -184,14 +189,15 @@ aby pokazać liczbę (Liczba) -> Tekst:
 aby odcyfrować znak (Znak) -> Rezultat o elemencie Liczba:
     wartość to (zapisz_liczbą znak) minus czterdzieści osiem
     jeśli wartość mniejsza od zera lub wartość większa od dziewięciu:
-        zwróć Błąd o opisie (sklej "nie jest cyfrą: " z (Ogniwo o głowie znak o ogonie Nic))
+        zwróć Błąd o opisie (sklej "nie jest cyfrą: " z (Ogniwem o głowie znak o ogonie Nic))
     zwróć Sukces z wartością
 
 aby zbierać_cyfry z napisu (Tekst) z sumą (Liczba) -> Rezultat o elemencie Liczba:
     gdy napis jest:
         Ogniwem z głową z ogonem:
             cyfra to odcyfrowałbyś głowę?
-            zwróć zbieraj_cyfry z ogona z (suma razy dziesięć plus cyfra)
+            nowa_suma to suma razy dziesięć plus cyfra
+            zwróć zbieraj_cyfry z ogona z nową_sumą
         Niczym:
             zwróć Sukces o wartości suma
 
@@ -237,6 +243,9 @@ aby wybrać_resztę od osi (Liczba) z listy (Lista) -> Lista:
 aby sortować_szybko listę (Lista) -> Lista:
     gdy lista jest:
         Ogniwem z głową z ogonem:
-            zwróć sklej (sortuj_szybko (wybierz_mniejsze od głowy z ogona)) z (Ogniwo o głowie głowa o ogonie (sortuj_szybko (wybierz_resztę od głowy z ogona)))
+            lewica to wybierz_mniejsze od głowy z ogona
+            prawica to wybierz_resztę od głowy z ogona
+            przód to sortuj_szybko lewicę
+            zwróć sklej przód z (Ogniwem o głowie głowa o ogonie (sortuj_szybko prawicę))
         Niczym:
             zwróć Nic

@@ -5,18 +5,18 @@ aby działać:
     wysokość to sto
     otwórz_okno o szerokości o wysokości z "Próba"
     farba to dobierz_barwę "zieleń"
-    wypisz (czerwień farby)
-    wypisz (zieleń farby)
-    wypisz (błękit farby)
+    wypisz czerwień farby
+    wypisz zieleń farby
+    wypisz błękit farby
     odcień to dobierz_barwę "#204080"
-    wypisz (czerwień odcienia)
-    wypisz (zieleń odcienia)
-    wypisz (błękit odcienia)
+    wypisz czerwień odcienia
+    wypisz zieleń odcienia
+    wypisz błękit odcienia
     narysuj_prostokąt od dziesięciu od dziesięciu o pięćdziesięciu o dwudziestu w farbie
     narysuj_koło od stu od pięćdziesięciu o dziesięciu w odcieniu
     narysuj_napis "witaj" od pięciu od pięciu o dwudziestu w farbie
-    wypisz (zbadaj_klawisz "lewo")
-    wypisz (zbadaj_klawisz "w")
+    wypisz wynik zbadania_klawisza "lewo"
+    wypisz wynik zbadania_klawisza "w"
     jeśli pokaż_klatkę:
         wypisz "klatka pokazana"
-    wypisz (pobierz_wydarzenia)
+    wypisz wynik pobrania_wydarzeń

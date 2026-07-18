@@ -104,7 +104,7 @@ aby zarejestrować nazwę w stanie:
     użytkownik to Użytkownik o identyfikatorze licznik stanu o nazwie nazwa o obserwowanych utwórz_pustą
     użytkownicy stanu to dodaj użytkownika do użytkowników stanu
     licznik stanu to licznik stanu plus jeden
-    zapisz_dziennik (sklej "nowe konto: " z nazwą)
+    zapisz_dziennik wynik sklejenia "nowe konto: " z nazwą
     zwróć Sukces o wartości "zarejestrowano"
 
 aby opublikować treść przez autora w stanie:
@@ -153,7 +153,7 @@ aby opisywać posty:
         PustąListą:
             zwróć ""
         Węzłem z głową z ogonem:
-            zwróć sklej treść głowy z (opisuj ogon)
+            zwróć sklej treść głowy z wynikiem opisywania ogona
 
 # ---------- obsługa odpowiedzi ----------
 

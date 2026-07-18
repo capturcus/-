@@ -43,14 +43,16 @@ aby odciąć tekst (Tekst) za rozdzielnikiem (Znak) -> Tekst:
             zwróć Nic
 
 aby odczytać_nagłówek wiersz (Tekst) -> Nagłówek:
-    nazwa to utnij wiersz przed (wyłuskać ":")
-    treść to odetnij wiersz za (wyłuskać ":")
+    rozdzielnik to wyłuskaj ":"
+    nazwa to utnij wiersz przed rozdzielnikiem
+    treść to odetnij wiersz za rozdzielnikiem
     zwróć Nagłówek o nazwie nazwa o treści treść
 
 # Nagłówki aż do pustego wiersza (koniec sekcji) albo końca tekstu.
 aby zebrać_nagłówki tekst (Tekst) -> Lista:
-    wiersz to utnij tekst przed (wyłuskać "\n")
-    reszta to odetnij tekst za (wyłuskać "\n")
+    rozdzielnik to wyłuskaj "\n"
+    wiersz to utnij tekst przed rozdzielnikiem
+    reszta to odetnij tekst za rozdzielnikiem
     gdy wiersz jest:
         Niczym:
             zwróć Nic
@@ -58,18 +60,21 @@ aby zebrać_nagłówki tekst (Tekst) -> Lista:
             zwróć Ogniwo o głowie (odczytaj_nagłówek wiersz) o ogonie (zebrać_nagłówki reszta)
 
 aby rozłożyć żądanie (Tekst) -> Żądanie:
-    wiersz to utnij żądanie przed (wyłuskać "\n")
-    reszta to odetnij żądanie za (wyłuskać "\n")
-    metoda to utnij wiersz przed (wyłuskać " ")
-    końcówka to odetnij wiersz za (wyłuskać " ")
-    ścieżka to utnij końcówkę przed (wyłuskać " ")
-    wersja to odetnij końcówkę za (wyłuskać " ")
+    koniec_wiersza to wyłuskaj "\n"
+    odstęp to wyłuskaj " "
+    wiersz to utnij żądanie przed końcem_wiersza
+    reszta to odetnij żądanie za końcem_wiersza
+    metoda to utnij wiersz przed odstępem
+    końcówka to odetnij wiersz za odstępem
+    ścieżka to utnij końcówkę przed odstępem
+    wersja to odetnij końcówkę za odstępem
     zwróć Żądanie o metodzie metoda o ścieżce ścieżka o wersji wersja o nagłówkach (zebrać_nagłówki reszta)
 
 aby wypisać_nagłówki lista (Lista) -> Nic:
     gdy lista jest:
         Ogniwem z głową z ogonem:
-            wypisz (sklej (nazwa głowy) z (sklej ":" z (treść głowy)))
+            ogon_napisu to sklej ":" z treścią głowy
+            wypisz wynik sklejenia nazwy głowy z ogonem_napisu
             wypisz_nagłówki ogon
         Niczym:
             zwróć Nic

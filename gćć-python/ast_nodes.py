@@ -358,22 +358,29 @@ class Assignment:
 
 @dataclass
 class IntLit:
+    """`case` jest ustawione TYLKO przez słowo `literał` (`literałem pięć`)
+    — nadaje literałowi przypadek składniowy; goły literał jest
+    bezprzypadkowy (nieodmienny, jak cytat)."""
     value: int
+    case: frozenset = None
 
 
 @dataclass
 class StrLit:
     value: str
+    case: frozenset = None
 
 
 @dataclass
 class CharLit:
     value: str  # dokładnie jeden znak
+    case: frozenset = None
 
 
 @dataclass
 class BoolLit:
     value: bool
+    case: frozenset = None
 
 
 @dataclass
@@ -443,8 +450,13 @@ class ResolveError(InterpreterError):
 
 @dataclass
 class FunctionCall:
+    """Wywołanie funkcji. `case` jest ustawione TYLKO dla wywołań przez
+    `wynik` (gerundium z przypadkiem: `wynikiem zorganizowania_transportu`)
+    — nadaje wywołaniu przypadek składniowy w pozycji argumentu; wywołania
+    rozkaźnikowe są bezprzypadkowe."""
     name: FunctionIdentifier
     params: list
+    case: frozenset = None
 
 
 @dataclass
@@ -465,10 +477,12 @@ class Apply:
     """Aplikacja wartości funkcyjnej: `zastosuj F z X z Y`. Odbiorca jest
     WYRAŻENIEM (zmienna, FunctionRef, łańcuch, nawiasy), nie nazwą; arność
     wariadyczna — każdy argument wprowadza `z` + narzędnik, pozycyjnie.
-    `zastosować` jest zarezerwowane (parser odrzuca własne definicje)."""
+    `zastosować` jest zarezerwowane (parser odrzuca własne definicje).
+    `case` jak w FunctionCall — tylko dla `wynik zastosowania F z X`."""
     fn: object
     args: list
     line: int = None
+    case: frozenset = None
 
 
 @dataclass
@@ -478,21 +492,31 @@ class Bind:
     Odbiorca i argumenty jak w Apply (wyrażenie + `z` z narzędnikiem,
     pozycyjnie); typ odbiorcy musi być ZNANĄ strzałką (typechecker odrzuca
     wiązanie na nieustalonej wartości funkcyjnej). `związać` jest
-    zarezerwowane jak `zastosować`."""
+    zarezerwowane jak `zastosować`. `case` jak w Apply — tylko dla
+    `wynik związania F z X`."""
     fn: object
     args: list
     line: int = None
+    case: frozenset = None
 
 
 @dataclass
 class GetterChain:
+    """`pole obiektu` — pole najpierw, podstawa w dopełniaczu. `case` to
+    przypadek składniowy całego łańcucha = unia przypadków wariantów
+    polowych głowy (reszta jest przydawką dopełniaczową)."""
     chain: list
+    case: frozenset = None
 
 
 @dataclass
 class StructCreation:
+    """Konstrukcja struktury. `case` to przypadek odmienionej głowy typu
+    (`Psa o imieniu "burek"` — biernik/dopełniacz) — nadaje konstrukcji
+    przypadek składniowy w pozycji argumentu."""
     type_name: tuple
     args: list
+    case: frozenset = None
 
 
 @dataclass

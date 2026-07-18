@@ -136,7 +136,7 @@ lista ≡ `Nic`). Argumenty podaje się w CLI po znaczniku `--`:
 
 ```
 aby działać dla argumentów:
-    wypisz (zmierz argumenty)
+    wypisz wynik zmierzenia argumentów
 ```
 
 ```
@@ -330,17 +330,57 @@ aby zmierzyć listę (Lista) -> Liczba:
 
 **Wywołanie** to czasownik i argumenty. Argument dopasowuje się do
 parametru po **(przyimku, przypadku)** — argumenty z jednoznacznym
-dopasowaniem trafiają na swoje miejsca niezależnie od kolejności,
-pozostałe (np. wyrażenia w nawiasach, które nie mają przypadka)
-pozycyjnie:
+dopasowaniem trafiają na swoje miejsca niezależnie od kolejności:
 
 ```
 wyślij "raport" przez pocztę do szefa    # inna kolejność niż w sygnaturze
 ```
 
-Argumentem jest pojedynczy „człon": literał, zmienna, łańcuch pól,
-zagnieżdżone wywołanie. Większe wyrażenie ujmij w nawiasy:
-`policz z (dwa plus trzy)`. Operatory wiążą na zewnątrz wywołania:
+Pozycyjnie rozstrzygają się wyłącznie sloty **nierozróżnialne** — ta
+sama para przyimek+przypadek, jak dwa `od` w `narysuj_prostokąt od
+lewej od góry …` — tam i naturalna polszczyzna zdaje się na kolejność.
+
+**Każdy argument musi nieść przypadek.** Argumentem jest pojedynczy
+„człon" z odmianą: zmienna, łańcuch pól (przypadek głowy), konstrukcja
+struktury (odmieniona głowa typu: `zawieź Psa o imieniu "burek" do domu
+samochodem`) albo literał. Wartości bez odmiany mają swoje **nośniki
+przypadka**:
+
+- **Zagnieżdżone wywołanie** — słowo `wynik` + rzeczownik odczasownikowy
+  w dopełniaczu. Forma `wynik/wyniku/wynikowi/wynikiem` niesie przypadek,
+  którym wywołanie dopasowuje się do slotu:
+
+  ```
+  zawieź psa wynikiem zorganizowania_transportu do domu
+  zawieź do domu wynik wzięcia_psa ze schroniska wynikiem wzięcia_samochodu
+  ```
+
+  Pod nominalizacją dopełnienie bliższe przesuwa się do dopełniacza —
+  `zmierz segmenty` czyta się `wynik zmierzenia segmentów` (goły slot
+  biernikowy przyjmuje pod `wynik` także dopełniacz; kolizja z prawdziwym
+  slotem dopełniaczowym to głośny remis z receptami). `wynik
+  zastosowania F z X` i `wynik związania F z X` obejmują wartości
+  funkcyjne. Rozkaźnik w argumencie (`wypisz zmierz listę`) jest błędem —
+  rozkaźnik nie niesie przypadka.
+- **Literał** — nieodmienny jak cytat („menu", „kakadu"), więc goły jest
+  legalny, gdy po eliminacji pasuje do dokładnie jednego slotu (albo do
+  slotów-bliźniaków). Gdy kandydaci są RÓŻNI, przypadek nadaje mu
+  odmienione słowo `literał` w apozycji:
+
+  ```
+  zawieź literałem "samochód" psa do domu
+  ```
+
+- **Wyrażenie** (`dwa plus trzy`, operatory, nawiasy) — wyabstrahuj je do
+  zmiennej i przekaż zmienną w przypadku slotu.
+
+Zakaz dotyczy pozycji argumentowych. W pozostałych miejscach (prawa
+strona `to`, `zwróć`, warunki, wartości pól struktur) rozkaźnik
+i wyrażenia działają jak dotąd — `pole to wylosuj_pole` i `pole to
+wynik wylosowania_pola` są równoprawne, jak to w polszczyźnie.
+
+`wynik` i `literał` są słowami języka — nie mogą być nazwą zmiennej,
+parametru ani pola. Operatory wiążą na zewnątrz wywołania:
 `zmierz listę plus jeden` znaczy `(zmierz listę) plus jeden`.
 
 **Argument nazwany** — wywołanie może powtórzyć nagłówkową parę
@@ -415,8 +455,8 @@ a `Liczbą` — Ć nie ma tablicy ASCII, a porównania porządkowe
 i arytmetyka działają wyłącznie na `Liczbie`:
 
 ```
-wypisz (zapisz_liczbą 'A')            # 65
-wypisz (zapisz_znakiem sześćdziesiąt pięć)   # A
+wypisz wynik zapisania_liczbą 'A'                  # 65
+wypisz wynik zapisania_znakiem sześćdziesięciu pięciu   # A
 ```
 
 ---
@@ -557,7 +597,7 @@ gdy rezultat jest:
         wypisz wartość
         wypisz paczka
     Błędem jako kłopot:
-        wypisz (opis kłopotu)
+        wypisz opis kłopotu
 ```
 
 Wewnątrz gałęzi podmiot jest **zawężony** do wariantu — `imię zwierzęcia`
@@ -681,9 +721,11 @@ Zasady:
 - W referencji do funkcji wielosegmentowej podkreślnik jest obowiązkowy:
   `z polubieniem_wpisu`, nie `z polubieniem wpisu` (dwa słowa mogą się
   sparsować jako odczyt pola).
-- Zagnieżdżony goły `zastosuj` zachłannie zjada kolejne `z …` — w wartości
-  pola i w argumentach używaj nawiasów: `bierz jeden z (zastosuj operację
-  z dwa)`.
+- Zagnieżdżony goły `zastosuj` zachłannie zjada kolejne `z …` —
+  w wartości pola używaj nawiasów, a w argumentach nośnika `wynik`
+  (aplikacja sama nie niesie przypadka): `bierz jeden z wynikiem
+  zastosowania operacji z dwa`. Granica `wynik zastosowania` też jest
+  zachłanna — przy wątpliwościach wyabstrahuj aplikację do zmiennej.
 
 Gotowe fold/mapa/filtr/indeksowanie są w przygrywce (`złożyć`,
 `przekształcać`, `przesiewać`, `wskazać`); użycie: `test/kolekcje.ć`.
@@ -701,7 +743,7 @@ aby dodać liczbę do innej_liczby:
 
 aby działać:
     dodanie_dwóch to zwiąż dodanie z dwa
-    wypisz (zastosuj dodanie_dwóch z trzy)      # 5
+    wypisz wynik zastosowania dodania_dwóch z trzy      # 5
 ```
 
 Domknięcie jest zwykłą wartością funkcyjną — można je przekazać do
@@ -768,11 +810,13 @@ Sukces jest **odpakowywany** do swojej wartości, Błąd **propagowany
 zwrotem** z funkcji otaczającej — jej typ zwracany rozszerza się o `Błąd`.
 Oba znaczniki są obowiązkowe: tryb przypuszczający bez `?` i `?` bez
 trybu to błędy. Wołana funkcja musi zwracać `Rezultat`. Konstrukcja
-działa tylko w ciele funkcji. Ponieważ `?` domyka wywołanie,
-zagnieżdżenie nie potrzebuje nawiasów:
+działa tylko w ciele funkcji. Wywołanie zawodne nie może być argumentem
+(rzeczownik odczasownikowy nie niesie trybu przypuszczającego, więc
+`wynik` tu nie pomoże) — wyabstrahuj je do zmiennej:
 
 ```
-zapisz wydobyłbyś wartość z listy? do bazy
+zdobycz to wydobyłbyś wartość z listy?
+zapisz zdobycz do bazy
 ```
 
 Uwaga na pary aspektowe także tutaj: `wybrałbyś` → lemat `wybrać`,

@@ -9,7 +9,7 @@ definicja Błędu:
     opis (Tekst)
 
 definicja Wyniku z elementem:
-    wynik (element)
+    plon (element)
 
 Rezultat to Wynik albo Błąd
 
@@ -19,15 +19,15 @@ można wysłać tekst (Tekst) do wtyczki (Liczba) -> Liczba
 
 # Gałęzie zwracają różne warianty jednej unii — funkcja jest otypowana unią.
 aby zapisać do bazy tekst -> Rezultat:
-    wynik to wyślij tekst do bazy
-    jeśli wynik równe zero:
-        zwróć Wynik o wyniku zero
+    kod to wyślij tekst do bazy
+    jeśli kod równe zero:
+        zwróć Wynik o plonie zero
     inaczej:
         zwróć Błąd o opisie "nie udało się zapisać"
 
 # Dopasowanie `jest:` na nieotypowanym parametrze — unia wnioskowana
 # z gałęzi trafia do sygnatury funkcji. Gałąź nie musi wiązać wszystkich
-# pól wariantu (`Wynikiem:` bez `z wynikiem`).
+# pól wariantu (`Wynikiem:` bez `z plonem`).
 aby opisywać rezultat -> Tekst:
     gdy rezultat jest:
         Wynikiem:
@@ -37,14 +37,14 @@ aby opisywać rezultat -> Tekst:
 
 aby działać:
     baza to siedem
-    wynik to zapisz do bazy "test"
-    gdy wynik jest:
+    rezultat to zapisz do bazy "test"
+    gdy rezultat jest:
         Błędem z opisem:
             wypisz "błąd"
             wypisz opis
-        Wynikiem z wynikiem:
+        Wynikiem z plonem:
             wypisz "ok"
-            jeśli wynik równe zero:
+            jeśli plon równe zero:
                 wypisz "zero"
-    komunikat to opisuj wynik
+    komunikat to opisuj rezultat
     wypisz komunikat

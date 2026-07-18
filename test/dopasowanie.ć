@@ -30,14 +30,14 @@ aby działać:
     opisz Tulipan o płatku "czerwony"
     opisz Róża o wysokości pięć
     opisz Bratek o płatku "fioletowy"
-    wynik to szukaj prawda
-    gdy wynik jest:
+    efekt to szukaj prawda
+    gdy efekt jest:
         Tulipanem z płatkiem:
             wypisz płatek
         Niczym:
             wypisz "brak"
-    wynik to szukaj fałsz
-    gdy wynik jest:
+    efekt to szukaj fałsz
+    gdy efekt jest:
         Tulipanem z płatkiem:
             wypisz płatek
         Niczym:

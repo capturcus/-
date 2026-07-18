@@ -13,9 +13,12 @@ aby ogłosić listę (Lista):
 
 aby działać:
     liczby to Ogniwo o głowie trzy o ogonie (Ogniwo o głowie jeden o ogonie (Ogniwo o głowie pięć o ogonie (Ogniwo o głowie jeden o ogonie (Ogniwo o głowie cztery o ogonie Nic))))
-    ogłoś (sortuj_szybko liczby)
-    wypisz (zmierz (sortuj_szybko liczby))
+    porządek to sortuj_szybko liczby
+    ogłoś porządek
+    wypisz wynik zmierzenia porządku
     próżnia (Lista) to Nic
-    wypisz (zmierz (sortuj_szybko próżnię))
+    pusty_porządek to sortuj_szybko próżnię
+    wypisz wynik zmierzenia pustego_porządku
     solo to Ogniwo o głowie dwa o ogonie Nic
-    ogłoś (sortuj_szybko solo)
+    porządek to sortuj_szybko solo
+    ogłoś porządek

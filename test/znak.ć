@@ -17,9 +17,12 @@ aby sparować zasadę (Znak) -> Znak:
 aby działać:
     litera to 'ż'
     wypisz literę
-    wypisz (sparuj 'A')
-    wypisz (sparuj 'T')
-    wypisz (sparuj 'x')
-    wypisz (litera równa 'ż')
-    wypisz (litera równa 'z')
-    wypisz ((wyłuskać "żaba") równe literze)
+    wypisz wynik sparowania 'A'
+    wypisz wynik sparowania 'T'
+    wypisz wynik sparowania 'x'
+    sąd to litera równa 'ż'
+    wypisz sąd
+    sąd to litera równa 'z'
+    wypisz sąd
+    sąd to (wyłuskaj "żaba") równe literze
+    wypisz sąd

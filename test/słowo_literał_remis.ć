@@ -1,0 +1,20 @@
+# Goły literał między RÓŻNYMI slotami, których nie rozstrzyga eliminacja
+# — głośny remis z receptą odmienionego `literału`.
+
+uwzględnij przygrywka.ć
+
+definicja Kota:
+    imię (Tekst)
+
+definicja Psa:
+    kość (Tekst)
+
+aby wybrać flagę kota psa:
+    jeśli flaga:
+        zwróć kot
+    zwróć pies
+
+aby działać:
+    kot to Kot o imieniu "Mruczek"
+    pies to Pies o kości "szynka"
+    pupil to wybierz prawda kota psa

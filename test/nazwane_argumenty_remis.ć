@@ -15,4 +15,4 @@ aby policzyć_różnicę o szerokości (Liczba) o wysokości (Liczba) -> Liczba:
 aby działać:
     ramki to osiem
     ramka to Ramka o szerokości sześć
-    wypisz (policz_różnicę o szerokości ramki o pięć)
+    wypisz wynik policzenia_różnicy o szerokości ramki o pięć

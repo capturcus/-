@@ -98,4 +98,4 @@ aby działać:
     rozbiór to rozbierz źródło
     stan to Stan o taśmie (Taśma o przeszłości Nic o komórce zero o przyszłości Nic) o wyjściu Nic
     wykonaj (program rozbioru) na stanie
-    ogłoś (odwróć (wyjście stanu))
+    ogłoś wynik odwrócenia wyjścia stanu

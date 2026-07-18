@@ -9,6 +9,6 @@ aby przywitać użytkownika:
 
 aby działać:
     gość to Użytkownik o imieniu "Ada" o wieku trzydzieści
-    wypisz przywitaj gościa
+    wypisz wynik przywitania gościa
     jeśli wiek gościa większy od osiemnastu:
         wypisz "pełnoletnia"

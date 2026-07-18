@@ -14,10 +14,13 @@ aby policzyć tekst (Tekst) -> Liczba:
 aby działać:
     powitanie to "Witaj świecie"
     wypisz powitanie
-    wypisz (policz powitanie)
-    wypisz (powitanie równe "Witaj świecie")
-    wypisz (powitanie równe "witaj świecie")
-    wypisz ("" równe Nic)
+    wypisz wynik policzenia powitania
+    sąd to powitanie równe "Witaj świecie"
+    wypisz sąd
+    sąd to powitanie równe "witaj świecie"
+    wypisz sąd
+    sąd to "" równe Nic
+    wypisz sąd
     gdy powitanie jest:
         Ogniwem z głową:
             wypisz głowę

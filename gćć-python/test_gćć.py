@@ -585,7 +585,7 @@ def test_parse_continue_inside_while(parse):
         "aby działać użytkownik:\n"
         "    dopóki użytkownik równe pięć:\n"
         "        jeśli użytkownik równe pięć:\n            dalej\n"
-        "        wynik to użytkownik\n"
+        "        efekt to użytkownik\n"
     )
     m = parse(src)
     w = m.body[0].body[0]

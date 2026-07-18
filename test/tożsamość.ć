@@ -26,28 +26,42 @@ aby działać:
     sobowtór to Kot o imieniu "Mruczek"
     inny to Kot o imieniu "Filemon"
     alias to kot
-    wypisz (kot równe sobowtór)
-    wypisz (kot tożsame sobowtór)
-    wypisz (kot tożsame alias)
-    wypisz (kot równe alias)
-    wypisz (kot równe inny)
-    wypisz (kot nierówne inny)
+    sąd to kot równe sobowtór
+    wypisz sąd
+    sąd to kot tożsame sobowtór
+    wypisz sąd
+    sąd to kot tożsame alias
+    wypisz sąd
+    sąd to kot równe alias
+    wypisz sąd
+    sąd to kot równe inny
+    wypisz sąd
+    sąd to kot nierówne inny
+    wypisz sąd
     imię aliasu to "Puszek"
-    wypisz (kot równe sobowtór)
+    sąd to kot równe sobowtór
+    wypisz sąd
     pudło to Pudełko o zawartości kot
     paczka to Pudełko o zawartości (Kot o imieniu "Puszek")
-    wypisz (pudło równe paczka)
-    wypisz (pudło tożsame paczka)
+    sąd to pudło równe paczka
+    wypisz sąd
+    sąd to pudło tożsame paczka
+    wypisz sąd
     zwierzę (Zwierzę) to kot
     okaz (Zwierzę) to Pies o kości "szynka"
-    wypisz (zwierzę równe okaz)
+    sąd to zwierzę równe okaz
+    wypisz sąd
     pętla to Węzeł o głowie jeden o ogonie Nic
     ogon pętli to pętla
     obwód to Węzeł o głowie jeden o ogonie Nic
     ogon obwodu to obwód
-    wypisz (pętla równe obwód)
-    wypisz (pętla tożsame obwód)
-    wypisz (pięć tożsame pięć)
+    sąd to pętla równe obwód
+    wypisz sąd
+    sąd to pętla tożsame obwód
+    wypisz sąd
+    sąd to pięć tożsame pięć
+    wypisz sąd
     próżnia (Spis) to Nic
     ogniwo (Spis) to pętla
-    wypisz (ogniwo tożsame próżnia)
+    sąd to ogniwo tożsame próżnia
+    wypisz sąd

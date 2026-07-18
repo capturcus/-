@@ -28,6 +28,7 @@ aby działać:
     korzeń to wstaw dwanaście do korzenia
     korzeń to wstaw jedenaście do korzenia
     korzeń to wstaw zero do korzenia
-    korzeń to wstaw (minus jeden) do korzenia
+    ujemna to minus jeden
+    korzeń to wstaw ujemną do korzenia
     wypisz_rosnąco korzeń
-    wypisz (zmierz korzeń)
+    wypisz wynik zmierzenia korzenia

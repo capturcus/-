@@ -33,10 +33,10 @@ aby działać:
     # fakt-unia: wynik funkcji zwracającej Rozgrywkę
     stan to rozstrzygaj od prawdy
     wypisz kolumna owocu stanu
-    wypisz zmierz_ciało stanu
+    wypisz wynik zmierzenia_ciała stanu
     upadek to rozstrzygaj od fałszu
     wypisz wiersz owocu upadku
-    wypisz zmierz_ciało upadku
+    wypisz wynik zmierzenia_ciała upadku
     # dwa fakty-warianty na jednej zmiennej
     los to rozstrzygaj od prawdy
     los to Porażka o segmentach Nic o owocu (Pole o kolumnie siedem o wierszu osiem) o powodzie "ogon"
@@ -47,4 +47,4 @@ aby działać:
     kolumna owocu stanu to czterdzieści dwa
     wypisz kolumna owocu stanu
     segmenty losu to Ogniwo o głowie (Pole o kolumnie zero o wierszu zero) o ogonie Nic
-    wypisz zmierz_ciało losu
+    wypisz wynik zmierzenia_ciała losu

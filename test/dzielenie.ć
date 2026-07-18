@@ -6,12 +6,13 @@
 uwzględnij przygrywka.ć
 
 aby działać:
-    wypisz (podziel siedem przez dwa)
-    wypisz (podziel dziesięć przez pięć)
-    wypisz (weź_resztę_z_dzielenia siedmiu przez dwa)
-    wypisz (weź_resztę_z_dzielenia dziesięciu przez pięć)
+    wypisz wynik podzielenia siedmiu przez dwa
+    wypisz wynik podzielenia dziesięciu przez pięć
+    wypisz wynik wzięcia_reszty_z_dzielenia siedmiu przez dwa
+    wypisz wynik wzięcia_reszty_z_dzielenia dziesięciu przez pięć
     dzielna to minus siedem
-    wypisz (podziel dzielną przez dwa)
-    wypisz (weź_resztę_z_dzielenia dzielnej przez dwa)
-    połowa to podziel sto przez (podziel dziesięć przez pięć)
+    wypisz wynik podzielenia dzielnej przez dwa
+    wypisz wynik wzięcia_reszty_z_dzielenia dzielnej przez dwa
+    iloraz to podziel dziesięć przez pięć
+    połowa to podziel sto przez iloraz
     wypisz połowę

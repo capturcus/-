@@ -374,17 +374,17 @@ def test_przypisania_wariantów_akumulują_do_unii(parse):
 def test_adnotowana_deklaracja_przybija_typ(parse):
     src = (
         "aby działać:\n"
-        "    wynik (Liczba) to pięć\n"
+        "    efekt (Liczba) to pięć\n"
     )
     typechecker.resolve_module(parse(src))
-    assert _var_types()["wynik"] == "Liczba"
+    assert _var_types()["efekt"] == "Liczba"
 
 
 @pytest.mark.integration
 def test_adnotowana_deklaracja_odrzuca_konflikt(parse):
     src = (
         "aby działać:\n"
-        "    wynik (Znak) to pięć\n"
+        "    efekt (Znak) to pięć\n"
     )
     with pytest.raises(TypeCheckError):
         typechecker.resolve_module(parse(src))
@@ -506,7 +506,7 @@ def test_kontenery_inwariantne_względem_unii(parse):
         "    zwróć Ogniwo o głowie (Krok o znaku 'k') o ogonie Nic\n"
         "\n"
         "aby działać:\n"
-        "    wynik to bierz (dawaj)\n"
+        "    efekt to bierz wynik dawania\n"
     )
     with pytest.raises(TypeCheckError):
         typechecker.resolve_module(parse(src))
@@ -603,7 +603,7 @@ def test_dopasowanie_wnioskuje_unię_wolnego_parametru(parse):
         "            zwróć kość\n"
         "\n"
         "aby działać:\n"
-        "    litera to badaj Kot o imieniu 'M'\n"
+        "    litera to badaj Kota o imieniu 'M'\n"
     )
     typechecker.resolve_module(parse(src))
     assert _var_types()["litera"] == "Znak"
@@ -901,10 +901,10 @@ def test_alias_do_builtina_przezroczysty(parse):
         "Numer to Liczba\n"
         "\n"
         "aby działać:\n"
-        "    wynik (Numer) to jeden\n"
+        "    efekt (Numer) to jeden\n"
     )
     typechecker.resolve_module(parse(src))
-    assert _var_types()["wynik"] == "Liczba"
+    assert _var_types()["efekt"] == "Liczba"
 
 
 @pytest.mark.integration
@@ -914,10 +914,10 @@ def test_łańcuch_aliasów_rozwija_się(parse):
         "Cyfra to Numer\n"
         "\n"
         "aby działać:\n"
-        "    wynik (Cyfra) to jeden\n"
+        "    efekt (Cyfra) to jeden\n"
     )
     typechecker.resolve_module(parse(src))
-    assert _var_types()["wynik"] == "Liczba"
+    assert _var_types()["efekt"] == "Liczba"
 
 
 @pytest.mark.integration
@@ -964,8 +964,8 @@ def test_aplikacja_nazwana_w_adnotacji_unii(parse):
     `z wartością` w dopasowaniu ma typ Tekst (lista znaków)."""
     src = _PRZYGRYWKA + (
         "aby działać:\n"
-        "    wynik to czytaj_plik ze \"dane\"\n"
-        "    gdy wynik jest:\n"
+        "    efekt to czytaj_plik ze \"dane\"\n"
+        "    gdy efekt jest:\n"
         "        Sukcesem z wartością:\n"
         "            treść to wartość\n"
         "        Błędem z opisem:\n"
@@ -1014,8 +1014,8 @@ def test_wspólny_parametr_w_aplikacji_nazwanej(parse):
         "-> Rezultat o elemencie rzecz\n"
         "\n"
         "aby działać:\n"
-        "    wynik to wybieraj z (Ogniwo o głowie pięć o ogonie Nic)\n"
-        "    gdy wynik jest:\n"
+        "    efekt to wybieraj z (Ogniwo o głowie pięć o ogonie Nic)\n"
+        "    gdy efekt jest:\n"
         "        Sukcesem z wartością:\n"
         "            liczba to wartość plus jeden\n"
         "        Błędem:\n"
@@ -1052,10 +1052,10 @@ def test_typ_zwracany_płynie_przez_wywołanie(parse):
         "    zwróć pięć\n"
         "\n"
         "aby działać:\n"
-        "    wynik to licz dla jeden\n"
+        "    efekt to licz dla jeden\n"
     )
     typechecker.resolve_module(parse(src))
-    assert _var_types()["wynik"] == "Liczba"
+    assert _var_types()["efekt"] == "Liczba"
 
 
 @pytest.mark.integration
@@ -1080,18 +1080,20 @@ def test_rekursja_wzajemna_w_scc(parse):
         "aby maleć liczbę (Liczba) -> Przełącznik:\n"
         "    jeśli liczba równa zero:\n"
         "        zwróć prawda\n"
-        "    zwróć rosnąć (liczba minus jeden)\n"
+        "    poprzednia to liczba minus jeden\n"
+        "    zwróć rosnąć poprzednią\n"
         "\n"
         "aby rosnąć liczbę (Liczba) -> Przełącznik:\n"
         "    jeśli liczba równa zero:\n"
         "        zwróć fałsz\n"
-        "    zwróć maleć (liczba minus jeden)\n"
+        "    poprzednia to liczba minus jeden\n"
+        "    zwróć maleć poprzednią\n"
         "\n"
         "aby działać:\n"
-        "    wynik to maleć pięć\n"
+        "    efekt to maleć pięć\n"
     )
     typechecker.resolve_module(parse(src))
-    assert _var_types()["wynik"] == "Przełącznik"
+    assert _var_types()["efekt"] == "Przełącznik"
 
 
 @pytest.mark.integration
@@ -1100,13 +1102,14 @@ def test_rekursja_bezpośrednia(parse):
         "aby liczyć x:\n"
         "    jeśli x równe zero:\n"
         "        zwróć zero\n"
-        "    zwróć licz (x minus jeden)\n"
+        "    poprzednia to x minus jeden\n"
+        "    zwróć licz poprzednią\n"
         "\n"
         "aby działać:\n"
-        "    wynik to licz pięć\n"
+        "    efekt to licz pięć\n"
     )
     typechecker.resolve_module(parse(src))
-    assert _var_types()["wynik"] == "Liczba"
+    assert _var_types()["efekt"] == "Liczba"
 
 
 @pytest.mark.integration
@@ -1115,7 +1118,7 @@ def test_extern_sygnatura_ogranicza_wołającego(parse):
         "można policzyć x (Znak) -> Liczba\n"
         "\n"
         "aby działać:\n"
-        "    wynik to policz pięć\n"
+        "    efekt to policz pięć\n"
     )
     with pytest.raises(TypeCheckError):
         typechecker.resolve_module(parse(src))
@@ -1145,10 +1148,11 @@ def test_extern_wielokrotne_wywołania_nie_gubią_granic(parse):
         "można wypisać coś (Cokolwiek) -> Nic\n"
         "\n"
         "aby działać:\n"
-        "    wypisz (podziel siedem przez dwa)\n"
-        "    wypisz (podziel dziesięć przez pięć)\n"
+        "    wypisz wynik podzielenia siedmiu przez dwa\n"
+        "    wypisz wynik podzielenia dziesięciu przez pięć\n"
         "    a to podziel sto przez dwa\n"
-        "    b to podziel sto przez (podziel dziesięć przez pięć)\n"
+        "    iloraz to podziel dziesięć przez pięć\n"
+            "    b to podziel sto przez iloraz\n"
     )
     typechecker.resolve_module(parse(src))
     types = _var_types()
@@ -1206,8 +1210,8 @@ def test_try_call_odpakowuje_i_rozszerza_zwrot(parse):
         "    zwróć Sukces o wartości (liczba plus jeden)\n"
         "\n"
         "aby działać:\n"
-        "    wynik to przetwarzaj zero\n"
-        "    gdy wynik jest:\n"
+        "    efekt to przetwarzaj zero\n"
+        "    gdy efekt jest:\n"
         "        Sukcesem z wartością:\n"
         "            n to wartość\n"
         "        Błędem:\n"
@@ -1216,7 +1220,7 @@ def test_try_call_odpakowuje_i_rozszerza_zwrot(parse):
     typechecker.resolve_module(parse(src))
     types = _var_types()
     assert types["liczba"] == "Liczba"
-    assert types["wynik"].startswith("Rezultat")
+    assert types["efekt"].startswith("Rezultat")
 
 
 @pytest.mark.integration
@@ -1240,10 +1244,10 @@ def test_zastosowanie_typuje_wynik(parse):
         "    zwróć liczba razy dwa\n"
         "\n"
         "aby działać:\n"
-        "    wynik to zastosuj podwajanie z pięć\n"
+        "    efekt to zastosuj podwajanie z pięć\n"
     )
     typechecker.resolve_module(parse(src))
-    assert _var_types()["wynik"] == "Liczba"
+    assert _var_types()["efekt"] == "Liczba"
 
 
 @pytest.mark.integration
@@ -1253,7 +1257,7 @@ def test_zastosowanie_zła_arność_rzuca(parse):
         "    zwróć liczba razy dwa\n"
         "\n"
         "aby działać:\n"
-        "    wynik to zastosuj podwajanie z pięć z sześć\n"
+        "    efekt to zastosuj podwajanie z pięć z sześć\n"
     )
     with pytest.raises(TypeCheckError, match="argument"):
         typechecker.resolve_module(parse(src))
@@ -1269,10 +1273,10 @@ def test_referencja_gerundialna_daje_strzałkę(parse):
         "    zwróć zastosuj operację z liczbą\n"
         "\n"
         "aby działać:\n"
-        "    wynik to bierz podwajanie z pięć\n"
+        "    efekt to bierz podwajanie z pięć\n"
     )
     typechecker.resolve_module(parse(src))
-    assert _var_types()["wynik"] == "Liczba"
+    assert _var_types()["efekt"] == "Liczba"
 
 
 # =====================================================================
@@ -1301,10 +1305,10 @@ def test_zwiąż_potem_zastosuj_typuje_wynik(parse):
     src = _DODAWANIE + (
         "aby działać:\n"
         "    domknięcie to zwiąż dodanie z dwa\n"
-        "    wynik to zastosuj domknięcie z trzy\n"
+        "    efekt to zastosuj domknięcie z trzy\n"
     )
     typechecker.resolve_module(parse(src))
-    assert _var_types()["wynik"] == "Liczba"
+    assert _var_types()["efekt"] == "Liczba"
 
 
 @pytest.mark.integration
@@ -1313,11 +1317,11 @@ def test_zwiąż_wszystkie_argumenty_daje_gruszkę(parse):
     src = _DODAWANIE + (
         "aby działać:\n"
         "    domknięcie to zwiąż dodanie z dwa z trzy\n"
-        "    wynik to zastosuj domknięcie\n"
+        "    efekt to zastosuj domknięcie\n"
     )
     typechecker.resolve_module(parse(src))
     assert _var_types()["domknięcie"] == "→[Liczba]"
-    assert _var_types()["wynik"] == "Liczba"
+    assert _var_types()["efekt"] == "Liczba"
 
 
 @pytest.mark.integration
@@ -1432,7 +1436,8 @@ def test_unia_pole_wspólne_adnotowany_parametr(parse):
         "    zwróć owoc rozgrywki\n"
         "\n"
         "aby działać:\n"
-        "    miejsce to wskaż_cel (rozstrzygaj od fałszu)\n"
+        "    rozstrzygnięcie to rozstrzygaj od fałszu\n"
+        "    miejsce to wskaż_cel rozstrzygnięcia\n"
     )
     typechecker.resolve_module(parse(src))
     assert _var_types()["miejsce"] == "Pole"
@@ -1452,7 +1457,8 @@ def test_unia_pole_wspólne_zgadywanie_z_odczytu(parse):
         " zero))\n"
         "    b to zerkaj na (Porażka o owocu (Pole o kolumnie trzy"
         " o wierszu cztery) o powodzie 'x')\n"
-        "    c to zerkaj na (rozstrzygaj od prawdy)\n"
+        "    rozstrzygnięcie to rozstrzygaj od prawdy\n"
+        "    c to zerkaj na rozstrzygnięcie\n"
     )
     typechecker.resolve_module(parse(src))
     # lenient: sygnaturowy parametr `rzecz` helpera zostaje polimorficzną
@@ -1996,7 +2002,7 @@ _MAGAZYNY = (
     "    w to Worek o zapasie (Ogniwo o głowie 'a' o ogonie Nic)\n"
     "    siatka to zajrzyj do k\n"
     "    sakwa to zajrzyj do w\n"
-    "    wypisz złóż siatkę z dodaniem z zero\n"
+    "    wypisz wynik złożenia siatki z dodaniem z zero\n"
 )
 
 
@@ -2006,9 +2012,9 @@ def test_wynik_łańcucha_sprzężony_z_kandydatem(parse):
     per wywołanie: fold liczb po kuble liczb przechodzi, a zmierzenie
     sakwy znaków też — każda instancja rozstrzyga po swojemu."""
     src = _MAGAZYNY.replace(
-        "    wypisz złóż siatkę z dodaniem z zero\n",
-        "    wypisz złóż siatkę z dodaniem z zero\n"
-        "    wypisz zmierz sakwę\n",
+        "    wypisz wynik złożenia siatki z dodaniem z zero\n",
+        "    wypisz wynik złożenia siatki z dodaniem z zero\n"
+        "    wypisz wynik zmierzenia sakwy\n",
     )
     typechecker.resolve_module(parse(src))
 
@@ -2018,7 +2024,7 @@ def test_wynik_łańcucha_kontaminacja_odrzucona(parse):
     """DAWNA DZIURA: fold dodawania po sakwie ZNAKÓW przechodził
     typechecker (wynik łańcucha gubił argumenty) i wybuchał w runtime —
     teraz czysty błąd typów."""
-    src = _MAGAZYNY + "    wypisz złóż sakwę z dodaniem z zero\n"
+    src = _MAGAZYNY + "    wypisz wynik złożenia sakwy z dodaniem z zero\n"
     with pytest.raises(
         TypeCheckError,
         match="nie można zunifikować Znak z Liczba"
@@ -2257,10 +2263,10 @@ def test_zwiąż_domknięcie_przez_slot_funkcyjny(parse):
         "\n"
         "aby działać:\n"
         "    domknięcie to zwiąż dodanie z dwa\n"
-        "    wynik to bierz domknięcie z pięć\n"
+        "    efekt to bierz domknięcie z pięć\n"
     )
     typechecker.resolve_module(parse(src))
-    assert _var_types()["wynik"] == "Liczba"
+    assert _var_types()["efekt"] == "Liczba"
 
 
 # =====================================================================
@@ -2282,7 +2288,7 @@ def test_nietotalny_zwrot_dounifikowuje_nic(parse):
 def test_adnotowany_zwrot_bez_zwróć_rzuca(parse):
     src = (
         "aby testować_nic -> Znak:\n"
-        "    wynik to pięć\n"
+        "    efekt to pięć\n"
     )
     with pytest.raises(TypeCheckError):
         typechecker.resolve_module(parse(src))
@@ -2294,12 +2300,12 @@ def test_grounding_wolnej_zmiennej_rzuca_ze_śladem(parse):
         "można zapisać dane (Liczba) -> Zapis\n"
         "\n"
         "aby działać:\n"
-        "    wynik to zapisz pięć\n"
+        "    efekt to zapisz pięć\n"
     )
     with pytest.raises(
         TypeCheckError,
         match=r"nie można wywnioskować konkretnego typu zmiennej "
-              r"'wynik'.*pochodzi z externa 'zapisz'",
+              r"'efekt'.*pochodzi z externa 'zapisz'",
     ):
         typechecker.resolve_module(parse(src))
 

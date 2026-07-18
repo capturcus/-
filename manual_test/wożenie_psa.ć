@@ -1,0 +1,24 @@
+uwzględnij przygrywka.ć
+
+aby zawieźć przewożonego transportem do celu:
+    wypisz "wiozę"
+    wypisz przewożonego
+    wypisz "za pomocą"
+    wypisz transport
+    wypisz "do"
+    wypisz cel
+
+aby wziąć_psa ze schroniska:
+    opis to sklej "pies (" ze schroniskiem
+    zwróć sklej opis z ")"
+
+aby wziąć_samochód:
+    zwróć "samochód"
+
+aby działać:
+    pies to "pies"
+    samochód to "samochód"
+    dom to "dom"
+    zawieź psa samochodem do domu
+    schronisko to "celestynów"
+    zawieź do domu wynik wzięcia_psa ze schroniska wynikiem wzięcia_samochodu

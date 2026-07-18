@@ -6,8 +6,9 @@ uwzględnij przygrywka.ć
 aby powielić rzecz przez krotność:
     jeśli krotność równa zero:
         zwróć Nic
-    zwróć Ogniwo o głowie rzecz o ogonie (powiel rzecz przez (krotność minus jeden))
+    mniejsza_krotność to krotność minus jeden
+    zwróć Ogniwo o głowie rzecz o ogonie (powiel rzecz przez mniejszą_krotność)
 
 aby działać:
-    wypisz zmierz (powiel pięć przez trzy)
-    wypisz zmierz (powiel 'a' przez dwa)
+    wypisz wynik zmierzenia wyniku powielenia pięciu przez trzy
+    wypisz wynik zmierzenia wyniku powielenia 'a' przez dwa

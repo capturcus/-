@@ -1,0 +1,10 @@
+# Zakaz bezprzypadkowych argumentów: zagnieżdżone wywołanie rozkaźnikowe
+# nie niesie przypadka — recepta wskazuje `wynik` i zmienną.
+
+uwzględnij przygrywka.ć
+
+aby podwoić liczbę:
+    zwróć liczba razy dwa
+
+aby działać:
+    wypisz podwój pięć

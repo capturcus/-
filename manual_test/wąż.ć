@@ -103,7 +103,7 @@ aby pełznąć segmentami z kierunkiem do owocu:
 aby przestawić rozgrywkę po takcie:
     gdy rozgrywka jest:
         Pełzaniem z segmentami z kierunkiem z owocem:
-            kierunek to złóż pobierz_wydarzenia z obróceniem z kierunkiem
+            kierunek to złóż wynik pobrania_wydarzeń z obróceniem z kierunkiem
             jeśli (weź_resztę_z_dzielenia taktu przez cztery) równa zero:
                 zwróć pełznij segmentami z kierunkiem do owocu
             zwróć Pełzanie z segmentami z kierunkiem z owocem
@@ -113,13 +113,17 @@ aby przestawić rozgrywkę po takcie:
 # Jeden segment jako kwadrat (z jednopikselową szczeliną); barwa
 # pierwsza, żeby dała się zbejcować.
 aby namalować w barwie pole:
-    narysuj_prostokąt od (kolumna pola razy trzydzieści plus jeden) od (wiersz pola razy trzydzieści plus jeden) o dwadzieścia osiem o dwadzieścia osiem w barwie
+    lewa_krawędź to kolumna pola razy trzydzieści plus jeden
+    górna_krawędź to wiersz pola razy trzydzieści plus jeden
+    narysuj_prostokąt od lewej_krawędzi od górnej_krawędzi o dwadzieścia osiem o dwadzieścia osiem w barwie
 
 # Ekran końcowy — powód zna tylko Porażka, więc tu zawężamy.
 aby ogłosić rozgrywkę:
     gdy rozgrywka jest:
         Porażką z powodem:
-            narysuj_napis sklej "Koniec gry: " z powodem od stu od dwustu o czterdziestu w dobierz_barwę "biel"
+            napis to sklej "Koniec gry: " z powodem
+            biel to dobierz_barwę "biel"
+            narysuj_napis napis od stu od dwustu o czterdziestu w bieli
         inaczej:
             zwróć Nic
 
@@ -133,6 +137,12 @@ aby działać:
         takt to takt plus jeden
         stan to przestaw stan po takcie
         przekształcaj segmenty stanu z malowaniem
-        narysuj_koło od (kolumna owocu stanu razy trzydzieści plus piętnaście) od (wiersz owocu stanu razy trzydzieści plus piętnaście) o dwunastu w dobierz_barwę "czerwień"
-        narysuj_napis sklej "Wynik: " z pokaż (zmierz segmenty stanu minus jeden) od dziesięciu od dziesięciu o trzydziestu w dobierz_barwę "biel"
+        środek_kolumny to kolumna owocu stanu razy trzydzieści plus piętnaście
+        środek_wiersza to wiersz owocu stanu razy trzydzieści plus piętnaście
+        czerwień to dobierz_barwę "czerwień"
+        narysuj_koło od środka_kolumny od środka_wiersza o dwunastu w czerwieni
+        długość to (zmierz segmenty stanu) minus jeden
+        napis to sklej "Wynik: " z wynikiem pokazania długości
+        biel to dobierz_barwę "biel"
+        narysuj_napis napis od dziesięciu od dziesięciu o trzydziestu w bieli
         ogłoś stan

@@ -24,6 +24,6 @@ aby zsumować łańcuszek (Ciąg) -> Numer:
 
 aby działać:
     łańcuch to Węzeł o głowie trzy o rzeczy "abc" o ogonie (Węzeł o głowie sześć o ogonie Nic o rzeczy "abc")
-    wypisz (zsumuj łańcuch)
+    wypisz wynik zsumowania łańcucha
     suma (Numer) to zsumuj łańcuch
     wypisz sumę

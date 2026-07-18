@@ -25,7 +25,7 @@ aby porównać tekst (Tekst) z drugim (Tekst) -> Liczba:
                         zwróć minus jeden
                     jeśli kod_drugi mniejsze od kod:
                         zwróć jeden
-                    zwróć porównaj (ogon czoła) z (ogon zaplecza)
+                    zwróć porównaj ogon czoła z ogonem zaplecza
 
 # Czy znak występuje w tekście.
 aby sprawdzić_obecność rozdzielnika (Znak) w tekście (Tekst) -> Przełącznik:
@@ -60,7 +60,8 @@ aby odciąć tekst (Tekst) za rozdzielnikiem (Znak) -> Tekst:
 # Podział po rozdzielniku na listę kawałków (pusty kawałek ≡ Nic).
 aby podzielić_tekst całość (Tekst) po rozdzielniku (Znak) -> Lista:
     jeśli sprawdź_obecność rozdzielnika w całości:
-        zwróć Ogniwo o głowie (utnij całość przed rozdzielnikiem) o ogonie (podziel_tekst (odetnij całość za rozdzielnikiem) po rozdzielniku)
+        ogon to odetnij całość za rozdzielnikiem
+        zwróć Ogniwo o głowie (utnij całość przed rozdzielnikiem) o ogonie (podziel_tekst ogon po rozdzielniku)
     zwróć Ogniwo o głowie całość o ogonie Nic
 
 # Złączenie kawałków rozdzielnikiem (odwrotność podziału).
@@ -71,6 +72,6 @@ aby złączyć kawałki (Lista) rozdzielnikiem (Znak) -> Tekst:
                 Niczym:
                     zwróć głowa
                 inaczej:
-                    zwróć sklej głowę z (Ogniwo o głowie rozdzielnik o ogonie (złącz ogon rozdzielnikiem))
+                    zwróć sklej głowę z (Ogniwem o głowie rozdzielnik o ogonie (złącz ogon rozdzielnikiem))
         Niczym:
             zwróć Nic

@@ -34,10 +34,10 @@ aby rozpakować przesyłkę:
 
 aby działać:
     kot to Kot o imieniu "Filemon"
-    rozpakuj (Paczka o wnętrzu kota)
+    rozpakuj Paczkę o wnętrzu kota
     przywitaj kota
     wypisz (imię kota)
     pies to Pies o kości "szynka"
     przywitaj psa
-    rozpakuj (Paczka o wnętrzu psa)
+    rozpakuj Paczkę o wnętrzu psa
     rozpakuj Nic

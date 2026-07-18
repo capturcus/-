@@ -15,11 +15,12 @@ aby działać:
     sakwa to Ogniwo o głowie 'z' o ogonie sakwa
     gdy mieszek jest:
         Ogniwem z głową:
-            wypisz (głowa plus jeden)
+            następna to głowa plus jeden
+            wypisz następną
         Niczym:
             wypisz zero
     gdy sakwa jest:
         Ogniwem z głową:
-            wypisz zapisz_liczbą (głowa)
+            wypisz wynik zapisania_liczbą głowy
         Niczym:
             wypisz zero

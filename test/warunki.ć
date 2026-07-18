@@ -16,8 +16,8 @@ aby klasyfikować liczbę:
     zwróć etykieta
 
 aby działać:
-    wypisz (oceń dziesięć)
-    wypisz (oceń dwa)
-    wypisz (klasyfikuj dwadzieścia)
-    wypisz (klasyfikuj siedem)
-    wypisz (klasyfikuj trzy)
+    wypisz wynik ocenienia dziesięć
+    wypisz wynik ocenienia dwóch
+    wypisz wynik klasyfikowania dwudziestu
+    wypisz wynik klasyfikowania siedmiu
+    wypisz wynik klasyfikowania trzech

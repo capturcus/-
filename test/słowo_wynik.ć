@@ -1,0 +1,29 @@
+# Słowo `wynik` — wywołanie funkcji przez rzeczownik odczasownikowy
+# w dopełniaczu; forma (wynik/wyniku/wynikowi/wynikiem) niesie przypadek,
+# którym wywołanie dopasowuje się do slotu wywołania zewnętrznego.
+# Przesunięcie dopełnienia pod nominalizacją: `podwój liczbę` →
+# `wynik podwojenia liczby` (goły slot biernikowy przyjmuje dopełniacz).
+
+uwzględnij przygrywka.ć
+
+aby zawieźć przewożonego transportem do celu:
+    wypisz przewożonego
+    wypisz transport
+    wypisz cel
+
+aby wziąć_psa ze schroniska:
+    opis to sklej "pies (" ze schroniskiem
+    zwróć sklej opis z ")"
+
+aby wziąć_samochód:
+    zwróć "samochód"
+
+aby podwoić liczbę:
+    zwróć liczba razy dwa
+
+aby działać:
+    dom to "dom"
+    schronisko to "celestynów"
+    zawieź do domu wynik wzięcia_psa ze schroniska wynikiem wzięcia_samochodu
+    wypisz wynik podwojenia wyniku podwojenia trzech
+    wypisz wynik zastosowania podwojenia z pięcioma

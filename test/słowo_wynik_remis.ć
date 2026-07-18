@@ -1,0 +1,14 @@
+# Kolizja przesunięcia dopełnienia pod nominalizacją: `uczenia dziecka
+# muzyki` — dopełniacz czyta się i jako przesunięte dopełnienie bliższe
+# (slot biernikowy `dziecko`), i jako slot `muzyki`. Nie zgadujemy —
+# głośny remis z receptami.
+
+uwzględnij przygrywka.ć
+
+aby uczyć dziecko muzyki:
+    zwróć dziecko
+
+aby działać:
+    dziecko to "Jaś"
+    muzyka to "gama"
+    wypisz wynik uczenia dziecka muzyki

@@ -21,7 +21,8 @@ aby wybrać flagę kota psa:
 aby działać:
     kot to Kot o imieniu "Mruczek"
     pies to Pies o kości "szynka"
-    pupil to wybierz prawda kota psa
+    flaga to prawda
+    pupil to wybierz flagę kota psa
     gdy pupil jest:
         Kotem z imieniem:
             wypisz imię

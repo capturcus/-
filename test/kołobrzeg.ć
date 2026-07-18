@@ -10,8 +10,8 @@ aby nakarmić pupila jedzeniem:
     wypisz jedzenie
 
 aby zorganizować operację rzeczy z pupilem:
-    wynik to zastosuj operację z rzeczą
-    nakarm pupila wynikiem
+    efekt to zastosuj operację z rzeczą
+    nakarm pupila efektem
 
 aby zjeść rzecz:
     zwróć sklej "ugotowana " z rzeczą
