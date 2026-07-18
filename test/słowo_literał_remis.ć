@@ -1,5 +1,6 @@
 # Goły literał między RÓŻNYMI slotami, których nie rozstrzyga eliminacja
-# — głośny remis z receptą odmienionego `literału`.
+# ani krok imienny (zmienne nie są nazwami parametrów) — głośny remis
+# z receptą odmienionego `literału`.
 
 uwzględnij przygrywka.ć
 
@@ -15,6 +16,6 @@ aby wybrać flagę kota psa:
     zwróć pies
 
 aby działać:
-    kot to Kot o imieniu "Mruczek"
-    pies to Pies o kości "szynka"
-    pupil to wybierz prawda kota psa
+    zwierzak to Kot o imieniu "Mruczek"
+    przybłęda to Pies o kości "szynka"
+    pupil to wybierz prawda zwierzaka przybłędy

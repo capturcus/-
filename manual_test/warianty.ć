@@ -13,6 +13,14 @@ definicja Wyniku z elementem:
 
 Rezultat to Wynik albo Błąd
 
+definicja Ogniwa z elementem:
+    głowa (element)
+    ogon (Lista)
+
+Lista to Ogniwo albo Nic
+
+Tekst to Lista o elemencie Znak
+
 # Funkcje zewnętrzne — sygnatury w całości jawne (brak ciała do inferencji).
 można wypisać tekst (Tekst) -> Nic
 można wysłać tekst (Tekst) do wtyczki (Liczba) -> Liczba
@@ -37,7 +45,7 @@ aby opisywać rezultat -> Tekst:
 
 aby działać:
     baza to siedem
-    rezultat to zapisz do bazy "test"
+    rezultat to zapisz do (bazy) "test"
     gdy rezultat jest:
         Błędem z opisem:
             wypisz "błąd"

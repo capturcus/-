@@ -75,19 +75,19 @@ aby opisywać listę:
 # ---------- demonstracja ----------
 
 aby działać:
-    pusta to utwórz_pustą
-    liczby to doczepiaj cztery do pustej
+    zalążek to utwórz_pustą
+    liczby to doczepiaj cztery do zalążka
     liczby to doczepiaj trzy do liczb
     liczby to doczepiaj dwa do liczb
     liczby to doczepiaj jeden do liczb
 
     suma to złóż liczby z dodawaniem z zero
     iloczyn to złóż liczby z mnożeniem z jeden
-    wypisz (sklej "suma: " z (zakoduj sumę))
-    wypisz (sklej "iloczyn: " z (zakoduj iloczyn))
+    wypisz wynik sklejenia "suma: " z wynikiem zakodowania sumy
+    wypisz wynik sklejenia "iloczyn: " z wynikiem zakodowania iloczynu
 
-    wyniki to przekształcaj liczby z podwajaniem
-    wypisz (sklej "podwojone: " z (opisuj wyniki))
+    kopie to przekształcaj liczby z podwajaniem
+    wypisz wynik sklejenia "podwojone: " z wynikiem opisywania kopii
 
     selekcja to przesiewaj liczby przez przekraczanie_progu
-    wypisz (sklej "większe od dwóch: " z (opisuj selekcję))
+    wypisz wynik sklejenia "większe od dwóch: " z wynikiem opisywania selekcji

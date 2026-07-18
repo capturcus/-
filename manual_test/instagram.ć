@@ -169,17 +169,18 @@ aby zgłaszać rezultat do klienta:
 
 aby działać:
     stan to Stan o użytkownikach utwórz_pustą o wpisach utwórz_pustą o liczniku jeden
-    zgłaszaj (zarejestruj "ada" w stanie) do jeden
-    zgłaszaj (zarejestruj "bob" w stanie) do dwa
-    zgłaszaj (opublikuj "pierwszy post na osi" przez jeden w stanie) do jeden
-    zgłaszaj (polub trzy przez dwa w stanie) do dwa
-    zgłaszaj (skomentuj trzy przez dwa "ładne zdjęcie" w stanie) do dwa
-    zgłaszaj (obserwuj jeden przez dwa w stanie) do dwa
+    zgłaszaj wynik zarejestrowania "ada" w stanie do jeden
+    zgłaszaj wynik zarejestrowania "bob" w stanie do dwa
+    zgłaszaj wynik opublikowania "pierwszy post na osi" przez jeden w stanie do jeden
+    zgłaszaj wynik polubienia trzy przez dwa w stanie do dwa
+    zgłaszaj wynik skomentowania trzy przez dwa literałem "ładne zdjęcie" w stanie do dwa
+    zgłaszaj wynik obserwowania jeden przez dwa w stanie do dwa
     obserwator to wyszukuj dwa w użytkownikach stanu
     gdy obserwator jest:
         Sukcesem z wartością:
             oś to zbieraj wpisy stanu dla obserwowanych wartości
-            wyślij_odpowiedź (opisuj oś) do dwa
+            wyślij_odpowiedź wynik opisywania osi do dwa
         Błędem z opisem:
             zapisz_dziennik opis
-    wyślij_odpowiedź (sklej "liczba rekordów: " z (zakoduj licz wpisy stanu)) do jeden
+    rekordy to licz wpisy stanu
+    wyślij_odpowiedź wynik sklejenia "liczba rekordów: " z wynikiem zakodowania rekordów do jeden

@@ -176,18 +176,44 @@ class _Scope:
 
     def __init__(self, parent=None):
         self.variables = set()
+        # Jednostki deklaracji: jedna deklaracja = jeden frozenset kluczy
+        # (parametr wnosi WSZYSTKIE swoje warianty jako jedną zmienną,
+        # przypisanie — jeden klucz). Pozwala odróżnić „słowo o wielu
+        # odczytach jednej zmiennej" od „słowo czytające się jako różne
+        # zmienne" (remis wariantowy w dopasowaniu argumentów).
+        self.units = []
         self.parent = parent
 
     def add(self, ident):
         self.variables |= ident.scope_keys
+        self.units.append(ident.scope_keys)
 
     def add_key(self, key):
         self.variables.add(key)
+        self.units.append(frozenset({key}))
 
     def has_var(self, key):
         if any(scope_key_matches(key, k) for k in self.variables):
             return True
         return self.parent.has_var(key) if self.parent else False
+
+    def units_for(self, key):
+        """Identyfikatory jednostek deklaracji, do których pasuje klucz.
+
+        Przesłanianie per klucz: wiązanie w gałęzi dopasowania przesłania
+        zmienną o tym samym kluczu z przodka (zagnieżdżone `z ogonem` to
+        JEDNA zmienna `ogon`, nie dwie) — liczy się najbliższy scope,
+        w którym klucz cokolwiek matchuje."""
+        s = self
+        while s is not None:
+            out = {
+                id(u) for u in s.units
+                if any(scope_key_matches(key, k) for k in u)
+            }
+            if out:
+                return out
+            s = s.parent
+        return set()
 
 
 # ---------- wolne helpery (używane przez ExpressionParser i pre-collect) ----------
@@ -827,14 +853,24 @@ class ExpressionParser:
                        f"w dopełniaczu (np. 'wynik zmierzenia listy'); "
                        f"otrzymano '{ger_surface}'")
             raise ResolveError(msg, line=ger_ident.line)
-        if len(matched) > 1:
+        # Wiele kluczy może wskazywać TĘ SAMĄ definicję (enumeracja lematów
+        # reszty nazwy wielosegmentowej) — niejednoznaczność liczy się po
+        # celach, nie po kluczach.
+        cele = {
+            k: (id(self.ctx.function_defs[k])
+                if k in self.ctx.function_defs else k)
+            for k in matched
+        }
+        if len(set(cele.values())) > 1:
             options = ", ".join(sorted("_".join(k) for k in matched))
             raise ResolveError(
                 f"'{ger_surface}' po '{surface}' jest niejednoznaczne — "
                 f"pasuje do funkcji: {options}",
                 line=ger_ident.line,
             )
-        (key, ger_case), = matched.items()
+        key = min((k for k in matched if k in self.ctx.function_defs),
+                  default=min(matched))
+        ger_case = frozenset().union(*matched.values())
         if "gen" not in ger_case:
             raise ResolveError(
                 f"rzeczownik odczasownikowy po '{surface}' musi stać "
@@ -963,6 +999,7 @@ class ExpressionParser:
                     )
                 fixed[len(arg_meta)] = slot_i
             arg_meta.append((prep, case, value))
+        self._rozstrzygnij_po_scope(arg_meta, sig, fixed, nominalized, name)
         slot_to_arg = self._match_args_to_slots(
             arg_meta, sig, name, fixed, nominalized=nominalized)
         params = []
@@ -980,6 +1017,77 @@ class ExpressionParser:
             "fname_lemma": matched_lemma,
         }
         return FunctionCall(name=name, params=params)
+
+    def _rozstrzygnij_po_scope(self, arg_meta, sig, fixed, nominalized, name):
+        """Krok imienny + remis wariantowy — WSPÓLNY dla wywołań
+        rozkaźnikiem i przez `wynik` (nominalized steruje wyłącznie
+        przesunięciem przypadka pod nominalizacją).
+
+        Scope zawęził wcześniej warianty identyfikatorów do zadeklarowanych
+        zmiennych (`_narrow_to_variable`), więc słowo niesie tylko odczyty
+        istniejące w kontekście wykonania. Tutaj:
+
+        1. REMIS WARIANTOWY: jeśli argument czyta się jako RÓŻNE zmienne
+           (różne pełne klucze) i więcej niż jedna pasuje gramatycznie do
+           któregoś slotu — głośny błąd; wybór zmiennej to wybór WARTOŚCI,
+           nie wolno go zgadywać (`muzyki` przy zadeklarowanych `muzyka`
+           I `muzyki`).
+        2. KROK IMIENNY: jeśli (jedyna pasująca) zmienna jest dosłownie
+           nazwą parametru, a gramatyka pozwala na jego slot — argument
+           wiąże ten slot z góry, jak argument nazwany (`wynik uczenia
+           dziecka muzyki` — `muzyki` to parametr `muzyki`, `dziecka` to
+           parametr `dziecko`; jedyne dopasowanie, zero pozycyjności).
+        """
+        fname = "_".join(name.surface)
+        for ai, (prep, case, value) in enumerate(arg_meta):
+            if ai in fixed or not isinstance(value, Identifier) \
+                    or not value.variants:
+                continue
+            wolne = set(range(len(sig))) - set(fixed.values())
+            # jednostka deklaracji -> [sloty, klucze wariantów, przypadki]
+            jednostki = {}
+            for v in value.variants:
+                sloty = {
+                    si for si in wolne
+                    if type_parser.slot_matches(
+                        prep, v.case, sig[si], nominalized)
+                }
+                if not sloty:
+                    continue
+                klucz = (v.lemmas, v.number, v.gender)
+                for uid in self.scope.units_for(klucz):
+                    wpis = jednostki.setdefault(uid, [set(), set(),
+                                                      frozenset()])
+                    wpis[0] |= sloty
+                    wpis[1].add(klucz)
+                    wpis[2] |= v.case
+            if len(jednostki) > 1:
+                surface = "_".join(value.surface)
+                linie = "\n".join(
+                    f"  • zmienna '{_format_scope_key(min(klucze))}' "
+                    f"({_describe_cases(przypadki)})"
+                    for _, klucze, przypadki in sorted(
+                        jednostki.values(), key=lambda w: min(w[1]))
+                )
+                raise ResolveError(
+                    f"niejednoznaczny argument '{surface}' w wywołaniu "
+                    f"'{fname}' — słowo czyta się jako różne zmienne:\n"
+                    f"{linie}\n"
+                    f"rozstrzygnij: zmień nazwę jednej ze zmiennych — "
+                    f"kolizja odmian (dopełniacz lp = mianownik lm) jest "
+                    f"nieusuwalna z polszczyzny",
+                    line=getattr(value, "line", None),
+                )
+            if not jednostki:
+                continue  # brak kandydatów — opisze to _match_args_to_slots
+            (_, (sloty, klucze, _)), = jednostki.items()
+            imienne = {
+                si for si in sloty
+                if any(scope_key_matches(k, pk)
+                       for k in klucze for pk in sig[si].name.scope_keys)
+            }
+            if len(imienne) == 1:
+                fixed[ai] = imienne.pop()
 
     def _parse_arg(self, sig, name):
         """Pojedynczy argument fcall: opcjonalny prep + primary value,
@@ -1308,6 +1416,11 @@ class ExpressionParser:
                     recepty.append(
                         f"  • '{pre}{' / '.join(formy)} …' → slot "
                         f"`{'_'.join(p.name.surface)}`")
+                recepty.append(
+                    "  • jeśli sloty dzielą przypadek, nazwij sąsiednie "
+                    "zmienne jak parametry (słowo będące nazwą parametru "
+                    "wiąże jego slot) albo daj parametrom rozróżnialne "
+                    "przyimki/przypadki w sygnaturze")
                 return ResolveError(
                     f"goły literał '{_arg_surface(arg_index)}' w wywołaniu "
                     f"'{fname}' pasuje do RÓŻNYCH slotów: {sloty} — literał "
@@ -1317,25 +1430,43 @@ class ExpressionParser:
                     + "\n".join(recepty),
                     line=getattr(name, "line", None),
                 )
+            # Dopasowanie pozycyjne między RÓŻNYMI slotami jest usunięte
+            # z języka — wspólnie dla rozkaźnika i `wynik`. Głośny remis
+            # z receptami zamiast zgadywania.
+            noty = []
             if nominalized and case is not None and "gen" in case:
-                # Kolizja przesunięcia dopełnienia pod nominalizacją:
-                # dopełniacz czyta się i jako przesunięte dopełnienie
-                # bliższe (goły slot biernikowy), i jako inny slot.
-                return ResolveError(
-                    f"niejednoznaczny argument '{_arg_surface(arg_index)}' "
-                    f"w wywołaniu przez 'wynik' — pod nominalizacją "
-                    f"dopełniacz czyta się też jako przesunięte dopełnienie "
-                    f"bliższe (goły slot biernikowy); pasujące sloty: "
-                    f"{sloty}\n"
-                    f"rozstrzygnij:\n"
-                    f"  • wyabstrahuj wywołanie do zmiennej rozkaźnikiem "
-                    f"(tam o nierozróżnialnych slotach rozstrzyga kolejność "
-                    f"argumentów) i przekaż zmienną\n"
-                    f"  • albo daj któremuś parametrowi '{fname}' przyimek "
-                    f"w sygnaturze — sloty przestaną być nierozróżnialne",
-                    line=getattr(name, "line", None),
+                noty.append(
+                    "pod nominalizacją dopełniacz czyta się też jako "
+                    "przesunięte dopełnienie bliższe (goły slot biernikowy)"
                 )
-            return None  # inne bezprzypadkowe wartości: stare zachowanie
+            recepty = [
+                "nazwij zmienną tak jak parametr slotu — słowo będące "
+                "nazwą parametru wiąże jego slot",
+            ]
+            if any(sig[si].prep for si in slot_indices):
+                recepty.append(
+                    "powtórz parę 'przyimek nazwa' z deklaracji przed "
+                    "wartością (argument nazwany)"
+                )
+            if nominalized:
+                recepty.append(
+                    "wyabstrahuj wywołanie do zmiennej rozkaźnikiem "
+                    "i przekaż zmienną"
+                )
+            recepty.append(
+                f"albo daj parametrom '{fname}' rozróżnialne "
+                f"przyimki/przypadki w sygnaturze"
+            )
+            nota = f" ({'; '.join(noty)})" if noty else ""
+            return ResolveError(
+                f"niejednoznaczny argument '{_arg_surface(arg_index)}' "
+                f"w wywołaniu '{fname}' — pasuje do RÓŻNYCH slotów: "
+                f"{sloty}{nota}; pozycyjnie rozstrzygają się wyłącznie "
+                f"sloty nierozróżnialne\n"
+                f"rozstrzygnij:\n"
+                + "\n".join(f"  • {r}" for r in recepty),
+                line=getattr(name, "line", None),
+            )
 
         def _on_error(arg_index=None):
             # Tabelka slotów: przyimek + powierzchnia parametru z deklaracji

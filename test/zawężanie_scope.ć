@@ -1,0 +1,16 @@
+# Zawężanie argumentów po scope + krok imienny: przy jedynej zmiennej
+# `muzyka` słowo `muzyki` czyta się wyłącznie jej dopełniaczem, a jako
+# nazwa parametru wiąże jego slot — wywołanie rozstrzyga się w całości
+# gramatycznie, bez pozycyjności.
+
+uwzględnij przygrywka.ć
+
+aby uczyć dziecko muzyki:
+    wypisz dziecko
+    wypisz muzyka
+    zwróć dziecko
+
+aby działać:
+    dziecko to "Jaś"
+    muzyka to "gama"
+    wypisz wynik uczenia dziecka muzyki

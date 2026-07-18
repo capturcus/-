@@ -242,7 +242,7 @@ aby badać części:
                         Sukcesem:
                             liczba morfologii to możliwa_liczba
                         Błędem:
-                            przetłumaczone to tłumacz atomy przez wymień_mapę_rodzajów
+                            przetłumaczone to tłumacz atomy przez wynik wymienienia_mapy_rodzajów
                             gdy przetłumaczone jest:
                                 Węzłem:
                                     rodzaje morfologii to przetłumaczone
@@ -260,10 +260,12 @@ aby przetwarzać wiersz:
     napis to wybrałbyś zero z części?
     pole to wybrałbyś jeden z części?
     etykieta to wybrałbyś dwa z części?
-    kwalifikator to wydobądź (wybierz cztery z części) z ""
-    lemat to wydobądź (bierz_pierwszą z (podziel pole po ":")) z polem
-    klasa to wydobądź (bierz_pierwszą z (podziel etykieta po ":")) z etykietą
-    morfologia to badaj (podziel etykieta po ":")
+    kwalifikator to wydobądź wynik wybrania czterech z części z ""
+    kawałki_pola to podziel pole po ":"
+    lemat to wydobądź wynik brania_pierwszej z kawałków_pola z polem
+    kawałki_etykiety to podziel etykieta po ":"
+    klasa to wydobądź wynik brania_pierwszej z kawałków_etykiety z etykietą
+    morfologia to badaj wynik podzielenia etykiety po ":"
     analiza to Analiza o napisie napis o klasie klasa o lemacie lemat o etykiecie etykieta o kwalifikatorze kwalifikator o przypadkach przypadki morfologii o liczbie liczba morfologii o rodzajach rodzaje morfologii
     zwróć Sukces o wartości analiza
 
@@ -272,9 +274,12 @@ aby dopisać analizę w słowniku:
     dotychczasowe to szukaj napisu analizy w słowniku
     gdy dotychczasowe jest:
         Sukcesem z wartością:
-            zwróć wstaw napis analizy z (dodaj analizę do wartości) do słownika
+            zbiór to dodaj analizę do wartości
+            zwróć wstaw napis analizy ze zbiorem do słownika
         Błędem:
-            zwróć wstaw napis analizy z (dodaj analizę do utwórz_pustą) do słownika
+            zalążek to utwórz_pustą
+            zbiór to dodaj analizę do zalążka
+            zwróć wstaw napis analizy ze zbiorem do słownika
 
 aby wczytywać wiersze:
     gdy wiersze są:
@@ -289,7 +294,7 @@ aby wczytywać wiersze:
                 Sukcesem z wartością:
                     formy bazy to dopisz wartość w formach bazy
                     jeśli klasa wartości równe "prep":
-                        przyimki bazy to wstaw lemat wartości z (przypadki wartości) do przyimków bazy
+                        przyimki bazy to wstaw lemat wartości z przypadkami wartości do przyimków bazy
             zwróć bazę
 
 
@@ -302,7 +307,8 @@ aby analizować słowa w słowniku:
         Węzłem z głową z ogonem:
             reszta to analizuj ogon w słowniku
             znalezisko to szukaj głowy w słowniku
-            analizy to wydobądź znalezisko z utwórz_pustą
+            zalążek to utwórz_pustą
+            analizy to wydobądź znalezisko z zalążkiem
             zwróć dodaj (OpisaneSłowo o słowie głowa o analizach analizy) do reszty
 
 
@@ -373,7 +379,7 @@ aby działać:
     opisane to analizuj słowa w formach bazy
     liczba_opisanych to licz opisane
     kanon to kanonizuj "kota" w formach bazy
-    morfologia to badaj (podziel "subst:sg:gen.acc:m2" po ":")
+    morfologia to badaj wynik podzielenia "subst:sg:gen.acc:m2" po ":"
     liczba_przypadków to licz przypadki morfologii
     gdy liczba morfologii jest:
         Sukcesem z wartością:

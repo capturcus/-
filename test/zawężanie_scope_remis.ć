@@ -1,0 +1,14 @@
+# Remis wariantowy: w scope są `muzyka` I `muzyki`, więc słowo `muzyki`
+# czyta się jako dwie różne zmienne (dopełniacz lp / mianownik lm) —
+# wybór zmiennej to wybór wartości, nie wolno go zgadywać.
+
+uwzględnij przygrywka.ć
+
+aby uczyć dziecko muzyki:
+    zwróć dziecko
+
+aby działać:
+    dziecko to "Jaś"
+    muzyka to "gama"
+    muzyki to "pasaż"
+    wypisz wynik uczenia dziecka muzyki

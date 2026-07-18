@@ -336,9 +336,27 @@ dopasowaniem trafiają na swoje miejsca niezależnie od kolejności:
 wyślij "raport" przez pocztę do szefa    # inna kolejność niż w sygnaturze
 ```
 
+Rozstrzyganie jest w pełni gramatyczne i **wspólne dla rozkaźnika
+i `wynik`**, w trzech ruchach:
+
+1. **Zawężenie po scope**: słowo argumentu czyta się tylko odczytami
+   istniejących zmiennych — przy jedynej zmiennej `muzyka` słowo
+   `muzyki` to jej dopełniacz (mnogi odczyt nie istnieje). Gdy w scope
+   są `muzyka` **i** `muzyki`, słowo czyta się jako dwie różne zmienne
+   — głośny remis wariantowy z receptą (zmień nazwę).
+2. **Krok imienny**: argument będący dosłownie nazwą parametru wiąże
+   jego slot (o ile gramatyka pozwala) — `wynik uczenia dziecka muzyki`
+   rozstrzyga się jednoznacznie, bo `dziecka` i `muzyki` to nazwy
+   parametrów `uczyć`.
+3. **Eliminacja po (przyimku, przypadku)**: pozostałe argumenty
+   zajmują sloty, do których pasują jednoznacznie.
+
 Pozycyjnie rozstrzygają się wyłącznie sloty **nierozróżnialne** — ta
-sama para przyimek+przypadek, jak dwa `od` w `narysuj_prostokąt od
-lewej od góry …` — tam i naturalna polszczyzna zdaje się na kolejność.
+sama para przyimek+przypadek po zawężeniu rządem przyimka, jak dwa `od`
+w `narysuj_prostokąt od lewej od góry …` — tam i naturalna polszczyzna
+zdaje się na kolejność. Argument pasujący do RÓŻNYCH slotów bez
+rozstrzygnięcia gramatycznego ani imiennego to głośny błąd z receptami
+— dopasowanie pozycyjne między różnymi slotami nie istnieje.
 
 **Każdy argument musi nieść przypadek.** Argumentem jest pojedynczy
 „człon" z odmianą: zmienna, łańcuch pól (przypadek głowy), konstrukcja

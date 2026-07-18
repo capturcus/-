@@ -2462,7 +2462,30 @@ def test_shift_not_available_in_imperative_call(parse):
 
 def test_wynik_shift_remis_raises_with_recipes(parse):
     """Sygnatura z dwoma gołymi slotami: pod nominalizacją dopełniacz
-    pasuje do obu — głośny remis z receptami zamiast zgadywania."""
+    pasuje do obu, a zmienne NIE są nazwami parametrów — głośny remis
+    z receptami zamiast zgadywania."""
+    src = (
+        "aby uczyć dziecko muzyki:\n"
+        "    zwróć dziecko\n"
+        "aby działać:\n"
+        '    uczeń to "Jaś"\n'
+        '    gama to "gama"\n'
+        "    x to wynik uczenia ucznia gamy\n"
+    )
+    with pytest.raises(ast.ResolveError) as ei:
+        parse(src)
+    msg = str(ei.value)
+    assert "niejednoznaczny argument" in msg
+    assert "pasuje do RÓŻNYCH slotów" in msg
+    assert "przesunięte dopełnienie bliższe" in msg
+    assert "rozkaźnikiem" in msg
+
+
+def test_scope_narrows_argument_to_sole_variable(parse):
+    """Zawężenie po scope + krok imienny: przy jedynej zmiennej `muzyka`
+    słowo `muzyki` czyta się wyłącznie dopełniaczem tej zmiennej i jako
+    nazwa parametru wiąże jego slot — wywołanie rozstrzyga się bez
+    pozycyjności."""
     src = (
         "aby uczyć dziecko muzyki:\n"
         "    zwróć dziecko\n"
@@ -2471,13 +2494,29 @@ def test_wynik_shift_remis_raises_with_recipes(parse):
         '    muzyka to "gama"\n'
         "    x to wynik uczenia dziecka muzyki\n"
     )
+    fc = parse(src).body[1].body[2].value.resolved
+    assert isinstance(fc, ast.FunctionCall)
+    assert ("dziecko",) in fc.params[0].value.lemmas_set
+    assert ("muzyka",) in fc.params[1].value.lemmas_set
+
+
+def test_argument_reading_as_two_variables_raises(parse):
+    """Gdy w scope są `muzyka` I `muzyki`, słowo `muzyki` czyta się jako
+    dwie różne zmienne — głośny remis wariantowy z receptą."""
+    src = (
+        "aby uczyć dziecko muzyki:\n"
+        "    zwróć dziecko\n"
+        "aby działać:\n"
+        '    dziecko to "Jaś"\n'
+        '    muzyka to "gama"\n'
+        '    muzyki to "pasaż"\n'
+        "    x to wynik uczenia dziecka muzyki\n"
+    )
     with pytest.raises(ast.ResolveError) as ei:
         parse(src)
     msg = str(ei.value)
-    assert "niejednoznaczny argument" in msg
-    assert "wywołaniu przez 'wynik'" in msg
-    assert "rozstrzygnij" in msg
-    assert "rozkaźnikiem" in msg
+    assert "czyta się jako różne zmienne" in msg
+    assert "zmień nazwę jednej ze zmiennych" in msg
 
 
 def test_wynik_zastosowania_builds_apply_with_case(parse):
@@ -2587,18 +2626,49 @@ _WYBRAĆ = (
 
 
 def test_bare_literal_ambiguous_between_different_slots_raises(parse):
-    """Goły literał z ≥2 RÓŻNYMI slotami-kandydatami, których eliminacja
-    nie rozstrzyga (sąsiednie argumenty też są wieloznaczne) — głośny
-    błąd z receptą odmienionego `literału`."""
+    """Goły literał z ≥2 RÓŻNYMI slotami-kandydatami, których nie
+    rozstrzyga ani eliminacja, ani krok imienny (zmienne nie są nazwami
+    parametrów) — głośny błąd z receptą odmienionego `literału`."""
     src = _WYBRAĆ + (
-        "aby działać kotem psem:\n"
-        "    x to wybierz prawda kota psa\n"
+        "aby działać zwierzakiem przybłędą:\n"
+        "    x to wybierz prawda zwierzaka przybłędy\n"
     )
     with pytest.raises(ast.ResolveError) as ei:
         parse(src)
     msg = str(ei.value)
     assert "goły literał" in msg
     assert "nadaj mu przypadek odmienionym słowem 'literał'" in msg
+
+
+def test_param_names_bind_slots_in_any_order(parse):
+    """Krok imienny: argumenty będące nazwami parametrów wiążą swoje
+    sloty niezależnie od kolejności zapisu."""
+    src = _WYBRAĆ + (
+        "aby działać kotem psem:\n"
+        "    flaga to prawda\n"
+        "    x to wybierz kota psa flagę\n"
+    )
+    fc = parse(src).body[1].body[1].value.resolved
+    assert isinstance(fc, ast.FunctionCall)
+    assert ("flaga",) in fc.params[0].value.lemmas_set
+    assert ("kot",) in fc.params[1].value.lemmas_set
+    assert ("pies",) in fc.params[2].value.lemmas_set
+
+
+def test_positional_between_different_slots_removed(parse):
+    """Rozkaźnik podlega tej samej zasadzie co `wynik`: argument pasujący
+    do RÓŻNYCH slotów bez rozstrzygnięcia gramatycznego ani imiennego to
+    głośny błąd — pozycyjnie rozstrzygają się tylko bliźniaki."""
+    src = _WYBRAĆ + (
+        "aby działać zwierzakiem przybłędą:\n"
+        "    flaga to prawda\n"
+        "    x to wybierz flagę zwierzaka przybłędy\n"
+    )
+    with pytest.raises(ast.ResolveError) as ei:
+        parse(src)
+    msg = str(ei.value)
+    assert "pasuje do RÓŻNYCH slotów" in msg
+    assert "pozycyjnie rozstrzygają się wyłącznie sloty nierozróżnialne" in msg
 
 
 def test_literał_recipe_resolves_ambiguity(parse):

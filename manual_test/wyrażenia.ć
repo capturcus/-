@@ -286,11 +286,11 @@ aby wstawić klucz z zawartością do słownika:
 aby sprawdzić argument wobec parametru:
     jeśli przyimek argumentu nierówne przyimek parametru:
         zwróć fałsz
-    jeśli policz (przypadki argumentu) równe zero:
+    jeśli policz przypadki argumentu równe zero:
         zwróć prawda
-    jeśli policz (przypadki parametru) równe zero:
+    jeśli policz przypadki parametru równe zero:
         zwróć prawda
-    zwróć krzyżuj (przypadki argumentu) z (przypadki parametru)
+    zwróć krzyżuj przypadki argumentu z przypadkami parametru
 
 # numery miejsc pasujących do jednego argumentu
 aby wyliczyć_kandydatów dla argumentu wśród parametrów od numeru:
@@ -298,7 +298,8 @@ aby wyliczyć_kandydatów dla argumentu wśród parametrów od numeru:
         PustąListą:
             zwróć utwórz_pustą
         Węzłem z głową z ogonem:
-            reszta to wylicz_kandydatów dla argumentu wśród ogona od (numer plus jeden)
+            następny_numer to numer plus jeden
+            reszta to wylicz_kandydatów dla argumentu wśród ogona od następnego_numeru
             jeśli sprawdź argument wobec głowy:
                 zwróć doczep numer do reszty
             zwróć resztę
@@ -309,7 +310,9 @@ aby zgromadzić_kandydatów dla argumentów wśród parametrów:
         PustąListą:
             zwróć utwórz_pustą
         Węzłem z głową z ogonem:
-            zwróć doczep (wylicz_kandydatów dla głowy wśród parametrów od zero) do (zgromadź_kandydatów dla ogona wśród parametrów)
+            kandydaci_głowy to wylicz_kandydatów dla głowy wśród parametrów od zero
+            dalsi_kandydaci to zgromadź_kandydatów dla ogona wśród parametrów
+            zwróć doczep kandydatów_głowy do dalszych_kandydatów
 
 # odwrotne wyszukanie: numer argumentu przydzielonego danemu miejscu
 aby odszukać miejsce w przydziałach:
@@ -327,7 +330,8 @@ aby ułożyć argumenty według przydziałów od numeru do krotności:
         zwróć Sukces o wartości utwórz_pustą
     indeks to odszukałbyś numer w przydziałach?
     argument to wybrałbyś indeks z argumentów?
-    reszta to ułożyłbyś argumenty według przydziałów od (numer plus jeden) do krotności?
+    następny_numer to numer plus jeden
+    reszta to ułożyłbyś argumenty według przydziałów od następnego_numeru do krotności?
     zwróć Sukces o wartości (doczep argument do reszty)
 
 aby dopasować argumenty do parametrów:
@@ -346,10 +350,11 @@ aby dopasować argumenty do parametrów:
                 Sukcesem:
                     ignoruj los
                 Błędem:
-                    kandydatura to wydobądź (wybierz numer z kandydatów) z utwórz_pustą
+                    zalążek to utwórz_pustą
+                    kandydatura to wydobądź wynik wybrania numeru z kandydatów z zalążkiem
                     pula to przesiej kandydaturę przez obsadę
                     jeśli policz pulę równe jeden:
-                        miejsce to wydobądź (wybierz zero z puli) z zero
+                        miejsce to wydobądź wynik wybrania zera z puli z zero
                         przydziały to wstaw numer z miejscem do przydziałów
                         obsada to doczep miejsce do obsady
                         postęp to prawda
@@ -357,7 +362,8 @@ aby dopasować argumenty do parametrów:
         jeśli nie postęp:
             dość
     # krok 2: reszta pozycyjnie do wolnych miejsc, z kontrolą zgodności
-    wolne_miejsca to przesiej (wylicz_ciąg od zero do krotności) przez obsadę
+    pełny_ciąg to wylicz_ciąg od zero do krotności
+    wolne_miejsca to przesiej pełny_ciąg przez obsadę
     numer to zero
     dopóki numer mniejsze od krotności:
         los to szukaj numeru w przydziałach
@@ -369,7 +375,8 @@ aby dopasować argumenty do parametrów:
                     PustąListą:
                         zwróć Błąd o opisie "argument nie pasuje do żadnego wolnego parametru"
                     Węzłem z głową z ogonem:
-                        kandydatura to wydobądź (wybierz numer z kandydatów) z utwórz_pustą
+                        zalążek to utwórz_pustą
+                        kandydatura to wydobądź wynik wybrania numeru z kandydatów z zalążkiem
                         jeśli nie należy głowa do kandydatury:
                             zwróć Błąd o opisie "argument nie pasuje do parametru w trybie pozycyjnym"
                         przydziały to wstaw numer z głową do przydziałów
@@ -380,7 +387,7 @@ aby dopasować argumenty do parametrów:
 # ---------- otoczenie i zakres ----------
 
 aby odnaleźć nazwę w zakresie:
-    jeśli należy nazwa do (zmienne zakresu):
+    jeśli należy nazwa do zmiennych zakresu:
         zwróć prawda
     opiekun to rodzic zakresu
     gdy opiekun jest:
@@ -394,13 +401,13 @@ aby przeszukać_hasła lemat w spisie:
         PustąListą:
             zwróć fałsz
         Węzłem z głową z ogonem:
-            jeśli należy lemat do (zawartość głowy):
+            jeśli należy lemat do zawartości głowy:
                 zwróć prawda
             zwróć przeszukaj_hasła lemat w ogonie
 
 # czy lemat jest polem którejkolwiek struktury
 aby stwierdzić_pole lemat w otoczeniu:
-    zwróć przeszukaj_hasła lemat w (pola otoczenia)
+    zwróć przeszukaj_hasła lemat w polach otoczenia
 
 aby wyszukać_sygnaturę dla nazwy wśród sygnatur:
     gdy sygnatury są:
@@ -418,9 +425,9 @@ aby sprawdzić_dopełniacz w żetonach na pozycji wobec otoczenia:
         Błędem:
             zwróć fałsz
         Sukcesem z wartością:
-            jeśli należy (lemat wartości) do (przyimki otoczenia):
+            jeśli należy lemat wartości do przyimków otoczenia:
                 zwróć fałsz
-            zwróć należy "dopełniacz" do (przypadki wartości)
+            zwróć należy "dopełniacz" do przypadków wartości
 
 # ---------- zaglądanie w żetony ----------
 
@@ -461,14 +468,15 @@ aby rozebrać_frazę przez parser od pozycji:
 aby rozebrać_poziom przez parser od pozycji ze szczeblem o szukanej_randze:
     stan to zastosowałbyś szczebel z parserem z pozycją?
     dopóki prawda:
-        połów to wyłów_operatora z (żetony parsera) na (pozycja stanu)
+        połów to wyłów_operatora z żetonów parsera na pozycji stanu
         gdy połów jest:
             Błędem:
                 dość
             Sukcesem z wartością:
                 jeśli ranga wartości nierówne szukana_ranga:
                     dość
-                kontynuacja to zastosowałbyś szczebel z parserem z (pozycja stanu plus jeden)?
+                następna_pozycja to pozycja stanu plus jeden
+                kontynuacja to zastosowałbyś szczebel z parserem z następną_pozycją?
                 stan to Stan o drzewie (Działanie o symbolu (symbol wartości) o lewym_ramieniu (drzewo stanu) o prawym_ramieniu (drzewo kontynuacji)) o pozycji (pozycja kontynuacji)
     zwróć Sukces o wartości stan
 
@@ -481,11 +489,12 @@ aby rozebrać_koniunkcję przez parser od pozycji:
     zwróć rozbierz_poziom przez parser od pozycji z rozebraniem_przeczenia o randze
 
 aby rozebrać_przeczenie przez parser od pozycji:
-    połów to wyłów_operatora z (żetony parsera) na pozycji
+    połów to wyłów_operatora z żetonów parsera na pozycji
     gdy połów jest:
         Sukcesem z wartością:
             jeśli ranga wartości równa "przeczenie":
-                wnętrze to rozebrałbyś_przeczenie przez parser od (pozycja plus jeden)?
+                następna_pozycja to pozycja plus jeden
+                wnętrze to rozebrałbyś_przeczenie przez parser od następnej_pozycji?
                 zwróć Sukces o wartości (Stan o drzewie (Przeczenie o symbolu (symbol wartości) o argumencie (drzewo wnętrza)) o pozycji (pozycja wnętrza))
             ignoruj połów
         Błędem:
@@ -495,11 +504,12 @@ aby rozebrać_przeczenie przez parser od pozycji:
 # co najwyżej JEDEN operator porównania (bez łańcuchowania)
 aby rozebrać_porównanie przez parser od pozycji:
     stan to rozebrałbyś_sumę przez parser od pozycji?
-    połów to wyłów_operatora z (żetony parsera) na (pozycja stanu)
+    połów to wyłów_operatora z żetonów parsera na pozycji stanu
     gdy połów jest:
         Sukcesem z wartością:
             jeśli ranga wartości równe "porównanie":
-                kontynuacja to rozebrałbyś_sumę przez parser od (pozycja stanu plus jeden)?
+                następna_pozycja to pozycja stanu plus jeden
+                kontynuacja to rozebrałbyś_sumę przez parser od następnej_pozycji?
                 zwróć Sukces o wartości (Stan o drzewie (Działanie o symbolu (symbol wartości) o lewym_ramieniu (drzewo stanu) o prawym_ramieniu (drzewo kontynuacji)) o pozycji (pozycja kontynuacji))
             ignoruj połów
         Błędem:
@@ -516,11 +526,12 @@ aby rozebrać_iloczyn przez parser od pozycji:
 
 # unarny plus/minus przed członem
 aby rozebrać_czynnik przez parser od pozycji:
-    połów to wyłów_operatora z (żetony parsera) na pozycji
+    połów to wyłów_operatora z żetonów parsera na pozycji
     gdy połów jest:
         Sukcesem z wartością:
             jeśli ranga wartości równe "suma":
-                wnętrze to rozebrałbyś_czynnik przez parser od (pozycja plus jeden)?
+                następna_pozycja to pozycja plus jeden
+                wnętrze to rozebrałbyś_czynnik przez parser od następnej_pozycji?
                 zwróć Sukces o wartości (Stan o drzewie (Przeczenie o symbolu (symbol wartości) o argumencie (drzewo wnętrza)) o pozycji (pozycja wnętrza))
             ignoruj połów
         Błędem:
@@ -536,7 +547,7 @@ aby rozebrać_człon przez parser od pozycji:
 # przechodzą, nieznane to błąd (bez odwrotu do grupowania)
 aby dokleić_adnotację do stanu przez parser:
     nawias to fałsz
-    połów to wyłów_operatora z (żetony parsera) na (pozycja stanu)
+    połów to wyłów_operatora z żetonów parsera na pozycji stanu
     gdy połów jest:
         Błędem:
             ignoruj połów
@@ -545,22 +556,24 @@ aby dokleić_adnotację do stanu przez parser:
                 nawias to prawda
     jeśli nie nawias:
         zwróć Sukces o wartości stan
-    zdobycz to wyłów_słowo z (żetony parsera) na (pozycja stanu plus jeden)
+    następna_pozycja to pozycja stanu plus jeden
+    zdobycz to wyłów_słowo z żetonów parsera na następnej_pozycji
     gdy zdobycz jest:
         Błędem:
             zwróć Sukces o wartości stan
         Sukcesem z wartością:
             jeśli nie sprawdź_wielkość (lemat wartości):
                 zwróć Sukces o wartości stan
-            jeśli nie należy (lemat wartości) do (typy otoczenia parsera):
-                zwróć Błąd o opisie (sklej "sufiks typu wskazuje nieznany typ: " z (lemat wartości))
-            przesunięcie to oczekiwałbyś ")" w (żetony parsera) na (pozycja stanu plus dwa)?
+            jeśli nie należy lemat wartości do typów otoczenia parsera:
+                zwróć Błąd o opisie (sklej "sufiks typu wskazuje nieznany typ: " z lematem wartości)
+            dalsza_pozycja to pozycja stanu plus dwa
+            przesunięcie to oczekiwałbyś ")" w żetonach parsera na dalszej_pozycji?
             zwróć Sukces o wartości (Stan o drzewie (Adnotacja o typie (lemat wartości) o wyrażeniu (drzewo stanu)) o pozycji przesunięcie)
 
 # ---------- atom ----------
 
 aby rozebrać_atom przez parser od pozycji:
-    żeton to wybrałbyś pozycję z (żetony parsera)?
+    żeton to wybrałbyś pozycję z żetonów parsera?
     zwróć rozważ żeton przez parser od pozycji
 
 aby rozważyć żeton przez parser od pozycji:
@@ -571,8 +584,9 @@ aby rozważyć żeton przez parser od pozycji:
             zwróć Sukces o wartości (Stan o drzewie (Cytat o treści treść) o pozycji (pozycja plus jeden))
         Operatorem z symbolem:
             jeśli symbol równe "(":
-                wnętrze to rozebrałbyś_frazę przez parser od (pozycja plus jeden)?
-                przesunięcie to oczekiwałbyś ")" w (żetony parsera) na (pozycja wnętrza)?
+                następna_pozycja to pozycja plus jeden
+                wnętrze to rozebrałbyś_frazę przez parser od następnej_pozycji?
+                przesunięcie to oczekiwałbyś ")" w żetonach parsera na pozycji wnętrza?
                 zwróć Sukces o wartości (Stan o drzewie (drzewo wnętrza) o pozycji przesunięcie)
             zwróć Błąd o opisie (sklej "nieoczekiwany żeton w członie: " z symbolem)
         Słowem:
@@ -581,42 +595,43 @@ aby rozważyć żeton przez parser od pozycji:
 # ---------- dyspozytor słowa ----------
 
 aby rozpoznać słowo przez parser od pozycji:
+    następna_pozycja to pozycja plus jeden
     # 1. konstrukcja struktury — lemat jest znanym typem
-    jeśli należy (lemat słowa) do (typy otoczenia parsera):
-        zwróć rozbierz_konstrukcję przez parser od (pozycja plus jeden) o (lemat słowa)
+    jeśli należy lemat słowa do typów otoczenia parsera:
+        zwróć rozbierz_konstrukcję przez parser od następnej_pozycji o lemacie słowa
     # 2. łańcuch dopełniaczowy — pole, a za nim słowo w dopełniaczu
-    jeśli stwierdź_pole (lemat słowa) w (otoczenie parsera) i sprawdź_dopełniacz w (żetony parsera) na (pozycja plus jeden) wobec (otoczenie parsera):
-        zwróć rozbierz_łańcuch przez parser od (pozycja plus jeden) z (lemat słowa)
+    jeśli stwierdź_pole lemat słowa w otoczeniu parsera i sprawdź_dopełniacz w żetonach parsera na następnej_pozycji wobec otoczenia parsera:
+        zwróć rozbierz_łańcuch przez parser od następnej_pozycji z lematem słowa
     # 3. wbudowana aplikacja wartości funkcyjnej
     jeśli lemat słowa równe "zastosować":
-        stan to rozebrałbyś_aplikację przez parser od (pozycja plus jeden)?
+        stan to rozebrałbyś_aplikację przez parser od następnej_pozycji?
         zwróć obsłuż stan według słowa przez parser
     # 4. wywołanie zdefiniowanej funkcji
-    poszukiwanie to wyszukaj_sygnaturę dla (lemat słowa) wśród (sygnatury otoczenia parsera)
+    poszukiwanie to wyszukaj_sygnaturę dla lematu słowa wśród sygnatur otoczenia parsera
     gdy poszukiwanie jest:
         Sukcesem z wartością:
-            stan to rozebrałbyś_wywołanie przez parser od (pozycja plus jeden) według wartości?
+            stan to rozebrałbyś_wywołanie przez parser od następnej_pozycji według wartości?
             zwróć obsłuż stan według słowa przez parser
         Błędem:
             ignoruj poszukiwanie
     # 5. odwołanie do zmiennej — zmienna przesłania referencję gerundialną
-    jeśli odnajdź (lemat słowa) w (zakres parsera):
+    jeśli odnajdź lemat słowa w zakresie parsera:
         zwróć Sukces o wartości (Stan o drzewie (Odwołanie o lemacie (lemat słowa) o przypadkach (przypadki słowa)) o pozycji (pozycja plus jeden))
     # 6. referencja gerundialna do funkcji
     jeśli podstawa słowa nierówne "":
-        ślad to wyszukaj_sygnaturę dla (podstawa słowa) wśród (sygnatury otoczenia parsera)
+        ślad to wyszukaj_sygnaturę dla podstawy słowa wśród sygnatur otoczenia parsera
         gdy ślad jest:
             Sukcesem z wartością:
                 zwróć Sukces o wartości (Stan o drzewie (Odsyłacz o celu (nazwa wartości) o przypadkach (przypadki słowa)) o pozycji (pozycja plus jeden))
             Błędem:
                 ignoruj ślad
-    zwróć Błąd o opisie (sklej "niezadeklarowana zmienna: " z (napis słowa))
+    zwróć Błąd o opisie (sklej "niezadeklarowana zmienna: " z napisem słowa)
 
 # tryb przypuszczający otwiera wywołanie z obsługą błędu, "?" je domyka
 aby obsłużyć stan według słowa przez parser:
     jeśli tryb słowa nierówne "przypuszczający":
         zwróć Sukces o wartości stan
-    przesunięcie to oczekiwałbyś "?" w (żetony parsera) na (pozycja stanu)?
+    przesunięcie to oczekiwałbyś "?" w żetonach parsera na pozycji stanu?
     zwróć Sukces o wartości (Stan o drzewie (Próba o wywołaniu (drzewo stanu)) o pozycji przesunięcie)
 
 # ---------- wywołanie funkcji ----------
@@ -636,19 +651,19 @@ aby wydedukować_przypadki z wyrażenia:
 aby rozebrać_argument przez parser od pozycji:
     przyimek to ""
     wskaźnik to pozycja
-    zdobycz to wyłów_słowo z (żetony parsera) na pozycji
+    zdobycz to wyłów_słowo z żetonów parsera na pozycji
     gdy zdobycz jest:
         Błędem:
             ignoruj zdobycz
         Sukcesem z wartością:
-            jeśli należy (lemat wartości) do (przyimki otoczenia parsera):
+            jeśli należy lemat wartości do przyimków otoczenia parsera:
                 przyimek to lemat wartości
                 wskaźnik to pozycja plus jeden
     stan to rozebrałbyś_człon przez parser od wskaźnika?
-    zwróć Sukces o wartości (Zdobycz o argumencie (Argument o przyimku przyimek o przypadkach (wydedukuj_przypadki z (drzewo stanu)) o wartości (drzewo stanu)) o pozycji (pozycja stanu))
+    zwróć Sukces o wartości (Zdobycz o argumencie (Argument o przyimku przyimek o przypadkach (wydedukuj_przypadki z drzewa stanu) o wartości (drzewo stanu)) o pozycji (pozycja stanu))
 
 aby rozebrać_wywołanie przez parser od pozycji według sygnatury:
-    krotność to policz (parametry sygnatury)
+    krotność to policz parametry sygnatury
     zbiór to utwórz_pustą
     licznik to zero
     wskaźnik to pozycja
@@ -658,7 +673,8 @@ aby rozebrać_wywołanie przez parser od pozycji według sygnatury:
         wskaźnik to pozycja łupu
         licznik to licznik plus jeden
     argumenty to odwróć zbiór
-    szyk to dopasowałbyś argumenty do (parametry sygnatury)?
+    spis_parametrów to parametry sygnatury
+    szyk to dopasowałbyś argumenty do spisu_parametrów?
     zwróć Sukces o wartości (Stan o drzewie (Wywołanie o nazwie (nazwa sygnatury) o argumentach szyk) o pozycji wskaźnik)
 
 # ---------- aplikacja wartości funkcyjnej ----------
@@ -668,15 +684,16 @@ aby rozebrać_aplikację przez parser od pozycji:
     zbiór to utwórz_pustą
     wskaźnik to pozycja czoła
     dopóki prawda:
-        zdobycz to wyłów_słowo z (żetony parsera) na wskaźniku
+        zdobycz to wyłów_słowo z żetonów parsera na wskaźniku
         gdy zdobycz jest:
             Błędem:
                 dość
             Sukcesem z wartością:
                 jeśli lemat wartości nierówne "z":
                     dość
-                stan to rozebrałbyś_człon przez parser od (wskaźnik plus jeden)?
-                spis_przypadków to wydedukuj_przypadki z (drzewo stanu)
+                następny_wskaźnik to wskaźnik plus jeden
+                stan to rozebrałbyś_człon przez parser od następnego_wskaźnika?
+                spis_przypadków to wydedukuj_przypadki z drzewa stanu
                 jeśli policz spis_przypadków większe od zero i nie należy "narzędnik" do spisu_przypadków:
                     zwróć Błąd o opisie "argument zastosowania po z musi być w narzędniku"
                 zbiór to doczep (Argument o przyimku "z" o przypadkach spis_przypadków o wartości (drzewo stanu)) do zbioru
@@ -686,25 +703,26 @@ aby rozebrać_aplikację przez parser od pozycji:
 # ---------- łańcuch dopełniaczowy ----------
 
 aby rozebrać_łańcuch przez parser od pozycji z czołem:
-    zbiór to doczep czoło do utwórz_pustą
+    zalążek to utwórz_pustą
+    zbiór to doczep czoło do zalążka
     końcówka to czoło
     wskaźnik to pozycja
     dopóki prawda:
-        jeśli nie stwierdź_pole końcówkę w (otoczenie parsera):
+        jeśli nie stwierdź_pole końcówkę w otoczeniu parsera:
             dość
-        zdobycz to wyłów_słowo z (żetony parsera) na wskaźniku
+        zdobycz to wyłów_słowo z żetonów parsera na wskaźniku
         gdy zdobycz jest:
             Błędem:
                 dość
             Sukcesem z wartością:
-                jeśli należy (lemat wartości) do (przyimki otoczenia parsera):
+                jeśli należy lemat wartości do przyimków otoczenia parsera:
                     dość
-                jeśli nie należy "dopełniacz" do (przypadki wartości):
+                jeśli nie należy "dopełniacz" do przypadków wartości:
                     dość
                 zbiór to doczep (lemat wartości) do zbioru
                 końcówka to lemat wartości
                 wskaźnik to wskaźnik plus jeden
-    jeśli nie odnajdź końcówkę w (zakres parsera):
+    jeśli nie odnajdź końcówkę w zakresie parsera:
         zwróć Błąd o opisie (sklej "podstawa łańcucha nie jest zadeklarowaną zmienną: " z końcówką)
     zwróć Sukces o wartości (Stan o drzewie (Łańcuch o ogniwach (odwróć zbiór)) o pozycji wskaźnik)
 
@@ -714,7 +732,7 @@ aby rozebrać_łańcuch przez parser od pozycji z czołem:
 # "z polem" (narzędnik, czyta zmienną o nazwie pola); Nic = koniec kroków
 aby rozebrać_przypis przez parser od pozycji wobec typu przy obsadzie:
     przyimek to ""
-    zdobycz to wyłów_słowo z (żetony parsera) na pozycji
+    zdobycz to wyłów_słowo z żetonów parsera na pozycji
     gdy zdobycz jest:
         Błędem:
             ignoruj zdobycz
@@ -725,23 +743,27 @@ aby rozebrać_przypis przez parser od pozycji wobec typu przy obsadzie:
     wymóg to "miejscownik"
     jeśli przyimek równe "z":
         wymóg to "narzędnik"
-    traf to wyłów_słowo z (żetony parsera) na (pozycja plus jeden)
+    następna_pozycja to pozycja plus jeden
+    traf to wyłów_słowo z żetonów parsera na następnej_pozycji
     gdy traf jest:
         Błędem:
             zwróć Sukces o wartości Nic
         Sukcesem z wartością:
-            spis_pól to wydobądź (szukaj typu w (pola otoczenia parsera)) z utwórz_pustą
+            znalezisko to szukaj typu w polach otoczenia parsera
+            pusty_spis to utwórz_pustą
+            spis_pól to wydobądź znalezisko z pustym_spisem
             jeśli nie należy (lemat wartości) do spisu_pól:
                 zwróć Sukces o wartości Nic
             jeśli należy (lemat wartości) do obsady:
                 zwróć Sukces o wartości Nic
-            jeśli nie należy wymóg do (przypadki wartości):
+            jeśli nie należy wymóg do przypadków wartości:
                 zwróć Sukces o wartości Nic
             jeśli przyimek równe "o":
-                stan to rozebrałbyś_frazę przez parser od (pozycja plus dwa)?
+                dalsza_pozycja to pozycja plus dwa
+                stan to rozebrałbyś_frazę przez parser od dalszej_pozycji?
                 zwróć Sukces o wartości (Postęp o polu (lemat wartości) o wartości (drzewo stanu) o przesunięciu (pozycja stanu))
-            jeśli nie odnajdź (lemat wartości) w (zakres parsera):
-                zwróć Błąd o opisie (sklej "skrót z polem wymaga zadeklarowanej zmiennej: " z (napis wartości))
+            jeśli nie odnajdź (lemat wartości) w zakresie parsera:
+                zwróć Błąd o opisie (sklej "skrót z polem wymaga zadeklarowanej zmiennej: " z napisem wartości)
             zwróć Sukces o wartości (Postęp o polu (lemat wartości) o wartości (Odwołanie o lemacie (lemat wartości) o przypadkach (przypadki wartości)) o przesunięciu (pozycja plus dwa))
 
 aby rozebrać_konstrukcję przez parser od pozycji o typie:
@@ -777,10 +799,10 @@ aby opisać rezultat:
 # ---------- budowa świata na potrzeby pokazu ----------
 
 aby wytworzyć_parametr z przyimkiem o przypadku:
-    zwróć Parametr o przyimku przyimek o przypadkach (doczep przypadek do utwórz_pustą)
+    zwróć Parametr o przyimku przyimek o przypadkach (doczep przypadek do wyniku utworzenia_pustej)
 
 aby wytworzyć_rzeczownik z napisem o lemacie w przypadku:
-    zwróć Słowo o napisie napis o lemacie lemat o podstawie "" o przypadkach (doczep przypadek do utwórz_pustą) o trybie ""
+    zwróć Słowo o napisie napis o lemacie lemat o podstawie "" o przypadkach (doczep przypadek do wyniku utworzenia_pustej) o trybie ""
 
 aby wytworzyć_czasownik z napisem o lemacie w trybie:
     zwróć Słowo o napisie napis o lemacie lemat o podstawie "" o przypadkach utwórz_pustą o trybie tryb
@@ -792,77 +814,77 @@ aby wytworzyć_operator z symbolem o randze:
     zwróć Operator o symbolu symbol o randze ranga
 
 aby zbudować_otoczenie:
-    spis_typów to doczep "Użytkownik" do utwórz_pustą
-    pola_użytkownika to doczep "imię" do (doczep "wiek" do utwórz_pustą)
-    spis_pól to wstaw "Użytkownik" z polami_użytkownika do utwórz_pustą
-    parametry_dodawania to doczep (wytwórz_parametr z "" o "biernik") do (doczep (wytwórz_parametr z "do" o "dopełniacz") do utwórz_pustą)
-    parametry_wybierania to doczep (wytwórz_parametr z "" o "biernik") do (doczep (wytwórz_parametr z "z" o "dopełniacz") do utwórz_pustą)
-    spis_sygnatur to doczep (Sygnatura o nazwie "dodać" o parametrach parametry_dodawania) do (doczep (Sygnatura o nazwie "wybrać" o parametrach parametry_wybierania) do utwórz_pustą)
-    spis_przyimków to doczep "do" do (doczep "o" do (doczep "z" do (doczep "przez" do (doczep "od" do (doczep "w" do (doczep "na" do utwórz_pustą))))))
+    spis_typów to doczep "Użytkownik" do wyniku utworzenia_pustej
+    pola_użytkownika to doczep "imię" do (wynik doczepienia "wiek" do wyniku utworzenia_pustej)
+    spis_pól to wstaw "Użytkownik" z polami_użytkownika do wyniku utworzenia_pustej
+    parametry_dodawania to doczep (wynik wytworzenia_parametru z "" o "biernik") do (wynik doczepienia (wynik wytworzenia_parametru z "do" o "dopełniacz") do wyniku utworzenia_pustej)
+    parametry_wybierania to doczep (wynik wytworzenia_parametru z "" o "biernik") do (wynik doczepienia (wynik wytworzenia_parametru z "z" o "dopełniacz") do wyniku utworzenia_pustej)
+    spis_sygnatur to doczep (Sygnatura o nazwie "dodać" o parametrach parametry_dodawania) do (wynik doczepienia (Sygnatura o nazwie "wybrać" o parametrach parametry_wybierania) do wyniku utworzenia_pustej)
+    spis_przyimków to doczep "do" do (wynik doczepienia "o" do (wynik doczepienia "z" do (wynik doczepienia "przez" do (wynik doczepienia "od" do (wynik doczepienia "w" do (wynik doczepienia "na" do wyniku utworzenia_pustej))))))
     zwróć Otoczenie o sygnaturach spis_sygnatur o typach spis_typów o polach spis_pól o przyimkach spis_przyimków
 
 # ---------- pokaz ----------
 
 aby działać:
     otoczenie to zbuduj_otoczenie
-    zakres to Zakres o zmiennych (doczep "suma" do (doczep "użytkownik" do utwórz_pustą)) o rodzicu Nic
+    zakres to Zakres o zmiennych (doczep "suma" do (wynik doczepienia "użytkownik" do wyniku utworzenia_pustej)) o rodzicu Nic
 
     # ( suma plus dwa ) razy trzy   — żetony doczepiane od końca
     żetony to utwórz_pustą
     żetony to doczep (Liczebnik o wartości trzy) do żetonów
-    żetony to doczep (wytwórz_operator z "razy" o "iloczyn") do żetonów
-    żetony to doczep (wytwórz_operator z ")" o "nawias") do żetonów
+    żetony to doczep (wynik wytworzenia_operatora z "razy" o "iloczyn") do żetonów
+    żetony to doczep (wynik wytworzenia_operatora z ")" o "nawias") do żetonów
     żetony to doczep (Liczebnik o wartości dwa) do żetonów
-    żetony to doczep (wytwórz_operator z "plus" o "suma") do żetonów
-    żetony to doczep (wytwórz_rzeczownik z "suma" o "suma" w "mianownik") do żetonów
-    żetony to doczep (wytwórz_operator z "(" o "nawias") do żetonów
+    żetony to doczep (wynik wytworzenia_operatora z "plus" o "suma") do żetonów
+    żetony to doczep (wynik wytworzenia_rzeczownika z "suma" o "suma" w "mianownik") do żetonów
+    żetony to doczep (wynik wytworzenia_operatora z "(" o "nawias") do żetonów
     parser to Parser o żetonach żetony o otoczeniu otoczenie o zakresie zakres
     pierwszy_wynik to rozbierz_całość przez parser
-    wypisz (opisz pierwszy_wynik)
+    wypisz wynik opisania pierwszego_wyniku
 
     # dodaj dwa do wieku użytkownika   — wywołanie + łańcuch dopełniaczowy
     żetony to utwórz_pustą
-    żetony to doczep (wytwórz_rzeczownik z "użytkownika" o "użytkownik" w "dopełniacz") do żetonów
-    żetony to doczep (wytwórz_rzeczownik z "wieku" o "wiek" w "dopełniacz") do żetonów
-    żetony to doczep (wytwórz_przyimek z "do") do żetonów
+    żetony to doczep (wynik wytworzenia_rzeczownika z "użytkownika" o "użytkownik" w "dopełniacz") do żetonów
+    żetony to doczep (wynik wytworzenia_rzeczownika z "wieku" o "wiek" w "dopełniacz") do żetonów
+    żetony to doczep (wynik wytworzenia_przyimka z "do") do żetonów
     żetony to doczep (Liczebnik o wartości dwa) do żetonów
-    żetony to doczep (wytwórz_czasownik z "dodaj" o "dodać" w "") do żetonów
+    żetony to doczep (wynik wytworzenia_czasownika z "dodaj" o "dodać" w "") do żetonów
     parser to Parser o żetonach żetony o otoczeniu otoczenie o zakresie zakres
     drugi_wynik to rozbierz_całość przez parser
-    wypisz (opisz drugi_wynik)
+    wypisz wynik opisania drugiego_wyniku
 
     # zastosuj dodanie z sumą z dwa   — aplikacja + referencja gerundialna
     żetony to utwórz_pustą
     żetony to doczep (Liczebnik o wartości dwa) do żetonów
-    żetony to doczep (wytwórz_przyimek z "z") do żetonów
-    żetony to doczep (Słowo o napisie "sumą" o lemacie "suma" o podstawie "" o przypadkach (doczep "narzędnik" do utwórz_pustą) o trybie "") do żetonów
-    żetony to doczep (wytwórz_przyimek z "z") do żetonów
-    żetony to doczep (Słowo o napisie "dodaniem" o lemacie "dodanie" o podstawie "dodać" o przypadkach (doczep "narzędnik" do utwórz_pustą) o trybie "") do żetonów
-    żetony to doczep (wytwórz_czasownik z "zastosuj" o "zastosować" w "") do żetonów
+    żetony to doczep (wynik wytworzenia_przyimka z "z") do żetonów
+    żetony to doczep (Słowo o napisie "sumą" o lemacie "suma" o podstawie "" o przypadkach (doczep "narzędnik" do wyniku utworzenia_pustej) o trybie "") do żetonów
+    żetony to doczep (wynik wytworzenia_przyimka z "z") do żetonów
+    żetony to doczep (Słowo o napisie "dodaniem" o lemacie "dodanie" o podstawie "dodać" o przypadkach (doczep "narzędnik" do wyniku utworzenia_pustej) o trybie "") do żetonów
+    żetony to doczep (wynik wytworzenia_czasownika z "zastosuj" o "zastosować" w "") do żetonów
     parser to Parser o żetonach żetony o otoczeniu otoczenie o zakresie zakres
     trzeci_wynik to rozbierz_całość przez parser
-    wypisz (opisz trzeci_wynik)
+    wypisz wynik opisania trzeciego_wyniku
 
     # wybrałbyś dwa z sumy ?   — tryb przypuszczający z domykającym "?"
     żetony to utwórz_pustą
-    żetony to doczep (wytwórz_operator z "?" o "pytajnik") do żetonów
-    żetony to doczep (Słowo o napisie "sumy" o lemacie "suma" o podstawie "" o przypadkach (doczep "dopełniacz" do utwórz_pustą) o trybie "") do żetonów
-    żetony to doczep (wytwórz_przyimek z "z") do żetonów
+    żetony to doczep (wynik wytworzenia_operatora z "?" o "pytajnik") do żetonów
+    żetony to doczep (Słowo o napisie "sumy" o lemacie "suma" o podstawie "" o przypadkach (doczep "dopełniacz" do wyniku utworzenia_pustej) o trybie "") do żetonów
+    żetony to doczep (wynik wytworzenia_przyimka z "z") do żetonów
     żetony to doczep (Liczebnik o wartości dwa) do żetonów
-    żetony to doczep (wytwórz_czasownik z "wybrałbyś" o "wybrać" w "przypuszczający") do żetonów
+    żetony to doczep (wynik wytworzenia_czasownika z "wybrałbyś" o "wybrać" w "przypuszczający") do żetonów
     parser to Parser o żetonach żetony o otoczeniu otoczenie o zakresie zakres
     czwarty_wynik to rozbierz_całość przez parser
-    wypisz (opisz czwarty_wynik)
+    wypisz wynik opisania czwartego_wyniku
 
     # Użytkownik o imieniu "Ada" o wieku trzydzieści   — konstrukcja struktury
     żetony to utwórz_pustą
     żetony to doczep (Liczebnik o wartości trzydzieści) do żetonów
-    żetony to doczep (Słowo o napisie "wieku" o lemacie "wiek" o podstawie "" o przypadkach (doczep "dopełniacz" do (doczep "miejscownik" do utwórz_pustą)) o trybie "") do żetonów
-    żetony to doczep (wytwórz_przyimek z "o") do żetonów
+    żetony to doczep (Słowo o napisie "wieku" o lemacie "wiek" o podstawie "" o przypadkach (doczep "dopełniacz" do (wynik doczepienia "miejscownik" do wyniku utworzenia_pustej)) o trybie "") do żetonów
+    żetony to doczep (wynik wytworzenia_przyimka z "o") do żetonów
     żetony to doczep (Napis o treści "Ada") do żetonów
-    żetony to doczep (wytwórz_rzeczownik z "imieniu" o "imię" w "miejscownik") do żetonów
-    żetony to doczep (wytwórz_przyimek z "o") do żetonów
-    żetony to doczep (wytwórz_rzeczownik z "Użytkownik" o "Użytkownik" w "mianownik") do żetonów
+    żetony to doczep (wynik wytworzenia_rzeczownika z "imieniu" o "imię" w "miejscownik") do żetonów
+    żetony to doczep (wynik wytworzenia_przyimka z "o") do żetonów
+    żetony to doczep (wynik wytworzenia_rzeczownika z "Użytkownik" o "Użytkownik" w "mianownik") do żetonów
     parser to Parser o żetonach żetony o otoczeniu otoczenie o zakresie zakres
     piąty_wynik to rozbierz_całość przez parser
-    wypisz (opisz piąty_wynik)
+    wypisz wynik opisania piątego_wyniku
