@@ -2702,3 +2702,26 @@ def test_bare_literals_between_effective_twin_slots_stay_positional(parse):
     fc = parse(src).body[1].body[0].value.resolved
     assert fc.params[0].value == ast.IntLit(5)
     assert fc.params[1].value == ast.IntLit(6)
+
+
+# ---------- Archaizmy wyłączone (kwalifikatory daw./arch.) ----------
+
+def test_zmienna_przymiotnikowa_bez_archaizmów(parse):
+    """Historyczna pułapka pusty/pusta: SGJP zna dawny rzeczownik „pusta",
+    który przechwytywał deklarację (preferencja subst), a jego archaiczna
+    odmiana (dopełniacz „pusty", nie „pustej") gubiła odwołania w przypadkach
+    zależnych. Bez archaizmów deklaracja i formy zależne spotykają się na
+    lemacie przymiotnika `pusty` — zmienna działa."""
+    src = (
+        "aby dodać liczbę do zbioru:\n"
+        "    zwróć zbiór\n"
+        "aby działać:\n"
+        "    pusta to pięć\n"
+        "    efekt to dodaj trzy do pustej\n"
+    )
+    fc = parse(src).body[1].body[1].value.resolved
+    assert isinstance(fc, ast.FunctionCall)
+    arg = fc.params[1].value
+    assert isinstance(arg, ast.Identifier)
+    assert arg.surface == ("pustej",)
+    assert all(v.lemmas == ("pusty",) for v in arg.variants)

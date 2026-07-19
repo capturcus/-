@@ -150,6 +150,24 @@ def _normalize_frozensets(text):
 
 
 @pytest.mark.redis
+def test_redis_filtruje_archaizmy_przy_odczycie(redis_subset):
+    """Migracja trzyma SGJP w całości, a filtr daw./arch. działa przy
+    odczycie — domyślnie forma wyłącznie archaiczna ≡ nieznana, dawne
+    przyimki wypadają z rządów; `archaizmy=True` przywraca wszystko
+    bez ponownej migracji."""
+    red_db, red_preps = morph_anal.load_redis(redis_subset)
+    assert red_db.get("dżdżem") is None  # daw. narzędnik „deszczu"
+    assert "kwoli" not in red_preps
+    assert "miasto" not in red_preps  # dawny przyimek ≠ żywy rzeczownik
+    pełne_db, pełne_preps = morph_anal.load_redis(redis_subset,
+                                                  archaizmy=True)
+    anas = pełne_db.get("dżdżem")
+    assert anas and anas[0].lemma == "deszcz"
+    assert pełne_preps.get("kwoli") == {"dat", "gen"}
+    assert pełne_preps.get("miasto") == {"gen"}
+
+
+@pytest.mark.redis
 def test_redis_migration_is_idempotent(redis_subset):
     """Drugie uruchomienie migracji przy zgodnym odcisku źródła to no-op."""
     from sgjp_do_redisa import migrate

@@ -1,0 +1,15 @@
+# Archaizmy SGJP (kwalifikatory daw./arch.) są domyślnie wyłączone.
+# Bez tego filtra „pusta" czytałaby się jako dawny rzeczownik (lemat
+# `pusta`), którego archaiczna odmiana (dopełniacz „pusty"!) nie zawiera
+# formy „pustej" — deklaracja i odwołania w przypadkach zależnych
+# rozjeżdżałyby się na dwa lematy. Z filtrem wszystkie formy spotykają
+# się na żywym przymiotniku `pusty`. (Stare zachowanie: gćć.py --archaizmy.)
+
+uwzględnij przygrywka.ć
+
+aby działać:
+    pusta to "cisza"
+    wypisz pustą
+    zdanie to sklej pustą z " nocna"
+    wypisz zdanie
+    wypisz wynik sklejenia pustej z "!"

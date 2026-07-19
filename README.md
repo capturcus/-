@@ -86,6 +86,12 @@ python3 gćć-python/gćć.py test/dna.ć --redis
 Migracja jest idempotentna — wykrywa nową wersję `sgjp.tab` i wtedy
 przeprowadza się ponownie, w przeciwnym razie nic nie robi.
 
+Hasła archaiczne SGJP (kwalifikatory `daw.`/`arch.`) są **domyślnie
+wyłączone** — mało kto je kojarzy, a generują zaskakujące kolizje odmian
+z żywą polszczyzną (dawny rzeczownik „pusta" przechwytywał deklaracje
+zmiennych, „miasto" bywało przyimkiem). Przełącznik `--archaizmy`
+przywraca pełny słownik (działa w obu trybach, bez ponownej migracji).
+
 Testy end-to-end języka — pozytywne (`*.ć` + `*.wynik`: stdout 1:1)
 i negatywne (`*.ć` + `*.błąd`: program ma odpaść, stderr zawiera
 wskazane fragmenty); szczegóły w `uruchom_testy.py -h`:

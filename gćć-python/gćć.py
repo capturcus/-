@@ -39,6 +39,10 @@ def main():
     argp.add_argument("--redis-url", default="redis://localhost:6379/0",
                       help="adres Redisa (domyślnie "
                            "redis://localhost:6379/0)")
+    argp.add_argument("--archaizmy", action="store_true",
+                      help="uwzględniaj archaiczne hasła SGJP (kwalifikatory "
+                           "daw./arch.) — domyślnie pominięte, bo kolidują "
+                           "z żywą polszczyzną")
     args = argp.parse_args(argv)
 
     # Pass 0: scalenie plików (dyrektywa `uwzględnij`) — na czystym
@@ -59,9 +63,10 @@ def main():
 
     try:
         if args.redis:
-            db, preps = morph_anal.load_redis(args.redis_url)
+            db, preps = morph_anal.load_redis(args.redis_url,
+                                              archaizmy=args.archaizmy)
         else:
-            db, preps = morph_anal.load(args.sgjp)
+            db, preps = morph_anal.load(args.sgjp, archaizmy=args.archaizmy)
     except InterpreterError as e:
         _print_error(filename, text, e, scalony)
         sys.exit(1)

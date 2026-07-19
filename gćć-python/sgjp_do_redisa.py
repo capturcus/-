@@ -71,7 +71,10 @@ def migrate(sgjp_path, url, force=False, quiet=False):
         say(f"OSTRZEŻENIE: maxmemory-policy={policy!r} — Redis może po cichu "
             f"usuwać klucze SGJP; zalecane 'noeviction'.")
 
-    db, preps = morph_anal.load(sgjp_path)
+    # Migracja zapisuje SGJP W CAŁOŚCI (z archaizmami) — filtr daw./arch.
+    # działa przy odczycie w RedisDb/load_redis, więc `--archaizmy` nie
+    # wymaga osobnej bazy ani ponownej migracji.
+    db, preps = morph_anal.load(sgjp_path, archaizmy=True)
 
     t0 = time.time()
     say("Czyszczę stare klucze sgjp:* ...")

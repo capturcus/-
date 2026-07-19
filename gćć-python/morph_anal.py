@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 import time
 from typing import NamedTuple
@@ -43,6 +44,21 @@ class MorphAnalysis(NamedTuple):
 
 
 _SENTINEL = object()
+
+# ---------- archaizmy (kwalifikatory daw./arch.) ----------
+#
+# Hasła archaiczne SGJP („pusta" jako dawny rzeczownik, „miasto" jako dawny
+# przyimek!) kolidują z żywą polszczyzną i generują zaskakujące remisy —
+# domyślnie są POMIJANE, `gćć.py --archaizmy` przywraca je na żądanie.
+# Kwalifikatory bywają złożone („daw.,rzad.", „daw.|pot.", „daw._dziś_gwar.",
+# „arch._(tylko_po_»ku«)") — archaizmem jest człon zaczynający się od „daw."
+# albo „arch."; kropka w prefiksie odróżnia go od kwalifikatorów
+# dziedzinowych („archit.").
+_ARCHAIZM = re.compile(r"(?:^|[,|])(?:daw|arch)\.")
+
+
+def _archaiczne(qualifiers):
+    return bool(_ARCHAIZM.search(qualifiers))
 
 # ---------- własne hasła języka Ć ----------
 #
@@ -112,7 +128,7 @@ def _morpho_for_tag(tag_parts):
     return case, number, gender
 
 
-def load(path):
+def load(path, archaizmy=False):
     print(f"Loading {path}...", file=sys.stderr)
     t0 = time.time()
     db = {}
@@ -131,6 +147,10 @@ def load(path):
                 continue
             form, lemma_field, tag = parts[0], parts[1], parts[2]
             qualifiers = parts[4] if len(parts) > 4 else ""
+            # Archaizmy pomijane w całości (analizy, przyimki i formy
+            # cytowane) — chyba że jawnie włączone (--archaizmy).
+            if qualifiers and not archaizmy and _archaiczne(qualifiers):
+                continue
             lemma = lemma_field.partition(":")[0]
             # partition jest szybsze od full split gdy chcemy tylko pos
             pos = tag.partition(":")[0]
@@ -291,10 +311,15 @@ def source_fingerprint(path):
 class RedisDb:
     """Drop-in dla pamięciowego `db` w `analyze()` — jedyny używany
     interfejs to `get(forma, default)`. Memo-cache per proces: każda forma
-    pytana w Redisie najwyżej raz."""
+    pytana w Redisie najwyżej raz.
 
-    def __init__(self, client):
+    Migracja zapisuje SGJP W CAŁOŚCI (z archaizmami — `load(archaizmy=True)`),
+    a filtr daw./arch. działa tu przy ODCZYCIE; dzięki temu `--archaizmy`
+    nie wymaga osobnej migracji, a semantyka domyślna = `load()`."""
+
+    def __init__(self, client, archaizmy=False):
         self.client = client
+        self.archaizmy = archaizmy
         self.cache = {}
 
     def get(self, form, default=None):
@@ -305,11 +330,35 @@ class RedisDb:
             result = default
         else:
             result = [analysis_from_jsonable(a) for a in json.loads(raw)]
+            if not self.archaizmy:
+                result = [a for a in result
+                          if not (a.qualifier and _archaiczne(a.qualifier))]
+                if not result:
+                    result = default  # forma wyłącznie archaiczna ≡ nieznana
         self.cache[form] = result
         return result
 
 
-def load_redis(url):
+def _żywe_przyimki(preps, db):
+    """Przyimki bez haseł archaicznych — odpowiednik pominięcia linii
+    daw./arch. w `load()` (zmigrowany `sgjp:preps` zawiera wszystko).
+    Rząd przyimka zawężany do przypadków żywych odczytów prep formy-lematu;
+    formy oboczne („przeze", „we") dzielą rząd z formą bazową, więc lookup
+    po lemacie wystarcza. Przyimek bez żywego odczytu („miasto", „kwoli")
+    wypada w całości."""
+    out = {}
+    for lemma, cases in preps.items():
+        żywe = set()
+        for ana in db.get(lemma) or []:
+            if ana.pos == "prep" and ana.case:
+                żywe |= ana.case
+        keep = cases & żywe
+        if keep:
+            out[lemma] = keep
+    return out
+
+
+def load_redis(url, archaizmy=False):
     """Łączy z Redisem i zwraca (RedisDb, preps) — odpowiednik `load()`,
     ale bez ładowania czegokolwiek do pamięci (poza przyimkami).
     Czytelne błędy: brak modułu redis, brak połączenia, brak/nieaktualna
@@ -341,8 +390,10 @@ def load_redis(url):
     preps_raw = client.get(f"{REDIS_PREFIX}preps")
     preps = {lemma: set(cases)
              for lemma, cases in json.loads(preps_raw).items()}
-    db = RedisDb(client)
+    db = RedisDb(client, archaizmy=archaizmy)
     # Własne hasła siedzą w memo-cache — mają pierwszeństwo przed Redisem
     # (get sprawdza cache przed siecią), więc semantyka = `load()`.
     db.cache.update(_własne_analizy())
+    if not archaizmy:
+        preps = _żywe_przyimki(preps, db)
     return db, preps
