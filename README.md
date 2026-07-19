@@ -421,7 +421,21 @@ otwórz_okno o szerokości sześciuset o wysokości czterystu pięćdziesięciu 
 Nazwa jest opcjonalna — `otwórz_okno o sześciuset o czterystu
 pięćdziesięciu z "Wąż"` dalej działa (pozycyjnie), a słowo po przyimku
 czyta się jako nazwę tylko, gdy zgadza się z deklaracją (przyimek
-+ odmiana) i stoi po nim żywa wartość. Gdy fraza czyta się i jako
++ odmiana) i stoi po nim żywa wartość: literał, nawias, zmienna
+w mianowniku (apozycyjnie, jak „o imieniu Jan") albo wywołanie słowem
+`wynik` — zarezerwowanym, więc jednoznacznym:
+
+```
+ulep "rdzeń" z dodatkami wynikiem wytworzenia ozdoby
+```
+
+Wartość-wynik podlega regule scope-first: gdy słowo po przyimku czyta
+się jako zadeklarowana zmienna, zostaje wartością pozycyjną, a wynik
+należy do wywołania zewnętrznego — `zawieź do domu wynik wzięcia_psa
+ze schroniska wynikiem wzięcia_samochodu` czyta `ze schroniska` jako
+zmienną, dokładnie jak zmienna przesłania referencję gerundialną.
+
+Gdy fraza czyta się i jako
 argument nazwany, i jako dzisiejsza wartość pozycyjna — kolizja odmian
 (dopełniacz lp = mianownik lm): `o szerokości ramki` przy zmiennych
 `ramka` **i** `ramki` — Ć odmawia głośno, wypisując oba odczyty

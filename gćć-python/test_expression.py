@@ -2725,3 +2725,99 @@ def test_zmienna_przymiotnikowa_bez_archaizmów(parse):
     assert isinstance(arg, ast.Identifier)
     assert arg.surface == ("pustej",)
     assert all(v.lemmas == ("pusty",) for v in arg.variants)
+
+
+# ---------- Wartość-wynik w argumencie nazwanym ----------
+
+_ULEPIĆ = (
+    "aby ulepić coś z dodatkami:\n"
+    "    zwróć dodatki\n"
+    "aby wytworzyć element:\n"
+    "    zwróć element\n"
+)
+
+
+def test_named_arg_accepts_wynik_value(parse):
+    """Słowo `wynik` jest zarezerwowane (nigdy zmienna), więc jednoznacznie
+    otwiera wywołanie przez gerundium jako wartość w apozycji argumentu
+    nazwanego — bez nawiasów i bez zmiennej pośredniej."""
+    src = _ULEPIĆ + (
+        "aby działać:\n"
+        '    plon to ulep "rdzeń" z dodatkami wynikiem wytworzenia "ozdoby"\n'
+    )
+    fc = parse(src).body[2].body[0].value.resolved
+    assert isinstance(fc, ast.FunctionCall)
+    assert fc.params[0].value == ast.StrLit("rdzeń")
+    inner = fc.params[1].value  # slot `z dodatkami` związany po nazwie
+    assert isinstance(inner, ast.FunctionCall)
+    assert ("wytworzyć",) in inner.name.lemmas_set
+    assert inner.case is not None and "inst" in inner.case
+
+
+def test_named_arg_wynik_value_under_nominalization(parse):
+    """To samo działa w wywołaniu przez `wynik` (argumenty nazwane i wartości
+    wynikowe przechodzą przez wspólny mechanizm)."""
+    src = _ULEPIĆ + (
+        "aby działać:\n"
+        '    plon to wynik ulepienia "rdzeń" z dodatkami wynikiem wytworzenia "ozdoby"\n'
+    )
+    fc = parse(src).body[2].body[0].value.resolved
+    assert isinstance(fc, ast.FunctionCall)
+    assert isinstance(fc.params[1].value, ast.FunctionCall)
+
+
+def test_named_arg_wynik_value_scope_first_keeps_positional(parse):
+    """SCOPE-FIRST: nazwa czytająca się jako zadeklarowana zmienna zachowuje
+    odczyt pozycyjny — `ze schroniska wynikiem wytworzenia …` to zmienna
+    `schronisko` dla wywołania wewnętrznego i wartość-wynik dla
+    ZEWNĘTRZNEGO (flagowy idiom wożenia psa), nie argument nazwany."""
+    src = (
+        "aby zawieźć pakunek transportem:\n"
+        "    zwróć pakunek\n"
+        "aby wziąć_psa ze schroniska:\n"
+        "    zwróć schronisko\n"
+        "aby wytworzyć element:\n"
+        "    zwróć element\n"
+        "aby działać schroniskiem:\n"
+        '    plon to zawieź wynik wzięcia_psa ze schroniska wynikiem wytworzenia "wóz"\n'
+    )
+    fc = parse(src).body[3].body[0].value.resolved
+    assert isinstance(fc, ast.FunctionCall)
+    inner = fc.params[0].value  # slot `pakunek`
+    assert isinstance(inner, ast.FunctionCall)
+    assert ("wziąć", "pies") in inner.name.lemmas_set
+    assert isinstance(inner.params[0].value, ast.Identifier)  # zmienna!
+    transport = fc.params[1].value  # slot `transportem` — wynik zewnętrzny
+    assert isinstance(transport, ast.FunctionCall)
+    assert ("wytworzyć",) in transport.name.lemmas_set
+
+
+def test_named_arg_wynik_value_skips_chain_reading(parse):
+    """Nazwa parametru będąca lematem pola nie wywołuje remisu łańcuchowego
+    przy wartości-wyniku — łańcuch przez zarezerwowane `wynik` (podstawa
+    łańcucha musiałaby być zmienną) nie istnieje."""
+    src = (
+        "definicja Obrazka:\n"
+        "    pole (Liczba)\n"
+        "aby malować o polu:\n"
+        "    zwróć pole\n"
+        "aby wytworzyć element:\n"
+        "    zwróć element\n"
+        "aby działać:\n"
+        "    plon to maluj o polu wyniku wytworzenia pięciu\n"
+    )
+    fc = parse(src).body[3].body[0].value.resolved
+    assert isinstance(fc, ast.FunctionCall)
+    assert isinstance(fc.params[0].value, ast.FunctionCall)
+
+
+def test_named_arg_wynik_value_requires_gerund(parse):
+    """Urwana wartość-wynik dostaje celowany komunikat słowa `wynik`,
+    nie mylący błąd o niezadeklarowanej nazwie parametru."""
+    src = _ULEPIĆ + (
+        "aby działać:\n"
+        '    plon to ulep "rdzeń" z dodatkami wynikiem\n'
+    )
+    with pytest.raises(ast.ResolveError,
+                       match="oczekiwano rzeczownika odczasownikowego"):
+        parse(src)

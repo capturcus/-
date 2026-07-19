@@ -1,0 +1,17 @@
+# Wartość-wynik w argumencie nazwanym: słowo `wynik` jest zarezerwowane
+# (nigdy nie jest zmienną), więc po parze `przyimek nazwa` z deklaracji
+# może stać całe wywołanie przez gerundium — bez nawiasów i bez zmiennej
+# pośredniej. Kolizję ze zmienną o nazwie parametru dalej łapie remis.
+
+uwzględnij przygrywka.ć
+
+aby ulepić coś z dodatkami:
+    wypisz coś
+    zwróć dodatki
+
+aby wytworzyć element:
+    zwróć Ogniwo o głowie element o ogonie Nic
+
+aby działać:
+    plon to ulep "rdzeń" z dodatkami wynikiem wytworzenia "ozdoby"
+    wypisz plon

@@ -1195,12 +1195,26 @@ class ExpressionParser:
         # Literały/nawiasy są bezprzypadkowe; WORD musi mieć wariant
         # MIANOWNIKOWY wskazujący zadeklarowaną zmienną — inaczej to
         # dzisiejsza wartość pozycyjna (łańcuch dopełniaczowy itp.).
-        if v[0] is lexer.Token.WORD and not self._nom_var_in_scope(v):
+        # Wyjątek: słowo języka `wynik` — zarezerwowane (nigdy zmienna),
+        # więc jednoznacznie otwiera wywołanie przez gerundium jako
+        # wartość w apozycji (`z dodatkami wynikiem wytworzenia ozdoby`).
+        # SCOPE-FIRST: nazwa czytająca się jako zadeklarowana zmienna
+        # zachowuje odczyt pozycyjny (`ze schroniska wynikiem
+        # wzięcia_samochodu` — wynik należy do ZEWNĘTRZNEGO wywołania,
+        # jak zmienna przesłania referencję gerundialną); odczyt nazwany
+        # wchodzi tylko, gdy zmiennej nie ma.
+        wynikowa = self._wynikowa_wartość(v)
+        if wynikowa:
+            if self._ident_in_scope(w_ident):
+                return None
+        elif v[0] is lexer.Token.WORD and not self._nom_var_in_scope(v):
             return None
-        # Konkurencyjne dzisiejsze odczyty → głośny remis.
-        chain_reading = _starts_chain(
+        # Konkurencyjne dzisiejsze odczyty → głośny remis. Dla wartości-
+        # wyniku żaden nie istnieje: łańcuch przez zarezerwowane `wynik`
+        # jest niemożliwy, a odczyt zmiennej rozstrzygnął scope-first.
+        chain_reading = not wynikowa and _starts_chain(
             w_ident, v, self.ctx.field_lemmas, self.preps)
-        var_reading = self._ident_in_scope(w_ident)
+        var_reading = not wynikowa and self._ident_in_scope(w_ident)
         if chain_reading or var_reading:
             self._raise_named_remis(
                 prep, w, v, sig[slot_i], name, chain_reading, var_reading)
@@ -1220,6 +1234,17 @@ class ExpressionParser:
             and self.scope.has_var((v.lemmas, v.number, v.gender))
             for v in ident.variants
         )
+
+    def _wynikowa_wartość(self, tok):
+        """Czy token to forma słowa języka `wynik` — początek wywołania
+        przez gerundium stojącego jako wartość argumentu nazwanego."""
+        if tok is None or tok[0] is not lexer.Token.WORD:
+            return False
+        try:
+            ident = make_identifier(tok)
+        except InterpreterError:
+            return False
+        return _is_wynik_word(ident)
 
     @staticmethod
     def _named_slot(w_ident, prep, sig):
