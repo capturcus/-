@@ -10,24 +10,24 @@ uwzględnij przygrywka.ć
 
 # Transkrypcja: w RNA tyminę (T) zastępuje uracyl (U); reszta bez zmian.
 aby przepisać zasadę (Znak) -> Znak:
-    jeśli zasada równa (wyłuskać "T"):
-        zwróć wyłuskać "U"
+    jeśli zasada równa 'T':
+        zwróć 'U'
     inaczej:
         zwróć zasada
 
 # Zasada komplementarna w parowaniu Watsona-Cricka: A-T, C-G.
 aby sparować zasadę (Znak) -> Znak:
-    jeśli zasada równa (wyłuskać "A"):
-        zwróć wyłuskać "T"
+    jeśli zasada równa 'A':
+        zwróć 'T'
     inaczej:
-        jeśli zasada równa (wyłuskać "T"):
-            zwróć wyłuskać "A"
+        jeśli zasada równa 'T':
+            zwróć 'A'
         inaczej:
-            jeśli zasada równa (wyłuskać "C"):
-                zwróć wyłuskać "G"
+            jeśli zasada równa 'C':
+                zwróć 'G'
             inaczej:
-                jeśli zasada równa (wyłuskać "G"):
-                    zwróć wyłuskać "C"
+                jeśli zasada równa 'G':
+                    zwróć 'C'
                 inaczej:
                     zwróć zasada
 
@@ -36,14 +36,14 @@ aby sparować zasadę (Znak) -> Znak:
 aby transkrybować nić (Tekst) -> Tekst:
     gdy nić jest:
         Ogniwem z głową z ogonem:
-            zwróć Ogniwo o głowie (przepisz głowę) o ogonie (transkrybuj ogon)
+            zwróć Ogniwo o głowie przepisz głowę o ogonie transkrybuj ogon
         Niczym:
             zwróć Nic
 
 aby dopełnić nić (Tekst) -> Tekst:
     gdy nić jest:
         Ogniwem z głową z ogonem:
-            zwróć Ogniwo o głowie (sparuj głowę) o ogonie (dopełnij ogon)
+            zwróć Ogniwo o głowie sparuj głowę o ogonie dopełnij ogon
         Niczym:
             zwróć Nic
 
@@ -69,9 +69,9 @@ aby działać:
     wypisz wynik transkrybowania nici
     wypisz wynik dopełnienia nici
     wypisz wynik odwrócenia_dopełnienia nici
-    adenina to wyłuskaj "A"
+    adenina to 'A'
     wypisz wynik zliczenia adeniny w nici
-    guanina to wyłuskaj "G"
+    guanina to 'G'
     wypisz wynik zliczenia guaniny w nici
-    sąd to (transkrybuj nić) równe "GAUUACA"
+    sąd to transkrybuj nić równe "GAUUACA"
     wypisz sąd

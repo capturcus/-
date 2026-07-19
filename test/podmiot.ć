@@ -10,11 +10,11 @@ Kwiatki to Róża albo Tulipan
 
 aby działać:
     kwiatek to Tulipan o płatku "czerwony"
-    wypisz (płatek kwiatka)
+    wypisz płatek kwiatka
     gdy kwiatek jest:
         Tulipanem z płatkiem:
             wypisz płatek
         inaczej:
             wypisz "inny"
     płatek kwiatka to "biały"
-    wypisz (płatek kwiatka)
+    wypisz płatek kwiatka

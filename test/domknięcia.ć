@@ -14,16 +14,16 @@ aby wywołać przepis z liczbą (Liczba) -> Liczba:
     zwróć zastosuj przepis z liczbą
 
 aby działać:
-    podwojenie to zwiąż pomnożenie z dwa
-    wypisz wynik zastosowania podwojenia z dwadzieścia jeden
-    stała to zwiąż dodanie z dwadzieścia z dwadzieścia dwa
+    podwojenie to zwiąż pomnożenie z dwoma
+    wypisz wynik zastosowania podwojenia z dwudziestoma jeden
+    stała to zwiąż dodanie z dwudziestoma z dwudziestoma dwoma
     wypisz wynik zastosowania stałej
-    dodanie_dwóch to zwiąż dodanie z dwa
-    odroczenie to zwiąż dodanie_dwóch z trzy
+    dodanie_dwóch to zwiąż dodanie z dwoma
+    odroczenie to zwiąż dodanie_dwóch z trzema
     wypisz wynik zastosowania odroczenia
-    połowienie to zwiąż podzielenie z sto
-    wypisz wynik zastosowania połowienia z pięć
-    dodanie_dziesięciu to zwiąż dodanie z dziesięć
-    wypisz wynik wywołania dodania_dziesięciu z pięć
+    połowienie to zwiąż podzielenie ze stoma
+    wypisz wynik zastosowania połowienia z pięcioma
+    dodanie_dziesięciu to zwiąż dodanie z dziesięcioma
+    wypisz wynik wywołania dodania_dziesięciu z pięcioma
     wypisz podwojenie
     wypisz dodanie

@@ -15,9 +15,9 @@ aby zapakować kota do pudełka:
 aby działać:
     kot to Kot o imieniu "Filemon"
     pudełko to Pudełko o zawartości Nic
-    wypisz (imię kota)
+    wypisz imię kota
     zapakuj kota do pudełka
-    wypisz (imię kota)
+    wypisz imię kota
     gdy zawartość pudełka jest:
         Kotem z imieniem:
             wypisz imię

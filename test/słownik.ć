@@ -26,7 +26,7 @@ aby zmierzyć_wzrost słownika (Słownik) -> Liczba:
 aby wyznaczyć_przewagę słownika (Słownik) -> Liczba:
     gdy słownik jest:
         Konarem z lewicą z prawicą:
-            zwróć (zmierz_wzrost lewicy) minus (zmierz_wzrost prawicy)
+            zwróć zmierz_wzrost lewicy minus zmierz_wzrost prawicy
         Niczym:
             zwróć zero
 
@@ -38,7 +38,7 @@ aby wybrać_większe z pierwszej (Liczba) z drugiej (Liczba) -> Liczba:
 aby zbudować_konar z klucza (Tekst) z zapasu z lewicy (Słownik) z prawicy (Słownik) -> Słownik:
     wzrost_lewicy to zmierz_wzrost lewicy
     wzrost_prawicy to zmierz_wzrost prawicy
-    zwróć Konar o kluczu klucz o zapasie zapas o lewicy lewica o prawicy prawica o wzroście (jeden plus (wybierz_większe z wzrostu_lewicy z wzrostu_prawicy))
+    zwróć Konar o kluczu klucz o zapasie zapas o lewicy lewica o prawicy prawica o wzroście jeden plus wybierz_większe z wzrostu_lewicy z wzrostu_prawicy
 
 aby obrócić_w_prawo słownik (Słownik) -> Słownik:
     gdy słownik jest:
@@ -69,7 +69,7 @@ aby wyrównać słownik (Słownik) -> Słownik:
     jeśli przewaga większe od jeden:
         gdy słownik jest:
             Konarem jako korzeń:
-                jeśli (wyznacz_przewagę lewicy korzenia) mniejsze od zero:
+                jeśli wyznacz_przewagę lewicy korzenia mniejsze od zero:
                     obrócona_lewica to obróć_w_lewo lewicę korzenia
                     zwróć obróć_w_prawo wynik zbudowania_konaru z klucza korzenia z zapasu korzenia z obróconej_lewicy z prawicy korzenia
                 zwróć obróć_w_prawo słownik
@@ -78,7 +78,7 @@ aby wyrównać słownik (Słownik) -> Słownik:
     jeśli przewaga mniejsze od (minus jeden):
         gdy słownik jest:
             Konarem jako korzeń:
-                jeśli (wyznacz_przewagę prawicy korzenia) większe od zero:
+                jeśli wyznacz_przewagę prawicy korzenia większe od zero:
                     obrócona_prawica to obróć_w_prawo prawicę korzenia
                     zwróć obróć_w_lewo wynik zbudowania_konaru z klucza korzenia z zapasu korzenia z lewicy korzenia z obróconej_prawicy
                 zwróć obróć_w_lewo słownik
@@ -110,15 +110,15 @@ aby znaleźć klucz (Tekst) w słowniku (Słownik):
         Konarem jako korzeń:
             porządek to porównaj klucz z kluczem korzenia
             jeśli porządek równe zero:
-                zwróć Sukces o wartości (zapas korzenia)
+                zwróć Sukces o wartości zapas korzenia
             jeśli porządek mniejsze od zero:
-                zwróć znajdź (klucz) w lewicy korzenia
-            zwróć znajdź (klucz) w prawicy korzenia
+                zwróć znajdź klucz w lewicy korzenia
+            zwróć znajdź klucz w prawicy korzenia
 
 # Liczba wpisów.
 aby zliczyć_wpisy słownika (Słownik) -> Liczba:
     gdy słownik jest:
         Konarem z lewicą z prawicą:
-            zwróć jeden plus (zliczyć_wpisy lewicy) plus (zliczyć_wpisy prawicy)
+            zwróć jeden plus zliczyć_wpisy lewicy plus zliczyć_wpisy prawicy
         Niczym:
             zwróć zero

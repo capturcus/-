@@ -8,12 +8,12 @@ uwzględnij przygrywka.ć
 
 # Cyfra ('0'–'9') jako jej wartość liczbowa: różnica punktów kodowych.
 aby odczytać_cyfrę znak:
-    zwróć (zapisz_liczbą znak) minus (zapisz_liczbą '0')
+    zwróć zapisz_liczbą znak minus zapisz_liczbą '0'
 
 # Przesunięcie znaku o zadaną liczbę pozycji w tablicy kodów (bez
 # zawijania) — pokaz arytmetyki na punktach kodowych.
 aby przesunąć znak o krok:
-    kod to (zapisz_liczbą znak) plus krok
+    kod to zapisz_liczbą znak plus krok
     zwróć zapisz_znakiem kod
 
 aby działać:
@@ -23,7 +23,7 @@ aby działać:
     wypisz wynik zapisania_znakiem wyniku zapisania_liczbą 'ż'
     # cyfry jako liczby — i arytmetyka na nich
     wypisz wynik odczytania_cyfry '7'
-    iloczyn to (odczytaj_cyfrę '4') razy (odczytaj_cyfrę '9')
+    iloczyn to odczytaj_cyfrę '4' razy odczytaj_cyfrę '9'
     wypisz iloczyn
     # arytmetyka na kodach: 'a' + 2 = 'c', 'A' + 25 = 'Z'
     wypisz wynik przesunięcia 'a' o dwa

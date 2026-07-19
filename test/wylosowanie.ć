@@ -3,5 +3,5 @@ uwzględnij przygrywka.ć
 aby działać:
     wypisz wynik wylosowania_liczby od pięciu do pięciu
     los to wylosuj_liczbę od jednego do sześciu
-    sąd to (los większy równy jednemu) i (los mniejszy równy sześciu)
+    sąd to los większy równy jednemu i los mniejszy równy sześciu
     wypisz sąd

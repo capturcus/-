@@ -17,7 +17,7 @@ aby przywitać zwierzę:
     gdy zwierzę jest:
         Kotem:
             imię zwierzęcia to "Mruczek"
-            wypisz (imię zwierzęcia)
+            wypisz imię zwierzęcia
         Psem z kością:
             wypisz kość
 
@@ -26,7 +26,7 @@ aby rozpakować przesyłkę:
         Paczką z wnętrzem:
             gdy wnętrze jest:
                 Kotem:
-                    wypisz (imię wnętrza)
+                    wypisz imię wnętrza
                 inaczej:
                     wypisz "to nie kot"
         Niczym:
@@ -36,7 +36,7 @@ aby działać:
     kot to Kot o imieniu "Filemon"
     rozpakuj Paczkę o wnętrzu kota
     przywitaj kota
-    wypisz (imię kota)
+    wypisz imię kota
     pies to Pies o kości "szynka"
     przywitaj psa
     rozpakuj Paczkę o wnętrzu psa

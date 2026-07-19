@@ -82,7 +82,7 @@ aby wypisać_nagłówki lista (Lista) -> Nic:
 aby działać:
     surowe to "GET /index.html HTTP/1.1\nHost: example.com\nAccept: text/html\n\n"
     żądanie to rozłóż surowe
-    wypisz (metoda żądania)
-    wypisz (ścieżka żądania)
-    wypisz (wersja żądania)
-    wypisz_nagłówki (nagłówki żądania)
+    wypisz metoda żądania
+    wypisz ścieżka żądania
+    wypisz wersja żądania
+    wypisz_nagłówki nagłówki żądania

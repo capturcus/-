@@ -4,7 +4,7 @@ aby dodać liczbę do innej_liczby:
     zwróć liczba plus inna_liczba
 
 aby działać:
-    dodanie_dwóch to zwiąż dodanie z dwa
-    efekt to zastosuj dodanie_dwóch z trzy
+    dodanie_dwóch to zwiąż dodanie z dwoma
+    efekt to zastosuj dodanie_dwóch z trzema
     wypisz efekt
     # 5

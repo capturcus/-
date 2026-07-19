@@ -19,7 +19,7 @@ aby wysiać do limitu (Liczba):
         lista to Ogniwo o głowie limit minus licznik o ogonie lista
     lista to odwróć listę
     dzielnik to dwa
-    dopóki dzielnik mniejszy równy (podziel limit przez dwa):
+    dopóki dzielnik mniejszy równy wynikowi podzielenia limitu przez dwa:
         lista to usuń_podzielne przez dzielnik z listy
         dzielnik to dzielnik plus jeden
     przekształcaj listę z wypisaniem

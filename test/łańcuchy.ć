@@ -20,22 +20,22 @@ aby przemalować tulipan:
 
 aby działać:
     tulipan to Tulipan o płatku "czerwony"
-    wypisz (płatek tulipana)
+    wypisz płatek tulipana
     płatek tulipana to "żółty"
-    wypisz (płatek tulipana)
+    wypisz płatek tulipana
     alias to tulipan
     płatek aliasu to "różowy"
-    wypisz (płatek tulipana)
+    wypisz płatek tulipana
     przemaluj tulipan
-    wypisz (płatek tulipana)
-    kopia to Tulipan o płatku (płatek tulipana)
+    wypisz płatek tulipana
+    kopia to Tulipan o płatku płatek tulipana
     płatek tulipana to "czarny"
-    wypisz (płatek kopii)
-    wypisz (płatek tulipana)
-    ogród to Ogród o rabacie (Rabata o tulipanie tulipana)
-    wypisz (płatek tulipana rabaty ogrodu)
+    wypisz płatek kopii
+    wypisz płatek tulipana
+    ogród to Ogród o rabacie Rabata o tulipanie tulipana
+    wypisz płatek tulipana rabaty ogrodu
     płatek tulipana rabaty ogrodu to "biały"
-    wypisz (płatek tulipana)
+    wypisz płatek tulipana
     koniec to Węzeł o wartości trzy o następniku Nic
     początek to Węzeł o wartości jeden o następniku końca
     gdy następnik początku jest:
@@ -44,7 +44,7 @@ aby działać:
             wartość ogniwa to pięć
         Niczym:
             wypisz "puste"
-    wypisz (wartość końca)
+    wypisz wartość końca
     następnik końca to Węzeł o wartości siedem o następniku Nic
     gdy następnik początku jest:
         Węzłem jako środek:

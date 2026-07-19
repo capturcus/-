@@ -28,10 +28,10 @@ aby rozebrać tekst:
                 zwróć Rozbiór o programie Nic o reszcie ogon
             jeśli głowa równa '[':
                 wnętrze to rozbierz ogon
-                ciąg to rozbierz (reszta wnętrza)
-                zwróć Rozbiór o programie (Ogniwo o ogonie (program ciągu) o głowie (Cykl o ciele (program wnętrza))) o reszcie (reszta ciągu)
+                ciąg to rozbierz reszta wnętrza
+                zwróć Rozbiór o programie (Ogniwo o ogonie program ciągu o głowie (Cykl o ciele program wnętrza)) o reszcie reszta ciągu
             ciąg to rozbierz ogon
-            zwróć Rozbiór o programie (Ogniwo o ogonie (program ciągu) o głowie (Krok o znaku głowa)) o reszcie (reszta ciągu)
+            zwróć Rozbiór o programie (Ogniwo o ogonie program ciągu o głowie (Krok o znaku głowa)) o reszcie reszta ciągu
 
 definicja Taśmy:
     przeszłość (Lista o elemencie Liczba)
@@ -43,7 +43,7 @@ definicja Stanu:
     wyjście (Lista o elemencie Liczba)
 
 aby przesunąć_w_prawo taśmę:
-    przeszłość taśmy to Ogniwo o głowie (komórka taśmy) o ogonie (przeszłość taśmy)
+    przeszłość taśmy to Ogniwo o głowie komórka taśmy o ogonie przeszłość taśmy
     gdy przyszłość taśmy jest:
         Ogniwem z głową z ogonem:
             komórka taśmy to głowa
@@ -52,7 +52,7 @@ aby przesunąć_w_prawo taśmę:
             komórka taśmy to zero
 
 aby przesunąć_w_lewo taśmę:
-    przyszłość taśmy to Ogniwo o głowie (komórka taśmy) o ogonie (przyszłość taśmy)
+    przyszłość taśmy to Ogniwo o głowie komórka taśmy o ogonie przyszłość taśmy
     gdy przeszłość taśmy jest:
         Ogniwem z głową z ogonem:
             komórka taśmy to głowa
@@ -71,7 +71,7 @@ aby wykonać program na stanie:
 aby obsłużyć rozkaz na stanie:
     gdy rozkaz jest:
         Cyklem z ciałem:
-            dopóki (komórka taśmy stanu) nierówna zero:
+            dopóki komórka taśmy stanu nierówna zero:
                 wykonaj ciało na stanie
         Krokiem ze znakiem:
             jeśli znak równy '+':
@@ -83,7 +83,7 @@ aby obsłużyć rozkaz na stanie:
             jeśli znak równy '<':
                 przesuń_w_lewo taśmę stanu
             jeśli znak równy '.':
-                wyjście stanu to Ogniwo o głowie (komórka taśmy stanu) o ogonie (wyjście stanu)
+                wyjście stanu to Ogniwo o głowie komórka taśmy stanu o ogonie wyjście stanu
 
 aby ogłosić listę:
     gdy lista jest:
@@ -97,5 +97,5 @@ aby działać:
     źródło to "++++++++++>+>+<<[->.[->>+<<]>[-<+>>+<]>[-<+>]<<<]"
     rozbiór to rozbierz źródło
     stan to Stan o taśmie (Taśma o przeszłości Nic o komórce zero o przyszłości Nic) o wyjściu Nic
-    wykonaj (program rozbioru) na stanie
+    wykonaj program rozbioru na stanie
     ogłoś wynik odwrócenia wyjścia stanu

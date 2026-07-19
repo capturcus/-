@@ -21,7 +21,7 @@ aby opakować wartość:
 aby mapować gałąź z przekształceniem -> Ogon:
     gdy gałąź jest:
         Węzłem z wartością z ogonem:
-            zwróć Węzeł o wartości (zastosuj przekształcenie z wartością) o ogonie (mapuj ogon z przekształceniem)
+            zwróć Węzeł o wartości zastosuj przekształcenie z wartością o ogonie mapuj ogon z przekształceniem
         Niczym:
             zwróć Nic
 
@@ -30,6 +30,6 @@ aby działać:
     efekty to mapuj liczby z opakowaniem
     gdy efekty są:
         Węzłem z wartością:
-            wypisz (imię wartości)
+            wypisz imię wartości
         Niczym:
             wypisz "pusto"
