@@ -9,8 +9,6 @@ w Ć czyta się jak (nieco techniczna) polszczyzna:
 ```
 uwzględnij przygrywka.ć
 
-można wypisać coś (Cokolwiek) -> Nic
-
 definicja Użytkownika:
     imię (Tekst)
     wiek (Liczba)
@@ -20,7 +18,7 @@ aby przywitać użytkownika:
 
 aby działać:
     gość to Użytkownik o imieniu "Ada" o wieku trzydzieści
-    wypisz przywitaj gościa
+    wypisz wynik przywitania gościa
     jeśli wiek gościa większy od osiemnastu:
         wypisz "pełnoletnia"
 ```
@@ -54,6 +52,7 @@ Spis treści:
 - [Bejcowanie — częściowa aplikacja `zwiąż`](#bejcowanie--częściowa-aplikacja-zwiąż)
 - [Obsługa błędów — `Rezultat` i tryb przypuszczający](#obsługa-błędów--rezultat-i-tryb-przypuszczający)
 - [Przygrywka — biblioteka standardowa](#przygrywka--biblioteka-standardowa)
+- [Operacje tekstowe — biblioteka `operacje_tekstowe.ć`](#operacje-tekstowe--biblioteka-operacje_tekstoweć)
 - [Grafika i gry — biblioteka `gra.ć`](#grafika-i-gry--biblioteka-grać)
 - [Wiele plików — `uwzględnij`](#wiele-plików--uwzględnij)
 - [System typów](#system-typów)
@@ -84,7 +83,9 @@ python3 gćć-python/gćć.py test/dna.ć --redis
 ```
 
 Migracja jest idempotentna — wykrywa nową wersję `sgjp.tab` i wtedy
-przeprowadza się ponownie, w przeciwnym razie nic nie robi.
+przeprowadza się ponownie, w przeciwnym razie nic nie robi. Redis
+spod innego adresu niż `redis://localhost:6379/0` wskazuje flaga
+`--redis-url`.
 
 Hasła archaiczne SGJP (kwalifikatory `daw.`/`arch.`) są **domyślnie
 wyłączone** — mało kto je kojarzy, a generują zaskakujące kolizje odmian
@@ -106,11 +107,14 @@ python3 uruchom_testy.py test_skradzion # scenariusze z suit OCamla,
 Testy interpretera: `cd gćć-python && python3 -m pytest -q`.
 
 Do VS Code jest wtyczka z kolorowaniem składni (katalog `vscode-ć/`) —
-instalacja przez symlink do `~/.vscode/extensions/` i restart edytora.
+instalacja przez katalog albo symlink w `~/.vscode/extensions/`
+i restart edytora.
 
-Błędy — składniowe, typów i wykonania — przychodzą jako
-`plik:linia: KlasaBłędu: komunikat` z fragmentem źródła; błędy wykonania
-dodatkowo z Ć-owym stosem wywołań.
+Błędy przychodzą po polsku, ze wskazaniem pliku i linii: składniowe
+i rezolucyjne jako `plik:linia: KlasaBłędu: komunikat` z fragmentem
+źródła, błędy typów i wykonania jako `plik: KlasaBłędu: komunikat`
+z linią w treści („podczas typowania linii N, w funkcji 'f'"); błędy
+wykonania dodatkowo z Ć-owym stosem wywołań.
 
 ---
 
@@ -152,7 +156,8 @@ $ python3 gćć-python/gćć.py --redis program.ć -- raz dwa trzy
 
 `wypisz` przyjmuje dowolną wartość: teksty drukuje wprost, liczby
 dziesiętnie, `Nic` jako `Nic`, struktury jako `Nazwa(pole: wartość, …)`
-(cykliczne struktury są bezpiecznie ucinane znacznikiem `…`).
+(cykliczne struktury nie zapętlają wypisu — rozwijanie ucina się na
+dużej głębokości znacznikiem `…`, więc taki wypis bywa długi).
 
 ---
 
@@ -285,8 +290,14 @@ dzielenie przez zero to błąd wykonania):
 ```
 podziel siedem przez dwa                  # → 3
 weź_resztę_z_dzielenia siedmiu przez dwa  # → 1
-podziel (minus siedem) przez dwa          # → -4
+
+ujemna to minus siedem
+podziel ujemną przez dwa                  # → -4
 ```
+
+(Nawias z wyrażeniem — `podziel (minus siedem) przez dwa` — nie
+przechodzi: wyrażenie nie niesie przypadka, więc trafia do zmiennej,
+jak wyżej.)
 
 ---
 
@@ -894,6 +905,8 @@ każdej innej liście):
 | `przekształcać listę z operacją` | mapa |
 | `przesiewać listę przez warunek` | filtr |
 | `wskazać pozycję na liście` | indeksowanie od **jedynki**, zwraca `Rezultat` |
+| `przełożyć listę na stos -> Lista` | odwrócenie z doklejeniem do akumulatora (cegiełka `skleić` i `odwrócić`) |
+| `sortować_szybko listę -> Lista` | quicksort rosnąco po `mniejsze od` (elementy: `Liczby`) |
 | `pokazać liczbę -> Tekst` | liczba jako tekst dziesiętny (z minusem) |
 | `przedstawić cyfrę -> Znak`, `rozwijać liczbę -> Tekst` | cegiełki `pokazać` |
 | `odczytać_liczbę z napisu -> Rezultat o elemencie Liczba` | tekst dziesiętny → liczba (odwrotność `pokazać`, z minusem); zły znak / pusty napis / sam minus dają `Błąd` z opisem |
@@ -906,6 +919,29 @@ Plus deklaracje wbudowanych: `podzielić`, `wziąć_resztę_z_dzielenia`,
 
 Typowy program interaktywny: `wczytaj_wejście` + `odczytaj_liczbę`
 z dopasowaniem `Rezultatu` — zobacz `test/sito_z_wejścia.ć`.
+
+(W pliku są jeszcze cegiełki wewnętrzne — `zbierać_cyfry`,
+`wybrać_mniejsze`, `wybrać_resztę` — używane przez `odczytać_liczbę`
+i `sortować_szybko`; ich lematy są zajęte jak każdej innej funkcji.)
+
+---
+
+## Operacje tekstowe — biblioteka `operacje_tekstowe.ć`
+
+`uwzględnij operacje_tekstowe.ć` (dołącza też przygrywkę) daje operacje
+na tekstach ponad to, co listowe funkcje przygrywki:
+
+| funkcja | znaczenie |
+|---|---|
+| `porównać tekst z drugim -> Liczba` | porządek leksykograficzny po punktach kodowych: `minus jeden` / `zero` / `jeden` |
+| `sprawdzić_obecność rozdzielnika (Znak) w tekście -> Przełącznik` | czy znak występuje w tekście |
+| `uciąć tekst przed rozdzielnikiem (Znak) -> Tekst` | prefiks do pierwszego rozdzielnika (bez niego); brak rozdzielnika → cały tekst |
+| `odciąć tekst za rozdzielnikiem (Znak) -> Tekst` | sufiks za pierwszym rozdzielnikiem; brak → pusty tekst |
+| `podzielić_tekst całość po rozdzielniku (Znak) -> Lista` | podział na listę kawałków (pusty kawałek ≡ `Nic`) |
+| `złączyć kawałki (Lista) rozdzielnikiem (Znak) -> Tekst` | odwrotność podziału |
+
+Użycie w praktyce: `test/słownik.ć`, `test/testowanie_tekstu.ć`,
+`manual_test/analizator_morfologiczny.ć`.
 
 ---
 
@@ -951,7 +987,10 @@ Typy z `gra.ć`: struktura `Barwa` (`czerwień`/`zieleń`/`błękit`, 0–255;
 gotowe barwy przez `dobierz_barwę "zieleń"` — czerń, biel, szarość,
 czerwień, zieleń, błękit, żółć, pomarańcz, fiolet, róż, brąz) oraz unia
 `Wydarzenie to Naciśnięcie albo Kliknięcie albo Ruch` — obsługiwana
-zwykłym dopasowaniem `jest:`. Nazwy klawiszy: `"lewo"`, `"prawo"`,
+zwykłym dopasowaniem `jest:`. Pola wariantów: `Naciśnięcie` niesie
+`klawisz (Tekst)`; `Kliknięcie` — `poziom`, `pion` i `przycisk`
+(`Liczby`; przycisk: jeden = lewy, dwa = środkowy, trzy = prawy);
+`Ruch` — `poziom` i `pion`. Nazwy klawiszy: `"lewo"`, `"prawo"`,
 `"góra"`, `"dół"`, `"spacja"`, `"enter"`, `"wyjście"`, litery i cyfry.
 
 Kompletna gra przykładowa: **`manual_test/wąż.ć`** (snake — siatka,
@@ -1069,7 +1108,7 @@ rzecz to 'z'                        # BŁĄD: Liczby i Znaku nie łączy unia
 
 Konflikt jest zgłaszany **natychmiast**, w linii przypisania-sprawcy,
 z wypisem poszlak (wszystkich faktów z liniami) — i z gotowym szablonem:
-„jeśli to zamierzone, zadeklaruj unię: `Rzecz to … albo …`". Gdy fakty
+„jeśli to zamierzone, zadeklaruj unię: `NazwaUnii to … albo …`". Gdy fakty
 pokrywa **więcej niż jedna** minimalna unia, to też błąd (remis) —
 rozstrzyga adnotacja.
 
@@ -1222,22 +1261,29 @@ Komunikaty niosą pełny ślad wnioskowania:
 ## Przykłady
 
 Katalog `test/` to żywa dokumentacja — każdy plik `*.ć` uruchamia się
-obecnym interpreterem, a `*.wynik` pokazuje jego wyjście:
+obecnym interpreterem: pary `*.ć`/`*.wynik` pokazują program i jego
+wyjście, a pary `*.ć`/`*.błąd` — programy, które mają odpaść, wraz
+z wymaganymi fragmentami komunikatu (np. `zakaz_bez_przypadka.ć`,
+`zawężenie_unieważnione.ć`). Wybór (tabela nie wyczerpuje katalogu):
 
 | plik | co pokazuje |
 |---|---|
 | `wypisanie.ć`, `arytmetyka.ć`, `porównania.ć`, `logika.ć`, `dzielenie.ć` | podstawy: wypis, operatory |
 | `funkcje.ć`, `złączenie_parametrów.ć` | funkcje, argumenty przyimkowe |
+| `przyimek_dla.ć`, `nazwane_argumenty.ć`, `słowo_wynik.ć`, `słowo_literał.ć`, `zawężanie_scope.ć` | rozstrzyganie argumentów: `dla` jako przyimek, argumenty nazwane, nośniki `wynik`/`literał`, zawężenie po scope |
 | `warunki.ć`, `pętla.ć`, `stop_dalej.ć`, `przypisania.ć` | sterowanie, przypisania |
 | `struktury.ć`, `unie.ć`, `dopasowanie.ć`, `jako.ć` | struktury, unie, dopasowanie |
 | `podmiot.ć`, `podmiot_wyrażenie.ć`, `przepisanie_podmiotu.ć`, `kursor.ć` | dopasowanie na wyrażeniu, zapis do podmiotu, idiom kursora |
 | `zawężenie.ć`, `przecięcie.ć`, `pierwszeństwo_unii.ć`, `dysjunkcja.ć`, `ujednoznacznienie.ć` | system typów w akcji |
 | `hierarchia.ć` | zagnieżdżone unie: podtypowanie przechodnie, gałąź-unia w dopasowaniu |
+| `zawężenie_po_zapisie.ć`, `unia_pola.ć`, `kandydaci_łańcucha.ć` | remedia po zgaszonym zawężeniu, pola wspólne unii, łańcuchy przez pola generyczne |
 | `adnotowana_deklaracja.ć`, `adnotowane_przepisanie.ć`, `aliasy.ć` | adnotacje i aliasy |
 | `tożsamość.ć`, `cykl.ć` | `równe` vs `tożsame`, struktury cykliczne |
 | `tekst_lista.ć`, `znak.ć`, `znak_liczba.ć`, `łańcuchy.ć`, `dna.ć` | teksty, znaki, most Znak↔Liczba |
 | `formy_gramatyczne.ć` | odmiany liczebników i porównań (`zera`, `większa od`, `nierówny`) |
+| `archaizmy.ć` | domyślne wyłączenie archaicznych haseł SGJP |
 | `kolekcje.ć`, `mapowanie.ć`, `aplikacja.ć` | funkcje wyższego rzędu |
+| `sortowanie.ć`, `testowanie_tekstu.ć`, `słownik.ć` | quicksort z przygrywki, operacje tekstowe |
 | `bejcowanie.ć`, `domknięcia.ć`, `sito_bejcowane.ć` | częściowa aplikacja `zwiąż`, thunki, domknięcia w filtrze |
 | `rezultat.ć`, `pliki.ć` | `Rezultat`, `?`, operacje na plikach |
 | `wczytanie_wejścia.ć`, `odczytanie_liczby.ć`, `sito_z_wejścia.ć` | standardowe wejście, parsowanie liczb z tekstu |
@@ -1261,9 +1307,11 @@ wyrażeń samego Ć (`wyrażenia.ć`), drzewa AVL (`parametryzowane.ć` +
 ```
 gćć-python/        interpreter (lexer → morfologia → parser → typechecker → executor) + testy pytest
 biblioteki/        biblioteki standardowe (przygrywka.ć, gra.ć, operacje_tekstowe.ć) — fallback dla `uwzględnij`
-test/              testy end-to-end języka (pary *.ć / *.wynik)
+test/              testy end-to-end języka (pary *.ć / *.wynik, negatywne *.ć / *.błąd)
+test_skradzion/    scenariusze typów przeniesione z suit OCamla, Flow, Crystala i TypeScriptu
 manual_test/       większe programy przykładowe
 vscode-ć/          wtyczka VS Code (kolorowanie składni)
+uruchom_testy.py   runner testów end-to-end (szczegóły: -h)
 sgjp.tab           słownik SGJP (niewersjonowany, do pobrania z https://morfeusz.sgjp.pl/download/)
 make_subset.py     generator podzbioru słownika do testów
 ```
