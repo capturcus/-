@@ -1,37 +1,19 @@
 # Przekład gćć-python/morph_anal.py na Ć.
 #
-# Brakujące elementy języka zastąpione konstrukcjami z typów
-# parametryzowanych i wariantowych:
-# - lista łączona:  Lista to Węzeł albo PustaLista  (zamiast list Pythona),
-# - rezultat:       Rezultat to Sukces albo Błąd    (zamiast None/wyjątków),
-# - słownik:        lista Haseł (klucz, zawartość); wstawienie nowego Hasła
-#   przesłania stare (semantyka assoc-listy zamiast dict.setdefault+update).
+# Kontenery i Rezultat pochodzą z przygrywki (Lista to Ogniwo albo Nic,
+# Sukces/Błąd), podział tekstu po separatorze z operacje_tekstowe.ć.
+# Słownik to lista Haseł (klucz, zawartość); wstawienie nowego Hasła
+# przesłania stare (semantyka assoc-listy zamiast dict.setdefault+update).
 #
-# Świadome uproszczenia względem pierwowzoru (wymagałyby stdlib):
-# - podzielić to funkcja zewnętrzna (można) — dzielenie tekstu po separatorze
-#   wymaga operacji na znakach, których język jeszcze nie ma,
+# Świadome uproszczenia względem pierwowzoru:
 # - kanonizować działa na pojedynczym słowie (segmentacja po "_" i wielkich
-#   literach to znów operacje tekstowe),
+#   literach to operacje tekstowe poza zakresem przekładu),
 # - pominięta poprawka lematów imiesłowów (cytaty) — wymaga kluczy złożonych,
 # - pominięty skrót "czasownik nie ma morfologii" oraz scalanie przypadków
 #   przyimków (wstawiamy nowsze hasło zamiast sumować zbiory).
 
-definicja Węzła z elementem:
-    głowa (element)
-    ogon (Lista)
-
-definicja PustejListy:
-    znacznik (Liczba)
-
-Lista to Węzeł albo PustaLista
-
-definicja Sukcesu z elementem:
-    wartość (element)
-
-definicja Błędu:
-    opis (Tekst)
-
-Rezultat to Sukces albo Błąd
+uwzględnij przygrywka.ć
+uwzględnij operacje_tekstowe.ć
 
 definicja Hasła z klucza na zawartość:
     klucz (klucz)
@@ -68,31 +50,23 @@ definicja OpisanegoSłowa:
 
 # ---------- operacje na listach ----------
 
-aby utworzyć_pustą:
-    zwróć PustaLista o znaczniku zero
-
 aby dodać element do listy:
-    zwróć Węzeł o głowie element o ogonie lista
-
-aby liczyć listę:
-    gdy lista jest:
-        PustąListą:
-            zwróć zero
-        Węzłem z ogonem:
-            zwróć jeden plus licz ogon
+    zwróć Ogniwo o głowie element o ogonie lista
 
 aby brać_pierwszą z listy:
     gdy lista jest:
-        PustąListą:
+        Niczym:
             zwróć Błąd o opisie "lista jest pusta"
-        Węzłem z głową:
+        Ogniwem z głową:
             zwróć Sukces o wartości głowa
 
+# Element o zadanej pozycji, licząc od ZERA — jak indeksy w pythonowym
+# pierwowzorze (przygrywkowe `wskazać` liczy od jedynki).
 aby wybrać pozycję z listy:
     gdy lista jest:
-        PustąListą:
+        Niczym:
             zwróć Błąd o opisie "pozycja poza listą"
-        Węzłem z głową z ogonem:
+        Ogniwem z głową z ogonem:
             jeśli pozycja równe zero:
                 zwróć Sukces o wartości głowa
             poprzednia to pozycja minus jeden
@@ -100,9 +74,9 @@ aby wybrać pozycję z listy:
 
 aby należeć element do zbioru:
     gdy zbiór jest:
-        PustąListą:
+        Niczym:
             zwróć fałsz
-        Węzłem z głową z ogonem:
+        Ogniwem z głową z ogonem:
             jeśli głowa równe element:
                 zwróć prawda
             zwróć należy element do ogona
@@ -110,9 +84,9 @@ aby należeć element do zbioru:
 # Przecięcie listy ze zbiorem (Python: frozenset(p for p in atoms if p in CASES)).
 aby filtrować atomy według zbioru:
     gdy atomy są:
-        PustąListą:
+        Niczym:
             zwróć atomy
-        Węzłem z głową z ogonem:
+        Ogniwem z głową z ogonem:
             reszta to filtruj ogon według zbioru
             jeśli należy głowa do zbioru:
                 zwróć dodaj głowę do reszty
@@ -136,9 +110,9 @@ aby wydobyć opcję z awaryjną:
 
 aby szukać klucza w słowniku:
     gdy słownik jest:
-        PustąListą:
+        Niczym:
             zwróć Błąd o opisie "nie znaleziono klucza"
-        Węzłem z głową z ogonem:
+        Ogniwem z głową z ogonem:
             jeśli klucz głowy równe klucz:
                 zwróć Sukces o wartości zawartość głowy
             zwróć szukaj klucza w ogonie
@@ -149,9 +123,9 @@ aby wstawić klucz z zawartością do słownika:
 # Mapowanie atomów rodzaju przez GENDER_MAP — zbiera tylko trafienia.
 aby tłumaczyć atomy przez mapę:
     gdy atomy są:
-        PustąListą:
+        Niczym:
             zwróć atomy
-        Węzłem z głową z ogonem:
+        Ogniwem z głową z ogonem:
             reszta to tłumacz ogon przez mapę
             znalezisko to szukaj głowy w mapie
             gdy znalezisko jest:
@@ -161,15 +135,10 @@ aby tłumaczyć atomy przez mapę:
                     zwróć resztę
 
 
-# ---------- stdlib tekstu (funkcja zewnętrzna) ----------
-
-można podzielić tekst (Tekst) po separatorze (Tekst) -> Lista
-
-
 # ---------- stałe z morph_anal.py ----------
 
 aby wymienić_przypadki:
-    zbiór to utwórz_pustą
+    zbiór to Nic
     zbiór to dodaj "nom" do zbioru
     zbiór to dodaj "gen" do zbioru
     zbiór to dodaj "dat" do zbioru
@@ -180,13 +149,13 @@ aby wymienić_przypadki:
     zwróć zbiór
 
 aby wymienić_liczby:
-    zbiór to utwórz_pustą
+    zbiór to Nic
     zbiór to dodaj "sg" do zbioru
     zbiór to dodaj "pl" do zbioru
     zwróć zbiór
 
 aby wymienić_mapę_rodzajów:
-    mapa to utwórz_pustą
+    mapa to Nic
     mapa to wstaw "m1" z "m" do mapy
     mapa to wstaw "m2" z "m" do mapy
     mapa to wstaw "m3" z "m" do mapy
@@ -198,14 +167,14 @@ aby wymienić_mapę_rodzajów:
     zwróć mapę
 
 aby wymienić_klasy_przymiotnikowe:
-    zbiór to utwórz_pustą
+    zbiór to Nic
     zbiór to dodaj "adj" do zbioru
     zbiór to dodaj "pact" do zbioru
     zbiór to dodaj "ppas" do zbioru
     zwróć zbiór
 
 aby wymienić_klasy_czasownikowe:
-    zbiór to utwórz_pustą
+    zbiór to Nic
     zbiór to dodaj "fin" do zbioru
     zbiór to dodaj "impt" do zbioru
     zbiór to dodaj "inf" do zbioru
@@ -226,16 +195,16 @@ aby wymienić_klasy_czasownikowe:
 # wygrywa" jak w pythonowej pętli z continue.
 aby badać części:
     gdy części są:
-        PustąListą:
-            zwróć Morfologia o przypadkach utwórz_pustą o liczbie (Błąd o opisie "brak liczby w tagu") o rodzajach utwórz_pustą
-        Węzłem z głową z ogonem:
+        Niczym:
+            zwróć Morfologia o przypadkach Nic o liczbie (Błąd o opisie "brak liczby w tagu") o rodzajach Nic
+        Ogniwem z głową z ogonem:
             morfologia to badaj ogon
-            atomy to podziel głowę po "."
+            atomy to podziel_tekst głowę po '.'
             trafione to filtruj atomy według wyniku wymienienia_przypadków
             gdy trafione jest:
-                Węzłem:
+                Ogniwem:
                     przypadki morfologii to trafione
-                PustąListą:
+                Niczym:
                     liczby to filtruj atomy według wyniku wymienienia_liczb
                     możliwa_liczba to bierz_pierwszą z liczb
                     gdy możliwa_liczba jest:
@@ -244,9 +213,9 @@ aby badać części:
                         Błędem:
                             przetłumaczone to tłumacz atomy przez wynik wymienienia_mapy_rodzajów
                             gdy przetłumaczone jest:
-                                Węzłem:
+                                Ogniwem:
                                     rodzaje morfologii to przetłumaczone
-                                PustąListą:
+                                Niczym:
                                     ignoruj atomy
             zwróć morfologię
 
@@ -256,16 +225,16 @@ aby badać części:
 # Jeden wiersz sgjp.tab -> Sukces z Analizą (albo Błąd dla za krótkich
 # wierszy — `?` propaguje go z wybrać).
 aby przetwarzać wiersz:
-    części to podziel wiersz po "\t"
+    części to podziel_tekst wiersz po '\t'
     napis to wybrałbyś zero z części?
     pole to wybrałbyś jeden z części?
     etykieta to wybrałbyś dwa z części?
     kwalifikator to wydobądź wynik wybrania czterech z części z ""
-    kawałki_pola to podziel pole po ":"
+    kawałki_pola to podziel_tekst pole po ':'
     lemat to wydobądź wynik brania_pierwszej z kawałków_pola z polem
-    kawałki_etykiety to podziel etykieta po ":"
+    kawałki_etykiety to podziel_tekst etykietę po ':'
     klasa to wydobądź wynik brania_pierwszej z kawałków_etykiety z etykietą
-    morfologia to badaj wynik podzielenia etykiety po ":"
+    morfologia to badaj kawałki_etykiety
     analiza to Analiza o napisie napis o klasie klasa o lemacie lemat o etykiecie etykieta o kwalifikatorze kwalifikator o przypadkach przypadki morfologii o liczbie liczba morfologii o rodzajach rodzaje morfologii
     zwróć Sukces o wartości analiza
 
@@ -277,15 +246,15 @@ aby dopisać analizę w słowniku:
             zbiór to dodaj analizę do wartości
             zwróć wstaw napis analizy ze zbiorem do słownika
         Błędem:
-            zalążek to utwórz_pustą
+            zalążek to Nic
             zbiór to dodaj analizę do zalążka
             zwróć wstaw napis analizy ze zbiorem do słownika
 
 aby wczytywać wiersze:
     gdy wiersze są:
-        PustąListą:
-            zwróć Baza o formach utwórz_pustą o przyimkach utwórz_pustą
-        Węzłem z głową z ogonem:
+        Niczym:
+            zwróć Baza o formach Nic o przyimkach Nic
+        Ogniwem z głową z ogonem:
             baza to wczytuj ogon
             możliwa_analiza to przetwarzaj głowę
             gdy możliwa_analiza jest:
@@ -302,44 +271,45 @@ aby wczytywać wiersze:
 
 aby analizować słowa w słowniku:
     gdy słowa są:
-        PustąListą:
-            zwróć słowa
-        Węzłem z głową z ogonem:
+        Niczym:
+            zwróć Nic
+        Ogniwem z głową z ogonem:
             reszta to analizuj ogon w słowniku
             znalezisko to szukaj głowy w słowniku
-            zalążek to utwórz_pustą
+            zalążek to Nic
             analizy to wydobądź znalezisko z zalążkiem
             zwróć dodaj (OpisaneSłowo o słowie głowa o analizach analizy) do reszty
 
 
 # ---------- canonical() ----------
 
-# Analizy o klasie przymiotnikowej (adj/pact/ppas).
-aby przesiewać analizy według klas:
+# Analizy o klasie przymiotnikowej (adj/pact/ppas); nazwa `odsiewać`,
+# bo `przesiewać` (filtr po warunku funkcyjnym) zajmuje przygrywka.
+aby odsiewać analizy według klas:
     gdy analizy są:
-        PustąListą:
+        Niczym:
             zwróć analizy
-        Węzłem z głową z ogonem:
-            reszta to przesiewaj ogon według klas
+        Ogniwem z głową z ogonem:
+            reszta to odsiewaj ogon według klas
             jeśli należy klasa głowy do klas:
                 zwróć dodaj głowę do reszty
             zwróć resztę
 
 # Pula kanonizacji: analizy przymiotnikowe, a gdy ich brak — wszystkie.
 aby wybrać_pulę z analiz:
-    przymiotnikowe to przesiewaj analizy według wyniku wymienienia_klas_przymiotnikowych
+    przymiotnikowe to odsiewaj analizy według wyniku wymienienia_klas_przymiotnikowych
     gdy przymiotnikowe jest:
-        PustąListą:
+        Niczym:
             zwróć analizy
-        Węzłem:
+        Ogniwem:
             zwróć przymiotnikowe
 
 # Pierwsza analiza, której lemat równa się słowu (citation match).
 aby wyszukiwać słowo w analizach:
     gdy analizy są:
-        PustąListą:
+        Niczym:
             zwróć Błąd o opisie "żaden lemat nie pasuje"
-        Węzłem z głową z ogonem:
+        Ogniwem z głową z ogonem:
             jeśli lemat głowy równe słowo:
                 zwróć Sukces o wartości głowa
             zwróć wyszukuj słowo w ogonie
@@ -367,29 +337,34 @@ aby kanonizować słowo w słowniku:
 # ---------- przykład użycia ----------
 
 aby działać:
-    wiersze to utwórz_pustą
+    wiersze to Nic
     wiersze to dodaj "kota\tkot\tsubst:sg:gen.acc:m2" do wierszy
     wiersze to dodaj "kot\tkot\tsubst:sg:nom:m2" do wierszy
     wiersze to dodaj "ładny\tładny\tadj:sg:nom:m1.m2.m3:pos" do wierszy
     wiersze to dodaj "dla\tdla\tprep:gen" do wierszy
     baza to wczytuj wiersze
-    słowa to utwórz_pustą
+    słowa to Nic
     słowa to dodaj "kota" do słów
     słowa to dodaj "ładny" do słów
     opisane to analizuj słowa w formach bazy
-    liczba_opisanych to licz opisane
+    liczba_opisanych to zmierz opisane
+    wypisz liczbę_opisanych
     kanon to kanonizuj "kota" w formach bazy
-    morfologia to badaj wynik podzielenia "subst:sg:gen.acc:m2" po ":"
-    liczba_przypadków to licz przypadki morfologii
+    wypisz kanon
+    morfologia to badaj wynik podzielenia_tekstu "subst:sg:gen.acc:m2" po ':'
+    liczba_przypadków to zmierz przypadki morfologii
+    wypisz liczbę_przypadków
     gdy liczba morfologii jest:
         Sukcesem z wartością:
             kanon to wartość
         Błędem z opisem:
             kanon to opis
+    wypisz kanon
     znalezisko to szukaj "kota" w formach bazy
     liczba_analiz to zero
     gdy znalezisko jest:
         Sukcesem z wartością:
-            liczba_analiz to licz wartość
+            liczba_analiz to zmierz wartość
         Błędem:
             ignoruj znalezisko
+    wypisz liczbę_analiz

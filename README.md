@@ -66,7 +66,7 @@ Spis treści:
 ## Szybki start
 
 Wymagania: Python 3 oraz plik słownika `sgjp.tab` (Słownik Gramatyczny
-Języka Polskiego w formacie tab, do pobrania z sgjp.pl) w korzeniu
+Języka Polskiego w formacie tab, do pobrania z https://morfeusz.sgjp.pl/download/) w korzeniu
 repozytorium — interpreter analizuje morfologicznie każde słowo programu,
 więc bez słownika nie ruszy.
 
@@ -1264,6 +1264,6 @@ biblioteki/        biblioteki standardowe (przygrywka.ć, gra.ć, operacje_tekst
 test/              testy end-to-end języka (pary *.ć / *.wynik)
 manual_test/       większe programy przykładowe
 vscode-ć/          wtyczka VS Code (kolorowanie składni)
-sgjp.tab           słownik SGJP (niewersjonowany, do pobrania z sgjp.pl)
+sgjp.tab           słownik SGJP (niewersjonowany, do pobrania z https://morfeusz.sgjp.pl/download/)
 make_subset.py     generator podzbioru słownika do testów
 ```

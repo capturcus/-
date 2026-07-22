@@ -34,11 +34,13 @@ README zaktualizowane (sekcja Struktury + Pułapki). Testy:
 `test_pole_luźne_zakazane`, `test_pole_luźne_zakaz_częściowa_aplikacja`,
 `test_pole_związane_wszystkie_formy_legalne`.
 
-Uwaga: `instagram.ć`, `analizator_morfologiczny.ć` i `wyrażenia.ć` mają
-związane pola, ale pozostają w stanie legacy sprzed tej sesji (brak
+Uwaga: `instagram.ć`, `analizator_morfologiczny.ć` i `wyrażenia.ć` miały
+związane pola, ale pozostawały w stanie legacy sprzed tej sesji (brak
 aliasu `Tekst` po zdjęciu Tekstu z builtinów; ich własna `PustaLista`
-nie zgadza się z desugarem literałów do `Nic`) — osobna migracja
-przygrywkowa, poza zakresem napraw typów.
+nie zgadzała się z desugarem literałów do `Nic`). Migracja przygrywkowa
+wykonana 2026-07-22 — oba programy typują się i uruchamiają (kontenery
+z przygrywki, podział tekstu z operacje_tekstowe.ć, IO instagrama
+zasymulowane wypisem, bo externy `można` nie miały implementacji).
 
 ## Crash typecheckera — NAPRAWIONY
 
@@ -261,5 +263,4 @@ test_diagnostyka.py.
 ## Pozostałe rysy (świadomie poza zakresem tej sesji)
 
 - surowe tracebacki Pythona z builtinów (`ord()`, `+`) przy błędach
-  runtime zamiast `CRuntimeError` z Ć-owym stosem — do owinięcia,
-- legacy manual_test (patrz uwaga w p. 2).
+  runtime zamiast `CRuntimeError` z Ć-owym stosem — do owinięcia.

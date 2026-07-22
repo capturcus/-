@@ -1,33 +1,16 @@
 # Backend aplikacji typu Instagram.
 #
 # Architektura:
-# - kontenery własne: Lista (Węzeł albo PustaLista) — jak w analizatorze,
-# - jedna unia Rezultat (Sukces albo Błąd) obsługuje i lookupy, i operacje
-#   API; wywołania z obsługą błędu (tryb przypuszczający + `?`) propagują
-#   Błąd z lookupów bez zagnieżdżonych dopasowań,
+# - kontenery i Rezultat z przygrywki: Lista to Ogniwo albo Nic,
+#   Sukces/Błąd; wywołania z obsługą błędu (tryb przypuszczający + `?`)
+#   propagują Błąd z lookupów bez zagnieżdżonych dopasowań,
 # - stan aplikacji mutowany zapisami do pól (chain-LHS), identyfikatory
 #   nadaje licznik w stanie,
-# - IO (sieć, dziennik, zegar, operacje tekstowe) zadeklarowane przez
-#   `można` — sygnatury w całości jawne.
+# - świat zewnętrzny (sieć, dziennik, powiadomienia, zegar) zasymulowany
+#   funkcjami piszącymi na standardowe wyjście; zegar zwraca stałą,
+#   żeby wypis był deterministyczny.
 
-# ---------- kontenery ----------
-
-definicja Węzła z elementem:
-    głowa (element)
-    ogon (Lista)
-
-definicja PustejListy:
-    znacznik (Liczba)
-
-Lista to Węzeł albo PustaLista
-
-definicja Sukcesu z elementem:
-    wartość (element)
-
-definicja Błędu:
-    opis (Tekst)
-
-Rezultat to Sukces albo Błąd
+uwzględnij przygrywka.ć
 
 # ---------- model domeny ----------
 
@@ -53,35 +36,34 @@ definicja Stanu:
     wpisy (Lista o elemencie Post)
     licznik (Liczba)
 
-# ---------- świat zewnętrzny ----------
+# ---------- świat zewnętrzny (symulowany wypisem) ----------
 
-można wysłać_odpowiedź tekst (Tekst) do klienta (Liczba) -> Nic
-można zapisać_dziennik wpis (Tekst) -> Nic
-można powiadamiać odbiorcę (Liczba) o nowości (Tekst) -> Nic
-można pobrać_czas -> Liczba
-można skleić tekst (Tekst) z drugim (Tekst) -> Tekst
-można zakodować liczbę (Liczba) -> Tekst
+aby wysłać_odpowiedź tekst do klienta:
+    nagłówek to sklej "-> klient " z wynikiem pokazania klienta
+    linia to sklej nagłówek z ": "
+    wypisz wynik sklejenia linii z tekstem
+
+aby zapisać_dziennik wpis:
+    wypisz wynik sklejenia "[dziennik] " z wpisem
+
+aby powiadamiać odbiorcę o nowości:
+    nagłówek to sklej "[powiadomienie dla " z wynikiem pokazania odbiorcy
+    linia to sklej nagłówek z "] "
+    wypisz wynik sklejenia linii z nowością
+
+aby pobrać_czas:
+    zwróć zero
 
 # ---------- operacje na listach ----------
 
-aby utworzyć_pustą:
-    zwróć PustaLista o znaczniku zero
-
 aby dodać element do listy:
-    zwróć Węzeł o głowie element o ogonie lista
-
-aby liczyć listę:
-    gdy lista jest:
-        PustąListą:
-            zwróć zero
-        Węzłem z ogonem:
-            zwróć jeden plus licz ogon
+    zwróć Ogniwo o głowie element o ogonie lista
 
 aby należeć element do zbioru:
     gdy zbiór jest:
-        PustąListą:
+        Niczym:
             zwróć fałsz
-        Węzłem z głową z ogonem:
+        Ogniwem z głową z ogonem:
             jeśli głowa równe element:
                 zwróć prawda
             zwróć należy element do ogona
@@ -91,9 +73,9 @@ aby należeć element do zbioru:
 # wystarczy, że element ma pole `identyfikator`.
 aby wyszukiwać numer w rekordach:
     gdy rekordy są:
-        PustąListą:
+        Niczym:
             zwróć Błąd o opisie "nie znaleziono rekordu"
-        Węzłem z głową z ogonem:
+        Ogniwem z głową z ogonem:
             jeśli identyfikator głowy równe numer:
                 zwróć Sukces o wartości głowa
             zwróć wyszukuj numer w ogonie
@@ -101,7 +83,7 @@ aby wyszukiwać numer w rekordach:
 # ---------- operacje API (mutują stan, zwracają Rezultat) ----------
 
 aby zarejestrować nazwę w stanie:
-    użytkownik to Użytkownik o identyfikatorze licznik stanu o nazwie nazwa o obserwowanych utwórz_pustą
+    użytkownik to Użytkownik o identyfikatorze licznik stanu o nazwie nazwa o obserwowanych Nic
     użytkownicy stanu to dodaj użytkownika do użytkowników stanu
     licznik stanu to licznik stanu plus jeden
     zapisz_dziennik wynik sklejenia "nowe konto: " z nazwą
@@ -109,7 +91,7 @@ aby zarejestrować nazwę w stanie:
 
 aby opublikować treść przez autora w stanie:
     twórca to wyszukiwałbyś autora w użytkownikach stanu?
-    post to Post o identyfikatorze licznik stanu o autorze autor o treści treść o chwili pobierz_czas o polubieniach utwórz_pustą o komentarzach utwórz_pustą
+    post to Post o identyfikatorze licznik stanu o autorze autor o treści treść o chwili (pobierz_czas) o polubieniach Nic o komentarzach Nic
     wpisy stanu to dodaj post do wpisów stanu
     licznik stanu to licznik stanu plus jeden
     zwróć Sukces o wartości "opublikowano"
@@ -140,9 +122,9 @@ aby obserwować cel przez fana w stanie:
 
 aby zbierać posty dla obserwowanych:
     gdy posty są:
-        PustąListą:
+        Niczym:
             zwróć posty
-        Węzłem z głową z ogonem:
+        Ogniwem z głową z ogonem:
             reszta to zbieraj ogon dla obserwowanych
             jeśli należy autor głowy do obserwowanych:
                 zwróć dodaj głowę do reszty
@@ -150,9 +132,9 @@ aby zbierać posty dla obserwowanych:
 
 aby opisywać posty:
     gdy posty są:
-        PustąListą:
+        Niczym:
             zwróć ""
-        Węzłem z głową z ogonem:
+        Ogniwem z głową z ogonem:
             zwróć sklej treść głowy z wynikiem opisywania ogona
 
 # ---------- obsługa odpowiedzi ----------
@@ -168,19 +150,19 @@ aby zgłaszać rezultat do klienta:
 # ---------- przykładowa sesja ----------
 
 aby działać:
-    stan to Stan o użytkownikach utwórz_pustą o wpisach utwórz_pustą o liczniku jeden
-    zgłaszaj wynik zarejestrowania "ada" w stanie do jeden
-    zgłaszaj wynik zarejestrowania "bob" w stanie do dwa
-    zgłaszaj wynik opublikowania "pierwszy post na osi" przez jeden w stanie do jeden
-    zgłaszaj wynik polubienia trzy przez dwa w stanie do dwa
-    zgłaszaj wynik skomentowania trzy przez dwa literałem "ładne zdjęcie" w stanie do dwa
-    zgłaszaj wynik obserwowania jeden przez dwa w stanie do dwa
+    stan to Stan o użytkownikach Nic o wpisach Nic o liczniku jeden
+    zgłaszaj wynik zarejestrowania "ada" w stanie do jednego
+    zgłaszaj wynik zarejestrowania "bob" w stanie do dwóch
+    zgłaszaj wynik opublikowania "pierwszy post na osi" przez jeden w stanie do jednego
+    zgłaszaj wynik polubienia trzy przez dwa w stanie do dwóch
+    zgłaszaj wynik skomentowania trzy przez dwa literałem "ładne zdjęcie" w stanie do dwóch
+    zgłaszaj wynik obserwowania jeden przez dwa w stanie do dwóch
     obserwator to wyszukuj dwa w użytkownikach stanu
     gdy obserwator jest:
         Sukcesem z wartością:
             oś to zbieraj wpisy stanu dla obserwowanych wartości
-            wyślij_odpowiedź wynik opisywania osi do dwa
+            wyślij_odpowiedź wynik opisywania osi do dwóch
         Błędem z opisem:
             zapisz_dziennik opis
-    rekordy to licz wpisy stanu
-    wyślij_odpowiedź wynik sklejenia "liczba rekordów: " z wynikiem zakodowania rekordów do jeden
+    rekordy to zmierz wpisy stanu
+    wyślij_odpowiedź wynik sklejenia "liczba rekordów: " z wynikiem pokazania rekordów do jednego
